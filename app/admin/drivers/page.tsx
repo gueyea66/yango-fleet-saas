@@ -1,0 +1,282 @@
+"use client";
+
+export const dynamic = "force-dynamic";
+
+import { useState, useEffect } from "react";
+import { useAuth } from "@/lib/auth/context";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+import { listAllDrivers } from "@/lib/services/auth";
+
+interface Driver {
+  id: string;
+  driver_id: string;
+  full_name: string;
+  email: string;
+  created_at: string;
+}
+
+export default function DriversPage() {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+  const [loadingDrivers, setLoadingDrivers] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  const [formData, setFormData] = useState({
+    driverId: "",
+    fullName: "",
+    password: "",
+  });
+
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/auth/login");
+    }
+  }, [user, loading, router]);
+
+  useEffect(() => {
+    loadDrivers();
+  }, []);
+
+  const loadDrivers = async () => {
+    try {
+      setLoadingDrivers(true);
+      const driversList = await listAllDrivers();
+      setDrivers(driversList);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoadingDrivers(false);
+    }
+  };
+
+  const handleCreateDriver = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormLoading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      if (!formData.driverId || !formData.fullName || !formData.password) {
+        setError("Tous les champs sont requis");
+        setFormLoading(false);
+        return;
+      }
+
+      const response = await fetch("/api/admin/drivers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          driverId: formData.driverId.toUpperCase(),
+          fullName: formData.fullName,
+          password: formData.password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erreur lors de la création");
+      }
+
+      setSuccess(
+        `Conducteur ${formData.driverId.toUpperCase()} créé avec succès`
+      );
+      setFormData({ driverId: "", fullName: "", password: "" });
+      setShowForm(false);
+
+      // Reload drivers list
+      await loadDrivers();
+    } catch (err: any) {
+      setError(err.message || "Erreur lors de la création du conducteur");
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleDeleteDriver = async (driverId: string) => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer le conducteur ${driverId} ?`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/admin/drivers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete",
+          driverId,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erreur lors de la suppression");
+      }
+
+      setSuccess(`Conducteur ${driverId} supprimé`);
+      await loadDrivers();
+    } catch (err: any) {
+      setError(err.message || "Erreur lors de la suppression");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-lg text-gray-600">Chargement...</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-900">
+      {/* Header */}
+      <div className="border-b border-gray-700 px-6 py-4 bg-gray-800 sticky top-0 z-50">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => router.back()}
+              className="text-gray-400 hover:text-white"
+            >
+              ← Retour
+            </button>
+            <h1 className="text-2xl font-bold text-white">Gestion des conducteurs</h1>
+          </div>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="bg-yellow-500 hover:bg-yellow-600 text-black font-semibold px-4 py-2 rounded"
+          >
+            {showForm ? "Annuler" : "+ Nouveau conducteur"}
+          </button>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div className="p-6 max-w-4xl mx-auto">
+        {error && (
+          <div className="bg-red-900 bg-opacity-30 border border-red-600 rounded px-4 py-3 mb-6 text-red-300">
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="bg-green-900 bg-opacity-30 border border-green-600 rounded px-4 py-3 mb-6 text-green-300">
+            {success}
+          </div>
+        )}
+
+        {showForm && (
+          <div className="bg-gray-800 border border-gray-700 rounded-lg p-6 mb-8">
+            <h2 className="text-xl font-bold text-white mb-4">Créer un nouveau conducteur</h2>
+            <form onSubmit={handleCreateDriver} className="space-y-4">
+              <div>
+                <label className="text-xs uppercase font-semibold text-gray-400 block mb-2">
+                  ID Conducteur (ex: DRV001)
+                </label>
+                <input
+                  type="text"
+                  value={formData.driverId}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      driverId: e.target.value.toUpperCase(),
+                    })
+                  }
+                  placeholder="DRV001"
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs uppercase font-semibold text-gray-400 block mb-2">
+                  Nom complet
+                </label>
+                <input
+                  type="text"
+                  value={formData.fullName}
+                  onChange={(e) =>
+                    setFormData({ ...formData, fullName: e.target.value })
+                  }
+                  placeholder="Moussa Diallo"
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-500"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="text-xs uppercase font-semibold text-gray-400 block mb-2">
+                  Mot de passe
+                </label>
+                <input
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) =>
+                    setFormData({ ...formData, password: e.target.value })
+                  }
+                  placeholder="••••••••"
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-500"
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={formLoading}
+                className="w-full bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-black font-semibold py-2 rounded"
+              >
+                {formLoading ? "Création..." : "Créer le conducteur"}
+              </button>
+            </form>
+          </div>
+        )}
+
+        {/* Drivers list */}
+        {loadingDrivers ? (
+          <div className="text-center text-gray-400 py-12">Chargement...</div>
+        ) : drivers.length === 0 ? (
+          <div className="text-center text-gray-400 py-12">
+            Aucun conducteur. Créez-en un pour commencer.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4">
+            {drivers.map((driver) => (
+              <div
+                key={driver.id}
+                className="bg-gray-800 border border-gray-700 rounded-lg p-4 flex items-center justify-between"
+              >
+                <div className="flex-1">
+                  <div className="font-bold text-white">{driver.driver_id}</div>
+                  <div className="text-sm text-gray-400">{driver.full_name}</div>
+                  <div className="text-xs text-gray-500 mt-1">
+                    Créé: {new Date(driver.created_at).toLocaleDateString("fr-FR")}
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleDeleteDriver(driver.driver_id)}
+                    className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded text-sm"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

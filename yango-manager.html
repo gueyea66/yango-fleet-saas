@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yango Fleet — Gestionnaire</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0c0f;
+  --bg2:#111318;
+  --bg3:#181c23;
+  --bg4:#1e2330;
+  --border:#2a2f3d;
+  --border2:#343b4f;
+  --text:#f0f2f7;
+  --text2:#8b92a8;
+  --text3:#555e75;
+  --accent:#f5a623;
+  --accent2:#e8951a;
+  --green:#22c55e;
+  --red:#ef4444;
+  --blue:#3b82f6;
+  --purple:#a855f7;
+  --card-r:14px;
+  --r:8px;
+}
+body{font-family:'Sora',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:14px;line-height:1.6}
+input,select,textarea{font-family:'Sora',sans-serif;font-size:14px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:var(--r);padding:10px 14px;width:100%;outline:none;transition:border .2s}
+input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+button{font-family:'Sora',sans-serif;cursor:pointer;border:none;outline:none;transition:all .15s}
+.btn{padding:10px 20px;border-radius:var(--r);font-size:13px;font-weight:500}
+.btn-primary{background:var(--accent);color:#000}
+.btn-primary:hover{background:var(--accent2)}
+.btn-ghost{background:transparent;border:1px solid var(--border2);color:var(--text2)}
+.btn-ghost:hover{border-color:var(--border);color:var(--text);background:var(--bg3)}
+.btn-danger{background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);color:var(--red)}
+.btn-success{background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.3);color:var(--green)}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--card-r);padding:20px}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.3px}
+.badge-pending{background:rgba(245,166,35,.12);color:var(--accent)}
+.badge-valid{background:rgba(34,197,94,.12);color:var(--green)}
+.badge-reject{background:rgba(239,68,68,.12);color:var(--red)}
+.mono{font-family:'JetBrains Mono',monospace}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.fade-in{animation:fadeIn .3s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:600px){.grid2,.grid3,.grid4{grid-template-columns:1fr}}
+.kpi{background:var(--bg3);border:1px solid var(--border);border-radius:var(--card-r);padding:16px}
+.kpi label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;font-weight:600}
+.kpi .val{font-size:22px;font-weight:700;color:var(--text);font-family:'JetBrains Mono',monospace;margin-top:4px}
+.kpi .sub{font-size:11px;color:var(--text3);margin-top:3px}
+.kpi.accent-border{border-left:3px solid var(--accent)}
+.kpi.green-border{border-left:3px solid var(--green)}
+.kpi.blue-border{border-left:3px solid var(--blue)}
+.kpi.red-border{border-left:3px solid var(--red)}
+.sep{border:none;border-top:1px solid var(--border);margin:16px 0}
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:11px;font-weight:500}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.col{display:flex;flex-direction:column;gap:8px}
+.fl{display:flex;align-items:center;gap:10px}
+.alert{padding:12px 16px;border-radius:var(--r);font-size:13px;margin-bottom:12px}
+.alert-warn{background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);color:#f5c842}
+.alert-err{background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.2);color:#f87171}
+.alert-ok{background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);color:#4ade80}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback,useMemo}=React;
+
+/* ─── HELPERS ─── */
+const xof=(n)=>new Intl.NumberFormat('fr-FR',{style:'currency',currency:'XOF',maximumFractionDigits:0}).format(n||0);
+const fmt=(n,d=0)=>new Intl.NumberFormat('fr-FR',{maximumFractionDigits:d}).format(n||0);
+const todayStr=()=>new Date().toISOString().slice(0,10);
+const dateLabel=(s)=>new Date(s+'T12:00:00').toLocaleDateString('fr-FR',{day:'2-digit',month:'short'});
+const calcReport=(r,cfg)=>{
+  const base=+(r.yango_gross||0)+ +(r.yango_bonus||0);
+  const commY=base*(cfg.comm_yango/100);
+  const commP=base*(cfg.comm_partner/100);
+  const netY=base-commY-commP;
+  const netOff=+(r.off_yango_revenue||0);
+  const total=netY+netOff;
+  return{base,commY,commP,netY,netOff,total};
+};
+const salaryLevel=(net,rules)=>{
+  const sorted=[...rules].sort((a,b)=>b.min_net-a.min_net);
+  return sorted.find(r=>net>=r.min_net)||rules[0];
+};
+const uid=()=>Math.random().toString(36).slice(2,9);
+
+/* ─── DEFAULT DATA ─── */
+const DEFAULT_CFG={
+  comm_yango:15,comm_partner:0.75,
+  salary_fixed:200000,acompte:100000,
+  monthly_goal:1300000,
+  salary_rules:[
+    {id:'s1',min_net:0,max_net:999999,total_salary:200000,label:'Base'},
+    {id:'s2',min_net:1000000,max_net:1149999,total_salary:230000,label:'Palier 1'},
+    {id:'s3',min_net:1150000,max_net:1299999,total_salary:260000,label:'Palier 2'},
+    {id:'s4',min_net:1300000,max_net:9999999,total_salary:300000,label:'Palier 3'},
+  ]
+};
+
+const seed_reports=[
+  {id:'r1',driver_id:'d1',vehicle_id:'v1',report_date:'2025-06-01',end_odometer:48200,yango_gross:28500,yango_bonus:1200,off_yango_revenue:5000,yango_trip_count:18,off_yango_trip_count:3,status:'validated',admin_comment:'',created_at:'2025-06-01'},
+  {id:'r2',driver_id:'d1',vehicle_id:'v1',report_date:'2025-06-02',end_odometer:48420,yango_gross:31000,yango_bonus:800,off_yango_revenue:3500,yango_trip_count:20,off_yango_trip_count:2,status:'validated',admin_comment:'',created_at:'2025-06-02'},
+  {id:'r3',driver_id:'d1',vehicle_id:'v1',report_date:'2025-06-03',end_odometer:48640,yango_gross:25000,yango_bonus:0,off_yango_revenue:8000,yango_trip_count:15,off_yango_trip_count:5,status:'validated',admin_comment:'',created_at:'2025-06-03'},
+  {id:'r4',driver_id:'d1',vehicle_id:'v1',report_date:'2025-06-04',end_odometer:48870,yango_gross:33500,yango_bonus:1500,off_yango_revenue:4000,yango_trip_count:22,off_yango_trip_count:2,status:'validated',admin_comment:'',created_at:'2025-06-04'},
+  {id:'r5',driver_id:'d1',vehicle_id:'v1',report_date:'2025-06-05',end_odometer:49100,yango_gross:29000,yango_bonus:600,off_yango_revenue:6500,yango_trip_count:19,off_yango_trip_count:4,status:'validated',admin_comment:'',created_at:'2025-06-05'},
+  {id:'r6',driver_id:'d1',vehicle_id:'v1',report_date:'2025-06-06',end_odometer:49340,yango_gross:35000,yango_bonus:2000,off_yango_revenue:9000,yango_trip_count:24,off_yango_trip_count:6,status:'pending',admin_comment:'',created_at:'2025-06-06'},
+];
+const seed_expenses=[
+  {id:'e1',driver_id:'d1',vehicle_id:'v1',expense_date:'2025-06-01',type:'Carburant',amount:8000,odometer:48200,fuel_liters:12,comment:'Plein matin',status:'validated',admin_comment:'',created_at:'2025-06-01'},
+  {id:'e2',driver_id:'d1',vehicle_id:'v1',expense_date:'2025-06-02',type:'Péage',amount:1500,odometer:48420,fuel_liters:null,comment:'',status:'validated',admin_comment:'',created_at:'2025-06-02'},
+  {id:'e3',driver_id:'d1',vehicle_id:'v1',expense_date:'2025-06-03',type:'Carburant',amount:9500,odometer:48640,fuel_liters:14,comment:'',status:'validated',admin_comment:'',created_at:'2025-06-03'},
+  {id:'e4',driver_id:'d1',vehicle_id:'v1',expense_date:'2025-06-04',type:'Contrôle routier',amount:2000,odometer:48870,fuel_liters:null,comment:'Contrôle VDN',status:'pending',admin_comment:'',created_at:'2025-06-04'},
+  {id:'e5',driver_id:'d1',vehicle_id:'v1',expense_date:'2025-06-05',type:'Carburant',amount:7500,odometer:49100,fuel_liters:11,comment:'',status:'validated',admin_comment:'',created_at:'2025-06-05'},
+];
+const USERS=[
+  {id:'admin1',name:'Abdoulaye',email:'admin@yango.sn',role:'admin',password:'admin123'},
+  {id:'d1',name:'Moussa Diallo',email:'driver@yango.sn',role:'driver',password:'driver123'},
+];
+
+/* ─── STORAGE ─── */
+const S={
+  get:(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch{return d}},
+  set:(k,v)=>localStorage.setItem(k,JSON.stringify(v)),
+};
+const initData=()=>{
+  if(!S.get('yango_init')){
+    S.set('reports',seed_reports);S.set('expenses',seed_expenses);S.set('cfg',DEFAULT_CFG);S.set('yango_init',true);
+  }
+};
+initData();
+
+/* ═══════════════════════════════════════════════════════════
+   DRIVER INTERFACE — ultra simple mobile
+═══════════════════════════════════════════════════════════ */
+function DriverApp({user,onLogout}){
+  const [tab,setTab]=useState('home');
+  const reports=()=>S.get('reports',[]).filter(r=>r.driver_id===user.id);
+  const todayReport=()=>reports().find(r=>r.report_date===todayStr());
+  const pendingCount=reports().filter(r=>r.status==='pending').length;
+
+  return(
+    <div style={{maxWidth:420,margin:'0 auto',minHeight:'100vh',display:'flex',flexDirection:'column',background:'var(--bg)',paddingBottom:72}}>
+      {/* Header */}
+      <div style={{padding:'16px 20px',borderBottom:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <div>
+          <div style={{fontSize:11,color:'var(--text3)',letterSpacing:1,textTransform:'uppercase',fontWeight:600}}>Yango Fleet</div>
+          <div style={{fontWeight:600,color:'var(--text)'}}>{user.name}</div>
+        </div>
+        <button className="btn btn-ghost" style={{padding:'6px 12px',fontSize:12}} onClick={onLogout}>Déco</button>
+      </div>
+      {/* Content */}
+      <div style={{flex:1,padding:'0 16px'}}>
+        {tab==='home'&&<DriverHome user={user} onNav={setTab} todayReport={todayReport()} pendingCount={pendingCount}/>}
+        {tab==='expense'&&<DriverExpense user={user} onBack={()=>setTab('home')}/>}
+        {tab==='report'&&<DriverReport user={user} onBack={()=>setTab('home')} todayReport={todayReport()}/>}
+        {tab==='history'&&<DriverHistory user={user} onBack={()=>setTab('home')}/>}
+      </div>
+      {/* Bottom nav */}
+      <div style={{position:'fixed',bottom:0,left:'50%',transform:'translateX(-50%)',width:'100%',maxWidth:420,background:'var(--bg2)',borderTop:'1px solid var(--border)',display:'flex',zIndex:100}}>
+        {[['home','🏠','Accueil'],['report','📋','Rapport'],['expense','💸','Dépense'],['history','📜','Historique']].map(([id,icon,label])=>(
+          <button key={id} onClick={()=>setTab(id)} style={{flex:1,padding:'10px 4px',background:'none',border:'none',color:tab===id?'var(--accent)':'var(--text3)',fontSize:10,display:'flex',flexDirection:'column',alignItems:'center',gap:2,cursor:'pointer',fontFamily:'Sora,sans-serif',fontWeight:tab===id?600:400}}>
+            <span style={{fontSize:18}}>{icon}</span>{label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DriverHome({user,onNav,todayReport,pendingCount}){
+  const cfg=S.get('cfg',DEFAULT_CFG);
+  const reports=S.get('reports',[]).filter(r=>r.driver_id===user.id&&r.status==='validated');
+  const monthNet=reports.filter(r=>r.report_date?.startsWith(todayStr().slice(0,7))).reduce((a,r)=>{const c=calcReport(r,cfg);return a+c.total;},0);
+  const level=salaryLevel(monthNet,cfg.salary_rules);
+  const nextLevel=cfg.salary_rules.find(r=>r.min_net>monthNet&&r.total_salary>level.total_salary);
+  const progress=nextLevel?Math.min(100,((monthNet-level.min_net)/(nextLevel.min_net-level.min_net))*100):100;
+
+  return(
+    <div className="fade-in" style={{paddingTop:16}}>
+      {/* Today status */}
+      <div style={{background:todayReport?'rgba(34,197,94,.06)':'rgba(245,166,35,.06)',border:`1px solid ${todayReport?'rgba(34,197,94,.2)':'rgba(245,166,35,.2)'}`,borderRadius:var_r,padding:'14px 16px',marginBottom:16,borderRadius:12}}>
+        <div style={{fontSize:12,color:todayReport?'var(--green)':'var(--accent)',fontWeight:600,marginBottom:4}}>
+          {todayReport?'✓ Rapport aujourd\'hui':'⚠ Aucun rapport aujourd\'hui'}
+        </div>
+        <div style={{fontSize:13,color:'var(--text2)'}}>
+          {todayReport?`Statut : ${todayReport.status==='pending'?'En attente de validation':todayReport.status==='validated'?'Validé ✓':'Rejeté ✗'}`:'Pensez à soumettre votre rapport en fin de journée'}
+        </div>
+        {todayReport?.status==='rejected'&&todayReport.admin_comment&&<div style={{marginTop:6,fontSize:12,color:'var(--red)'}}>Motif : {todayReport.admin_comment}</div>}
+      </div>
+      {/* Quick actions */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
+        <button className="btn btn-primary" onClick={()=>onNav('report')} style={{padding:'14px',fontSize:13,borderRadius:12,textAlign:'center',background:todayReport&&todayReport.status!=='rejected'?'var(--bg3)':'var(--accent)',color:todayReport&&todayReport.status!=='rejected'?'var(--text3)':'#000',border:todayReport&&todayReport.status!=='rejected'?'1px solid var(--border)':'none'}}>
+          📋<br/><span style={{fontSize:11,display:'block',marginTop:3}}>{todayReport&&todayReport.status!=='rejected'?'Rapport soumis':'Faire le rapport'}</span>
+        </button>
+        <button className="btn" onClick={()=>onNav('expense')} style={{padding:'14px',fontSize:13,borderRadius:12,textAlign:'center',background:'var(--bg3)',border:'1px solid var(--border)',color:'var(--text)'}}>
+          💸<br/><span style={{fontSize:11,display:'block',marginTop:3,color:'var(--text2)'}}>Ajouter dépense</span>
+        </button>
+      </div>
+      {/* Month summary */}
+      <div className="card" style={{marginBottom:16}}>
+        <div style={{fontSize:11,color:'var(--text3)',textTransform:'uppercase',letterSpacing:.8,fontWeight:600,marginBottom:12}}>Mois en cours</div>
+        <div style={{fontSize:28,fontWeight:700,color:'var(--text)',fontFamily:"'JetBrains Mono',monospace",marginBottom:4}}>{xof(monthNet)}</div>
+        <div style={{fontSize:12,color:'var(--text3)',marginBottom:14}}>Net validé · {level.label}</div>
+        {nextLevel&&<>
+          <div style={{height:6,background:'var(--bg3)',borderRadius:3,overflow:'hidden',marginBottom:6}}>
+            <div style={{height:'100%',background:'var(--accent)',borderRadius:3,width:`${progress}%`,transition:'width .5s'}}/>
+          </div>
+          <div style={{fontSize:11,color:'var(--text3)'}}>
+            {xof(nextLevel.min_net-monthNet)} pour atteindre {nextLevel.label} ({xof(nextLevel.total_salary)} de salaire)
+          </div>
+        </>}
+        {!nextLevel&&<div style={{fontSize:12,color:'var(--green)',fontWeight:500}}>🎉 Objectif maximum atteint ! Salaire : {xof(level.total_salary)}</div>}
+      </div>
+      {pendingCount>0&&<div className="alert alert-warn">📬 {pendingCount} rapport(s) en attente de validation</div>}
+    </div>
+  );
+}
+
+function DriverExpense({user,onBack}){
+  const [form,setForm]=useState({expense_date:todayStr(),type:'Carburant',amount:'',odometer:'',fuel_liters:'',comment:''});
+  const [sent,setSent]=useState(false);
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const submit=()=>{
+    if(!form.amount||!form.odometer){return alert('Montant et kilométrage requis');}
+    const expenses=S.get('expenses',[]);
+    expenses.push({...form,id:uid(),driver_id:user.id,vehicle_id:'v1',status:'pending',admin_comment:'',created_at:todayStr()});
+    S.set('expenses',expenses);setSent(true);
+  };
+  if(sent)return(
+    <div className="fade-in" style={{paddingTop:40,textAlign:'center'}}>
+      <div style={{fontSize:48,marginBottom:16}}>✅</div>
+      <div style={{fontWeight:600,fontSize:16,marginBottom:8}}>Dépense soumise</div>
+      <div style={{fontSize:13,color:'var(--text3)',marginBottom:24}}>En attente de validation admin</div>
+      <div style={{display:'flex',gap:10,justifyContent:'center'}}>
+        <button className="btn btn-ghost" onClick={()=>{setForm({expense_date:todayStr(),type:'Carburant',amount:'',odometer:'',fuel_liters:'',comment:''});setSent(false);}}>Nouvelle dépense</button>
+        <button className="btn btn-primary" onClick={onBack}>Retour accueil</button>
+      </div>
+    </div>
+  );
+  return(
+    <div className="fade-in" style={{paddingTop:16}}>
+      <div className="fl" style={{marginBottom:20}}>
+        <button onClick={onBack} style={{background:'none',border:'none',color:'var(--text2)',fontSize:20,cursor:'pointer'}}>←</button>
+        <h2 style={{fontSize:16,fontWeight:600}}>Nouvelle dépense</h2>
+      </div>
+      <div className="col">
+        <div>
+          <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Date</label>
+          <input type="date" value={form.expense_date} onChange={e=>set('expense_date',e.target.value)}/>
+        </div>
+        <div>
+          <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Type de dépense</label>
+          <select value={form.type} onChange={e=>set('type',e.target.value)}>
+            {['Carburant','Péage','Contrôle routier','Autre'].map(t=><option key={t}>{t}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Montant (XOF) *</label>
+          <input type="number" placeholder="ex: 8000" value={form.amount} onChange={e=>set('amount',e.target.value)}/>
+        </div>
+        <div>
+          <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Kilométrage *</label>
+          <input type="number" placeholder="ex: 48500" value={form.odometer} onChange={e=>set('odometer',e.target.value)}/>
+        </div>
+        {form.type==='Carburant'&&<div>
+          <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Nombre de litres</label>
+          <input type="number" placeholder="ex: 12" value={form.fuel_liters} onChange={e=>set('fuel_liters',e.target.value)}/>
+        </div>}
+        <div>
+          <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Commentaire</label>
+          <textarea rows={2} placeholder="Optionnel..." value={form.comment} onChange={e=>set('comment',e.target.value)} style={{resize:'none'}}/>
+        </div>
+        <button className="btn btn-primary" onClick={submit} style={{marginTop:8,width:'100%',padding:14,fontSize:14,borderRadius:10}}>Soumettre la dépense →</button>
+      </div>
+    </div>
+  );
+}
+
+function DriverReport({user,onBack,todayReport}){
+  const cfg=S.get('cfg',DEFAULT_CFG);
+  const [form,setForm]=useState({report_date:todayStr(),end_odometer:'',yango_gross:'',yango_bonus:'',off_yango_revenue:'',yango_trip_count:'',off_yango_trip_count:'',comment:''});
+  const [sent,setSent]=useState(false);
+  const set=(k,v)=>setForm(f=>({...f,[k]:v}));
+  const calc=calcReport(form,cfg);
+  const canEdit=!todayReport||todayReport.status==='rejected';
+  const submit=()=>{
+    if(!form.end_odometer||!form.yango_gross){return alert('Kilométrage et brut Yango requis');}
+    const reports=S.get('reports',[]);
+    const existing=reports.findIndex(r=>r.driver_id===user.id&&r.report_date===form.report_date);
+    const entry={...form,id:uid(),driver_id:user.id,vehicle_id:'v1',status:'pending',admin_comment:'',created_at:todayStr(),...{yango_base:calc.base,yango_commission:calc.commY,partner_commission:calc.commP,yango_net:calc.netY,off_yango_net:calc.netOff,total_daily_net:calc.total}};
+    if(existing>=0)reports[existing]=entry;else reports.push(entry);
+    S.set('reports',reports);setSent(true);
+  };
+  if(sent)return(
+    <div className="fade-in" style={{paddingTop:40,textAlign:'center'}}>
+      <div style={{fontSize:48,marginBottom:16}}>📋</div>
+      <div style={{fontWeight:600,fontSize:16,marginBottom:8}}>Rapport soumis !</div>
+      <div style={{fontSize:13,color:'var(--text3)',marginBottom:24}}>En attente de validation par l'admin</div>
+      <button className="btn btn-primary" onClick={onBack}>Retour accueil</button>
+    </div>
+  );
+  return(
+    <div className="fade-in" style={{paddingTop:16}}>
+      <div className="fl" style={{marginBottom:20}}>
+        <button onClick={onBack} style={{background:'none',border:'none',color:'var(--text2)',fontSize:20,cursor:'pointer'}}>←</button>
+        <h2 style={{fontSize:16,fontWeight:600}}>Rapport journalier</h2>
+      </div>
+      {!canEdit&&<div className="alert alert-ok">Rapport déjà soumis · Statut : {todayReport.status}</div>}
+      <div className="col">
+        <div>
+          <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Date</label>
+          <input type="date" value={form.report_date} onChange={e=>set('report_date',e.target.value)} disabled={!canEdit}/>
+        </div>
+        <div>
+          <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Kilométrage fin de journée *</label>
+          <input type="number" placeholder="ex: 48900" value={form.end_odometer} onChange={e=>set('end_odometer',e.target.value)} disabled={!canEdit}/>
+        </div>
+        <div className="grid2">
+          <div>
+            <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Brut Yango *</label>
+            <input type="number" placeholder="0" value={form.yango_gross} onChange={e=>set('yango_gross',e.target.value)} disabled={!canEdit}/>
+          </div>
+          <div>
+            <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Bonus Yango</label>
+            <input type="number" placeholder="0" value={form.yango_bonus} onChange={e=>set('yango_bonus',e.target.value)} disabled={!canEdit}/>
+          </div>
+        </div>
+        <div>
+          <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Courses hors Yango</label>
+          <input type="number" placeholder="0" value={form.off_yango_revenue} onChange={e=>set('off_yango_revenue',e.target.value)} disabled={!canEdit}/>
+        </div>
+        <div className="grid2">
+          <div>
+            <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Courses Yango</label>
+            <input type="number" placeholder="0" value={form.yango_trip_count} onChange={e=>set('yango_trip_count',e.target.value)} disabled={!canEdit}/>
+          </div>
+          <div>
+            <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Courses hors</label>
+            <input type="number" placeholder="0" value={form.off_yango_trip_count} onChange={e=>set('off_yango_trip_count',e.target.value)} disabled={!canEdit}/>
+          </div>
+        </div>
+        {/* Live preview */}
+        {(form.yango_gross||form.yango_bonus||form.off_yango_revenue)&&<div style={{background:'rgba(245,166,35,.05)',border:'1px solid rgba(245,166,35,.2)',borderRadius:10,padding:14,marginTop:4}}>
+          <div style={{fontSize:11,color:'var(--accent)',fontWeight:700,letterSpacing:.8,marginBottom:10,textTransform:'uppercase'}}>Aperçu calcul</div>
+          {[['Base Yango',calc.base],['Commission Yango ('+cfg.comm_yango+'%)',-calc.commY],['Commission partenaire (-'+cfg.comm_partner+'%)',-calc.commP],['Net Yango',calc.netY],['Hors Yango',calc.netOff]].map(([l,v])=>(
+            <div key={l} style={{display:'flex',justifyContent:'space-between',fontSize:12,padding:'4px 0',borderBottom:'1px solid rgba(245,166,35,.08)',color:v<0?'var(--red)':'var(--text2)'}}>
+              <span>{l}</span><span className="mono" style={{fontWeight:500}}>{v<0?'- '+xof(Math.abs(v)):xof(v)}</span>
+            </div>
+          ))}
+          <div style={{display:'flex',justifyContent:'space-between',fontSize:15,paddingTop:8,fontWeight:700}}>
+            <span>NET TOTAL</span><span className="mono" style={{color:'var(--green)'}}>{xof(calc.total)}</span>
+          </div>
+        </div>}
+        <div>
+          <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Commentaire</label>
+          <textarea rows={2} placeholder="Optionnel..." value={form.comment} onChange={e=>set('comment',e.target.value)} disabled={!canEdit} style={{resize:'none'}}/>
+        </div>
+        {canEdit&&<button className="btn btn-primary" onClick={submit} style={{marginTop:8,width:'100%',padding:14,fontSize:14,borderRadius:10}}>Soumettre le rapport →</button>}
+      </div>
+    </div>
+  );
+}
+
+function DriverHistory({user,onBack}){
+  const cfg=S.get('cfg',DEFAULT_CFG);
+  const reports=S.get('reports',[]).filter(r=>r.driver_id===user.id).sort((a,b)=>b.report_date.localeCompare(a.report_date));
+  const expenses=S.get('expenses',[]).filter(e=>e.driver_id===user.id).sort((a,b)=>b.expense_date.localeCompare(a.expense_date));
+  const [tab,setTab]=useState('reports');
+  return(
+    <div className="fade-in" style={{paddingTop:16}}>
+      <div className="fl" style={{marginBottom:16}}>
+        <button onClick={onBack} style={{background:'none',border:'none',color:'var(--text2)',fontSize:20,cursor:'pointer'}}>←</button>
+        <h2 style={{fontSize:16,fontWeight:600}}>Historique</h2>
+      </div>
+      <div style={{display:'flex',gap:6,marginBottom:16}}>
+        {[['reports','Rapports'],['expenses','Dépenses']].map(([id,label])=>(
+          <button key={id} onClick={()=>setTab(id)} className="btn" style={{flex:1,padding:'8px',fontSize:12,background:tab===id?'var(--accent)':'var(--bg3)',color:tab===id?'#000':'var(--text2)',border:tab===id?'none':'1px solid var(--border)',borderRadius:8}}>{label}</button>
+        ))}
+      </div>
+      {tab==='reports'&&reports.map(r=>{const c=calcReport(r,cfg);return(
+        <div key={r.id} className="card" style={{marginBottom:10}}>
+          <div className="row">
+            <div>
+              <div style={{fontWeight:600,fontSize:14}}>{dateLabel(r.report_date)}</div>
+              <div style={{fontSize:12,color:'var(--text3)',marginTop:2}}>{r.yango_trip_count||0} courses Yango · {r.off_yango_trip_count||0} hors</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div className="mono" style={{fontWeight:700,fontSize:16,color:'var(--text)'}}>{xof(c.total)}</div>
+              <span className={`badge badge-${r.status==='validated'?'valid':r.status==='rejected'?'reject':'pending'}`} style={{marginTop:4}}>
+                {r.status==='validated'?'Validé':r.status==='rejected'?'Rejeté':'En attente'}
+              </span>
+            </div>
+          </div>
+          {r.admin_comment&&<div style={{marginTop:8,fontSize:12,color:'var(--red)',background:'rgba(239,68,68,.06)',borderRadius:6,padding:'6px 10px'}}>💬 {r.admin_comment}</div>}
+        </div>
+      );})}
+      {tab==='expenses'&&expenses.map(e=>(
+        <div key={e.id} className="card" style={{marginBottom:10}}>
+          <div className="row">
+            <div>
+              <div style={{fontWeight:600,fontSize:14}}>{e.type}</div>
+              <div style={{fontSize:12,color:'var(--text3)',marginTop:2}}>{dateLabel(e.expense_date)}{e.fuel_liters?` · ${e.fuel_liters}L`:''}</div>
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div className="mono" style={{fontWeight:700,fontSize:16,color:'var(--red)'}}>-{xof(e.amount)}</div>
+              <span className={`badge badge-${e.status==='validated'?'valid':e.status==='rejected'?'reject':'pending'}`} style={{marginTop:4}}>
+                {e.status==='validated'?'Validé':e.status==='rejected'?'Rejeté':'En attente'}
+              </span>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ADMIN INTERFACE — full dashboard
+═══════════════════════════════════════════════════════════ */
+function AdminApp({user,onLogout}){
+  const [tab,setTab]=useState('dashboard');
+  const tabs=[['dashboard','📊 Dashboard'],['pending','⏳ Soumissions'],['history','📜 Historique'],['settings','⚙️ Paramètres']];
+  return(
+    <div style={{minHeight:'100vh',display:'flex',flexDirection:'column'}}>
+      {/* Top bar */}
+      <div style={{borderBottom:'1px solid var(--border)',padding:'0 24px',display:'flex',alignItems:'center',justifyContent:'space-between',height:52,background:'var(--bg2)',position:'sticky',top:0,zIndex:50}}>
+        <div className="fl">
+          <div style={{width:28,height:28,background:'var(--accent)',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:700,color:'#000',marginRight:8}}>Y</div>
+          <span style={{fontWeight:700,color:'var(--text)',fontSize:15}}>Yango Fleet</span>
+          <span style={{fontSize:11,color:'var(--text3)',marginLeft:8,background:'var(--bg3)',padding:'2px 8px',borderRadius:4}}>Admin</span>
+        </div>
+        <div className="fl">
+          <span style={{fontSize:13,color:'var(--text2)'}}>{user.name}</span>
+          <button className="btn btn-ghost" style={{padding:'5px 12px',fontSize:12}} onClick={onLogout}>Déconnexion</button>
+        </div>
+      </div>
+      {/* Nav */}
+      <div style={{borderBottom:'1px solid var(--border)',padding:'0 24px',display:'flex',gap:4,background:'var(--bg2)'}}>
+        {tabs.map(([id,label])=>(
+          <button key={id} onClick={()=>setTab(id)} style={{padding:'10px 16px',background:'none',border:'none',borderBottom:tab===id?'2px solid var(--accent)':'2px solid transparent',color:tab===id?'var(--accent)':'var(--text3)',cursor:'pointer',fontSize:13,fontFamily:'Sora,sans-serif',fontWeight:tab===id?600:400,transition:'color .15s',marginBottom:-1}}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {/* Content */}
+      <div style={{flex:1,padding:'24px',maxWidth:1400,margin:'0 auto',width:'100%'}}>
+        {tab==='dashboard'&&<AdminDashboard/>}
+        {tab==='pending'&&<AdminPending/>}
+        {tab==='history'&&<AdminHistory/>}
+        {tab==='settings'&&<AdminSettings/>}
+      </div>
+    </div>
+  );
+}
+
+/* ── CHARTS helper ── */
+function useChart(canvasRef,config,deps){
+  useEffect(()=>{
+    if(!canvasRef.current)return;
+    const ctx=canvasRef.current.getContext('2d');
+    const existing=Chart.getChart(canvasRef.current);
+    if(existing)existing.destroy();
+    const ch=new Chart(ctx,config);
+    return()=>ch.destroy();
+  },deps);
+}
+
+/* ── DASHBOARD ── */
+function AdminDashboard(){
+  const cfg=S.get('cfg',DEFAULT_CFG);
+  const [filter,setFilter]=useState('month');
+  const [customFrom,setCustomFrom]=useState(todayStr().slice(0,8)+'01');
+  const [customTo,setCustomTo]=useState(todayStr());
+
+  const allReports=S.get('reports',[]).filter(r=>r.status==='validated');
+  const allExpenses=S.get('expenses',[]).filter(e=>e.status==='validated');
+  const today=todayStr();
+  const weekAgo=new Date(Date.now()-7*864e5).toISOString().slice(0,10);
+  const monthStart=today.slice(0,8)+'01';
+
+  const inRange=(date)=>{
+    if(filter==='today')return date===today;
+    if(filter==='week')return date>=weekAgo&&date<=today;
+    if(filter==='month')return date>=monthStart&&date<=today;
+    return date>=customFrom&&date<=customTo;
+  };
+  const reports=allReports.filter(r=>inRange(r.report_date));
+  const expenses=allExpenses.filter(e=>inRange(e.expense_date));
+
+  const totals=reports.reduce((a,r)=>{
+    const c=calcReport(r,cfg);
+    return{...a,grossY:a.grossY+(+r.yango_gross||0),bonusY:a.bonusY+(+r.yango_bonus||0),base:a.base+c.base,commY:a.commY+c.commY,commP:a.commP+c.commP,netY:a.netY+c.netY,netOff:a.netOff+c.netOff,total:a.total+c.total,tripsY:a.tripsY+(+r.yango_trip_count||0),tripsOff:a.tripsOff+(+r.off_yango_trip_count||0)};
+  },{grossY:0,bonusY:0,base:0,commY:0,commP:0,netY:0,netOff:0,total:0,tripsY:0,tripsOff:0});
+  const totalExp=expenses.reduce((a,e)=>a+(+e.amount||0),0);
+  const afterExp=totals.total-totalExp;
+  const days=reports.length||1;
+  const trips=totals.tripsY+totals.tripsOff||1;
+
+  /* Monthly salary */
+  const monthReports=allReports.filter(r=>r.report_date?.startsWith(today.slice(0,7)));
+  const monthNet=monthReports.reduce((a,r)=>a+calcReport(r,cfg).total,0);
+  const sLevel=salaryLevel(monthNet,cfg.salary_rules);
+  const nextLevel=cfg.salary_rules.find(r=>r.min_net>monthNet&&r.total_salary>sLevel.total_salary);
+  const monthProg=Math.min(100,(monthNet/cfg.monthly_goal)*100);
+
+  /* Projection */
+  const daysInMonth=new Date(+today.slice(0,4),+today.slice(5,7),0).getDate();
+  const dayOfMonth=+today.slice(8,10);
+  const avgPerDay=monthNet/Math.max(dayOfMonth,1);
+  const projected=avgPerDay*daysInMonth;
+  const remaining=cfg.monthly_goal-monthNet;
+  const daysLeft=daysInMonth-dayOfMonth;
+  const needPerDay=daysLeft>0?remaining/daysLeft:0;
+  const projStatus=projected>=cfg.monthly_goal?'ahead':avgPerDay*daysLeft+monthNet>=cfg.monthly_goal*0.9?'ontrack':'behind';
+
+  /* Charts */
+  const sortedReports=[...reports].sort((a,b)=>a.report_date.localeCompare(b.report_date));
+  const chartNet=useRef(null),chartSplit=useRef(null),chartExp=useRef(null),chartKm=useRef(null);
+
+  useChart(chartNet,{
+    type:'line',
+    data:{labels:sortedReports.map(r=>dateLabel(r.report_date)),datasets:[{label:'Net journalier',data:sortedReports.map(r=>calcReport(r,cfg).total),borderColor:'#f5a623',backgroundColor:'rgba(245,166,35,.08)',fill:true,tension:.4,pointBackgroundColor:'#f5a623',pointRadius:3,borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#666',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#666',font:{size:10},callback:v=>v>=1000?Math.round(v/1000)+'k':v}}}}
+  },[filter,customFrom,customTo]);
+
+  useChart(chartSplit,{
+    type:'bar',
+    data:{labels:sortedReports.map(r=>dateLabel(r.report_date)),datasets:[{label:'Net Yango',data:sortedReports.map(r=>Math.round(calcReport(r,cfg).netY)),backgroundColor:'#3b82f6',borderRadius:3},{label:'Hors Yango',data:sortedReports.map(r=>Math.round(calcReport(r,cfg).netOff)),backgroundColor:'#a855f7',borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{stacked:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#666',font:{size:10}}},y:{stacked:true,grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#666',font:{size:10},callback:v=>v>=1000?Math.round(v/1000)+'k':v}}}}
+  },[filter,customFrom,customTo]);
+
+  const expByType=expenses.reduce((a,e)=>{a[e.type]=(a[e.type]||0)+(+e.amount||0);return a;},{});
+  useChart(chartExp,{
+    type:'doughnut',
+    data:{labels:Object.keys(expByType),datasets:[{data:Object.values(expByType).map(Math.round),backgroundColor:['#f5a623','#3b82f6','#ef4444','#a855f7'],borderWidth:0,hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:'70%'}
+  },[filter,customFrom,customTo]);
+
+  const kmByDay=sortedReports.map((r,i)=>{
+    const prev=sortedReports[i-1];
+    return prev?Math.max(0,(+r.end_odometer||0)-(+prev.end_odometer||0)):0;
+  });
+  useChart(chartKm,{
+    type:'bar',
+    data:{labels:sortedReports.map(r=>dateLabel(r.report_date)),datasets:[{label:'KM',data:kmByDay.map(Math.round),backgroundColor:'rgba(34,197,94,.6)',borderRadius:3,borderSkipped:false}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#666',font:{size:10}}},y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{color:'#666',font:{size:10}}}}}
+  },[filter,customFrom,customTo]);
+
+  const statusColor={ahead:'var(--green)',ontrack:'var(--accent)',behind:'var(--red)'};
+  const statusLabel={ahead:'En avance 🚀',ontrack:'Conforme ✓',behind:'En retard ⚠'};
+
+  return(
+    <div className="fade-in">
+      {/* Filters */}
+      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:24,flexWrap:'wrap'}}>
+        <span style={{fontSize:12,color:'var(--text3)',fontWeight:600,textTransform:'uppercase',letterSpacing:.8}}>Période :</span>
+        {[['today',"Aujourd'hui"],['week','7 jours'],['month','Ce mois'],['custom','Personnalisé']].map(([id,label])=>(
+          <button key={id} onClick={()=>setFilter(id)} className="btn" style={{padding:'6px 14px',fontSize:12,background:filter===id?'var(--accent)':'var(--bg3)',color:filter===id?'#000':'var(--text2)',border:filter===id?'none':'1px solid var(--border)',borderRadius:6}}>{label}</button>
+        ))}
+        {filter==='custom'&&<>
+          <input type="date" value={customFrom} onChange={e=>setCustomFrom(e.target.value)} style={{width:140,padding:'6px 10px',fontSize:12}}/>
+          <span style={{color:'var(--text3)'}}>→</span>
+          <input type="date" value={customTo} onChange={e=>setCustomTo(e.target.value)} style={{width:140,padding:'6px 10px',fontSize:12}}/>
+        </>}
+      </div>
+
+      {/* KPIs Row 1 */}
+      <div className="grid4" style={{marginBottom:12}}>
+        <div className="kpi accent-border"><label>Net Total</label><div className="val">{xof(totals.total)}</div><div className="sub">{days} jours · {trips} courses</div></div>
+        <div className="kpi green-border"><label>Résultat après dépenses</label><div className="val" style={{color:afterExp>=0?'var(--green)':'var(--red)'}}>{xof(afterExp)}</div><div className="sub">Dépenses : {xof(totalExp)}</div></div>
+        <div className="kpi blue-border"><label>Net Yango</label><div className="val">{xof(totals.netY)}</div><div className="sub">Base : {xof(totals.base)}</div></div>
+        <div className="kpi" style={{borderLeft:'3px solid var(--purple)'}}><label>Net Hors Yango</label><div className="val">{xof(totals.netOff)}</div><div className="sub">{totals.tripsOff} courses</div></div>
+      </div>
+      <div className="grid4" style={{marginBottom:24}}>
+        <div className="kpi"><label>Commissions Yango</label><div className="val" style={{fontSize:18}}>{xof(totals.commY)}</div><div className="sub">{cfg.comm_yango}% du base</div></div>
+        <div className="kpi"><label>Commissions Partenaire</label><div className="val" style={{fontSize:18}}>{xof(totals.commP)}</div><div className="sub">{cfg.comm_partner}% du base</div></div>
+        <div className="kpi"><label>Moy. net/jour</label><div className="val" style={{fontSize:18}}>{xof(Math.round(totals.total/days))}</div><div className="sub">{fmt(Math.round((totals.tripsY+totals.tripsOff)/days))} courses/j</div></div>
+        <div className="kpi"><label>Moy. par course</label><div className="val" style={{fontSize:18}}>{xof(Math.round(totals.total/trips))}</div><div className="sub">Toutes sources</div></div>
+      </div>
+
+      {/* Charts Row 1 */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:16}}>
+        <div className="card">
+          <div style={{fontWeight:600,fontSize:13,marginBottom:14,color:'var(--text2)'}}>📈 Évolution net journalier</div>
+          <div style={{position:'relative',height:200}}><canvas ref={chartNet} role="img" aria-label="Net journalier"></canvas></div>
+        </div>
+        <div className="card">
+          <div style={{fontWeight:600,fontSize:13,marginBottom:6,color:'var(--text2)'}}>📊 Yango vs Hors Yango</div>
+          <div style={{display:'flex',gap:12,marginBottom:10}}>
+            <span style={{fontSize:11,display:'flex',alignItems:'center',gap:4,color:'var(--text3)'}}><span style={{width:10,height:10,borderRadius:2,background:'#3b82f6',display:'inline-block'}}/> Net Yango</span>
+            <span style={{fontSize:11,display:'flex',alignItems:'center',gap:4,color:'var(--text3)'}}><span style={{width:10,height:10,borderRadius:2,background:'#a855f7',display:'inline-block'}}/> Hors Yango</span>
+          </div>
+          <div style={{position:'relative',height:186}}><canvas ref={chartSplit} role="img" aria-label="Yango vs Hors Yango"></canvas></div>
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:16}}>
+        <div className="card">
+          <div style={{fontWeight:600,fontSize:13,marginBottom:14,color:'var(--text2)'}}>⛽ Dépenses par catégorie</div>
+          <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:12}}>
+            {Object.entries(expByType).map(([k,v],i)=>(
+              <span key={k} style={{fontSize:11,display:'flex',alignItems:'center',gap:4,color:'var(--text3)'}}><span style={{width:10,height:10,borderRadius:2,background:['#f5a623','#3b82f6','#ef4444','#a855f7'][i%4],display:'inline-block'}}/>{k} {xof(v)}</span>
+            ))}
+          </div>
+          <div style={{position:'relative',height:160}}><canvas ref={chartExp} role="img" aria-label="Dépenses par catégorie"></canvas></div>
+        </div>
+        <div className="card">
+          <div style={{fontWeight:600,fontSize:13,marginBottom:14,color:'var(--text2)'}}>🚗 Kilométrage journalier</div>
+          <div style={{position:'relative',height:194}}><canvas ref={chartKm} role="img" aria-label="Kilométrage par jour"></canvas></div>
+        </div>
+      </div>
+
+      {/* Monthly objective + salary */}
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16,marginBottom:16}}>
+        <div className="card">
+          <div style={{fontWeight:600,fontSize:13,marginBottom:16,color:'var(--text2)'}}>🎯 Objectif mensuel</div>
+          <div style={{marginBottom:8}}>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:12,marginBottom:6}}>
+              <span style={{color:'var(--text3)'}}>Progression</span>
+              <span style={{fontWeight:600,color:statusColor[projStatus]}}>{statusLabel[projStatus]}</span>
+            </div>
+            <div style={{height:8,background:'var(--bg3)',borderRadius:4,overflow:'hidden',marginBottom:8}}>
+              <div style={{height:'100%',background:`linear-gradient(90deg, var(--accent), ${projStatus==='behind'?'var(--red)':'var(--green)'})`,borderRadius:4,width:`${Math.min(100,monthProg)}%`,transition:'width .5s'}}/>
+            </div>
+            <div style={{fontSize:12,color:'var(--text3)'}}>
+              {xof(monthNet)} / {xof(cfg.monthly_goal)} ({Math.round(monthProg)}%)
+            </div>
+          </div>
+          <hr className="sep"/>
+          <div className="grid2">
+            <div><div style={{fontSize:11,color:'var(--text3)'}}>Restant</div><div style={{fontWeight:700,color:'var(--red)',fontFamily:"'JetBrains Mono',monospace"}}>{xof(Math.max(0,remaining))}</div></div>
+            <div><div style={{fontSize:11,color:'var(--text3)'}}>Besoin/jour</div><div style={{fontWeight:700,color:'var(--accent)',fontFamily:"'JetBrains Mono',monospace"}}>{xof(Math.round(Math.max(0,needPerDay)))}</div></div>
+            <div><div style={{fontSize:11,color:'var(--text3)'}}>Projection fin mois</div><div style={{fontWeight:700,color:projected>=cfg.monthly_goal?'var(--green)':'var(--red)',fontFamily:"'JetBrains Mono',monospace"}}>{xof(Math.round(projected))}</div></div>
+            <div><div style={{fontSize:11,color:'var(--text3)'}}>Jours restants</div><div style={{fontWeight:700,fontFamily:"'JetBrains Mono',monospace"}}>{daysLeft}j</div></div>
+          </div>
+        </div>
+        <div className="card">
+          <div style={{fontWeight:600,fontSize:13,marginBottom:16,color:'var(--text2)'}}>💰 Rémunération chauffeur — {today.slice(0,7)}</div>
+          <div style={{fontSize:11,color:'var(--text3)',marginBottom:4,textTransform:'uppercase',letterSpacing:.6,fontWeight:600}}>Net mensuel validé</div>
+          <div style={{fontSize:28,fontWeight:700,fontFamily:"'JetBrains Mono',monospace",marginBottom:4}}>{xof(monthNet)}</div>
+          <div style={{display:'inline-block',background:'rgba(245,166,35,.12)',color:'var(--accent)',padding:'3px 10px',borderRadius:20,fontSize:11,fontWeight:600,marginBottom:14}}>{sLevel.label}</div>
+          <hr className="sep"/>
+          {[['Salaire total dû',xof(sLevel.total_salary),'var(--text)'],['Acompte 15 du mois',xof(cfg.acompte),'var(--text2)'],['Solde estimé',xof(sLevel.total_salary-cfg.acompte),'var(--green)']].map(([l,v,c])=>(
+            <div key={l} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
+              <span style={{color:'var(--text3)'}}>{l}</span><span style={{fontWeight:600,color:c,fontFamily:"'JetBrains Mono',monospace"}}>{v}</span>
+            </div>
+          ))}
+          {nextLevel&&<div style={{marginTop:12,fontSize:12,color:'var(--text3)'}}>
+            📊 Prochain palier : <strong style={{color:'var(--text)'}}>{nextLevel.label}</strong> à {xof(nextLevel.min_net)} (+{xof(nextLevel.total_salary-sLevel.total_salary)} de bonus)
+          </div>}
+        </div>
+      </div>
+
+      {/* Pending alerts */}
+      <PendingAlertsBanner/>
+    </div>
+  );
+}
+
+function PendingAlertsBanner(){
+  const pending=S.get('reports',[]).filter(r=>r.status==='pending');
+  const pendingExp=S.get('expenses',[]).filter(e=>e.status==='pending');
+  if(!pending.length&&!pendingExp.length)return null;
+  return(
+    <div className="alert alert-warn">
+      ⏳ {pending.length} rapport(s) + {pendingExp.length} dépense(s) en attente de validation
+    </div>
+  );
+}
+
+/* ── PENDING ── */
+function AdminPending(){
+  const [reports,setReports]=useState(S.get('reports',[]).filter(r=>r.status==='pending'));
+  const [expenses,setExpenses]=useState(S.get('expenses',[]).filter(e=>e.status==='pending'));
+  const [tab,setTab]=useState('reports');
+  const [comment,setComment]=useState({});
+  const [edit,setEdit]=useState({});
+  const cfg=S.get('cfg',DEFAULT_CFG);
+
+  const action=(type,id,status)=>{
+    if(type==='report'){
+      const all=S.get('reports',[]).map(r=>r.id===id?{...r,status,...(edit[id]||{}),admin_comment:comment[id]||'',validated_at:todayStr()}:r);
+      S.set('reports',all);setReports(all.filter(r=>r.status==='pending'));
+    }else{
+      const all=S.get('expenses',[]).map(e=>e.id===id?{...e,status,admin_comment:comment[id]||'',validated_at:todayStr()}:e);
+      S.set('expenses',all);setExpenses(all.filter(e=>e.status==='pending'));
+    }
+  };
+
+  return(
+    <div className="fade-in">
+      <div style={{display:'flex',gap:8,marginBottom:24}}>
+        {[['reports',`Rapports (${reports.length})`],['expenses',`Dépenses (${expenses.length})`]].map(([id,label])=>(
+          <button key={id} onClick={()=>setTab(id)} className="btn" style={{padding:'8px 18px',fontSize:13,background:tab===id?'var(--accent)':'var(--bg3)',color:tab===id?'#000':'var(--text2)',border:tab===id?'none':'1px solid var(--border)',borderRadius:8}}>{label}</button>
+        ))}
+      </div>
+
+      {tab==='reports'&&(reports.length===0?<div style={{textAlign:'center',padding:40,color:'var(--text3)'}}>✓ Aucun rapport en attente</div>:reports.map(r=>{
+        const c=calcReport({...r,...(edit[r.id]||{})},cfg);
+        return(
+          <div key={r.id} className="card" style={{marginBottom:16}}>
+            <div className="row" style={{marginBottom:14}}>
+              <div>
+                <div style={{fontWeight:700,fontSize:15}}>{USERS.find(u=>u.id===r.driver_id)?.name} · {dateLabel(r.report_date)}</div>
+                <div style={{fontSize:12,color:'var(--text3)',marginTop:2}}>{r.yango_trip_count||0} courses Yango · {r.off_yango_trip_count||0} hors · km {fmt(r.end_odometer)}</div>
+              </div>
+              <span className="badge badge-pending">En attente</span>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:14}}>
+              {[['Brut Yango','yango_gross',r.yango_gross],['Bonus Yango','yango_bonus',r.yango_bonus],['Hors Yango','off_yango_revenue',r.off_yango_revenue]].map(([label,key,val])=>(
+                <div key={key}>
+                  <div style={{fontSize:11,color:'var(--text3)',marginBottom:4}}>{label}</div>
+                  <input type="number" value={edit[r.id]?.[key]??val} onChange={e=>setEdit(ed=>({...ed,[r.id]:{...(ed[r.id]||{}),[key]:e.target.value}}))} style={{padding:'6px 10px',fontSize:13}}/>
+                </div>
+              ))}
+            </div>
+            <div style={{background:'var(--bg3)',borderRadius:8,padding:12,marginBottom:12,display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8}}>
+              {[['Base',c.base,'var(--text)'],['Comm. Yango',c.commY,'var(--red)'],['Net Yango',c.netY,'var(--blue)'],['Net Total',c.total,'var(--green)']].map(([l,v,col])=>(
+                <div key={l}><div style={{fontSize:10,color:'var(--text3)',marginBottom:2}}>{l}</div><div style={{fontWeight:700,color:col,fontSize:13,fontFamily:"'JetBrains Mono',monospace"}}>{xof(Math.round(v))}</div></div>
+              ))}
+            </div>
+            <div style={{marginBottom:10}}>
+              <input placeholder="Commentaire (optionnel)..." value={comment[r.id]||''} onChange={e=>setComment(c=>({...c,[r.id]:e.target.value}))} style={{fontSize:12,padding:'8px 12px'}}/>
+            </div>
+            <div style={{display:'flex',gap:8'}}>
+              <button className="btn btn-success" style={{flex:1,padding:'9px'}} onClick={()=>action('report',r.id,'validated')}>✓ Valider</button>
+              <button className="btn btn-danger" style={{flex:1,padding:'9px'}} onClick={()=>action('report',r.id,'rejected')}>✗ Rejeter</button>
+            </div>
+          </div>
+        );
+      }))}
+
+      {tab==='expenses'&&(expenses.length===0?<div style={{textAlign:'center',padding:40,color:'var(--text3)'}}>✓ Aucune dépense en attente</div>:expenses.map(e=>(
+        <div key={e.id} className="card" style={{marginBottom:12}}>
+          <div className="row" style={{marginBottom:12}}>
+            <div>
+              <div style={{fontWeight:700,fontSize:15}}>{e.type} · {dateLabel(e.expense_date)}</div>
+              <div style={{fontSize:12,color:'var(--text3)',marginTop:2}}>{USERS.find(u=>u.id===e.driver_id)?.name} · km {fmt(e.odometer)}{e.fuel_liters?` · ${e.fuel_liters}L`:''}</div>
+              {e.comment&&<div style={{fontSize:12,color:'var(--text3)',marginTop:2}}>{e.comment}</div>}
+            </div>
+            <div style={{textAlign:'right'}}>
+              <div style={{fontWeight:700,fontSize:18,color:'var(--red)',fontFamily:"'JetBrains Mono',monospace"}}>{xof(e.amount)}</div>
+              <span className="badge badge-pending" style={{marginTop:4}}>En attente</span>
+            </div>
+          </div>
+          <div style={{marginBottom:8}}>
+            <input placeholder="Commentaire..." value={comment[e.id]||''} onChange={ev=>setComment(c=>({...c,[e.id]:ev.target.value}))} style={{fontSize:12,padding:'7px 12px'}}/>
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button className="btn btn-success" style={{flex:1,padding:'8px'}} onClick={()=>action('expense',e.id,'validated')}>✓ Valider</button>
+            <button className="btn btn-danger" style={{flex:1,padding:'8px'}} onClick={()=>action('expense',e.id,'rejected')}>✗ Rejeter</button>
+          </div>
+        </div>
+      )))}
+    </div>
+  );
+}
+
+/* ── HISTORY ── */
+function AdminHistory(){
+  const cfg=S.get('cfg',DEFAULT_CFG);
+  const [statusF,setStatusF]=useState('all');
+  const [typeF,setTypeF]=useState('reports');
+  const [search,setSearch]=useState('');
+  const reports=S.get('reports',[]).sort((a,b)=>b.report_date.localeCompare(a.report_date));
+  const expenses=S.get('expenses',[]).sort((a,b)=>b.expense_date.localeCompare(a.expense_date));
+  const filteredR=reports.filter(r=>(statusF==='all'||r.status===statusF)&&(r.report_date.includes(search)||USERS.find(u=>u.id===r.driver_id)?.name.toLowerCase().includes(search.toLowerCase())));
+  const filteredE=expenses.filter(e=>(statusF==='all'||e.status===statusF)&&(e.expense_date.includes(search)||e.type.toLowerCase().includes(search.toLowerCase())));
+  return(
+    <div className="fade-in">
+      <div style={{display:'flex',gap:10,marginBottom:20,flexWrap:'wrap',alignItems:'center'}}>
+        <input placeholder="Rechercher..." value={search} onChange={e=>setSearch(e.target.value)} style={{width:200,padding:'7px 12px',fontSize:13}}/>
+        <div style={{display:'flex',gap:6}}>
+          {[['all','Tous'],['validated','Validé'],['pending','Attente'],['rejected','Rejeté']].map(([v,l])=>(
+            <button key={v} onClick={()=>setStatusF(v)} className="btn" style={{padding:'6px 12px',fontSize:12,background:statusF===v?'var(--accent)':'var(--bg3)',color:statusF===v?'#000':'var(--text2)',border:statusF===v?'none':'1px solid var(--border)',borderRadius:6}}>{l}</button>
+          ))}
+        </div>
+        <div style={{display:'flex',gap:6}}>
+          {[['reports','Rapports'],['expenses','Dépenses']].map(([v,l])=>(
+            <button key={v} onClick={()=>setTypeF(v)} className="btn" style={{padding:'6px 12px',fontSize:12,background:typeF===v?'var(--blue)':'var(--bg3)',color:typeF===v?'#fff':'var(--text2)',border:typeF===v?'none':'1px solid var(--border)',borderRadius:6}}>{l}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{overflowX:'auto'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+          <thead>
+            <tr style={{borderBottom:'1px solid var(--border)'}}>
+              {typeF==='reports'?['Date','Chauffeur','Brut Yango','Net Total','Dépenses','Résultat','Statut'].map(h=><th key={h} style={{textAlign:'left',padding:'8px 12px',color:'var(--text3)',fontSize:11,fontWeight:600,textTransform:'uppercase',letterSpacing:.6}}>{h}</th>)
+              :['Date','Chauffeur','Type','Montant','KM','Statut'].map(h=><th key={h} style={{textAlign:'left',padding:'8px 12px',color:'var(--text3)',fontSize:11,fontWeight:600,textTransform:'uppercase',letterSpacing:.6}}>{h}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {typeF==='reports'&&filteredR.map(r=>{
+              const c=calcReport(r,cfg);
+              const exp=S.get('expenses',[]).filter(e=>e.status==='validated'&&e.expense_date===r.report_date&&e.driver_id===r.driver_id).reduce((a,e)=>a+(+e.amount||0),0);
+              return(
+                <tr key={r.id} style={{borderBottom:'1px solid var(--border)'}}>
+                  <td style={{padding:'10px 12px'}}>{dateLabel(r.report_date)}</td>
+                  <td style={{padding:'10px 12px',color:'var(--text2)'}}>{USERS.find(u=>u.id===r.driver_id)?.name}</td>
+                  <td style={{padding:'10px 12px',fontFamily:"'JetBrains Mono',monospace"}}>{xof(r.yango_gross)}</td>
+                  <td style={{padding:'10px 12px',fontFamily:"'JetBrains Mono',monospace",fontWeight:600}}>{xof(Math.round(c.total))}</td>
+                  <td style={{padding:'10px 12px',fontFamily:"'JetBrains Mono',monospace",color:'var(--red)'}}>-{xof(exp)}</td>
+                  <td style={{padding:'10px 12px',fontFamily:"'JetBrains Mono',monospace",color:c.total-exp>=0?'var(--green)':'var(--red)',fontWeight:600}}>{xof(Math.round(c.total-exp))}</td>
+                  <td style={{padding:'10px 12px'}}><span className={`badge badge-${r.status==='validated'?'valid':r.status==='rejected'?'reject':'pending'}`}>{r.status==='validated'?'Validé':r.status==='rejected'?'Rejeté':'Attente'}</span></td>
+                </tr>
+              );
+            })}
+            {typeF==='expenses'&&filteredE.map(e=>(
+              <tr key={e.id} style={{borderBottom:'1px solid var(--border)'}}>
+                <td style={{padding:'10px 12px'}}>{dateLabel(e.expense_date)}</td>
+                <td style={{padding:'10px 12px',color:'var(--text2)'}}>{USERS.find(u=>u.id===e.driver_id)?.name}</td>
+                <td style={{padding:'10px 12px'}}>{e.type}</td>
+                <td style={{padding:'10px 12px',fontFamily:"'JetBrains Mono',monospace",color:'var(--red)',fontWeight:600}}>-{xof(e.amount)}</td>
+                <td style={{padding:'10px 12px',color:'var(--text3)'}}>{fmt(e.odometer)}</td>
+                <td style={{padding:'10px 12px'}}><span className={`badge badge-${e.status==='validated'?'valid':e.status==='rejected'?'reject':'pending'}`}>{e.status==='validated'?'Validé':e.status==='rejected'?'Rejeté':'Attente'}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ── SETTINGS ── */
+function AdminSettings(){
+  const [cfg,setCfg]=useState(S.get('cfg',DEFAULT_CFG));
+  const [saved,setSaved]=useState(false);
+  const set=(k,v)=>setCfg(c=>({...c,[k]:v}));
+  const setRule=(id,k,v)=>setCfg(c=>({...c,salary_rules:c.salary_rules.map(r=>r.id===id?{...r,[k]:+v}:r)}));
+  const save=()=>{S.set('cfg',cfg);setSaved(true);setTimeout(()=>setSaved(false),2500);};
+  return(
+    <div className="fade-in" style={{maxWidth:640}}>
+      <h2 style={{fontSize:16,fontWeight:600,marginBottom:24}}>Paramètres</h2>
+      {saved&&<div className="alert alert-ok">✓ Paramètres sauvegardés</div>}
+      <div className="card" style={{marginBottom:16}}>
+        <div style={{fontWeight:600,fontSize:13,marginBottom:16,color:'var(--text2)'}}>Commissions</div>
+        <div className="grid2">
+          <div>
+            <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Commission Yango (%)</label>
+            <input type="number" step=".01" value={cfg.comm_yango} onChange={e=>set('comm_yango',+e.target.value)}/>
+          </div>
+          <div>
+            <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Commission Partenaire (%)</label>
+            <input type="number" step=".01" value={cfg.comm_partner} onChange={e=>set('comm_partner',+e.target.value)}/>
+          </div>
+        </div>
+      </div>
+      <div className="card" style={{marginBottom:16}}>
+        <div style={{fontWeight:600,fontSize:13,marginBottom:16,color:'var(--text2)'}}>Rémunération</div>
+        <div className="grid2">
+          <div>
+            <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Salaire fixe (XOF)</label>
+            <input type="number" value={cfg.salary_fixed} onChange={e=>set('salary_fixed',+e.target.value)}/>
+          </div>
+          <div>
+            <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Acompte 15 du mois</label>
+            <input type="number" value={cfg.acompte} onChange={e=>set('acompte',+e.target.value)}/>
+          </div>
+          <div>
+            <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Objectif mensuel (XOF)</label>
+            <input type="number" value={cfg.monthly_goal} onChange={e=>set('monthly_goal',+e.target.value)}/>
+          </div>
+        </div>
+      </div>
+      <div className="card" style={{marginBottom:24}}>
+        <div style={{fontWeight:600,fontSize:13,marginBottom:16,color:'var(--text2)'}}>Paliers de bonus</div>
+        {cfg.salary_rules.map(r=>(
+          <div key={r.id} style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10,marginBottom:12,padding:'12px',background:'var(--bg3)',borderRadius:8}}>
+            <div>
+              <label style={{fontSize:10,color:'var(--text3)',display:'block',marginBottom:4}}>Net minimum</label>
+              <input type="number" value={r.min_net} onChange={e=>setRule(r.id,'min_net',e.target.value)} style={{padding:'6px 10px',fontSize:12}}/>
+            </div>
+            <div>
+              <label style={{fontSize:10,color:'var(--text3)',display:'block',marginBottom:4}}>Salaire total</label>
+              <input type="number" value={r.total_salary} onChange={e=>setRule(r.id,'total_salary',e.target.value)} style={{padding:'6px 10px',fontSize:12}}/>
+            </div>
+            <div>
+              <label style={{fontSize:10,color:'var(--text3)',display:'block',marginBottom:4}}>Label</label>
+              <input value={r.label} onChange={e=>setRule(r.id,'label',e.target.value)} style={{padding:'6px 10px',fontSize:12}}/>
+            </div>
+          </div>
+        ))}
+      </div>
+      <button className="btn btn-primary" onClick={save} style={{padding:'12px 32px',fontSize:14}}>Sauvegarder les paramètres</button>
+    </div>
+  );
+}
+
+/* ─── LOGIN ─── */
+function Login({onLogin}){
+  const [email,setEmail]=useState('');
+  const [pw,setPw]=useState('');
+  const [err,setErr]=useState('');
+  const submit=()=>{
+    const u=USERS.find(u=>u.email===email&&u.password===pw);
+    if(u)onLogin(u);else setErr('Email ou mot de passe incorrect');
+  };
+  return(
+    <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'var(--bg)',padding:20}}>
+      <div style={{width:'100%',maxWidth:360}}>
+        <div style={{textAlign:'center',marginBottom:40}}>
+          <div style={{width:52,height:52,background:'var(--accent)',borderRadius:14,display:'inline-flex',alignItems:'center',justifyContent:'center',fontSize:24,fontWeight:800,color:'#000',marginBottom:16}}>Y</div>
+          <h1 style={{fontSize:22,fontWeight:700,color:'var(--text)'}}>Yango Fleet</h1>
+          <p style={{fontSize:13,color:'var(--text3)',marginTop:6}}>Gestionnaire de véhicule</p>
+        </div>
+        <div className="card" style={{padding:28}}>
+          {err&&<div className="alert alert-err">{err}</div>}
+          <div className="col">
+            <div>
+              <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Email</label>
+              <input type="email" placeholder="votre@email.com" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={k=>k.key==='Enter'&&submit()}/>
+            </div>
+            <div>
+              <label style={{fontSize:11,color:'var(--text3)',fontWeight:600,letterSpacing:.5,textTransform:'uppercase',display:'block',marginBottom:6}}>Mot de passe</label>
+              <input type="password" placeholder="••••••••" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={k=>k.key==='Enter'&&submit()}/>
+            </div>
+            <button className="btn btn-primary" onClick={submit} style={{marginTop:8,width:'100%',padding:14,fontSize:14,borderRadius:10}}>Se connecter →</button>
+          </div>
+          <hr className="sep"/>
+          <div style={{fontSize:11,color:'var(--text3)',textAlign:'center'}}>
+            <div style={{marginBottom:4,fontWeight:600}}>Comptes de test :</div>
+            <div>Admin : admin@yango.sn / admin123</div>
+            <div>Chauffeur : driver@yango.sn / driver123</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── ROOT ─── */
+function App(){
+  const [user,setUser]=useState(null);
+  if(!user)return<Login onLogin={setUser}/>;
+  if(user.role==='admin')return<AdminApp user={user} onLogout={()=>setUser(null)}/>;
+  return<DriverApp user={user} onLogout={()=>setUser(null)}/>;
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

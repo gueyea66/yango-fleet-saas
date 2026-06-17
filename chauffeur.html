@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="theme-color" content="#0F172A"/>
+<title>M3A – Saisie Chauffeur</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;font-family:'Inter',sans-serif;background:#F8FAFC;color:#0F172A;font-size:16px;overscroll-behavior:none}
+:root{--navy:#0F172A;--navy-m:#1E293B;--gold:#C9A227;--gold-d:#92740A;--gold-l:#FEF3C7;--vert:#059669;--vert-l:#D1FAE5;--orange:#D97706;--orange-l:#FEF3C7;--danger:#DC2626;--danger-l:#FEE2E2;--bg:#F8FAFC;--card:#FFFFFF;--border:#E2E8F0;--muted:#64748B}
+
+/* Topbar */
+.bar{background:var(--navy);color:#fff;padding:14px 18px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50;box-shadow:0 2px 8px rgba(15,23,42,.15)}
+.brand{font-size:15px;font-weight:800;letter-spacing:.8px}
+.brand span{color:var(--gold)}
+.brand-sub{font-size:10px;color:rgba(255,255,255,.5);font-weight:500;display:block;letter-spacing:.3px}
+.user-chip{font-size:11px;color:rgba(255,255,255,.65);text-align:right;line-height:1.4}
+.user-chip strong{color:#fff;display:block;font-size:13px}
+
+/* Layout */
+.wrap{padding:16px;max-width:560px;margin:0 auto;padding-bottom:80px}
+.view{display:none}
+.view.active{display:block}
+
+/* Login screen */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(135deg,#0F172A 0%,#1E293B 100%)}
+.login-card{background:#fff;border-radius:16px;padding:32px 26px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-logo{text-align:center;margin-bottom:24px}
+.login-logo .b{font-size:24px;font-weight:800;letter-spacing:1.5px;color:var(--navy)}
+.login-logo .b span{color:var(--gold)}
+.login-logo .s{font-size:11px;color:var(--muted);letter-spacing:.5px;margin-top:4px}
+.login-card h1{font-size:18px;font-weight:700;margin-bottom:6px;text-align:center}
+.login-card .hello{color:var(--muted);font-size:13px;text-align:center;margin-bottom:24px}
+
+/* Form fields */
+.field{margin-bottom:14px}
+.field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-bottom:6px}
+.field input,.field select,.field textarea{width:100%;padding:14px 14px;border:1.5px solid var(--border);border-radius:10px;font-family:'Inter',sans-serif;font-size:16px;color:var(--navy);background:#fff;transition:.15s;-webkit-appearance:none}
+.field input:focus,.field select:focus,.field textarea:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 4px rgba(201,162,39,.12)}
+.field .hint{font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.4}
+
+/* Buttons */
+.btn{width:100%;padding:15px 20px;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;cursor:pointer;transition:.2s}
+.btn-primary{background:var(--navy);color:#fff}
+.btn-primary:active{background:var(--navy-m);transform:scale(.98)}
+.btn-gold{background:linear-gradient(135deg,var(--gold) 0%,#B8861E 100%);color:var(--navy);box-shadow:0 4px 14px rgba(201,162,39,.35)}
+.btn-gold:active{transform:scale(.98)}
+.btn-ghost{background:transparent;color:var(--navy);border:1.5px solid var(--border)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-small{padding:10px 14px;font-size:12px;width:auto;border-radius:8px}
+
+/* Tabs */
+.tabs{display:flex;background:#fff;border-radius:12px;padding:4px;margin-bottom:18px;box-shadow:0 1px 4px rgba(15,23,42,.05);position:sticky;top:62px;z-index:40}
+.tab{flex:1;padding:11px 0;font-size:12px;font-weight:700;text-align:center;color:var(--muted);border-radius:10px;cursor:pointer;text-transform:uppercase;letter-spacing:.4px;transition:.2s}
+.tab.active{background:var(--navy);color:#fff}
+
+/* Cards */
+.card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:0 1px 3px rgba(15,23,42,.04)}
+.card h2{font-size:14px;font-weight:700;margin-bottom:14px;color:var(--navy);display:flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:.5px}
+.card h2 .icon{font-size:20px}
+
+/* Toggle yes/no */
+.toggle{display:flex;background:var(--bg);border-radius:10px;padding:4px;margin-bottom:10px}
+.toggle button{flex:1;padding:10px;border:none;background:transparent;border-radius:8px;font-family:'Inter',sans-serif;font-weight:700;font-size:13px;cursor:pointer;color:var(--muted)}
+.toggle button.active{background:var(--navy);color:#fff}
+
+/* Photo */
+.photo-box{position:relative;border:2px dashed var(--border);border-radius:10px;padding:14px;text-align:center;cursor:pointer;transition:.15s;margin-bottom:8px;background:#fff}
+.photo-box:active{background:var(--bg)}
+.photo-box.has-photo{border:none;padding:0;overflow:hidden}
+.photo-box.has-photo img{display:block;width:100%;height:140px;object-fit:cover;border-radius:10px}
+.photo-box.has-photo .photo-rm{position:absolute;top:6px;right:6px;background:var(--danger);color:#fff;border:none;width:30px;height:30px;border-radius:50%;font-size:16px;font-weight:800;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4)}
+.photo-box .icon{font-size:32px;color:var(--muted);display:block;margin-bottom:6px}
+.photo-box .photo-label{font-size:13px;font-weight:700;color:var(--navy);text-transform:uppercase;letter-spacing:.5px}
+.photo-box .photo-sub{font-size:11px;color:var(--muted);margin-top:4px}
+.photo-box .req{color:var(--danger);font-weight:700}
+.photo-box input{display:none}
+
+/* Status / Toast */
+.toast{position:fixed;bottom:30px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:14px 22px;border-radius:10px;font-size:13px;font-weight:600;z-index:1000;box-shadow:0 10px 30px rgba(0,0,0,.3);max-width:90%;text-align:center}
+.toast.ok{background:var(--vert)}
+.toast.err{background:var(--danger)}
+
+/* History */
+.histo-card{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px}
+.histo-card .h-date{font-weight:700;font-size:14px;color:var(--navy)}
+.histo-card .h-stat{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:3px 8px;border-radius:4px;display:inline-block;margin-top:4px}
+.h-stat.PENDING{background:var(--orange-l);color:var(--orange)}
+.h-stat.VALIDATED{background:var(--vert-l);color:var(--vert)}
+.h-stat.REJECTED{background:var(--danger-l);color:var(--danger)}.h-stat.APPROVED{background:var(--vert-l);color:var(--vert)}
+.histo-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px;font-size:11px}
+.histo-grid .k{color:var(--muted)}
+.histo-grid .v{font-weight:700;text-align:right}
+
+/* Misc */
+.muted{color:var(--muted)}
+.center{text-align:center}
+.sticky-submit{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--border);padding:14px;box-shadow:0 -4px 20px rgba(15,23,42,.08);z-index:30}
+.sticky-submit .wrap-inner{max-width:560px;margin:0 auto}
+.loader{display:inline-block;width:18px;height:18px;border:2.5px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.divider{height:1px;background:var(--border);margin:12px 0}
+.alert-info{background:var(--gold-l);color:#7C5800;padding:12px 14px;border-radius:8px;font-size:13px;line-height:1.5;border-left:3px solid var(--gold)}
+.alert-warn{background:var(--orange-l);color:#7C2D12;padding:12px 14px;border-radius:8px;font-size:13px;line-height:1.5;border-left:3px solid var(--orange)}
+.alert-err{background:var(--danger-l);color:#7F1D1D;padding:12px 14px;border-radius:8px;font-size:13px;line-height:1.5;border-left:3px solid var(--danger);margin-bottom:14px}
+.calc-row{display:flex;justify-content:space-between;padding:6px 0;font-size:12px;border-bottom:1px dashed var(--border)}
+.calc-row:last-child{border:none;font-weight:700;font-size:14px;padding-top:10px}
+.calc-row .v{color:var(--navy)}
+
+/* Bouton ajouter photo */
+.btn-add-photo{display:flex;align-items:center;gap:10px;width:100%;margin-top:10px;padding:14px;border:2px dashed var(--gold);border-radius:12px;background:var(--gold-l);color:var(--gold-d);font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;justify-content:center;transition:.15s}
+.btn-add-photo:active{opacity:.7}
+.extra-photo-wrap{position:relative;margin-top:10px}
+.extra-photo-box{width:100%;min-height:90px;border:1.5px dashed var(--border);border-radius:12px;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;cursor:pointer;padding:16px;transition:.15s;overflow:hidden}
+.extra-photo-box:active{opacity:.7}
+.extra-photo-box.has-photo{padding:0;border-style:solid;border-color:var(--vert)}
+.extra-photo-box.has-photo img{width:100%;max-height:200px;object-fit:cover;border-radius:11px}
+
+/* Sub-tabs saisie */
+.subtabs{display:flex;gap:6px;margin-bottom:16px}
+.subtab{flex:1;padding:10px 4px;font-size:11px;font-weight:700;text-align:center;color:var(--muted);border-radius:10px;cursor:pointer;text-transform:uppercase;letter-spacing:.4px;transition:.2s;background:#fff;border:1.5px solid var(--border)}
+.subtab.active{background:var(--gold);color:var(--navy);border-color:var(--gold);box-shadow:0 3px 10px rgba(201,162,39,.3)}
+
+.extra-photo-rm{position:absolute;top:6px;right:6px;background:var(--danger);color:#fff;border:none;border-radius:50%;width:26px;height:26px;font-size:14px;cursor:pointer;z-index:5;display:flex;align-items:center;justify-content:center;font-weight:700}
+.extra-photo-label{font-size:12px;color:var(--muted);font-weight:600}
+/* Attach menu */
+.attach-opt{display:flex;align-items:center;gap:12px;width:100%;padding:14px 16px;background:#fff;border:none;font-family:'Inter',sans-serif;font-size:15px;font-weight:600;color:var(--navy);cursor:pointer;text-align:left}
+.attach-opt:active{background:var(--bg)}
+.attach-opt span{font-size:22px}
+.extra-doc-box{width:100%;padding:14px 16px;border:1.5px dashed var(--border);border-radius:12px;background:#fff;display:flex;align-items:center;gap:12px;cursor:pointer;margin-top:10px}
+.extra-doc-box.has-doc{border-style:solid;border-color:var(--vert);background:var(--vert-l)}
+.extra-doc-name{font-size:13px;font-weight:600;color:var(--navy);word-break:break-all;flex:1}
+.extra-doc-size{font-size:11px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<!-- LOGIN VIEW -->
+<div class="view active" id="v-login">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="b">M3A<span>SOLUTION</span></div>
+        <div class="s">Transport VTC · Yango · Dakar</div>
+      </div>
+      <h1>Espace chauffeur</h1>
+      <div class="hello">Connecte-toi pour continuer.</div>
+      <div id="login-err"></div>
+      <div class="field">
+        <label>Identifiant</label>
+        <input type="text" id="lg-user" autocapitalize="off" autocomplete="username" placeholder="ex: k3"/>
+      </div>
+      <div class="field">
+        <label>Mot de passe</label>
+        <input type="password" id="lg-pw" autocomplete="current-password" placeholder="Mot de passe"/>
+      </div>
+      <button class="btn btn-primary" id="btn-login" onclick="doLogin()">Se connecter</button>
+      <div class="muted center" style="font-size:11px;margin-top:18px">Pour récupérer un accès, contacte le propriétaire.</div>
+    </div>
+  </div>
+</div>
+
+<!-- MENU VIEW (après login) -->
+<div class="view" id="v-menu">
+  <div class="login-wrap">
+    <div class="login-card" style="max-width:400px">
+      <div class="login-logo">
+        <div class="b">M3A<span>SOLUTION</span></div>
+        <div class="s">Transport VTC · Yango · Dakar</div>
+      </div>
+      <h1 style="margin-bottom:6px">Que veux-tu faire ?</h1>
+      <div class="hello" id="menu-hello">Choisis le type de saisie.</div>
+      <div style="display:flex;flex-direction:column;gap:14px;margin-top:26px">
+        <button class="btn btn-primary" onclick="goSaisie('journ')" style="font-size:16px;padding:20px;display:flex;align-items:center;justify-content:center;gap:10px">
+          📋 Saisie de la journée
+        </button>
+        <button class="btn" onclick="goSaisie('ponct')" style="background:var(--navy-m);color:#fff;border:1.5px solid rgba(255,255,255,.18);font-size:16px;padding:20px;display:flex;align-items:center;justify-content:center;gap:10px">
+          ? Saisie ponctuelle
+        </button>
+      </div>
+      <button onclick="doLogout()" style="background:none;border:none;color:var(--muted);font-size:12px;margin-top:28px;cursor:pointer;text-decoration:underline;width:100%;text-align:center">Se déconnecter</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP VIEW (logged in) -->
+<div class="view" id="v-app">
+  <div class="bar">
+    <div>
+      <div class="brand">M3A<span>SOLUTION</span></div>
+      <span class="brand-sub" id="brand-sub">●</span>
+    </div>
+    <div class="user-chip">
+      <strong id="u-name">–</strong>
+      <span id="u-veh">–</span>
+      <button class="btn-small btn-ghost" style="background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.2);margin-top:4px;margin-right:4px" onclick="show('v-menu')">&#8592; Menu</button><button class="btn-small btn-ghost" style="background:rgba(255,255,255,.1);color:#fff;border-color:rgba(255,255,255,.2);margin-top:4px" onclick="doLogout()">Quitter</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="tabs">
+      <button class="tab active" data-tab="saisie">📝 Saisir</button>
+      <button class="tab" data-tab="histo">📜 Historique</button>
+      <button class="tab" data-tab="account">? Compte</button>
+    </div>
+
+    <!-- TAB SAISIE -->
+    <div id="t-saisie">
+      <div id="saisie-status"></div>
+
+      <!-- Sous-onglets de saisie -->
+      <div class="subtabs">
+        <button class="subtab active" id="st-journ" onclick="switchSubtab('journ',this)">&#128197; Journ&#233;e</button>
+        <button class="subtab" id="st-ponct" onclick="switchSubtab('ponct',this)">&#9889; Ponctuelle</button>
+        <button class="subtab" id="st-acomp" onclick="switchSubtab('acomp',this)">&#128181; Acompte</button>
+      </div>
+
+      <div id="sub-journ">
+
+      <div class="card">
+        <h2><span class="icon">📅</span> Date de la journée</h2>
+        <div class="field">
+          <input type="date" id="f-date"/>
+        </div>
+        <div class="toggle">
+          <button type="button" data-st="ACTIF" class="active" onclick="setStatut('ACTIF',this)">Travail</button>
+          <button type="button" data-st="REPOS" onclick="setStatut('REPOS',this)">Repos</button>
+          <button type="button" data-st="PANNE" onclick="setStatut('PANNE',this)">Panne</button>
+        </div>
+      </div>
+
+      <div class="card" id="card-saisie">
+        <h2><span class="icon">🛣️</span> Kilomètres</h2>
+        <div class="field">
+          <label>Km actuel au compteur</label>
+          <input type="number" id="f-km" inputmode="numeric" placeholder="ex: 133745"/>
+          <div class="hint">Lecture exacte du compteur de bord</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="icon">📋</span> Courses Yango</h2>
+        <div class="field">
+          <label>Nombre de courses Yango aujourd'hui</label>
+          <input type="number" id="f-nbY" inputmode="numeric" placeholder="ex: 14"/>
+        </div>
+        <div class="field">
+          <label>CA Yango affiché dans l'app (XOF)</label>
+          <input type="number" id="f-caY" inputmode="numeric" placeholder="ex: 28500" oninput="updateCalc()"/>
+          <div class="hint">Le montant en bas de la synthèse Yango</div>
+        </div>
+        <div class="toggle">
+          <button type="button" id="bt-net-no" class="active" onclick="setNetMode(false,this)">Brut affiché</button>
+          <button type="button" id="bt-net-yes" onclick="setNetMode(true,this)">Montant NET (après commission)</button>
+        </div>
+        <div class="field" style="margin-top:12px;border-top:1px solid var(--border);padding-top:12px">
+          <label>&#127873; Bonus Yango du jour (XOF)</label>
+          <input type="number" id="f-bonus" inputmode="numeric" placeholder="0" value="0" oninput="updateCalc()"/>
+          <div class="hint">Bonus Yango ou prime journalière – s'ajoute au net. 0 par défaut.</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="icon">📋</span> Hors-Yango (cash direct)</h2>
+        <div class="toggle">
+          <button type="button" id="ad-no" class="active" onclick="setAdHoc(false,this)">Non</button>
+          <button type="button" id="ad-yes" onclick="setAdHoc(true,this)">Oui</button>
+        </div>
+        <div id="ad-block" style="display:none">
+          <div class="field">
+            <label>Montant cash hors Yango (XOF)</label>
+            <input type="number" id="f-caAd" inputmode="numeric" placeholder="ex: 15000" oninput="updateCalc()"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="icon">📋</span> Versement & wallet</h2>
+        <div class="field">
+          <label>Versement cash remis au propriétaire (XOF)</label>
+          <input type="number" id="f-vers" inputmode="numeric" placeholder="ex: 25000"/>
+        </div>
+        <div class="field">
+          <label>Solde wallet Yango actuel (XOF)</label>
+          <input type="number" id="f-wal" inputmode="numeric" placeholder="ex: 22500"/>
+          <div class="hint">Solde affiché dans l'app en fin de journée</div>
+        </div>
+      </div>
+
+      
+      <div class="card">
+        <h2><span class="icon">●</span> Carburant</h2>
+        <div class="toggle">
+          <button type="button" id="cb-no" class="active" onclick="setCarb(false,this)">Pas de plein</button>
+          <button type="button" id="cb-yes" onclick="setCarb(true,this)">Plein fait</button>
+        </div>
+        <div id="cb-block" style="display:none">
+          <div class="field">
+            <label>Litres ajoutés</label>
+            <input type="number" id="f-cbL" inputmode="decimal" step="0.01" placeholder="ex: 38.5"/>
+          </div>
+          <div class="field">
+            <label>Montant total (XOF)</label>
+            <input type="number" id="f-cbM" inputmode="numeric" placeholder="ex: 26180" oninput="updateCalc()"/>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="icon">●</span> Note Yango & remarques</h2>
+        <div class="field">
+          <label>Note Yango actuelle (sur 5)</label>
+          <input type="number" id="f-note" inputmode="decimal" step="0.01" max="5" placeholder="ex: 4.78"/>
+        </div>
+        <div class="field">
+          <label>Incident ou problème</label>
+          <input type="text" id="f-inc" placeholder="(facultatif)"/>
+        </div>
+        <div class="field">
+          <label>Remarques libres</label>
+          <textarea id="f-rem" rows="2" placeholder="(facultatif)"></textarea>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="icon">📎</span> Pièces jointes</h2>
+        <div class="photo-box" data-name="compteur" data-req="1">
+          <input type="file" accept="image/*"/>
+          <span class="icon">📋</span>
+          <div class="photo-label">Photo compteur <span class="req">*</span></div>
+          <div class="photo-sub">Tableau de bord, km lisibles</div>
+        </div>
+        <div class="photo-box" data-name="synthese" data-req="1">
+          <input type="file" accept="image/*"/>
+          <span class="icon">📋</span>
+          <div class="photo-label">Photo synthèse Yango <span class="req">*</span></div>
+          <div class="photo-sub">Écran récap du jour de l'app Yango</div>
+        </div>
+        <div class="photo-box" data-name="carburant" id="ph-carb" style="display:none">
+          <input type="file" accept="image/*"/>
+          <span class="icon">📋</span>
+          <div class="photo-label">Reçu carburant</div>
+          <div class="photo-sub">Ticket de pompe</div>
+        </div>
+        <!-- Photos libres multiples -->
+        <div id="extra-photos-container"></div>
+        <div id="attach-menu" style="display:none;margin-top:10px;border:1.5px solid var(--border);border-radius:12px;overflow:hidden">
+          <button type="button" class="attach-opt" onclick="addExtraPhoto('photo')">
+            <span>&#128247;</span> Photo
+          </button>
+          <button type="button" class="attach-opt" style="border-top:1px solid var(--border)" onclick="addExtraPhoto('doc')">
+            <span>&#128196;</span> Document (PDF, Word&hellip;)
+          </button>
+          <button type="button" class="attach-opt" style="border-top:1px solid var(--border);color:var(--muted);font-size:12px" onclick="document.getElementById('attach-menu').style.display='none'">
+            Annuler
+          </button>
+        </div>
+        <button type="button" class="btn-add-photo" onclick="toggleAttachMenu()">
+          <span>&#10010;</span> Ajouter une pi&#232;ce jointe
+        </button>
+      </div>
+      </div>
+
+      <div class="card">
+        <h2><span class="icon">🧮</span> Récap automatique</h2>
+        <div class="calc-row"><span class="muted">Km déclarés</span><span class="v" id="r-km">–</span></div>
+        <div class="calc-row"><span class="muted">CA brut Yango (recalculé)</span><span class="v" id="r-brut">–</span></div>
+        <div class="calc-row"><span class="muted">- Commission Yango (15 %)</span><span class="v" id="r-cy">–</span></div>
+        <div class="calc-row"><span class="muted">- Commission partenaire (0,75 %)</span><span class="v" id="r-cp">–</span></div>
+        <div class="calc-row" style="color:var(--vert)"><span class="muted" style="color:var(--vert)">+ Bonus Yango</span><span class="v" style="color:var(--vert)" id="r-bonus">+ 0 XOF</span></div>
+        <div class="calc-row" style="border-top:2px solid var(--border);margin-top:8px;padding-top:10px;background:var(--navy);border-radius:8px;padding:10px 8px;margin-bottom:2px"><span style="font-weight:700;color:#fff">&#127919; Net Yango</span><span class="v" style="font-weight:800;font-size:15px;color:var(--gold)" id="r-net">–</span></div>
+        <div class="calc-row" style="margin-top:4px"><span class="muted">+ Hors Yango (cash)</span><span class="v" id="r-ad">–</span></div>
+        <div class="calc-row" style="color:var(--danger)"><span class="muted" style="color:var(--danger)">- Charges du jour (carburant)</span><span class="v" style="color:var(--danger)" id="r-carb">0 XOF</span></div>
+        <div class="calc-row" style="background:var(--vert-l);border-radius:8px;padding:10px 8px;margin-top:6px"><span style="font-weight:800;color:var(--vert)">&#128176; Montant – verser</span><span class="v" style="font-weight:900;font-size:18px;color:var(--vert)" id="r-verser">-</span></div>
+      </div>
+
+      <div class="card" style="background:linear-gradient(135deg,#003087,#1565C0);border:none;padding:18px;margin-bottom:12px">
+        <div style="color:rgba(255,255,255,0.75);font-size:11px;text-transform:uppercase;letter-spacing:.6px;margin-bottom:12px;font-weight:700">&#128153; Paiement Wave professionnel</div>
+        <a id="btn-wave" href="#" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:10px;background:#00C2FF;color:#fff;font-weight:800;font-size:15px;padding:15px;border-radius:12px;text-decoration:none;letter-spacing:.2px;transition:.2s;pointer-events:none;opacity:.5">
+          <span style="font-size:20px">&#128153;</span>
+          <span>Envoyer <span class="wave-amt">0 XOF</span> via Wave</span>
+        </a>
+        <div style="color:rgba(255,255,255,0.5);font-size:10.5px;margin-top:8px;text-align:center">Ouvre directement l&#8217;app Wave avec le montant total collect&#233;</div>
+      </div>
+
+      </div><!-- /sub-journ -->
+
+      <!-- SUB: PONCTUELLE -->
+      <div id="sub-ponct" style="display:none">
+        <div class="card">
+          <h2><span class="icon">&#9889;</span> Saisie ponctuelle</h2>
+          <div class="field"><label>Date</label><input type="date" id="p-date"/></div>
+          
+          <div class="field"><label>Type</label><select id="p-type" onchange="onPTypeChange()"><option value="versement">&#128176; Versement cash</option><option value="carburant">&#9981; Carburant</option><option value="peage">&#128739; P&#233;age</option><option value="controle_routier">&#128682; Contr&#244;le routier</option><option value="bonus">&#127873; Bonus / Prime</option><option value="reparation">&#128295; R&#233;paration / Entretien</option><option value="incident">&#9888; Incident</option><option value="autre">&#128203; Autre</option></select></div>
+          <div class="field"><label>Montant (XOF) &#8212; si applicable</label><input type="number" id="p-montant" inputmode="numeric" placeholder="ex: 15000"/></div>
+          <div class="field"><label>Description / Motif</label><input type="text" id="p-desc" placeholder="ex: P&#233;age autoroute Dakar-Di&#233;mniadio"/></div>
+          <div class="field" id="p-litres-row" style="display:none"><label>Litres (optionnel)</label><input type="number" id="p-litres" inputmode="decimal" step="0.1" placeholder="ex: 20.5"/></div>
+          <div class="field" id="p-km-row" style="display:none"><label>Compteur km (optionnel)</label><input type="number" id="p-km" inputmode="numeric" placeholder="ex: 134200"/><div class="hint" style="margin-top:4px">Lecture du tableau de bord au moment du plein</div></div>
+          <div id="p-photos-container" style="margin-top:8px"></div>
+          <div id="p-attach-menu" style="display:none;margin-top:8px;border:1.5px solid var(--border);border-radius:12px;overflow:hidden">
+            <button type="button" class="attach-opt" onclick="addPonctPhoto('photo')">&#128247; Photo</button>
+            <button type="button" class="attach-opt" style="border-top:1px solid var(--border)" onclick="addPonctPhoto('doc')">&#128196; Document (PDF)</button>
+            <button type="button" class="attach-opt" style="border-top:1px solid var(--border);color:var(--muted);font-size:12px" onclick="document.getElementById('p-attach-menu').style.display='none'">Annuler</button>
+          </div>
+          <button type="button" class="btn-add-photo" onclick="togglePonctAttachMenu()" style="margin-top:8px">&#10010; Ajouter une pi&#232;ce jointe</button>
+        </div>
+        <div class="sticky-submit"><div class="wrap-inner"><button class="btn btn-gold" id="btn-submit-ponct" onclick="doSubmitPonct()">&#9889; Envoyer l&#8217;&#233;v&#233;nement</button></div></div>
+      </div><!-- /sub-ponct -->
+
+      <!-- SUB: ACOMPTE -->
+      <div id="sub-acomp" style="display:none">
+        <div class="card">
+          <h2><span class="icon">&#128181;</span> Demande d&#8217;acompte</h2>
+          <div class="alert-info" style="margin-bottom:16px">La demande sera transmise au propri&#233;taire pour validation.</div>
+          <div class="field"><label>Date souhait&#233;e</label><input type="date" id="ac-date"/></div>
+          <div class="field"><label>Montant demand&#233; (XOF)</label><input type="number" id="ac-montant" inputmode="numeric" placeholder="ex: 50000"/></div>
+          <div class="field"><label>Motif / Justification</label><textarea id="ac-motif" rows="3" placeholder="Raison de la demande&#8230;"></textarea></div>
+        </div>
+        <div class="sticky-submit"><div class="wrap-inner"><button class="btn btn-gold" id="btn-submit-acomp" onclick="doSubmitAcomp()">&#128181; Envoyer la demande</button></div></div>
+      </div><!-- /sub-acomp -->
+
+      <div class="sticky-submit" id="sticky-journ" style="display:none">
+        <div class="wrap-inner">
+          <button class="btn btn-gold" id="btn-submit" onclick="doSubmit()">?? Envoyer ma journée</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB HISTO -->
+    <div id="t-histo" style="display:none">
+      <div class="subtabs" style="margin-bottom:12px">
+        <button class="subtab active" id="ht-journees" onclick="switchHistoTab('journees',this)">&#128197; Journ&#233;es</button>
+        <button class="subtab" id="ht-events" onclick="switchHistoTab('events',this)">&#9889; &#201;v&#233;nements</button>
+      </div>
+      <div id="histo-journees">
+        <div id="histo-list">
+          <div class="muted center" style="padding:30px 0">Chargement–</div>
+        </div>
+      </div>
+      <div id="histo-events" style="display:none">
+        <div id="histo-events-list">
+          <div class="muted center" style="padding:30px 0">Chargement–</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB COMPTE -->
+    <div id="t-account" style="display:none">
+      <div class="card">
+        <h2><span class="icon">📋</span> Changer mon mot de passe</h2>
+        <div class="field">
+          <label>Mot de passe actuel</label>
+          <input type="password" id="pw-old"/>
+        </div>
+        <div class="field">
+          <label>Nouveau mot de passe</label>
+          <input type="password" id="pw-new"/>
+        </div>
+        <div class="field">
+          <label>Confirmer</label>
+          <input type="password" id="pw-new2"/>
+        </div>
+        <button class="btn btn-primary" onclick="changePw()">Mettre – jour</button>
+      </div>
+
+      <div class="card">
+        <h2><span class="icon">●</span> Aide rapide</h2>
+        <div class="alert-info">
+          <strong>Routine du soir :</strong><br/>
+          1. Prends en photo le compteur, l'Écran synthèse Yango, le reçu carburant si tu as fait le plein.<br/>
+          2. Saisis les chiffres clés (km, courses, CA, versement).<br/>
+          3. Appuie sur <strong>Envoyer ma journée</strong>.<br/>
+          Le propriétaire est notifié immédiatement.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* --- AUTH STATE --- */
+let TOKEN = localStorage.getItem('m3a_token') || null;
+let ME = null;
+let VEH = null;
+let CFG = null;
+let ad_hoc=false, carb_on=false, is_net=false;
+let PHOTOS = {}; // name ? {base64, mime}
+
+function parseISODate(d){
+  if(!d) return null;
+  var s = String(d).trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s+'T00:00:00');
+  var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m) return new Date(parseInt(m[3]),parseInt(m[2])-1,parseInt(m[1]));
+  if(s.length > 10 && s.indexOf('T') > -1) return new Date(s.slice(0,10)+'T00:00:00');
+  var x = new Date(s); return isNaN(x.getTime()) ? null : x;
+}
+function $(id){ return document.getElementById(id); }
+function show(viewId){ document.querySelectorAll('.view').forEach(v=>v.classList.remove('active')); $(viewId).classList.add('active'); }
+function toast(msg, kind){ const t=document.createElement('div'); t.className='toast '+(kind||''); t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),3500); }
+function fmt(n){ return (n==null||isNaN(n))?'–':new Intl.NumberFormat('fr-FR').format(Math.round(n))+' XOF'; }
+
+/* --- API helper – fetch CORS vers backend Apps Script --- */
+const M3A_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbz8f9ZWhOkKKBuYQCO8CkT_Ixyb8RkPrbsNCkvn9BHw1tAhEDC5h8IHTAwy_g9peBIAoQ/exec';
+async function api(action, body){
+  body = body || {};
+  try {
+    const r = await fetch(M3A_BACKEND_URL, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action, ...body })
+    });
+    if (!r.ok) return { error: 'HTTP ' + r.status };
+    return await r.json();
+  } catch(e) {
+    return { error: 'Erreur réseau : ' + e.message };
+  }
+}
+
+/* --- LOGIN --- */
+async function doLogin(){
+  const user = $('lg-user').value.trim();
+  const pw = $('lg-pw').value;
+  if(!user||!pw){ $('login-err').innerHTML = '<div class="alert-err">Renseigne identifiant et mot de passe.</div>'; return; }
+  $('btn-login').innerHTML = '<span class="loader"></span> Connexion–'; $('btn-login').disabled=true;
+  try{
+    const r = await api('login', { username:user, password:pw });
+    if(r.error){ $('login-err').innerHTML = '<div class="alert-err">'+r.error+'</div>'; return; }
+    TOKEN = r.token; localStorage.setItem('m3a_token', TOKEN);
+    ME = r.user; VEH = r.vehicle;
+    initApp();
+  }catch(e){ $('login-err').innerHTML='<div class="alert-err">Erreur réseau : '+e.message+'</div>'; }
+  finally{ $('btn-login').innerHTML='Se connecter'; $('btn-login').disabled=false; }
+}
+
+async function doLogout(){
+  await api('logout', { token: TOKEN }).catch(()=>{});
+  localStorage.removeItem('m3a_token'); TOKEN=null; ME=null;
+  location.reload();
+}
+
+async function checkSession(){
+  if(!TOKEN) return;
+  try{
+    const r = await api('me', { token: TOKEN });
+    if(r.error){ TOKEN=null; localStorage.removeItem('m3a_token'); return; }
+    ME = r.user;
+    const c = await api('config_get', { token: TOKEN });
+    CFG = c.config;
+    // récup véhicule via meta
+    VEH = { id: ME.vehicle_id, plate: '', name: '' };
+    initApp();
+  }catch(e){ TOKEN=null; localStorage.removeItem('m3a_token'); }
+}
+
+function initApp(){
+  $('u-name').textContent = ME.full_name || ME.username;
+  $('u-veh').textContent = VEH && VEH.name ? (VEH.name + (VEH.plate?(' – '+VEH.plate):'')) : '';
+  $('brand-sub').textContent = (VEH && VEH.name) ? ('Saisie – '+VEH.name) : 'Saisie quotidienne';
+  $('f-date').value = new Date().toISOString().slice(0,10);
+  if(!CFG){ api('config_get',{token:TOKEN}).then(r=>{ if(r.ok) CFG=r.config; updateCalc();}); }
+  var mh = $('menu-hello'); if(mh) mh.textContent = 'Bonjour ' + (ME.full_name || ME.username) + ' ??';
+  show('v-menu');
+  loadHistory();
+  updateCalc();
+}
+
+/* --- FORM HELPERS --- */
+function setStatut(st, btn){
+  document.querySelectorAll('[data-st]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  $('card-saisie').dataset.statut = st;
+  // mode REPOS ou PANNE : on cache les sections inutiles
+  const blocs = document.querySelectorAll('#t-saisie .card');
+  if(st!=='ACTIF'){ /* on laisse tout visible pour flexibilit– */ }
+}
+function setAdHoc(v, btn){
+  document.querySelectorAll('#ad-no,#ad-yes').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  ad_hoc = v;
+  $('ad-block').style.display = v?'block':'none';
+  if(!v) $('f-caAd').value='';
+  updateCalc();
+}
+function setCarb(v, btn){
+  document.querySelectorAll('#cb-no,#cb-yes').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  carb_on = v;
+  $('cb-block').style.display = v?'block':'none';
+  $('ph-carb').style.display = v?'block':'none';
+  if(!v){ $('f-cbL').value=''; $('f-cbM').value=''; }
+  updateCalc();
+}
+function setNetMode(v, btn){
+  document.querySelectorAll('#bt-net-no,#bt-net-yes').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  is_net = v;
+  updateCalc();
+}
+
+['f-km','f-caY','f-caAd','f-vers','f-wal','f-cbL','f-cbM','f-bonus'].forEach(id=>$(id).addEventListener('input',updateCalc));
+
+function updateCalc(){
+  const comY = (CFG?+CFG.comY:15)/100, comP = (CFG?+CFG.comP:0.75)/100;
+  let caBrut = +$('f-caY').value || 0;
+  if(is_net && caBrut>0) caBrut = caBrut/(1-comY);
+  const bonus = +$('f-bonus').value || 0;
+  // Nouveau calcul : bonus s ajout au brut avant application des commissions
+  const bruteEffectif = caBrut + bonus;
+  const cy = bruteEffectif*comY, cp = bruteEffectif*comP;
+  // Net Yango = (brut + bonus) - commissions Yango - commissions partenaire
+  const netYango = bruteEffectif - cy - cp;
+  const ad = +$('f-caAd').value || 0;
+  // A verser = Net Yango + hors-Yango cash (charges ponctuelles independantes)
+  const verser = netYango + ad;
+  const carb = carb_on ? (+$('f-cbM').value || 0) : 0;
+
+  $('r-km').textContent = (+$('f-km').value || 0) + ' km';
+  $('r-brut').textContent = fmt(caBrut);
+  $('r-cy').textContent = '- '+fmt(cy);
+  $('r-cp').textContent = '- '+fmt(cp);
+  $('r-bonus').textContent = '+ '+fmt(bonus);
+  $('r-net').textContent = fmt(netYango);
+  $('r-ad').textContent = '+ '+fmt(ad);
+  if($('r-carb')) $('r-carb').textContent = carb > 0 ? '- '+fmt(carb) : '0 XOF';
+  if($('r-verser')) $('r-verser').textContent = fmt(verser);
+
+  // Bouton Wave dynamique – utilise le MONTANT – VERSER
+  const waveBtn = $('btn-wave');
+  if(waveBtn){
+    const waveNum = (CFG && CFG.wave_number) ? CFG.wave_number.trim() : '';
+    const amt = Math.round(verser);
+    if(amt > 0){
+      let waveUrl;
+      if(waveNum){
+        waveUrl = 'https://pay.wave.com/m/' + waveNum + '/c/?amount=' + amt;
+      } else {
+        waveUrl = 'https://pay.wave.com/';
+      }
+      waveBtn.href = waveUrl;
+      waveBtn.querySelector('.wave-amt').textContent = new Intl.NumberFormat('fr-FR').format(amt) + ' XOF';
+      waveBtn.style.opacity = '1';
+      waveBtn.style.pointerEvents = 'auto';
+    } else {
+      waveBtn.href = '#';
+      waveBtn.querySelector('.wave-amt').textContent = '0 XOF';
+      waveBtn.style.opacity = '0.5';
+      waveBtn.style.pointerEvents = 'none';
+    }
+  }
+}
+
+
+/* MULTI PHOTOS LIBRES */
+let extraPhotoCount = 0;
+const EXTRA_PHOTOS = {};
+
+function toggleAttachMenu(){
+  const m = document.getElementById('attach-menu');
+  m.style.display = m.style.display === 'none' ? 'block' : 'none';
+}
+
+function addExtraPhoto(type){
+  document.getElementById('attach-menu').style.display = 'none';
+  extraPhotoCount++;
+  const id = 'extra-' + extraPhotoCount;
+  const wrap = document.createElement('div');
+  wrap.className = 'extra-photo-wrap';
+  wrap.id = 'wrap-' + id;
+
+  if(type === 'photo'){
+    wrap.innerHTML = `
+      <div class="extra-photo-box" id="box-${id}" onclick="document.getElementById('inp-${id}').click()">
+        <input type="file" accept="image/*" id="inp-${id}" style="display:none" onchange="handleExtraPhoto('${id}',this)"/>
+        <span style="font-size:28px">&#128247;</span>
+        <div class="extra-photo-label">Photo libre</div>
+        <div style="font-size:11px;color:var(--muted)">Cliquer pour choisir</div>
+      </div>
+      <button class="extra-photo-rm" onclick="removeExtraPhoto('${id}')" title="Supprimer">&#x2715;</button>
+    `;
+    document.getElementById('extra-photos-container').appendChild(wrap);
+    setTimeout(()=>document.getElementById('inp-'+id).click(), 150);
+
+  } else {
+    // Document – sélection multiple
+    const inp = document.createElement('input');
+    inp.type = 'file';
+    inp.multiple = true;
+    inp.accept = '.pdf,.doc,.docx,.xls,.xlsx,.txt,.csv';
+    inp.style.display = 'none';
+    document.body.appendChild(inp);
+    inp.onchange = () => {
+      Array.from(inp.files).forEach(file => {
+        extraPhotoCount++;
+        const did = 'extra-' + extraPhotoCount;
+        const dwrap = document.createElement('div');
+        dwrap.className = 'extra-photo-wrap';
+        dwrap.id = 'wrap-' + did;
+        const sz = file.size < 1024*1024
+          ? (file.size/1024).toFixed(0) + ' Ko'
+          : (file.size/1024/1024).toFixed(1) + ' Mo';
+        dwrap.innerHTML = `
+          <div class="extra-doc-box has-doc" id="box-${did}">
+            <span style="font-size:28px">&#128196;</span>
+            <div style="flex:1;min-width:0">
+              <div class="extra-doc-name">${file.name}</div>
+              <div class="extra-doc-size">${sz}</div>
+            </div>
+          </div>
+          <button class="extra-photo-rm" onclick="removeExtraPhoto('${did}')" title="Supprimer">&#x2715;</button>
+        `;
+        document.getElementById('extra-photos-container').appendChild(dwrap);
+        const reader = new FileReader();
+        reader.onload = ev => {
+          EXTRA_PHOTOS[did] = {
+            name: file.name,
+            base64: ev.target.result,
+            mime: file.type || 'application/octet-stream'
+          };
+        };
+        reader.readAsDataURL(file);
+      });
+      document.body.removeChild(inp);
+    };
+    extraPhotoCount--;   // sera incrémenté par fichier
+    inp.click();
+    return;
+  }
+}
+
+function handleExtraPhoto(id, input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const max=1000, ratio=Math.min(1,max/Math.max(img.width,img.height));
+      const w=Math.round(img.width*ratio), h=Math.round(img.height*ratio);
+      const canvas=document.createElement('canvas');
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      const data=canvas.toDataURL('image/jpeg',0.72);
+      EXTRA_PHOTOS[id]={name:'photo_'+id+'.jpg',base64:data,mime:'image/jpeg'};
+      const box=document.getElementById('box-'+id);
+      box.classList.add('has-photo');
+      box.innerHTML=`<img src="${data}"/><input type="file" accept="image/*" id="inp-${id}" style="display:none" onchange="handleExtraPhoto('${id}',this)"/>`;
+    };
+    img.src=ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removeExtraPhoto(id){
+  delete EXTRA_PHOTOS[id];
+  const wrap=document.getElementById('wrap-'+id);
+  if(wrap) wrap.remove();
+}
+/* --- PHOTOS --- */
+document.querySelectorAll('.photo-box').forEach(box=>{
+  const input = box.querySelector('input');
+  box.addEventListener('click',()=>input.click());
+  input.addEventListener('change',e=>handlePhoto(box, e.target.files[0]));
+});
+
+function handlePhoto(box, file){
+  if(!file) return;
+  const name = box.dataset.name;
+  // Compresser – max 1000px, JPEG quality 0.72
+  const reader = new FileReader();
+  reader.onload = ev=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const max = 1000;
+      const ratio = Math.min(1, max/Math.max(img.width, img.height));
+      const w = Math.round(img.width*ratio), h = Math.round(img.height*ratio);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0,0, w,h);
+      const data = canvas.toDataURL('image/jpeg', 0.72);
+      PHOTOS[name] = { name, base64: data, mime: 'image/jpeg' };
+      // Affichage
+      box.classList.add('has-photo');
+      box.innerHTML = `<img src="${data}"/><button class="photo-rm" onclick="removePhoto(event,'${name}')">–</button>`;
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function removePhoto(e, name){
+  e.stopPropagation();
+  delete PHOTOS[name];
+  const box = document.querySelector('.photo-box[data-name="'+name+'"]');
+  box.classList.remove('has-photo');
+  const req = box.dataset.req==='1';
+  const labels = {compteur:['??','Photo compteur','Tableau de bord, km lisibles'],synthese:['??','Photo synthèse Yango','Écran récap du jour de l\'app Yango'],carburant:['??','Reçu carburant','Ticket de pompe'],libre:['?','Photo libre (facultatif)','Incident, dommage, autre–']};
+  const [ic,lb,sb] = labels[name];
+  box.innerHTML = `<input type="file" accept="image/*"/><span class="icon">${ic}</span><div class="photo-label">${lb}${req?' <span class="req">*</span>':''}</div><div class="photo-sub">${sb}</div>`;
+  const inp = box.querySelector('input');
+  inp.addEventListener('change',ev=>handlePhoto(box, ev.target.files[0]));
+}
+
+/* --- SUBMIT --- */
+async function doSubmit(){
+  const statut = $('card-saisie').dataset.statut || 'ACTIF';
+  const date = $('f-date').value;
+  if(!date){ toast('Date manquante','err'); return; }
+
+  // Photos obligatoires uniquement si ACTIF
+  if(statut==='ACTIF'){
+    if(!PHOTOS.compteur){ toast('Photo du compteur obligatoire','err'); return; }
+    if(!PHOTOS.synthese){ toast('Photo synthèse Yango obligatoire','err'); return; }
+    if(carb_on && !PHOTOS.carburant){ if(!confirm('Plein déclaré sans reçu – envoyer quand même ?')) return; }
+  }
+
+  let caBrut = +$('f-caY').value || 0;
+  const payload = {
+    date, statut,
+    km: $('f-km').value ? +$('f-km').value : null,
+    nb_courses_yango: +$('f-nbY').value || 0,
+    ca_yango_brut: caBrut,
+    is_net_input: is_net,
+    ca_hors_yango: ad_hoc ? (+$('f-caAd').value || 0) : 0,
+    vers_recu: +$('f-vers').value || 0,
+    wal_solde: $('f-wal').value ? +$('f-wal').value : null,
+    alim_wallet: 0,
+    carb_l: carb_on ? (+$('f-cbL').value || 0) : 0,
+    carb_xof: carb_on ? (+$('f-cbM').value || 0) : 0,
+    note_yango: $('f-note').value ? +$('f-note').value : null,
+    bonus_daily: +$('f-bonus').value || 0,
+    incident: $('f-inc').value.trim(),
+    remarques: $('f-rem').value.trim()
+  };
+
+  const photos = [...Object.values(PHOTOS), ...Object.values(EXTRA_PHOTOS)];
+
+  $('btn-submit').innerHTML = '<span class="loader"></span> Envoi en cours–';
+  $('btn-submit').disabled = true;
+
+  try{
+    const r = await api('submit', { token: TOKEN, payload, photos });
+    if(r.error){ toast('Erreur : '+r.error,'err'); return; }
+    toast('? Journée envoyée – le propriétaire est notifié','ok');
+    // reset
+    PHOTOS={};
+      document.getElementById('extra-photos-container').innerHTML='';
+      Object.keys(EXTRA_PHOTOS).forEach(k=>delete EXTRA_PHOTOS[k]);
+      extraPhotoCount=0; document.querySelectorAll('.photo-box[data-name]').forEach(b=>{
+      const n=b.dataset.name;
+      removePhoto({stopPropagation:()=>{}}, n);
+    });
+    ['f-km','f-nbY','f-caY','f-caAd','f-vers','f-wal','f-cbL','f-cbM','f-note','f-inc','f-rem','f-bonus'].forEach(id=>$(id).value='');
+    is_net=false; ad_hoc=false; carb_on=false;
+    setNetMode(false, $('bt-net-no')); setAdHoc(false, $('ad-no')); setCarb(false, $('cb-no'));
+    updateCalc();
+    loadHistory();
+    // Retour menu: saisie ponctuelle reste accessible independamment
+    show('v-menu');
+  }catch(e){
+    toast('Erreur réseau : '+e.message,'err');
+  }finally{
+    $('btn-submit').innerHTML = '?? Envoyer ma journée';
+    $('btn-submit').disabled = false;
+  }
+}
+
+/* --- HISTORIQUE --- */
+async function loadHistory(){
+  const r = await api('my_history', { token: TOKEN });
+  const list = $('histo-list');
+  if(r.error){ list.innerHTML='<div class="alert-err">'+r.error+'</div>'; return; }
+  const items = r.history || [];
+  if(items.length===0){ list.innerHTML='<div class="muted center" style="padding:30px 0">Aucune soumission</div>'; return; }
+  list.innerHTML = items.map(s=>{
+    var dt = (function(d){ var x=parseISODate(d); return x ? x.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'short'}) : String(d); })(s.date);
+    var statLbl = {ACTIF:'Travail',REPOS:'Repos',PANNE:'Panne'}[s.statut] || s.statut || '';
+    var stLbl = {PENDING:'En attente',APPROVED:'Valid\u00e9',REJECTED:'Refus\u00e9'}[s.status] || s.status || 'En attente';
+    var stCls = s.status || 'PENDING';
+    var brut = +(s.ca_yango_brut||0);
+    var comY = CFG ? (+CFG.comY||15)/100 : 0.15;
+    var comP = CFG ? (+CFG.comP||0.75)/100 : 0.0075;
+    var bonus = +(s.bonus_daily||0);
+    // Nouveau calcul : bonus s ajout au brut avant application des commissions
+    var brutEffectif = brut + bonus;
+    var netY = brutEffectif - brutEffectif*comY - brutEffectif*comP;
+    var carb = +(s.carb_xof||0);
+    var ad = +(s.ca_hors_yango||0);
+    var verser = netY + ad;
+    return '<div class="histo-card">' +
+      '<div style="display:flex;justify-content:space-between;align-items:start;gap:10px">' +
+        '<div><div class="h-date">' + dt + '</div>' + (statLbl ? '<span style="font-size:11px;color:var(--muted)">' + statLbl + '</span>' : '') + '</div>' +
+        '<span class="h-stat ' + stCls + '">' + stLbl + '</span>' +
+      '</div>' +
+      '<div class="histo-grid" style="margin-top:10px">' +
+        '<div class="k">Km compteur</div><div class="v">' + (s.km||'-') + '</div>' +
+        '<div class="k">Courses Yango</div><div class="v">' + (s.nb_courses_yango||0) + '</div>' +
+        '<div class="k">CA brut Yango</div><div class="v">' + fmt(s.ca_yango_brut) + '</div>' +
+        (bonus>0 ? '<div class="k">Bonus</div><div class="v" style="color:var(--vert)">+ ' + fmt(bonus) + '</div>' : '') +
+        '<div class="k">Net Yango</div><div class="v" style="font-weight:700">' + fmt(netY) + '</div>' +
+        (carb>0 ? '<div class="k" style="color:var(--muted)">Carburant (info)</div><div class="v" style="color:var(--muted)">&#128200; ' + fmt(carb) + '</div>' : '') +
+        (ad>0 ? '<div class="k">Hors Yango</div><div class="v" style="color:var(--vert)">+ ' + fmt(ad) + '</div>' : '') +
+        '<div class="k" style="font-weight:700">\u00c0 verser</div><div class="v" style="font-weight:800;color:var(--navy)">' + fmt(verser) + '</div>' +
+        '<div class="k">Vers. re\u00e7u</div><div class="v">' + fmt(s.vers_recu) + '</div>' +
+        (s.wal_solde!=null ? '<div class="k">Wallet</div><div class="v">' + fmt(s.wal_solde) + '</div>' : '') +
+      '</div>' +
+      (s.reject_reason ? '<div class="alert-warn" style="margin-top:10px"><strong>Refus\u00e9 :</strong> ' + s.reject_reason + '</div>' : '') +
+      (s.owner_notes ? '<div class="alert-info" style="margin-top:10px"><strong>Note :</strong> ' + s.owner_notes + '</div>' : '') +
+    '</div>';
+  }).join('');
+}
+
+/* --- PASSWORD --- */
+async function changePw(){
+  const o = $('pw-old').value, n = $('pw-new').value, n2 = $('pw-new2').value;
+  if(!o||!n){ toast('Champs requis','err'); return; }
+  if(n!==n2){ toast('Confirmation différente','err'); return; }
+  if(n.length<6){ toast('Min 6 caractères','err'); return; }
+  const r = await api('change_password', { token:TOKEN, old_password:o, new_password:n });
+  if(r.error){ toast(r.error,'err'); return; }
+  toast('Mot de passe mis – jour ?','ok');
+  $('pw-old').value=$('pw-new').value=$('pw-new2').value='';
+}
+
+
+/* === SOUS-ONGLETS HISTORIQUE === */
+function switchHistoTab(tab, btn) {
+  ['journees','events'].forEach(function(t) {
+    var el = document.getElementById('histo-' + t);
+    if (el) el.style.display = t === tab ? 'block' : 'none';
+    var bt = document.getElementById('ht-' + t);
+    if (bt) bt.classList.toggle('active', t === tab);
+  });
+  if (tab === 'events') loadMyEvents();
+}
+
+async function loadMyEvents() {
+  var list = document.getElementById('histo-events-list');
+  list.innerHTML = '<div class="muted center" style="padding:30px 0">Chargement&#x2026;</div>';
+  var r = await api('my_events', { token: TOKEN });
+  if (r.error) { list.innerHTML = '<div class="alert-err">' + r.error + '</div>'; return; }
+  var items = (r.events || []).sort(function(a,b){ return (b.date||'').localeCompare(a.date||''); });
+  if (!items.length) { list.innerHTML = '<div class="muted center" style="padding:30px 0">Aucun &#233;v&#233;nement ponctuel</div>'; return; }
+  var typeLabels = { versement:'Versement cash', carburant:'Carburant', peage:'P&#233;age', controle_routier:'Contr&#244;le routier', bonus:'Bonus/Prime', reparation:'R&#233;paration', incident:'Incident', accident:'Accident', amende:'Amende', assurance:'Assurance', visite:'Visite tech.', autre:'Autre' };
+  var statusLabel = { PENDING:'En attente', APPROVED:'Valid&#233;', REJECTED:'Refus&#233;' };
+  list.innerHTML = items.map(function(ev) {
+    var dt = (function(d){ var x=parseISODate(d); return x ? x.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'short'}) : String(d||''); })(ev.date);
+    var lbl = typeLabels[ev.type] || ev.type || '-';
+    var stCls = ev.status || 'PENDING';
+    var stLbl = statusLabel[ev.status] || ev.status || 'En attente';
+    var photos = [];
+    try { photos = JSON.parse(ev.photo_json || ev.photos || '[]'); } catch(e) {}
+    var photoHTML = photos.filter(function(p){return p.url;}).map(function(p){
+      return '<a href="'+p.url+'" target="_blank" class="btn-small btn-ghost" style="font-size:11px;padding:3px 8px">&#128247;</a>';
+    }).join('');
+    return '<div class="histo-card">' +
+      '<div style="display:flex;justify-content:space-between;align-items:start;gap:8px">' +
+        '<div><div class="h-date">' + dt + '</div>' +
+        '<span style="font-size:12px;font-weight:700;color:var(--gold-d)">' + lbl + '</span></div>' +
+        '<span class="h-stat ' + stCls + '">' + stLbl + '</span>' +
+      '</div>' +
+      (ev.montant && +ev.montant ? '<div style="font-size:15px;font-weight:700;margin-top:6px;color:var(--danger)">' + fmt(ev.montant) + '</div>' : '') +
+      (ev.description ? '<div style="font-size:12px;color:#475569;margin-top:4px">' + ev.description + '</div>' : '') +
+      (photoHTML ? '<div style="margin-top:6px;display:flex;gap:4px">' + photoHTML + '</div>' : '') +
+    '</div>';
+  }).join('');
+}
+/* === SOUS-ONGLETS SAISIE === */
+function switchSubtab(tab,btn){
+  ['journ','ponct','acomp'].forEach(function(t){
+    var el=document.getElementById('sub-'+t);
+    if(el) el.style.display=t===tab?'block':'none';
+    var bt=document.getElementById('st-'+t);
+    if(bt) bt.classList.toggle('active',t===tab);
+  });
+  // Bouton 'Envoyer ma journee' uniquement visible sur l'onglet journee
+  var sj=document.getElementById('sticky-journ');
+  if(sj) sj.style.display=tab==='journ'?'block':'none';
+  var today=new Date().toISOString().slice(0,10);
+  if(tab==='ponct'){var pd=document.getElementById('p-date');if(pd&&!pd.value)pd.value=today;}
+  if(tab==='acomp'){var ad=document.getElementById('ac-date');if(ad&&!ad.value)ad.value=today;}
+}
+
+var PHOTOS_PONCT = [];
+
+
+
+async function doSubmitPonct(){
+  var date=document.getElementById('p-date').value;
+  var type=document.getElementById('p-type').value;
+  var montant=+(document.getElementById('p-montant').value)||0;
+  var desc=document.getElementById('p-desc').value.trim();
+  if(!date){toast('Date manquante','err');return;}
+  if(!desc&&!montant){toast('Renseigne un montant ou une description','err');return;}
+  var btn=document.getElementById('btn-submit-ponct');
+  btn.textContent='Envoi...';btn.disabled=true;
+  var litres=+(document.getElementById('p-litres').value)||null;
+  var kmCpt=+(document.getElementById('p-km').value)||null;
+  try{
+    var r=await api('submit_event',{token:TOKEN,payload:{date:date,type:type,montant:montant,litres:litres,compteur_km:kmCpt,description:desc},photos:PHOTOS_PONCT});
+    if(r.error){toast('Erreur : '+r.error,'err');return;}
+    toast('\u2705 \u00c9v\u00e9nement du '+date+' enregistr\u00e9','ok'); setTimeout(function(){show('v-menu');},1800);
+    document.getElementById('p-date').value=''; document.getElementById('p-montant').value='';
+    document.getElementById('p-desc').value='';
+    document.getElementById('p-litres').value='';
+    document.getElementById('p-km').value='';
+    PHOTOS_PONCT=[];
+    document.getElementById('p-photos-container').innerHTML='';
+    document.getElementById('p-attach-menu').style.display='none';
+  }catch(e){toast('Erreur r\u00e9seau : '+e.message,'err');}
+  finally{btn.innerHTML='&#9889; Envoyer l\u0027&#233;v&#233;nement';btn.disabled=false;}
+}
+
+function onPTypeChange(){
+  const type = document.getElementById('p-type').value;
+  const isCarb = type === 'carburant';
+  const litresRow = document.getElementById('p-litres-row');
+  const kmRow = document.getElementById('p-km-row');
+  if(litresRow) litresRow.style.display = isCarb ? 'block' : 'none';
+  if(kmRow) kmRow.style.display = isCarb ? 'block' : 'none';
+}
+function togglePonctAttachMenu(){var m=document.getElementById('p-attach-menu');m.style.display=m.style.display==='none'?'block':'none';}
+var _ponctIdx=0;
+function addPonctPhoto(kind){
+  document.getElementById('p-attach-menu').style.display='none';
+  var idx=_ponctIdx++;
+  var accept=kind==='doc'?'image/*,application/pdf':'image/*';
+  var container=document.getElementById('p-photos-container');
+  var wrap=document.createElement('div');
+  wrap.className='photo-box';wrap.id='p-ph-'+idx;wrap.style.cssText='margin-bottom:8px;position:relative';
+  var inp=document.createElement('input');inp.type='file';inp.accept=accept;inp.style.display='none';
+  var iconEl=document.createElement('span');iconEl.className='icon';iconEl.textContent=kind==='doc'?'\uD83D\uDCC4':'\uD83D\uDCF7';
+  var label=document.createElement('div');label.className='photo-label';label.textContent=kind==='doc'?'Document':'Photo';
+  var sub=document.createElement('div');sub.className='photo-sub';sub.textContent='Appuyer pour choisir';
+  var del=document.createElement('button');del.type='button';del.innerHTML='&#10005;';
+  del.style.cssText='position:absolute;top:6px;right:8px;background:none;border:none;font-size:16px;color:var(--muted);cursor:pointer;z-index:2';
+  del.onclick=function(e){e.stopPropagation();PHOTOS_PONCT=PHOTOS_PONCT.filter(function(p){return p.idx!==idx;});wrap.remove();};
+  wrap.onclick=function(e){if(e.target===del)return;inp.click();};
+  inp.addEventListener('change',function(ev){
+    var f=ev.target.files[0];if(!f)return;
+    var reader=new FileReader();
+    reader.onload=function(e){
+      var b64=e.target.result.split(',')[1];
+      var existing=PHOTOS_PONCT.findIndex(function(p){return p.idx===idx;});
+      var obj={idx:idx,name:'ponct-'+idx,base64:b64,mime:f.type,filename:f.name};
+      if(existing>=0)PHOTOS_PONCT[existing]=obj;else PHOTOS_PONCT.push(obj);
+      wrap.classList.add('has-photo');
+      label.textContent=f.name.length>30?f.name.slice(0,28)+'...':f.name;
+      sub.textContent='Appuyer pour changer';
+    };
+    reader.readAsDataURL(f);
+  });
+  wrap.appendChild(inp);wrap.appendChild(iconEl);wrap.appendChild(label);wrap.appendChild(sub);wrap.appendChild(del);
+  container.appendChild(wrap);
+  inp.click();
+}
+
+async function doSubmitAcomp(){
+  var date=document.getElementById('ac-date').value;
+  var montant=+(document.getElementById('ac-montant').value)||0;
+  var motif=document.getElementById('ac-motif').value.trim();
+  if(!date){toast('Date manquante','err');return;}
+  if(!montant){toast('Montant requis','err');return;}
+  if(!motif){toast('Motif requis','err');return;}
+  var btn=document.getElementById('btn-submit-acomp');
+  btn.textContent='Envoi...';btn.disabled=true;
+  try{
+    var r=await api('request_advance',{token:TOKEN,payload:{date:date,montant:montant,motif:motif}});
+    if(r.error){toast('Erreur : '+r.error,'err');return;}
+    toast('\u2705 Demande d\u2019acompte envoy\u00e9e \u2014 en attente de validation','ok');
+    document.getElementById('ac-montant').value='';
+    document.getElementById('ac-motif').value='';
+  }catch(e){toast('Erreur r\u00e9seau : '+e.message,'err');}
+  finally{btn.innerHTML='&#128181; Envoyer la demande';btn.disabled=false;}
+}
+
+
+
+
+/* MENU ? SAISIE */
+function goSaisie(type){
+  show('v-app');
+  document.querySelectorAll('.tab').forEach(function(x){ x.classList.remove('active'); });
+  var tabBtn = document.querySelector('.tab[data-tab="saisie"]');
+  if(tabBtn) tabBtn.classList.add('active');
+  var ids = ['t-saisie','t-histo','t-account'];
+  ids.forEach(function(id){ var el = $(id); if(el) el.style.display = 'none'; });
+  var ts = $('t-saisie'); if(ts) ts.style.display = 'block';
+  var stId = (type === 'journ') ? 'st-journ' : 'st-ponct';
+  var stBtn = document.getElementById(stId);
+  switchSubtab(type, stBtn);
+}
+
+/* --- TABS --- */
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  const tab = t.dataset.tab;
+  $('t-saisie').style.display = tab==='saisie'?'block':'none';
+  $('t-histo').style.display = tab==='histo'?'block':'none';
+  $('t-account').style.display = tab==='account'?'block':'none';
+  if(tab==='histo') loadHistory();
+}));
+
+/* --- INIT --- */
+$('lg-pw').addEventListener('keydown',e=>{ if(e.key==='Enter') doLogin(); });
+checkSession();
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+

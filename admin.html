@@ -1,0 +1,2376 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>M3A ÔÇô Pilotage Yango</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+:root{--navy:#0F172A;--navy-m:#1E293B;--gold:#C9A227;--gold-d:#92740A;--gold-l:#FEF3C7;--vert:#059669;--vert-l:#D1FAE5;--orange:#D97706;--orange-l:#FEF3C7;--bleu:#2563EB;--bleu-l:#DBEAFE;--danger:#DC2626;--danger-l:#FEE2E2;--bg:#F8FAFC;--card:#FFFFFF;--card2:#F1F5F9;--card3:#E8EFF7;--border:#E2E8F0;--text:#0F172A;--muted:#64748B;--shadow-sm:0 1px 3px rgba(15,23,42,.06);--shadow-md:0 4px 12px rgba(15,23,42,.08);--shadow-lg:0 12px 28px rgba(15,23,42,.10)}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);font-size:14px;min-height:100vh}
+
+/* Login */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(135deg,#0F172A 0%,#1E293B 100%)}
+.login-card{background:#fff;border-radius:16px;padding:36px 32px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-logo{text-align:center;margin-bottom:24px}
+.login-logo .b{font-size:24px;font-weight:800;letter-spacing:1.5px}
+.login-logo .b span{color:var(--gold)}
+.login-logo .s{font-size:11px;color:var(--muted);letter-spacing:.5px;margin-top:4px}
+.login-card h1{font-size:18px;font-weight:700;margin-bottom:6px;text-align:center}
+
+/* Topbar */
+.topbar{background:var(--navy);box-shadow:var(--shadow-lg);padding:0 24px;height:62px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200}
+.logo{font-size:18px;font-weight:800;letter-spacing:1px;color:#fff}
+.logo span{color:var(--gold)}
+.logo-sub{font-size:11px;color:rgba(255,255,255,.45);font-weight:400;margin-left:10px}
+.tabs{display:flex;gap:4px}
+.tab{padding:8px 16px;font-size:11.5px;font-weight:600;border:1px solid rgba(255,255,255,.12);background:transparent;color:rgba(255,255,255,.55);border-radius:6px;cursor:pointer;transition:.2s;letter-spacing:.3px;text-transform:uppercase;font-family:'Inter',sans-serif;position:relative}
+.tab.active{background:linear-gradient(135deg,var(--gold) 0%,#B8861E 100%);color:var(--navy);border-color:transparent;box-shadow:0 2px 10px rgba(201,162,39,.4);font-weight:700}
+.tab:not(.active):hover{background:rgba(255,255,255,.08);color:#fff}
+.tab .bdg{position:absolute;top:-6px;right:-6px;background:var(--danger);color:#fff;font-size:9px;font-weight:800;min-width:18px;height:18px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;padding:0 5px;box-shadow:0 2px 6px rgba(220,38,38,.5)}
+.actions{display:flex;gap:8px;align-items:center}
+.btn-ico{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.15);color:rgba(255,255,255,.85);font-size:11px;font-weight:600;padding:6px 12px;border-radius:5px;cursor:pointer;font-family:'Inter',sans-serif;letter-spacing:.3px;transition:.2s}
+.btn-ico:hover{background:rgba(255,255,255,.15);color:#fff}
+
+.wrap{padding:22px 24px;max-width:1440px;margin:0 auto}
+.view{display:none}
+.view.active{display:block}
+
+h1{font-size:20px;font-weight:800;color:var(--navy);letter-spacing:-.3px}
+h2{font-size:15px;font-weight:700;color:var(--navy);margin-bottom:12px}
+h3{font-size:12px;font-weight:600;color:var(--navy-m);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px}
+
+.section-label{font-size:10px;text-transform:uppercase;letter-spacing:2px;color:var(--muted);font-weight:700;margin:22px 0 12px;display:flex;align-items:center;gap:8px}
+.section-label:before{content:"";width:24px;height:2px;background:var(--gold)}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-sm);padding:18px;margin-bottom:16px}
+.row{display:grid;gap:14px}
+.row.cols-2{grid-template-columns:1fr 1fr}
+.row.cols-3{grid-template-columns:1fr 1fr 1fr}
+.row.cols-4{grid-template-columns:repeat(4,1fr)}
+@media (max-width:900px){.row.cols-2,.row.cols-3,.row.cols-4{grid-template-columns:1fr}}
+
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow-sm)}
+.kpi.accent{background:linear-gradient(135deg,var(--navy) 0%,#1E293B 100%);color:#fff;border:none}
+.kpi.accent .kpi-lbl,.kpi.accent .kpi-sub{color:rgba(255,255,255,.6)}
+.kpi.gold{background:linear-gradient(135deg,var(--gold) 0%,#B8861E 100%);color:var(--navy);border:none}
+.kpi.gold .kpi-lbl{color:rgba(15,23,42,.7)}
+.kpi-lbl{font-size:10px;text-transform:uppercase;letter-spacing:1.2px;font-weight:700;color:var(--muted);margin-bottom:5px}
+.kpi-val{font-size:20px;font-weight:800;letter-spacing:-.3px;line-height:1.1}
+.kpi-sub{font-size:11px;color:var(--muted);margin-top:3px;font-weight:500}
+
+.progress-bar{height:14px;background:var(--card2);border-radius:8px;overflow:hidden;margin:10px 0 6px}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--gold) 0%,#E5BB39 100%);border-radius:8px;transition:width .4s}
+.progress-fill.ok{background:linear-gradient(90deg,var(--vert) 0%,#10B981 100%)}
+
+.field{margin-bottom:12px}
+.field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-bottom:4px}
+.field input,.field select,.field textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:6px;font-family:'Inter',sans-serif;font-size:13px;color:var(--text);background:#fff}
+.field input:focus,.field select:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(201,162,39,.15)}
+
+.btn{padding:10px 20px;font-size:12px;font-weight:700;border-radius:7px;cursor:pointer;border:none;font-family:'Inter',sans-serif;text-transform:uppercase;letter-spacing:.5px;transition:.2s}
+.btn-primary{background:var(--navy);color:#fff}
+.btn-primary:hover{background:var(--navy-m)}
+.btn-gold{background:linear-gradient(135deg,var(--gold) 0%,#B8861E 100%);color:var(--navy)}
+.btn-vert{background:var(--vert);color:#fff}
+.btn-ghost{background:transparent;color:var(--navy);border:1px solid var(--border)}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-small{padding:7px 12px;font-size:11px;border-radius:5px}
+
+.tbl{width:100%;border-collapse:collapse;font-size:12px}
+.tbl thead{background:var(--card2)}
+.tbl th{text-align:left;padding:9px 11px;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;border-bottom:1px solid var(--border)}
+.tbl td{padding:9px 11px;border-bottom:1px solid var(--border);font-weight:500}
+.tbl tr:hover{background:var(--card2)}
+.tbl .num{text-align:right;font-variant-numeric:tabular-nums}
+
+.tag{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.tag.green{background:var(--vert-l);color:var(--vert)}
+.tag.orange{background:var(--orange-l);color:var(--orange)}
+.tag.red{background:var(--danger-l);color:var(--danger)}
+.tag.blue{background:var(--bleu-l);color:var(--bleu)}
+.tag.setup{background:var(--card3);color:var(--navy-m)}
+
+.alert{display:flex;gap:10px;padding:11px 13px;border-radius:7px;margin-bottom:8px;border-left:3px solid;font-size:12.5px;line-height:1.5}
+.alert.warn{background:var(--orange-l);border-color:var(--orange);color:#7C2D12}
+.alert.danger{background:var(--danger-l);border-color:var(--danger);color:#7F1D1D}
+.alert.ok{background:var(--vert-l);border-color:var(--vert);color:#065F46}
+.alert.info{background:var(--bleu-l);border-color:var(--bleu);color:#1E3A8A}
+
+.chart-box{position:relative;height:260px}
+
+/* ├á valider ÔÇô submission card */
+.sub-card{background:#fff;border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px;box-shadow:var(--shadow-sm)}
+.sub-head{display:flex;justify-content:space-between;align-items:start;gap:12px;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:14px}
+.sub-head .left{font-size:11px;color:var(--muted)}
+.sub-head .left strong{display:block;font-size:15px;font-weight:700;color:var(--navy);margin-bottom:2px}
+.sub-head .right{display:flex;gap:6px;flex-wrap:wrap}
+.sub-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;align-items:start}
+@media (max-width:900px){.sub-grid{grid-template-columns:1fr}}
+.sub-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;font-size:12px}
+.sub-fields .k{color:var(--muted);font-weight:600}
+.sub-fields .v{font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.sub-photos{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.sub-photos a{display:block;border-radius:8px;overflow:hidden;border:1px solid var(--border);position:relative;aspect-ratio:1.4;background:var(--card2)}
+.sub-photos a img{width:100%;height:100%;object-fit:cover;display:block}
+.sub-photos a .lbl{position:absolute;bottom:0;left:0;right:0;background:rgba(15,23,42,.85);color:#fff;padding:4px 8px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.sub-actions{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:12px}
+.sub-correction{margin-top:12px;padding:12px;background:var(--card2);border-radius:8px;display:none}
+.sub-correction.show{display:block}
+.sub-correction input{padding:6px 8px;border:1px solid var(--border);border-radius:4px;font-family:'Inter',sans-serif;font-size:12px;width:100%}
+.sub-correction-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+
+.muted{color:var(--muted)}
+.center{text-align:center}
+.mono{font-variant-numeric:tabular-nums}
+.flex-between{display:flex;justify-content:space-between;align-items:center}
+
+.loader{display:inline-block;width:16px;height:16px;border:2.5px solid rgba(15,23,42,.2);border-top-color:var(--navy);border-radius:50%;animation:spin .8s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--navy);color:#fff;padding:12px 22px;border-radius:8px;font-size:13px;font-weight:600;z-index:5000;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.toast.ok{background:var(--vert)}
+.toast.err{background:var(--danger)}
+
+.cfg-row{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;align-items:center;padding:10px 0;border-bottom:1px dashed var(--border)}
+.cfg-row:last-child{border:none}
+.cfg-row input{padding:7px 10px;border:1px solid var(--border);border-radius:5px;font-family:'Inter',sans-serif;font-size:12.5px}
+
+/* Photo modal */
+.photo-modal{position:fixed;inset:0;background:rgba(15,23,42,.92);display:none;align-items:center;justify-content:center;z-index:9999;padding:30px}
+.photo-modal.show{display:flex}
+.photo-modal img{max-width:100%;max-height:100%;border-radius:10px}
+.photo-modal .close{position:absolute;top:24px;right:32px;background:#fff;color:var(--navy);border:none;width:42px;height:42px;border-radius:50%;font-size:22px;cursor:pointer;font-weight:800}
+
+/* Saisie admin */
+.adm-st-btn{padding:8px 18px;border:1.5px solid var(--border);border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);transition:.15s;font-family:'Inter',sans-serif}
+.adm-st-btn.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+.cfg-label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-bottom:5px}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="view active" id="v-login">
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="b">M3A<span>SOLUTION</span></div>
+        <div class="s">Pilotage Yango ÔÇô Espace propri├®taire</div>
+      </div>
+      <h1>Connexion administrateur</h1>
+      <div id="login-err" style="margin:10px 0"></div>
+      <div class="field"><label>Identifiant</label><input type="text" id="lg-user" autocomplete="username"/></div>
+      <div class="field"><label>Mot de passe</label><input type="password" id="lg-pw" autocomplete="current-password"/></div>
+      <button class="btn btn-primary" id="btn-login" style="width:100%" onclick="doLogin()">Se connecter</button>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div class="view" id="v-app">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:12px">
+      <div class="logo">M3A<span>SOLUTION</span> <span class="logo-sub">Pilotage Yango ÔÇô <span id="adm-name">ÔÇô</span></span></div>
+    </div>
+    <div class="tabs">
+      <button class="tab active" data-view="dash">?? Dashboard</button>
+      <button class="tab" data-view="valid">? ÔÇô valider <span class="bdg" id="bdg-pending" style="display:none">0</span></button>
+      <button class="tab" data-view="histo">­ƒô£ Historique</button>
+      <button class="tab" data-view="users">?? Utilisateurs</button>
+      <button class="tab" data-view="config">ÔÜÖ´©Å Param├¿tres</button>
+      <button class="tab" data-view="saisie">&#9998; Saisie</button>
+      <button class="tab" data-view="factures">&#128203; Factures</button>
+      <button class="tab" data-view="events">&#9889; Evenements</button>
+      <button class="tab" data-view="advances">&#128181; Acomptes</button>
+    </div>
+    <div class="actions">
+      <button class="btn-ico" onclick="refresh()">­ƒöä Rafra├«chir</button>
+      <button class="btn-ico" onclick="exportExcel()">? Excel</button>
+      <button class="btn-ico" onclick="doLogout()">Sortir</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <!-- VIEW DASH -->
+    <div class="view-pane" id="pane-dash">
+      <div class="flex-between" style="margin:4px 0 12px">
+        <div>
+          <h1>Dashboard ÔÇô <span id="dash-period">ÔÇô</span></h1>
+          <div class="muted" style="font-size:12px;margin-top:2px" id="dash-info">ÔÇô</div>
+        </div>
+        <select id="dash-month" style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-family:'Inter',sans-serif;font-size:13px"></select>
+      </div>
+
+      <div class="section-label">Performance financi├¿re</div>
+      <div class="row cols-4">
+        <div class="kpi accent"><div class="kpi-lbl">CA TOTAL mois</div><div class="kpi-val mono" id="k-tot">ÔÇô</div><div class="kpi-sub">Yango NET + hors-Yango</div></div>
+        <div class="kpi"><div class="kpi-lbl">CA Yango BRUT</div><div class="kpi-val mono" id="k-brut">ÔÇô</div><div class="kpi-sub">Avant commissions</div></div>
+        <div class="kpi"><div class="kpi-lbl">CA Yango NET (Bonus)</div><div class="kpi-val mono" id="k-net">ÔÇô</div><div class="kpi-sub">Base bonus contractuel</div></div>
+        <div class="kpi gold"><div class="kpi-lbl">Hors-Yango (cash)</div><div class="kpi-val mono" id="k-ad">ÔÇô</div><div class="kpi-sub">100 % propri├®taire</div></div>
+      </div>
+
+      <div class="row cols-4" style="margin-top:14px">
+        <div class="kpi"><div class="kpi-lbl">Commissions cumul</div><div class="kpi-val mono" id="k-com">ÔÇô</div><div class="kpi-sub">Yango + partenaire</div></div>
+        <div class="kpi"><div class="kpi-lbl">Versements cash re├ºus</div><div class="kpi-val mono" id="k-vers">ÔÇô</div><div class="kpi-sub">Cumul mensuel</div></div>
+        <div class="kpi"><div class="kpi-lbl">Solde wallet</div><div class="kpi-val mono" id="k-wal">ÔÇô</div><div class="kpi-sub" id="k-wal-sub">ÔÇô</div></div>
+        <div class="kpi"><div class="kpi-lbl">Note Yango moy.</div><div class="kpi-val mono" id="k-note">ÔÇô</div><div class="kpi-sub" id="k-note-sub">ÔÇô</div></div>
+      </div>
+
+      <div class="section-label">Op├®rations v├®hicule</div>
+      <div class="row cols-4">
+        <div class="kpi"><div class="kpi-lbl">Km parcourus</div><div class="kpi-val mono" id="k-km">ÔÇô</div><div class="kpi-sub" id="k-km-sub">ÔÇô</div></div>
+        <div class="kpi"><div class="kpi-lbl">CA NET / km</div><div class="kpi-val mono" id="k-ckm">ÔÇô</div><div class="kpi-sub">Productivit├®</div></div>
+        <div class="kpi"><div class="kpi-lbl">Carburant</div><div class="kpi-val mono" id="k-carb">ÔÇô</div><div class="kpi-sub" id="k-carb-sub">ÔÇô</div></div>
+        <div class="kpi"><div class="kpi-lbl">Conso L/100km</div><div class="kpi-val mono" id="k-conso">ÔÇô</div><div class="kpi-sub" id="k-conso-sub">ÔÇô</div></div>
+      </div>
+
+      <div class="card" style="margin-top:18px">
+        <div class="flex-between"><h2 style="margin:0">­ƒôê Progression CA Yango NET ÔÇô Cible bonus 100k</h2><div id="prog-pct" style="font-weight:700">ÔÇô</div></div>
+        <div class="progress-bar"><div class="progress-fill" id="prog-fill" style="width:0%"></div></div>
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:6px">
+          <span>0</span><span>1 000 000</span><span>1 150 000</span><span>1 300 000 (cible)</span>
+        </div>
+        <div class="row cols-3" style="margin-top:16px">
+          <div class="kpi"><div class="kpi-lbl">Bonus actuel</div><div class="kpi-val mono" id="prog-bonus">ÔÇô</div><div class="kpi-sub" id="prog-tranche">ÔÇô</div></div>
+          <div class="kpi"><div class="kpi-lbl">Projection fin mois</div><div class="kpi-val mono" id="prog-proj">ÔÇô</div><div class="kpi-sub" id="prog-proj-sub">ÔÇô</div></div>
+          <div class="kpi"><div class="kpi-lbl">Reste ÔÇô faire / jour</div><div class="kpi-val mono" id="prog-rest">ÔÇô</div><div class="kpi-sub" id="prog-rest-sub">ÔÇô</div></div>
+        </div>
+      </div>
+
+      <div class="row cols-2" style="margin-top:14px">
+        <div class="card"><h2>?? CA quotidien</h2><div class="chart-box"><canvas id="ch-ca"></canvas></div></div>
+        <div class="card"><h2>?? Cumul CA NET vs paliers</h2><div class="chart-box"><canvas id="ch-cumul"></canvas></div></div>
+      </div>
+
+      <div class="section-label">Alertes</div>
+      <div class="card" id="alerts-box"><div class="muted">Aucune alerte.</div></div>
+
+      <div class="section-label">&#128176; Paie chauffeur - Bilan du mois</div>
+      <div class="card" id="pay-card">
+
+        <!-- TOP ROW : 3 gros KPIs -->
+        <div class="row cols-3" style="margin-bottom:18px">
+          <div class="kpi" style="text-align:center">
+            <div class="kpi-lbl">Fixe mensuel</div>
+            <div class="kpi-val mono" id="pay-f">-</div>
+          </div>
+          <div class="kpi gold" style="text-align:center">
+            <div class="kpi-lbl">Bonus palier</div>
+            <div class="kpi-val mono" id="pay-b">-</div>
+            <div class="kpi-sub" id="pay-b-tr">-</div>
+          </div>
+          <div class="kpi accent" style="text-align:center">
+            <div class="kpi-lbl">Total brut du</div>
+            <div class="kpi-val mono" id="pay-gross">-</div>
+          </div>
+        </div>
+
+        <!-- TABLEAU DETAIL -->
+        <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:14px" id="pay-detail-tbl">
+          <tbody>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 4px;color:var(--muted)">&#43; Fixe mensuel</td>
+              <td style="padding:8px 4px;text-align:right;font-weight:600" class="mono" id="pd-fixe">-</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 4px;color:var(--muted)">&#43; Bonus performance</td>
+              <td style="padding:8px 4px;text-align:right;font-weight:600;color:var(--gold-d)" class="mono" id="pd-bonus">-</td>
+            </tr>
+            <tr style="border-bottom:2px solid var(--border);background:rgba(0,0,0,.03)">
+              <td style="padding:8px 4px;font-weight:700">= Total brut du</td>
+              <td style="padding:8px 4px;text-align:right;font-weight:800" class="mono" id="pd-gross">-</td>
+            </tr>
+            <tr style="border-bottom:1px solid var(--border)">
+              <td style="padding:8px 4px;color:var(--danger)">&#8722; Versements cash recus (mois)</td>
+              <td style="padding:8px 4px;text-align:right;font-weight:600;color:var(--danger)" class="mono" id="pd-vers">-</td>
+            </tr>
+            <tr style="background:rgba(5,150,105,.07);border-radius:8px">
+              <td style="padding:10px 4px;font-weight:800;font-size:15px;color:var(--vert)">= NET A VERSER</td>
+              <td style="padding:10px 4px;text-align:right;font-weight:900;font-size:18px;color:var(--vert)" class="mono" id="pay-n">-</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- STATUT + ACTIONS -->
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+          <div id="pay-status-badge" style="font-size:12px;font-weight:700;padding:4px 14px;border-radius:20px;border:1.5px solid var(--muted);color:var(--muted)">
+            &#9679; Calcul en attente
+          </div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost" onclick="copyPaySummary()" style="font-size:12px;padding:6px 14px">
+              &#128203; Copier recap
+            </button>
+            <button class="btn btn-gold" onclick="markAsPaid()" id="pay-btn-paid" style="font-size:12px;padding:6px 16px" disabled>
+              &#9989; Marquer paye
+            </button>
+          </div>
+        </div>
+        <div id="pay-note" style="font-size:11px;color:var(--muted);margin-top:8px"></div>
+      </div>
+    </div><!-- VIEW VALID -->
+    <div class="view-pane" id="pane-valid" style="display:none">
+      <div class="flex-between" style="margin:4px 0 14px">
+        <h1>Soumissions ÔÇô valider</h1>
+        <button class="btn btn-ghost" onclick="loadPending()">­ƒöä Rafra├«chir</button>
+      </div>
+      <div id="pending-list"><div class="muted center" style="padding:40px 0">ChargementÔÇô</div></div>
+    </div>
+
+    <!-- VIEW HISTO -->
+    <div class="view-pane" id="pane-histo" style="display:none">
+      <div class="flex-between" style="margin:4px 0 14px">
+        <h1>Historique Journal (donn├®es valid├®es)</h1>
+        <button class="btn btn-ghost" onclick="exportCSV()">? CSV</button>
+      </div>
+      <div class="card" style="overflow-x:auto">
+        <table class="tbl" id="histo-tbl">
+          <thead><tr><th>Date</th><th>Statut</th><th>Km</th><th class="num">Courses</th><th class="num">CA brut</th><th class="num">Bonus</th><th class="num">CA NET</th><th class="num">Hors Yango</th><th class="num">Versement</th><th class="num">Wallet</th><th class="num">Carb.</th><th class="num">Note</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- VIEW USERS -->
+    <div class="view-pane" id="pane-users" style="display:none">
+      <div class="flex-between" style="margin:4px 0 14px">
+        <h1>Utilisateurs</h1>
+        <button class="btn btn-primary" onclick="openAddUser()">+ Nouveau</button>
+      </div>
+      <div class="card">
+        <table class="tbl" id="users-tbl">
+          <thead><tr><th>Identifiant</th><th>Nom</th><th>RÔÇôle</th><th>V├®hicule</th><th>Email</th><th>Tel</th><th>Actif</th><th>Actions</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="card" id="adduser-box" style="display:none">
+        <h2>Nouvel utilisateur</h2>
+        <div class="row cols-2">
+          <div class="field"><label>Identifiant *</label><input id="nu-user"/></div>
+          <div class="field"><label>Mot de passe *</label><input id="nu-pw"/></div>
+          <div class="field"><label>Nom complet</label><input id="nu-name"/></div>
+          <div class="field"><label>RÔÇôle *</label><select id="nu-role"><option value="driver">Chauffeur</option><option value="admin">Admin</option></select></div>
+          <div class="field"><label>TÔÇôlÔÇôphone</label><input id="nu-phone" placeholder="+221..."/></div>
+          <div class="field"><label>V├®hicule (id)</label><input id="nu-veh" placeholder="k3"/></div>
+          <div class="field"><label>Email</label><input id="nu-email" type="email"/></div>
+        </div>
+        <div style="text-align:right"><button class="btn btn-ghost" onclick="$('adduser-box').style.display='none'">Annuler</button> <button class="btn btn-gold" onclick="addUser()">CrÔÇôer</button></div>
+      </div>
+    </div>
+
+    <!-- VIEW CONFIG -->
+    <div class="view-pane" id="pane-config" style="display:none">
+      <div class="flex-between" style="margin:4px 0 14px"><h1>Param├¿tres</h1><button class="btn btn-gold" onclick="saveConfig()">Sauvegarder</button></div>
+      <div class="row cols-2">
+        <div class="card">
+          <h2>Commissions & paie</h2>
+          <div class="cfg-row"><label>Commission Yango (%)</label><input id="c-comY" step="0.01"/></div>
+          <div class="cfg-row"><label>Commission partenaire (%)</label><input id="c-comP" step="0.01"/></div>
+          <div class="cfg-row"><label>Fixe mensuel chauffeur</label><input id="c-fixe"/></div>
+        </div>
+        <div class="card">
+          <h2>Paliers bonus</h2>
+          <div class="cfg-row"><label>Palier 1 ÔÇô seuil</label><input id="c-b1"/></div>
+          <div class="cfg-row"><label>Palier 1 ÔÇô bonus</label><input id="c-bv1"/></div>
+          <div class="cfg-row"><label>Palier 2 ÔÇô seuil</label><input id="c-b2"/></div>
+          <div class="cfg-row"><label>Palier 2 ÔÇô bonus</label><input id="c-bv2"/></div>
+          <div class="cfg-row"><label>Palier 3 ÔÇô seuil</label><input id="c-b3"/></div>
+          <div class="cfg-row"><label>Palier 3 ÔÇô bonus</label><input id="c-bv3"/></div>
+        </div>
+        <div class="card">
+          <h2>Objectifs</h2>
+          <div class="cfg-row"><label>Jours travaillÔÇôs / mois</label><input id="c-jrs"/></div>
+          <div class="cfg-row"><label>Cible CA NET / mois</label><input id="c-cible"/></div>
+          <div class="cfg-row"><label>Cible CA NET / jour</label><input id="c-cibleJ"/></div>
+        </div>
+        <div class="card">
+          <h2>Alertes & carburant</h2>
+          <div class="cfg-row"><label>Prix moyen litre</label><input id="c-prixL"/></div>
+          <div class="cfg-row"><label>CapacitÔÇô rÔÇôservoir</label><input id="c-tank"/></div>
+          <div class="cfg-row"><label>Conso cible L/100km</label><input id="c-conso"/></div>
+          <div class="cfg-row"><label>Seuil alerte wallet</label><input id="c-seuilW"/></div>
+          <div class="cfg-row"><label>Note Yango min</label><input id="c-noteMin"/></div>
+        </div>
+        <div class="card">
+          <h2>Notifications</h2>
+          <div class="cfg-row"><label>Email activÔÇô (1/0)</label><input id="c-nemail"/></div>
+          <div class="cfg-row"><label>WhatsApp activÔÇô (1/0)</label><input id="c-nwa"/></div>
+          <div class="cfg-row"><label>NumÔÇôro WhatsApp (+221ÔÇô)</label><input id="c-wphone"/></div>
+          <div class="cfg-row"><label>CallMeBot API Key</label><input id="c-wkey"/></div>
+        </div>
+
+        <div class="card">
+          <h2>&#128153; Paiement Wave pro</h2>
+          <div class="cfg-row"><label>Identifiant Wave (slug business)</label><input id="c-waveNum" placeholder="ex: m3a-group"/></div>
+          <div class="cfg-row"><label>Lien Wave complet (optionnel)</label><input id="c-waveLink" placeholder="https://pay.wave.com/m/..."/></div>
+          <p style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.5">
+            L'identifiant est le slug de ton compte Wave Business.<br>
+            <strong>Exemple :</strong> si ton lien est <code>pay.wave.com/m/abc123</code>, mets <code>abc123</code>.<br>
+            Le chauffeur verra un bouton Wave avec le montant total collecte du jour.
+          </p>
+        </div>
+
+        <div class="card">
+          <h2>Import depuis v1</h2>
+          <p style="font-size:12.5px;color:var(--muted);margin-bottom:10px">Si tu avais saisi des journ├®es dans la v1 locale (localStorage), importe-les ici.</p>
+          <input type="file" id="legacy-file" accept=".json"/>
+          <button class="btn btn-primary" onclick="importLegacy()" style="margin-top:10px">Importer</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+
+    <!-- PANE SAISIE MANUELLE ADMIN -->
+    <div class="view-pane" id="pane-saisie" style="display:none">
+      <div class="flex-between" style="margin:4px 0 14px">
+        <h1>&#9998; Saisie manuelle</h1>
+        <span class="tag blue" style="font-size:11px;padding:4px 10px">Admin only - Bypass champs obligatoires</span>
+      </div>
+      <div class="card" style="max-width:640px;margin:0 auto">
+        <div class="alert info" style="margin-bottom:16px">&#128221; Combler une journee manquante ou saisir des donnees incompletes. Aucune photo requise. Saisie <strong>directement validee</strong> dans le journal.</div>
+        <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+          <div>
+            <label class="cfg-label">Vehicule *</label>
+            <select id="adm-vehicle" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;background:#fff">
+              <option value="">- choisir -</option>
+            </select>
+          </div>
+          <div>
+            <label class="cfg-label">Date de la journee *</label>
+            <input type="date" id="adm-date" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/>
+          </div>
+        </div>
+        <div style="margin-bottom:14px">
+          <label class="cfg-label">Statut</label>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+            <button type="button" class="adm-st-btn active" data-st="ACTIF" onclick="admSetSt('ACTIF',this)">Travail</button>
+            <button type="button" class="adm-st-btn" data-st="REPOS" onclick="admSetSt('REPOS',this)">Repos</button>
+            <button type="button" class="adm-st-btn" data-st="PANNE" onclick="admSetSt('PANNE',this)">Panne</button>
+          </div>
+        </div>
+        <div id="adm-fields-actif">
+          <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+            <div><label class="cfg-label">Km compteur</label><input type="number" id="adm-km" placeholder="optionnel" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+            <div><label class="cfg-label">Nb courses Yango</label><input type="number" id="adm-nb" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+          </div>
+          <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+            <div>
+  <label class="cfg-label" id="adm-ca-label">CA Yango brut (XOF)</label>
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;margin-top:2px">
+    <button type="button" id="adm-net-toggle" onclick="admToggleNet()" style="font-size:11px;padding:3px 10px;border-radius:20px;border:1.5px solid var(--bleu);background:transparent;color:var(--bleu);cursor:pointer;font-family:inherit;font-weight:600">Passer en saisie NET</button>
+    <span id="adm-net-hint" style="font-size:11px;color:var(--muted);display:none">Commission dÔÇôduite automatiquement</span>
+  </div>
+  <input type="number" id="adm-ca" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/>
+</div>
+            <div><label class="cfg-label">Hors Yango (XOF)</label><input type="number" id="adm-ad" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+          </div>
+          <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+            <div><label class="cfg-label">Versement cash (XOF)</label><input type="number" id="adm-vers" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+            <div><label class="cfg-label">Solde Wallet (XOF)</label><input type="number" id="adm-wal" placeholder="optionnel" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+          </div>
+          <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+            <div><label class="cfg-label">Carburant (L)</label><input type="number" id="adm-cbl" placeholder="0" step="0.1" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+            <div><label class="cfg-label">Carburant (XOF)</label><input type="number" id="adm-cbm" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+          </div>
+          <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+            <div><label class="cfg-label">Note Yango (/ 5)</label><input type="number" id="adm-note" placeholder="ex: 4.8" step="0.1" min="0" max="5" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+            <div><label class="cfg-label">Incident</label><input type="text" id="adm-inc" placeholder="optionnel" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+          </div>
+          <div style="margin-bottom:14px">
+            <label class="cfg-label">Notes proprietaire</label>
+            <textarea id="adm-notes" rows="2" placeholder="Notes internes..." style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:inherit;resize:vertical"></textarea>
+          </div>
+        </div>
+        <div id="adm-result" style="margin-bottom:12px"></div>
+        <button class="btn btn-gold" id="adm-btn-submit" onclick="doAdminSubmit()" style="width:100%">&#10003; Valider la saisie</button>
+      </div>
+    </div>
+<!-- PHOTO MODAL -->
+<div class="photo-modal" id="photo-modal">
+  <button class="close" onclick="$('photo-modal').classList.remove('show')">ÔÇô</button>
+  <img id="photo-modal-img"/>
+</div>
+
+<script>
+let TOKEN = localStorage.getItem('m3a_admin_token') || null;
+let ME = null, CFG = null, JOURNAL = [], PENDING = [];
+let CH = {};
+
+function $(id){ return document.getElementById(id); }
+function show(viewId){ document.querySelectorAll('.view').forEach(v=>v.classList.remove('active')); $(viewId).classList.add('active'); }
+function toast(msg, kind){ const t=document.createElement('div'); t.className='toast '+(kind||''); t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),3500); }
+function fmt(n){ return (n==null||isNaN(n))?'ÔÇô':new Intl.NumberFormat('fr-FR').format(Math.round(n)); }
+function fmtX(n){ return fmt(n)+' XOF'; }
+function fmt2(n){ return (n==null||isNaN(n))?'ÔÇô':Number(n).toFixed(2); }
+function parseISODate(d){
+  if(!d) return null;
+  var s = String(d).trim();
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return new Date(s+'T00:00:00');
+  var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(m) return new Date(parseInt(m[3]),parseInt(m[2])-1,parseInt(m[1]));
+  if(s.length > 10 && s.indexOf('T') > -1) return new Date(s.slice(0,10)+'T00:00:00');
+  var x = new Date(s); return isNaN(x.getTime()) ? null : x;
+}
+function frDateShort(d){ if(!d) return '-'; const x=parseISODate(d); if(!x) return String(d); return x.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit',year:'numeric'}); }
+function frDate(d){ if(!d) return '-'; const x=parseISODate(d); if(!x) return String(d); return x.toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'}); }
+function todayISO(){ return new Date().toISOString().slice(0,10); }
+function monthKey(d){ return String(d).slice(0,7); }
+
+const M3A_BACKEND_URL = 'https://script.google.com/macros/s/AKfycbz8f9ZWhOkKKBuYQCO8CkT_Ixyb8RkPrbsNCkvn9BHw1tAhEDC5h8IHTAwy_g9peBIAoQ/exec';
+async function api(action, body){
+  body = body || {};
+  try {
+    const r = await fetch(M3A_BACKEND_URL, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action, ...body })
+    });
+    if (!r.ok) return { error: 'HTTP ' + r.status };
+    return await r.json();
+  } catch(e) {
+    return { error: 'Erreur r├®seau : ' + e.message };
+  }
+}
+
+/* --- AUTH --- */
+async function doLogin(){
+  const u=$('lg-user').value.trim(), p=$('lg-pw').value;
+  if(!u||!p) return;
+  $('btn-login').innerHTML='<span class="loader"></span> ConnexionÔÇô'; $('btn-login').disabled=true;
+  try{
+    const r = await api('login',{username:u, password:p});
+    if(r.error){ $('login-err').innerHTML='<div class="alert danger">'+r.error+'</div>'; return; }
+    if(r.role!=='admin'){ $('login-err').innerHTML='<div class="alert danger">Acc├¿s rÔÇôservÔÇô aux administrateurs</div>'; return; }
+    TOKEN = r.token; localStorage.setItem('m3a_admin_token', TOKEN);
+    ME = r.user;
+    initApp();
+  }catch(e){ $('login-err').innerHTML='<div class="alert danger">Erreur r├®seau : '+e.message+'</div>'; }
+  finally{ $('btn-login').innerHTML='Se connecter'; $('btn-login').disabled=false; }
+}
+async function doLogout(){ await api('logout',{token:TOKEN}).catch(()=>{}); localStorage.removeItem('m3a_admin_token'); location.reload(); }
+async function checkSession(){
+  if(!TOKEN) return;
+  const r = await api('me',{token:TOKEN});
+  if(r.error || !r.user || r.user.role!=='admin'){ localStorage.removeItem('m3a_admin_token'); return; }
+  ME = r.user; initApp();
+}
+async function initApp(){
+  $('adm-name').textContent = ME.full_name || ME.username;
+  show('v-app');
+  await loadConfig();
+  await refresh();
+}
+async function loadConfig(){ const r = await api('config_get',{token:TOKEN}); if(r.ok) CFG = r.config; }
+async function refresh(){
+  const j = await api('journal',{token:TOKEN});
+  if(j.ok){ JOURNAL = j.journal; CFG = j.config; }
+  const p = await api('pending',{token:TOKEN});
+  if(p.ok){ PENDING = p.pending; renderPendingBadge(); renderPending(); }
+  const ev = await api('events_list',{token:TOKEN});
+  if(ev.ok||ev.events){ EVENTS_DATA = ev.events||[]; }
+  renderDash(); renderHisto();
+}
+
+/* --- TABS --- */
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  const v = t.dataset.view;
+  ['dash','valid','histo','users','config','saisie','factures','events','advances'].forEach(x=>$('pane-'+x).style.display='none');
+  $('pane-'+v).style.display='block';
+  if(v==='users') loadUsers();
+  if(v==='config') fillConfig();
+  if(v==='saisie'){ $('adm-date').value=todayISO(); loadAdminVehicles(); }
+  if(v==='factures') initFactures();
+  if(v==='events') loadEvents();
+  if(v==='advances') loadAdvances();
+  
+  if(v==='valid') loadPending();
+}));
+
+/* --- COMPUTE --- */
+function bonusFor(net){
+  if(!CFG) return {amt:0,tr:'ÔÇô'};
+  if(net>=+CFG.b3) return {amt:+CFG.bv3, tr:'Palier 3 (>'+fmt(CFG.b3)+')'};
+  if(net>=+CFG.b2) return {amt:+CFG.bv2, tr:'Palier 2'};
+  if(net>=+CFG.b1) return {amt:+CFG.bv1, tr:'Palier 1'};
+  return {amt:0, tr:'Aucun palier'};
+}
+function compRow(r){
+  const cy = (+CFG.comY)/100, cp=(+CFG.comP)/100;
+  const brut = +r.ca_yango_brut||0;
+  const bonus = +r.bonus_daily||+r.bonus_yango||0;
+  // Nouveau calcul : bonus s ajout au brut avant application des commissions
+  const brutEffectif = brut + bonus;
+  const netYango = brutEffectif*(1-cy-cp);
+  return {
+    brut, net15: netYango, com:brutEffectif*(cy+cp), netP:netYango, bonus,
+    ad:+r.ca_hors_yango||0, vers:+r.vers_recu||0,
+    km: r._kmP || 0,
+    carbL:+r.carb_l||0, carbM:+r.carb_xof||0,
+    walF: r.wal_solde, note: r.note_yango
+  };
+}
+
+/* --- DASHBOARD --- */
+function buildMonths(){
+  const sel = $('dash-month');
+  const prev = sel.value;
+  const m = [...new Set(JOURNAL.map(d=>monthKey(d.date)))].sort().reverse();
+  if(!m.includes(monthKey(todayISO()))) m.unshift(monthKey(todayISO()));
+  const opts = '<option value="all">&#128336; Tout (toutes p&eacute;riodes)</option>' +
+    m.map(x=>{ const d=new Date(x+'-01T00:00:00'); return `<option value="${x}">${d.toLocaleDateString('fr-FR',{month:'long',year:'numeric'})}</option>`; }).join('');
+  sel.innerHTML = opts;
+  // preserve previous selection
+  if(prev === 'all' || m.includes(prev)) sel.value = prev;
+  else sel.value = monthKey(todayISO());
+  sel.onchange = renderDash;
+}
+
+function renderDash(){
+  if(!CFG){ return; }
+  buildMonths();
+  const m = $('dash-month').value;
+  const isAll = (m === 'all');
+  if(isAll){
+    $('dash-period').textContent = 'Toutes p\u00e9riodes';
+  } else {
+    const md = new Date(m+'-01T00:00:00');
+    $('dash-period').textContent = md.toLocaleDateString('fr-FR',{month:'long',year:'numeric'});
+  }
+
+  let days = isAll
+    ? [...JOURNAL].sort((a,b)=>a.date.localeCompare(b.date))
+    : JOURNAL.filter(d=>monthKey(d.date)===m).sort((a,b)=>a.date.localeCompare(b.date));
+  // calc km parcourus en chaÔÇône (km du jour - km du jour pr├®c├®dent)
+  let prevKm = null;
+  days.forEach((d,i)=>{
+    if(d.km!=null && prevKm!=null) d._kmP = Math.max(0, +d.km - prevKm);
+    else d._kmP = 0;
+    if(d.km!=null) prevKm = +d.km;
+  });
+  const C = days.map(compRow);
+  const sum = a=>a.reduce((s,x)=>s+x,0);
+  const brut = sum(C.map(c=>c.brut)), net15 = sum(C.map(c=>c.net15));
+  const com = sum(C.map(c=>c.com)), ad = sum(C.map(c=>c.ad)), vers = sum(C.map(c=>c.vers));
+  const km = sum(C.map(c=>c.km));
+  const carbL = sum(C.map(c=>c.carbL)), carbM = sum(C.map(c=>c.carbM));
+  const lastWal = [...C].reverse().find(c=>c.walF!=null);
+  const notes = C.filter(c=>c.note!=null).map(c=>+c.note);
+  const noteMoy = notes.length? notes.reduce((a,b)=>a+b,0)/notes.length : null;
+  const actDays = days.filter(d=>d.statut==='ACTIF').length;
+
+  $('k-tot').textContent = fmtX(net15+ad);
+  $('k-brut').textContent = fmtX(brut);
+  $('k-net').textContent = fmtX(net15);
+  $('k-ad').textContent = fmtX(ad);
+  $('k-com').textContent = fmtX(com);
+  $('k-vers').textContent = fmtX(vers);
+  $('k-wal').textContent = lastWal? fmtX(lastWal.walF):'ÔÇô';
+  $('k-wal-sub').textContent = (lastWal && +lastWal.walF<+CFG.seuilW)?'? Sous le seuil':'OK';
+  $('k-note').textContent = noteMoy? fmt2(noteMoy)+' / 5':'ÔÇô';
+  $('k-note-sub').textContent = noteMoy? (noteMoy>=+CFG.noteMin?'= '+CFG.noteMin:'? Sous '+CFG.noteMin):'ÔÇô';
+  $('k-km').textContent = fmt(km)+' km';
+  $('k-km-sub').textContent = actDays+' jours actifs';
+  $('k-ckm').textContent = km>0? fmt(net15/km)+' XOF/km':'ÔÇô';
+  $('k-carb').textContent = fmtX(carbM);
+  $('k-carb-sub').textContent = fmt2(carbL)+' L';
+  const conso = (km>0&&carbL>0)?(carbL*100/km):null;
+  $('k-conso').textContent = conso? fmt2(conso):'ÔÇô';
+  $('k-conso-sub').textContent = conso && conso>+CFG.conso*1.15? '? +'+fmt2(conso-+CFG.conso):'OK';
+
+  // progression
+  const cible = +CFG.cible;
+  const pct = Math.min(100, net15/cible*100);
+  $('prog-fill').style.width = pct+'%';
+  $('prog-fill').className = 'progress-fill ' + (pct>=100?'ok':'');
+  $('prog-pct').textContent = fmt(pct)+' % de '+fmtX(cible);
+  const b = bonusFor(net15);
+  $('prog-bonus').textContent = fmtX(b.amt); $('prog-tranche').textContent = b.tr;
+  const proj = actDays>0? net15*(+CFG.jrs)/actDays : 0;
+  const bProj = bonusFor(proj);
+  $('prog-proj').textContent = fmtX(proj); $('prog-proj-sub').textContent = 'Bonus projetÔÇô '+fmtX(bProj.amt);
+  const reste = Math.max(0, cible-net15), jrs = Math.max(1, +CFG.jrs - actDays);
+  $('prog-rest').textContent = fmtX(reste/jrs); $('prog-rest-sub').textContent = jrs+' jours restants';
+  $('dash-info').textContent = isAll ? (actDays+' jours travaill\u00e9s au total') : (actDays+' / '+CFG.jrs+' jours travaill\u00e9s - cible quotidienne NET '+fmtX(+CFG.cibleJ));
+
+  // === PAIE CHAUFFEUR - Bilan complet ===
+  const payFixe  = +CFG.fixe || 0;
+  const payBonus = b.amt || 0;
+  const payGross = payFixe + payBonus;
+  const payVers  = vers; // versements cash reÔÇôus ce mois
+
+  // Charges ponctuelles du mois (p├®age, carburant, r├®paration, etc.)
+  const CHARGES_TYPES = ['carburant','peage','controle_routier','reparation','incident','accident','amende','assurance','visite','autre'];
+  const evMois = isAll ? EVENTS_DATA : EVENTS_DATA.filter(ev => (monthKey(ev.date||'')||'') === m);
+  const chargesMois = evMois.filter(ev => CHARGES_TYPES.includes(ev.type)).reduce((sum, ev) => sum + (+ev.montant||0), 0);
+
+  // NET ÔÇô VERSER = brut dÔÇô - versements dÔÇôjÔÇô reÔÇôus - charges ponctuelles
+  const payNet = Math.max(0, payGross - payVers);
+
+  // KPIs top
+  $('pay-f').textContent     = fmtX(payFixe);
+  $('pay-b').textContent     = fmtX(payBonus);
+  $('pay-b-tr').textContent  = b.tr;
+  $('pay-gross').textContent = fmtX(payGross);
+
+  // Tableau dÔÇôtail - rebuild pour inclure charges ponctuelles
+  const pdBody = $('pay-detail-tbl').querySelector('tbody');
+  pdBody.innerHTML = `
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 4px;color:var(--muted)">&#43; Fixe mensuel</td>
+      <td style="padding:8px 4px;text-align:right;font-weight:600" class="mono">${fmtX(payFixe)}</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 4px;color:var(--muted)">&#43; Bonus performance</td>
+      <td style="padding:8px 4px;text-align:right;font-weight:600;color:var(--gold-d)" class="mono">${fmtX(payBonus)}</td>
+    </tr>
+    <tr style="border-bottom:2px solid var(--border);background:rgba(0,0,0,.03)">
+      <td style="padding:8px 4px;font-weight:700">= Total brut dÔÇô</td>
+      <td style="padding:8px 4px;text-align:right;font-weight:800" class="mono">${fmtX(payGross)}</td>
+    </tr>
+    <tr style="border-bottom:1px solid var(--border)">
+      <td style="padding:8px 4px;color:var(--danger)">&#8722; Versements cash re├ºus</td>
+      <td style="padding:8px 4px;text-align:right;font-weight:600;color:var(--danger)" class="mono">- ${fmtX(payVers)}</td>
+    </tr>
+    ${(function(){var evts=evMois.filter(function(ev){return CHARGES_TYPES.includes(ev.type);});if(!evts.length)return "";var EV_L={carburant:"Carburant",peage:"P\u00e9age",controle_routier:"Contr\u00f4le routier",reparation:"R\u00e9paration",incident:"Incident",accident:"Accident",amende:"Amende",assurance:"Assurance",visite:"Visite tech.",autre:"Autre"};var rows=evts.map(function(ev){return "<tr style=\"border-bottom:1px solid var(--border)\"><td style=\"padding:6px 4px;color:var(--muted);font-size:12px\">\u25cf "+(EV_L[ev.type]||ev.type)+(ev.description?" \u2014 "+ev.description:"")+" <span style=\"color:var(--muted);font-size:11px\">"+frDateShort(ev.date)+"</span></td><td style=\"padding:6px 4px;text-align:right;font-size:12px\" class=\"mono\">"+fmtX(+ev.montant||0)+"</td></tr>";}).join("");return "<tr><td colspan=\"2\" style=\"padding:8px 4px 4px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)\">\u2139\ufe0f \u00c9v\u00e9nements ponctuels (pour info)</td></tr>"+rows;}())}
+
+    <tr style="background:rgba(5,150,105,.07)">
+      <td style="padding:10px 4px;font-weight:800;font-size:15px;color:var(--vert)">= NET ÔÇô VERSER</td>
+      <td style="padding:10px 4px;text-align:right;font-weight:900;font-size:18px;color:var(--vert)" class="mono">${fmtX(payNet)}</td>
+    </tr>`;
+
+  // Badge statut
+  const badge = $('pay-status-badge');
+  const payBtn = $('pay-btn-paid');
+  if(payNet <= 0){
+    badge.textContent = '\u2705 Solde = 0 - Rien ÔÇô verser';
+    badge.style.cssText='font-size:12px;font-weight:700;padding:4px 14px;border-radius:20px;border:1.5px solid var(--vert);color:var(--vert);background:var(--vert-l)';
+    payBtn.disabled = true;
+  } else {
+    badge.textContent = '\u26A0 Reste ÔÇô verser : ' + fmtX(payNet);
+    badge.style.cssText='font-size:12px;font-weight:700;padding:4px 14px;border-radius:20px;border:1.5px solid var(--gold);color:var(--gold-d);background:var(--gold-l)';
+    payBtn.disabled = false;
+  }
+
+  // Note r├®cap
+  $('pay-note').textContent = actDays + ' jours travaillÔÇôs - Base bonus: CA NET ' + fmtX(net15) + ' - Palier: ' + b.tr + '';
+
+  // Stocker pour copie
+  window._PAY_SUMMARY = {
+    mois: $('dash-period').textContent,
+    fixe: payFixe, bonus: payBonus, gross: payGross,
+    vers: payVers, charges: chargesMois, net: payNet, palier: b.tr,
+    net15, actDays
+  };
+
+  // Charts
+  Object.values(CH).forEach(c=>{try{c.destroy()}catch(e){}}); CH = {};
+  const labels = days.map(d=>frDateShort(d.date).slice(0,5));
+  CH.ca = new Chart($('ch-ca'),{type:'bar',data:{labels,datasets:[{label:'Yango net',data:C.map(c=>c.net15),backgroundColor:'#2563EB'},{label:'Hors-Yango',data:C.map(c=>c.ad),backgroundColor:'#C9A227'}]},options:{responsive:true,maintainAspectRatio:false,scales:{x:{stacked:true},y:{stacked:true,ticks:{callback:v=>fmt(v)}}},plugins:{legend:{position:'bottom'}}}});
+  const cumul=[]; let acc=0; C.forEach(c=>{acc+=c.net15; cumul.push(acc)});
+  CH.cumul = new Chart($('ch-cumul'),{type:'line',data:{labels,datasets:[{label:'Cumul CA NET',data:cumul,borderColor:'#0F172A',backgroundColor:'rgba(15,23,42,.07)',fill:true,tension:.25,borderWidth:2},{label:'+30k (1M)',data:labels.map(()=>+CFG.b1),borderColor:'#94A3B8',borderDash:[4,4],pointRadius:0,borderWidth:1},{label:'+60k (1.15M)',data:labels.map(()=>+CFG.b2),borderColor:'#D97706',borderDash:[4,4],pointRadius:0,borderWidth:1},{label:'+100k (1.3M)',data:labels.map(()=>+CFG.b3),borderColor:'#059669',borderDash:[4,4],pointRadius:0,borderWidth:1}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'}},scales:{y:{ticks:{callback:v=>fmt(v)}}}}});
+
+  renderAlerts(days, C, {net15, proj, lastWal, conso});
+}
+
+function renderAlerts(days, C, ctx){
+  const box = $('alerts-box'); const al = [];
+  if(ctx.lastWal && +ctx.lastWal.walF < +CFG.seuilW) al.push({lvl:'danger',i:'?',b:'<strong>Wallet bas</strong> ('+fmtX(ctx.lastWal.walF)+'). Recharger.'});
+  if(ctx.conso && ctx.conso > +CFG.conso*1.15) al.push({lvl:'warn',i:'?',b:'<strong>Conso ÔÇôlevÔÇôe</strong> '+fmt2(ctx.conso)+' L/100km vs cible '+fmt2(CFG.conso)});
+  if(ctx.proj && ctx.proj < +CFG.b1) al.push({lvl:'warn',i:'??',b:'<strong>Projection sous palier 1</strong> ('+fmtX(ctx.proj)+').'});
+  if(ctx.proj >= +CFG.b3) al.push({lvl:'ok',i:'?',b:'<strong>Trajectoire palier 100k</strong> ('+fmtX(ctx.proj)+').'});
+  const notes = days.filter(d=>d.note_yango!=null).slice(-3);
+  if(notes.length===3 && notes.every(d=>+d.note_yango<+CFG.noteMin)) al.push({lvl:'danger',i:'?',b:'<strong>Note Yango < '+CFG.noteMin+' sur 3 jours consÔÇôcutifs</strong>'});
+  if(al.length===0){ box.innerHTML='<div class="alert ok"><div>?</div><div>Aucune alerte active.</div></div>'; return; }
+  box.innerHTML = al.map(a=>`<div class="alert ${a.lvl}"><div>${a.i}</div><div>${a.b}</div></div>`).join('');
+}
+
+/* --- PENDING / ÔÇô VALIDER --- */
+function renderPendingBadge(){
+  const b = $('bdg-pending');
+  if(PENDING.length>0){ b.style.display='inline-flex'; b.textContent = PENDING.length; }
+  else b.style.display='none';
+}
+async function loadPending(){
+  const p = await api('pending',{token:TOKEN});
+  if(p.error){ toast(p.error,'err'); return; }
+  PENDING = p.pending; renderPendingBadge(); renderPending();
+}
+function renderPending(){
+  const list = $('pending-list');
+  if(PENDING.length===0){ list.innerHTML='<div class="card center muted" style="padding:40px">? Aucune soumission en attente.</div>'; return; }
+  list.innerHTML = PENDING.map(s=>{
+    let photos = []; try{ photos = JSON.parse(s.photos_json || '[]'); }catch(e){}
+    const photoHtml = photos.length>0 ? photos.map(p=>{
+      const thumb = p.id ? 'https://drive.google.com/thumbnail?id='+p.id+'&sz=w800' : '';
+      return `<a href="javascript:void(0)" onclick="openPhoto('${thumb}','${p.url||''}')"><img src="${thumb}" loading="lazy"/><span class="lbl">${p.name}</span></a>`;
+    }).join('') : '<div class="muted" style="padding:20px;text-align:center">Aucune photo</div>';
+    const c = compRow(s);
+    return `<div class="sub-card" id="sub-${s.id}">
+      <div class="sub-head">
+        <div class="left"><strong>${frDate(s.date)} ÔÇô ${s.username}</strong>${s.vehicle_label||''} ÔÇô soumis le ${new Date(s.timestamp).toLocaleString('fr-FR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
+        <div class="right">
+          <span class="tag ${s.statut==='ACTIF'?'green':(s.statut==='SETUP'?'setup':'orange')}">${s.statut}</span>
+          <span class="tag blue">PENDING</span>
+        </div>
+      </div>
+      <div class="sub-grid">
+        <div>
+          <h3>Valeurs dÔÇôclarÔÇôes par le chauffeur</h3>
+          <div class="sub-fields">
+            <div class="k">Km</div><div class="v">${s.km!=null?fmt(s.km):'ÔÇô'}</div>
+            <div class="k">Nb courses</div><div class="v">${s.nb_courses_yango}</div>
+            <div class="k">CA Yango brut</div><div class="v">${fmtX(c.brut)}</div>
+            <div class="k">+ Hors Yango</div><div class="v">${fmtX(c.ad)}</div>
+            <div class="k">- Commissions calc.</div><div class="v">${fmtX(c.com)}</div>
+            <div class="k">CA NET (bonus)</div><div class="v">${fmtX(c.net15)}</div>
+            <div class="k">Versement cash</div><div class="v" style="color:var(--vert)">${fmtX(c.vers)}</div>
+            <div class="k">Wallet</div><div class="v">${c.walF!=null?fmtX(c.walF):'ÔÇô'}</div>
+            <div class="k">Carburant</div><div class="v">${c.carbL>0?(fmt2(c.carbL)+' L / '+fmtX(c.carbM)):'ÔÇô'}</div>
+            <div class="k">Note Yango</div><div class="v">${c.note!=null?fmt2(c.note)+' / 5':'ÔÇô'}</div>
+          </div>
+          ${s.incident?'<div class="alert warn" style="margin-top:10px">Incident : '+s.incident+'</div>':''}
+          ${s.remarques?'<div class="alert info" style="margin-top:10px">Remarques : '+s.remarques+'</div>':''}
+        </div>
+        <div>
+          <h3>Pi├¿ces jointes (cliquer pour agrandir)</h3>
+          <div class="sub-photos">${photoHtml}</div>
+        </div>
+      </div>
+      <div class="sub-correction" id="corr-${s.id}">
+        <strong style="font-size:12px">Corrections (laisser vide pour garder la valeur dÔÇôclarÔÇôe)</strong>
+        <div class="sub-correction-grid">
+          <div><label class="muted" style="font-size:10px">Km</label><input data-field="km" type="number" placeholder="${s.km||''}"/></div>
+          <div><label class="muted" style="font-size:10px">CA brut Yango</label><input data-field="ca_yango_brut" type="number" placeholder="${s.ca_yango_brut||''}"/></div>
+          <div><label class="muted" style="font-size:10px">Nb courses</label><input data-field="nb_courses_yango" type="number" placeholder="${s.nb_courses_yango||''}"/></div>
+          <div><label class="muted" style="font-size:10px">Hors Yango</label><input data-field="ca_hors_yango" type="number" placeholder="${s.ca_hors_yango||''}"/></div>
+          <div><label class="muted" style="font-size:10px">Versement</label><input data-field="vers_recu" type="number" placeholder="${s.vers_recu||''}"/></div>
+          <div><label class="muted" style="font-size:10px">Wallet</label><input data-field="wal_solde" type="number" placeholder="${s.wal_solde||''}"/></div>
+        </div>
+        <div class="field" style="margin-top:8px"><label class="muted" style="font-size:10px">Note du propri├®taire</label><input data-field="owner_notes" placeholder="(facultatif)"/></div>
+      </div>
+      <div class="sub-actions">
+        <button class="btn btn-vert" onclick="validateSub('${s.id}', false)">? Valider tel quel</button>
+        <button class="btn btn-ghost" onclick="toggleCorr('${s.id}')">? Corriger & valider</button>
+        <button class="btn btn-vert" id="corr-btn-${s.id}" style="display:none" onclick="validateSub('${s.id}', true)">? Sauver corrections</button>
+        <button class="btn btn-danger" onclick="rejectSub('${s.id}')">? Refuser</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function toggleCorr(id){
+  $('corr-'+id).classList.toggle('show');
+  $('corr-btn-'+id).style.display = $('corr-'+id).classList.contains('show')?'inline-block':'none';
+}
+async function validateSub(id, withCorrections){
+  let corrections = null, ownerNotes = '';
+  if(withCorrections){
+    corrections = {};
+    document.querySelectorAll('#corr-'+id+' input[data-field]').forEach(inp=>{
+      const v = inp.value.trim();
+      if(v!=='') {
+        if(inp.dataset.field==='owner_notes') ownerNotes = v;
+        else corrections[inp.dataset.field] = isNaN(+v)?v:+v;
+      }
+    });
+  }
+  const r = await api('validate', { token:TOKEN, submission_id:id, corrections, owner_notes: ownerNotes });
+  if(r.error){ toast(r.error,'err'); return; }
+  toast('? Soumission valid├®e','ok');
+  $('sub-'+id).style.display='none';
+  await refresh();
+}
+async function rejectSub(id){
+  const reason = prompt('Motif du refus (sera envoyÔÇô au chauffeur) :','');
+  if(!reason) return;
+  const r = await api('reject', { token:TOKEN, submission_id:id, reason });
+  if(r.error){ toast(r.error,'err'); return; }
+  toast('Soumission refusÔÇôe','ok');
+  $('sub-'+id).style.display='none';
+  await refresh();
+}
+function openPhoto(thumb, viewUrl){
+  $('photo-modal-img').src = thumb;
+  $('photo-modal').classList.add('show');
+}
+$('photo-modal').addEventListener('click',e=>{ if(e.target.id==='photo-modal') $('photo-modal').classList.remove('show'); });
+
+/* --- HISTO --- */
+function renderHisto(){
+  const tb = $('histo-tbl').querySelector('tbody');
+  const rows = [...JOURNAL].sort((a,b)=>b.date.localeCompare(a.date));
+  if(rows.length===0){ tb.innerHTML='<tr><td colspan="12" class="muted center">Aucune donn\u00e9e</td></tr>'; return; }
+  tb.innerHTML = rows.map(d=>{
+    const c=compRow({...d,_kmP:0});
+    const tg = d.statut==='ACTIF'?'<span class="tag green">Actif</span>':d.statut==='SETUP'?'<span class="tag setup">Setup</span>':d.statut==='REPOS'?'<span class="tag orange">Repos</span>':'<span class="tag red">'+d.statut+'</span>';
+    const rowId = d.id || (d.date+'_'+d.vehicle_id);
+    return `<tr data-entry-id="${rowId}"><td><strong>${frDateShort(d.date)}</strong></td><td>${tg}</td><td class="num mono">${d.km!=null?fmt(d.km):'-'}</td><td class="num mono">${d.nb_courses_yango||'-'}</td><td class="num mono">${c.brut?fmtX(c.brut):'-'}</td><td class="num mono" style="color:var(--vert)">${c.bonus?fmtX(c.bonus):'-'}</td><td class="num mono">${c.net15?fmtX(c.net15):'-'}</td><td class="num mono">${c.ad?fmtX(c.ad):'-'}</td><td class="num mono">${c.vers?fmtX(c.vers):'-'}</td><td class="num mono">${c.walF!=null?fmtX(c.walF):'-'}</td><td class="num mono">${c.carbL>0?(fmt2(c.carbL)+' L'):'-'}</td><td class="num mono">${c.note!=null?fmt2(c.note):'-'}</td><td class="num"><button class="btn-small btn-ghost" style="font-size:11px;padding:3px 10px" onclick="openEditEntry('${rowId}')">&#9998; Modifier</button></td></tr>`;
+  }).join('');
+}
+async function loadUsers(){
+  const r = await api('users_list',{token:TOKEN});
+  if(r.error){ toast(r.error,'err'); return; }
+  const tb = $('users-tbl').querySelector('tbody');
+  tb.innerHTML = (r.users||[]).map(u=>`<tr>
+    <td><strong>${u.username}</strong></td><td>${u.full_name||''}</td><td><span class="tag ${u.role==='admin'?'red':'blue'}">${u.role}</span></td>
+    <td>${u.vehicle_id||'ÔÇô'}</td><td>${u.email||'ÔÇô'}</td><td>${u.phone||'ÔÇô'}</td>
+    <td>${u.active=='1'?'<span class="tag green">Oui</span>':'<span class="tag setup">Non</span>'}</td>
+    <td><button class="btn-small btn-ghost" onclick="toggleUser('${u.username}')">${u.active=='1'?'DÔÇôsactiver':'Activer'}</button></td></tr>`).join('');
+}
+function openAddUser(){ $('adduser-box').style.display='block'; }
+async function addUser(){
+  const body = {
+    token: TOKEN,
+    username: $('nu-user').value.trim(),
+    password: $('nu-pw').value,
+    role: $('nu-role').value,
+    full_name: $('nu-name').value.trim(),
+    phone: $('nu-phone').value.trim(),
+    vehicle_id: $('nu-veh').value.trim(),
+    email: $('nu-email').value.trim()
+  };
+  const r = await api('user_add', body);
+  if(r.error){ toast(r.error,'err'); return; }
+  toast('Utilisateur crÔÇôÔÇô ?','ok');
+  $('adduser-box').style.display='none';
+  ['nu-user','nu-pw','nu-name','nu-phone','nu-veh','nu-email'].forEach(id=>$(id).value='');
+  loadUsers();
+}
+async function toggleUser(u){
+  const r = await api('user_toggle',{token:TOKEN, username:u});
+  if(r.ok){ toast('Statut modifiÔÇô','ok'); loadUsers(); }
+}
+
+/* --- CONFIG --- */
+function fillConfig(){
+  if(!CFG) return;
+  ['comY','comP','fixe','b1','bv1','b2','bv2','b3','bv3','jrs','cible','cibleJ','prixL','tank','conso','seuilW','noteMin'].forEach(k=>{ if($('c-'+k)) $('c-'+k).value = CFG[k]; });
+  $('c-nemail').value = CFG.notify_email;
+  $('c-nwa').value = CFG.notify_whatsapp;
+  $('c-wphone').value = CFG.whatsapp_phone;
+  $('c-wkey').value = CFG.whatsapp_apikey;
+  if($('c-waveNum')) $('c-waveNum').value = CFG.wave_number || '';
+  if($('c-waveLink')) $('c-waveLink').value = CFG.wave_link || '';
+}
+async function saveConfig(){
+  const upd = {};
+  ['comY','comP','fixe','b1','bv1','b2','bv2','b3','bv3','jrs','cible','cibleJ','prixL','tank','conso','seuilW','noteMin'].forEach(k=>upd[k] = $('c-'+k).value);
+  upd.notify_email = $('c-nemail').value;
+  upd.notify_whatsapp = $('c-nwa').value;
+  upd.whatsapp_phone = $('c-wphone').value;
+  upd.whatsapp_apikey = $('c-wkey').value;
+  upd.wave_number = $('c-waveNum') ? $('c-waveNum').value.trim() : '';
+  upd.wave_link = $('c-waveLink') ? $('c-waveLink').value.trim() : '';
+  const r = await api('config_set',{token:TOKEN, config:upd});
+  if(r.ok){ toast('Param├¿tres sauvegardÔÇôs ?','ok'); await loadConfig(); renderDash(); }
+}
+
+/* --- EXPORT --- */
+function exportExcel(){
+  const wb = XLSX.utils.book_new();
+  const head = ['Date','Statut','Chauffeur','V├®hicule','Km','Courses','CA brut','CA NET 15%','Hors Yango','Versement','Wallet','Carburant L','Carburant XOF','Note','Incident','Remarques','Status'];
+  const rows = JOURNAL.map(d=>[d.date,d.statut,d.username,d.vehicle_label,d.km,d.nb_courses_yango,d.ca_yango_brut,(+d.ca_yango_brut||0)*(1-(+CFG.comY)/100),d.ca_hors_yango,d.vers_recu,d.wal_solde,d.carb_l,d.carb_xof,d.note_yango,d.incident,d.remarques,d.status]);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([head,...rows]),'Journal');
+  XLSX.writeFile(wb, 'M3A_Yango_Journal_'+todayISO()+'.xlsx');
+}
+function exportCSV(){
+  const head=['date','statut','km','courses','ca_brut','ca_net15','hors_yango','versement','wallet','carbL','carbM','note'];
+  const rows=JOURNAL.map(d=>{const c=compRow({...d,_kmP:0});return [d.date,d.statut,d.km||'',d.nb_courses_yango||0,c.brut,Math.round(c.net15),c.ad,c.vers,c.walF||'',c.carbL,c.carbM,c.note||''];});
+  const csv=[head,...rows].map(r=>r.join(';')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'}); const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='M3A_Journal_'+todayISO()+'.csv'; a.click();
+}
+
+/* --- IMPORT LEGACY --- */
+function importLegacy(){
+  const f = $('legacy-file').files[0]; if(!f){ toast('SÔÇôlectionne un fichier .json','err'); return; }
+  const r = new FileReader();
+  r.onload = async ev=>{
+    try{
+      const data = JSON.parse(ev.target.result);
+      if(!data.days){ toast('Format invalide','err'); return; }
+      const resp = await api('import_legacy',{token:TOKEN, days:data.days});
+      if(resp.error){ toast(resp.error,'err'); return; }
+      toast('ImportÔÇô : '+resp.imported+' jours','ok');
+      await refresh();
+    }catch(e){ toast('Erreur : '+e.message,'err'); }
+  };
+  r.readAsText(f);
+}
+
+/* --- INIT --- */
+$('lg-pw').addEventListener('keydown',e=>{if(e.key==='Enter') doLogin();});
+checkSession();
+// Refresh automatique pending toutes les 2 minutes
+setInterval(()=>{ if(TOKEN) api('pending',{token:TOKEN}).then(r=>{ if(r.ok){ PENDING=r.pending; renderPendingBadge(); }}); }, 120000);
+
+/* --- SAISIE MANUELLE ADMIN ----------------------------------------------- */
+let ADM_VEHICLES = [];
+
+async function loadAdminVehicles(){
+  if(ADM_VEHICLES.length > 0) { return; }
+  const r = await api('users_list', { token: TOKEN });
+  if(r.error || !r.users) return;
+  const seen = {};
+  r.users.forEach(u => {
+    if(u.role === 'driver' && u.vehicle_id && !seen[u.vehicle_id]){
+      seen[u.vehicle_id] = true;
+      ADM_VEHICLES.push({ id: u.vehicle_id, label: u.vehicle_id + ' ÔÇô ' + (u.full_name || u.username) });
+    }
+  });
+  const sel = $('adm-vehicle');
+  if(sel) sel.innerHTML = '<option value="">ÔÇô choisir ÔÇô</option>' + ADM_VEHICLES.map(v=>`<option value="${v.id}">${v.label}</option>`).join('');
+}
+
+function admSetSt(st, btn){
+  document.querySelectorAll('.adm-st-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  $('adm-fields-actif').style.display = (st==='ACTIF') ? '' : 'none';
+}
+
+/* Toggle saisie brut / net */
+let _admIsNet = false;
+function admToggleNet(){
+  _admIsNet = !_admIsNet;
+  const btn = $('adm-net-toggle');
+  const lbl = $('adm-ca-label');
+  const hint = $('adm-net-hint');
+  if(_admIsNet){
+    lbl.textContent = 'CA Yango NET (XOF)';
+    btn.textContent = 'Passer en saisie BRUT';
+    btn.style.borderColor = 'var(--vert)';
+    btn.style.color = 'var(--vert)';
+    btn.style.background = 'var(--vert-l)';
+    hint.style.display = 'inline';
+  } else {
+    lbl.textContent = 'CA Yango brut (XOF)';
+    btn.textContent = 'Passer en saisie NET';
+    btn.style.borderColor = 'var(--bleu)';
+    btn.style.color = 'var(--bleu)';
+    btn.style.background = 'transparent';
+    hint.style.display = 'none';
+  }
+}
+async function doAdminSubmit(){
+  const vehicle_id = $('adm-vehicle').value.trim();
+  const date = $('adm-date').value;
+  if(!vehicle_id){ toast('SÔÇôlectionne un v├®hicule','err'); return; }
+  if(!date){ toast('La date est obligatoire','err'); return; }
+  const statut = document.querySelector('.adm-st-btn.active')?.dataset.st || 'ACTIF';
+  const payload = {
+    vehicle_id, date, statut,
+    km:              $('adm-km').value   !== '' ? +$('adm-km').value   : null,
+    nb_courses_yango: +($('adm-nb').value  || 0),
+    ca_yango_brut:   +($('adm-ca').value  || 0),
+    ca_hors_yango:   +($('adm-ad').value  || 0),
+    vers_recu:       +($('adm-vers').value || 0),
+    wal_solde:       $('adm-wal').value  !== '' ? +$('adm-wal').value  : null,
+    carb_l:          +($('adm-cbl').value || 0),
+    carb_xof:        +($('adm-cbm').value || 0),
+    note_yango:      $('adm-note').value !== '' ? +$('adm-note').value : null,
+    incident:        $('adm-inc').value.trim(),
+    owner_notes:     ($('adm-notes').value.trim() || '[Saisie manuelle admin]'),
+    is_net_input:    _admIsNet
+  };
+  const btn = $('adm-btn-submit');
+  btn.innerHTML = '<span class="loader"></span> EnvoiÔÇô'; btn.disabled = true;
+  $('adm-result').innerHTML = '';
+  try {
+    const r = await api('admin_submit', { token: TOKEN, payload });
+    if(r.error){ $('adm-result').innerHTML = '<div class="alert danger">Erreur : '+r.error+'</div>'; return; }
+    $('adm-result').innerHTML = '<div class="alert success" style="padding:10px 14px;border-radius:8px;background:var(--vert-l);color:var(--vert);font-size:13px">? Journ├®e du '+date+' saisie et valid├®e (#'+r.submission_id+')</div>';
+    ['adm-km','adm-nb','adm-ca','adm-ad','adm-vers','adm-wal','adm-cbl','adm-cbm','adm-note','adm-inc','adm-notes'].forEach(id=>{ if($(id)) $(id).value=''; }); if(_admIsNet){ admToggleNet(); }
+    await refresh();
+    toast('? Saisie enregistrÔÇôe','ok');
+  } catch(e) {
+    $('adm-result').innerHTML = '<div class="alert danger">Erreur r├®seau : '+e.message+'</div>';
+  } finally {
+    btn.innerHTML = '? Valider la saisie'; btn.disabled = false;
+  }
+}
+
+/* === PAIE CHAUFFEUR ÔÇô FONCTIONS UTILITAIRES === */
+
+function copyPaySummary(){
+  const p = window._PAY_SUMMARY;
+  if(!p){ toast('Aucune donnee - charger le dashboard dabord','warn'); return; }
+  const txt = [
+    '=== RECAPITULATIF PAIE CHAUFFEUR ===',
+    'Mois : ' + p.mois,
+    '',
+    '+ Fixe mensuel       : ' + fmtX(p.fixe),
+    '+ Bonus (' + p.palier + ') : ' + fmtX(p.bonus),
+    '= Total brut du      : ' + fmtX(p.gross),
+    '- Versements recus   : ' + fmtX(p.vers),
+    '',
+    '=> NET A VERSER      : ' + fmtX(p.net),
+    '',
+    'Jours travailles : ' + p.actDays,
+    'CA NET Yango     : ' + fmtX(p.net15),
+    '==========================='
+  ].join('\n');
+  navigator.clipboard.writeText(txt).then(()=>toast('Recap copie !','ok')).catch(()=>toast('Erreur copie','warn'));
+}
+
+function markAsPaid(){
+  const p = window._PAY_SUMMARY;
+  if(!p || p.net<=0){ toast('Rien a marquer','warn'); return; }
+  if(!confirm('Confirmer : versement de ' + fmtX(p.net) + ' au chauffeur pour ' + p.mois + ' ?')) return;
+  // Log dans les notes (action locale - pas de backend pour l'instant)
+  const msg = 'Paiement marque le ' + new Date().toLocaleDateString('fr-FR') + ' : ' + fmtX(p.net);
+  $('pay-note').textContent = '\u2705 ' + msg;
+  const badge = $('pay-status-badge');
+  badge.textContent = '\u2705 Paye ÔÇô ' + new Date().toLocaleDateString('fr-FR');
+  badge.style.cssText='font-size:12px;font-weight:700;padding:4px 14px;border-radius:20px;border:1.5px solid var(--vert);color:var(--vert);background:var(--vert-l)';
+  $('pay-btn-paid').disabled = true;
+  toast('Paiement enregistre localement','ok');
+  // Copier auto le recap
+  copyPaySummary();
+}
+</script>
+
+    <!-- VIEW FACTURES -->
+    <div class="view-pane" id="pane-factures" style="display:none">
+      <div class="flex-between" style="margin:4px 0 14px">
+        <div>
+          <h1>&#128203; GÔÇônÔÇôrateur de Factures</h1>
+          <div class="muted" style="font-size:12px;margin-top:2px">CrÔÇôez et imprimez des factures pour vos clients</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn-gold" onclick="previewFacture()">&#128065; AperÔÇôu</button>
+          <button class="btn-gold" onclick="printFacture()">&#128438; Imprimer / PDF</button>
+          <button class="btn-ico" onclick="resetFacture()">&#10006; RÔÇôinitialiser</button>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+        <!-- Formulaire gauche -->
+        <div style="display:flex;flex-direction:column;gap:16px">
+
+          <!-- Infos client -->
+          <div class="card">
+            <div class="card-header">&#128100; Informations Client</div>
+            <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div>
+                <label class="lbl">PrÔÇônom</label>
+                <input class="inp" id="fac-prenom" placeholder="ex: Mamadou" oninput="liveUpdateFacture()">
+              </div>
+              <div>
+                <label class="lbl">Nom</label>
+                <input class="inp" id="fac-nom" placeholder="ex: Diallo" oninput="liveUpdateFacture()">
+              </div>
+              <div>
+                <label class="lbl">SociÔÇôtÔÇô (optionnel)</label>
+                <input class="inp" id="fac-societe" placeholder="ex: Transport SARL" oninput="liveUpdateFacture()">
+              </div>
+              <div>
+                <label class="lbl">Email (optionnel)</label>
+                <input class="inp" id="fac-email" placeholder="client@email.com" oninput="liveUpdateFacture()">
+              </div>
+              <div>
+                <label class="lbl">TÔÇôlÔÇôphone (optionnel)</label>
+                <input class="inp" id="fac-tel" placeholder="+221 77 000 00 00" oninput="liveUpdateFacture()">
+              </div>
+              <div>
+                <label class="lbl">Adresse (optionnel)</label>
+                <input class="inp" id="fac-adresse" placeholder="Dakar, SÔÇônÔÇôgal" oninput="liveUpdateFacture()">
+              </div>
+            </div>
+          </div>
+
+          <!-- PÔÇôriode & V├®hicule -->
+          <div class="card">
+            <div class="card-header">&#128664; D├®tails de la Prestation</div>
+            <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <div>
+                <label class="lbl">Du (From)</label>
+                <input class="inp" type="date" id="fac-from" oninput="liveUpdateFacture()">
+              </div>
+              <div>
+                <label class="lbl">Au (To)</label>
+                <input class="inp" type="date" id="fac-to" oninput="liveUpdateFacture()">
+              </div>
+              <div>
+                <label class="lbl">V├®hicule / Prestation</label>
+                <input class="inp" id="fac-vehicule" placeholder="ex: Kia K3 - AA 123 DA" oninput="liveUpdateFacture()">
+              </div>
+              <div>
+                <label class="lbl">Description</label>
+                <input class="inp" id="fac-desc" placeholder="Location avec chauffeur" oninput="liveUpdateFacture()">
+              </div>
+            </div>
+          </div>
+
+          <!-- Lignes de facturation -->
+          <div class="card">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center">
+              <span>&#128722; Lignes de Facturation</span>
+              <button class="btn-ico" style="font-size:12px;padding:4px 10px" onclick="addLigne()">+ Ajouter ligne</button>
+            </div>
+            <div class="card-body">
+              <div id="fac-lignes" style="display:flex;flex-direction:column;gap:8px"></div>
+              <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+                <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                  <span class="muted">Sous-total HT</span>
+                  <span id="fac-subtotal" style="font-weight:600">0 FCFA</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+                  <span class="muted">TVA</span>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <select class="inp" id="fac-tva" style="width:90px;padding:4px 6px" onchange="liveUpdateFacture()">
+                      <option value="0">0%</option>
+                      <option value="18">18%</option>
+                      <option value="20">20%</option>
+                    </select>
+                    <span id="fac-tva-amount" style="font-weight:600">0 FCFA</span>
+                  </div>
+                </div>
+                <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:800;color:var(--gold)">
+                  <span>TOTAL TTC</span>
+                  <span id="fac-total">0 FCFA</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div class="card">
+            <div class="card-header">&#128221; Notes & Conditions</div>
+            <div class="card-body">
+              <textarea class="inp" id="fac-notes" rows="3" placeholder="Ex: Paiement ÔÇô rÔÇôception. Merci pour votre confiance." style="resize:vertical" oninput="liveUpdateFacture()"></textarea>
+              <div style="margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div>
+                  <label class="lbl">Mode de paiement</label>
+                  <select class="inp" id="fac-paiement" onchange="liveUpdateFacture()">
+                    <option>Wave Mobile Money</option>
+                    <option>Orange Money</option>
+                    <option>EspÔÇôces</option>
+                    <option>Virement bancaire</option>
+                    <option>ChÔÇôque</option>
+                    <option>Autre</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="lbl">Statut paiement</label>
+                  <select class="inp" id="fac-statut" onchange="liveUpdateFacture()">
+                    <option value="payee" style="color:green">? PayÔÇôe</option>
+                    <option value="attente">? En attente</option>
+                    <option value="partiel">?? Partiel</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- AperÔÇôu droite -->
+        <div>
+          <div class="card" style="position:sticky;top:80px">
+            <div class="card-header" style="display:flex;justify-content:space-between">
+              <span>&#128065; AperÔÇôu Facture</span>
+              <span class="muted" style="font-size:11px" id="fac-numero-display"></span>
+            </div>
+            <div class="card-body" style="padding:0">
+              <div id="facture-preview" style="padding:24px;min-height:400px;font-family:'Inter',sans-serif">
+                <div style="text-align:center;color:var(--muted);padding:40px 0">
+                  <div style="font-size:36px">&#128203;</div>
+                  <div style="margin-top:8px">Remplissez le formulaire pour voir l'aperÔÇôu</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+<style>
+/* Styles spÔÇôcifiques facture */
+.fac-ligne{display:grid;grid-template-columns:1fr 80px 110px 32px;gap:6px;align-items:center}
+.fac-ligne .inp{padding:6px 8px;font-size:12.5px}
+.fac-ligne-header{display:grid;grid-template-columns:1fr 80px 110px 32px;gap:6px;font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:4px}
+#facture-preview{background:#fff}
+
+/* Print zone */
+@media print {
+  body > *:not(#print-zone) { display: none !important; }
+  #print-zone { display: block !important; }
+}
+</style>
+
+<div id="print-zone" style="display:none"></div>
+
+<script>
+// ===== MODULE FACTURES =====
+let factureLignes = [];
+let factureNum = '';
+
+function initFactures(){
+  // GÔÇônÔÇôrer numÔÇôro facture
+  const d = new Date();
+  factureNum = 'FAC-' + d.getFullYear() + ('0'+(d.getMonth()+1)).slice(-2) + ('0'+d.getDate()).slice(-2) + '-' + Math.floor(Math.random()*900+100);
+  $('fac-numero-display').textContent = factureNum;
+  // Date par d├®faut
+  const today = d.toISOString().split('T')[0];
+  const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+  $('fac-from').value = firstDay;
+  $('fac-to').value = today;
+  // Ligne par d├®faut
+  factureLignes = [];
+  addLigne('Location v├®hicule avec chauffeur', 1, 0);
+  liveUpdateFacture();
+}
+
+function addLigne(desc='', qty=1, pu=0){
+  const id = Date.now() + Math.random();
+  factureLignes.push({id, desc, qty, pu});
+  renderLignes();
+}
+
+function removeLigne(id){
+  factureLignes = factureLignes.filter(l => l.id !== id);
+  renderLignes();
+  liveUpdateFacture();
+}
+
+function renderLignes(){
+  const container = $('fac-lignes');
+  container.innerHTML = `
+    <div class="fac-ligne-header">
+      <span>Description</span><span>QtÔÇô</span><span>Prix unit.</span><span></span>
+    </div>`;
+  factureLignes.forEach(l => {
+    const row = document.createElement('div');
+    row.className = 'fac-ligne';
+    row.innerHTML = `
+      <input class="inp" value="${l.desc}" placeholder="Description" oninput="updateLigne(${l.id},'desc',this.value);liveUpdateFacture()">
+      <input class="inp" type="number" value="${l.qty}" min="1" style="text-align:center" oninput="updateLigne(${l.id},'qty',this.value);liveUpdateFacture()">
+      <input class="inp" type="number" value="${l.pu}" min="0" placeholder="FCFA" oninput="updateLigne(${l.id},'pu',this.value);liveUpdateFacture()">
+      <button onclick="removeLigne(${l.id})" style="background:var(--danger-l);border:none;border-radius:6px;color:var(--danger);cursor:pointer;font-size:14px;padding:4px 6px;font-weight:700">?</button>`;
+    container.appendChild(row);
+  });
+}
+
+function updateLigne(id, field, val){
+  const l = factureLignes.find(x => x.id === id);
+  if(l) l[field] = field === 'desc' ? val : parseFloat(val)||0;
+}
+
+function calcTotaux(){
+  const subtotal = factureLignes.reduce((s, l) => s + (parseFloat(l.qty)||0)*(parseFloat(l.pu)||0), 0);
+  const tvaRate = parseFloat($('fac-tva').value)||0;
+  const tvaAmt = subtotal * tvaRate / 100;
+  const total = subtotal + tvaAmt;
+  return {subtotal, tvaRate, tvaAmt, total};
+}
+
+function liveUpdateFacture(){
+  const {subtotal, tvaAmt, total} = calcTotaux();
+  $('fac-subtotal').textContent = subtotal.toLocaleString('fr-FR') + ' FCFA';
+  $('fac-tva-amount').textContent = tvaAmt.toLocaleString('fr-FR') + ' FCFA';
+  $('fac-total').textContent = total.toLocaleString('fr-FR') + ' FCFA';
+  renderPreview();
+}
+
+function fmtDate(d){
+  if(!d) return '-';
+  const [y,m,j] = d.split('-');
+  const mois = ['','Jan','FÔÇôv','Mar','Avr','Mai','Jun','Jul','AoÔÇô','Sep','Oct','Nov','DÔÇôc'];
+  return j+' '+mois[parseInt(m)]+' '+y;
+}
+
+function statutBadge(s){
+  if(s==='payee') return '<span style="background:#D1FAE5;color:#065F46;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">? PAYÔÇôE</span>';
+  if(s==='attente') return '<span style="background:#FEF3C7;color:#92400E;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">? EN ATTENTE</span>';
+  return '<span style="background:#FEE2E2;color:#991B1B;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">?? PARTIEL</span>';
+}
+
+function renderPreview(){
+  const prenom = $('fac-prenom').value.trim();
+  const nom = $('fac-nom').value.trim();
+  const client = (prenom + ' ' + nom).trim() || 'Client';
+  const societe = $('fac-societe').value.trim();
+  const email = $('fac-email').value.trim();
+  const tel = $('fac-tel').value.trim();
+  const adresse = $('fac-adresse').value.trim();
+  const vehicule = $('fac-vehicule').value.trim();
+  const desc = $('fac-desc').value.trim();
+  const from = $('fac-from').value;
+  const to = $('fac-to').value;
+  const notes = $('fac-notes').value.trim();
+  const paiement = $('fac-paiement').value;
+  const statut = $('fac-statut').value;
+  const {subtotal, tvaRate, tvaAmt, total} = calcTotaux();
+
+  const lignesHTML = factureLignes.map(l => {
+    const montant = (parseFloat(l.qty)||0)*(parseFloat(l.pu)||0);
+    return `<tr>
+      <td style="padding:8px 10px;border-bottom:1px solid #F1F5F9">${l.desc||'-'}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F1F5F9;text-align:center">${l.qty}</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F1F5F9;text-align:right">${parseFloat(l.pu).toLocaleString('fr-FR')} FCFA</td>
+      <td style="padding:8px 10px;border-bottom:1px solid #F1F5F9;text-align:right;font-weight:600">${montant.toLocaleString('fr-FR')} FCFA</td>
+    </tr>`;
+  }).join('');
+
+  $('facture-preview').innerHTML = `
+    <div style="font-family:'Inter',sans-serif;color:#0F172A;max-width:680px;margin:0 auto">
+
+      <!-- En-tÔÇôte -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:28px;padding-bottom:20px;border-bottom:3px solid #C9A227">
+        <div>
+          <div style="font-size:22px;font-weight:800;letter-spacing:1px">M3A <span style="color:#C9A227">GROUP</span></div>
+          <div style="font-size:11px;color:#64748B;margin-top:2px">Yango Business Solutions</div>
+          <div style="font-size:11px;color:#64748B">Dakar, SÔÇônÔÇôgal</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748B;letter-spacing:1px">Facture</div>
+          <div style="font-size:18px;font-weight:800;color:#0F172A">${factureNum}</div>
+          <div style="font-size:11px;color:#64748B;margin-top:4px">ÔÇômise le ${fmtDate(new Date().toISOString().split('T')[0])}</div>
+          <div style="margin-top:8px">${statutBadge(statut)}</div>
+        </div>
+      </div>
+
+      <!-- PÔÇôriode & Client -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:24px">
+        <div style="background:#F8FAFC;border-radius:10px;padding:14px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748B;letter-spacing:.8px;margin-bottom:8px">FacturÔÇô ÔÇô</div>
+          <div style="font-weight:700;font-size:15px">${client}</div>
+          ${societe ? `<div style="font-size:12px;color:#64748B">${societe}</div>` : ''}
+          ${adresse ? `<div style="font-size:12px;color:#64748B">${adresse}</div>` : ''}
+          ${email ? `<div style="font-size:12px;color:#64748B">${email}</div>` : ''}
+          ${tel ? `<div style="font-size:12px;color:#64748B">${tel}</div>` : ''}
+        </div>
+        <div style="background:#F8FAFC;border-radius:10px;padding:14px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748B;letter-spacing:.8px;margin-bottom:8px">PÔÇôriode de prestation</div>
+          ${vehicule ? `<div style="font-weight:600;font-size:13px">?? ${vehicule}</div>` : ''}
+          ${desc ? `<div style="font-size:12px;color:#64748B;margin-bottom:4px">${desc}</div>` : ''}
+          <div style="font-size:12px;margin-top:6px"><strong>Du :</strong> ${fmtDate(from)}</div>
+          <div style="font-size:12px"><strong>Au :</strong> ${fmtDate(to)}</div>
+        </div>
+      </div>
+
+      <!-- Tableau lignes -->
+      <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
+        <thead>
+          <tr style="background:#0F172A;color:#fff">
+            <th style="padding:10px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-radius:8px 0 0 0">Description</th>
+            <th style="padding:10px;text-align:center;font-size:11px;text-transform:uppercase;letter-spacing:.5px">QtÔÇô</th>
+            <th style="padding:10px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.5px">Prix Unit.</th>
+            <th style="padding:10px;text-align:right;font-size:11px;text-transform:uppercase;letter-spacing:.5px;border-radius:0 8px 0 0">Montant</th>
+          </tr>
+        </thead>
+        <tbody>${lignesHTML}</tbody>
+      </table>
+
+      <!-- Totaux -->
+      <div style="display:flex;justify-content:flex-end;margin-bottom:20px">
+        <div style="min-width:260px">
+          <div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px">
+            <span style="color:#64748B">Sous-total HT</span>
+            <span style="font-weight:600">${subtotal.toLocaleString('fr-FR')} FCFA</span>
+          </div>
+          ${tvaRate > 0 ? `<div style="display:flex;justify-content:space-between;padding:6px 0;font-size:13px">
+            <span style="color:#64748B">TVA (${tvaRate}%)</span>
+            <span style="font-weight:600">${tvaAmt.toLocaleString('fr-FR')} FCFA</span>
+          </div>` : ''}
+          <div style="display:flex;justify-content:space-between;padding:10px 12px;background:linear-gradient(135deg,#C9A227,#B8861E);border-radius:8px;margin-top:8px">
+            <span style="color:#fff;font-weight:800;font-size:15px">TOTAL TTC</span>
+            <span style="color:#fff;font-weight:800;font-size:15px">${total.toLocaleString('fr-FR')} FCFA</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mode de paiement -->
+      <div style="background:#EFF6FF;border-radius:10px;padding:12px 16px;margin-bottom:20px;font-size:12px">
+        <strong>?? Mode de paiement :</strong> ${paiement}
+      </div>
+
+      ${notes ? `<div style="background:#FFFBEB;border-left:3px solid #C9A227;padding:10px 14px;border-radius:0 8px 8px 0;font-size:12px;color:#64748B;margin-bottom:20px"><strong>Note :</strong> ${notes}</div>` : ''}
+
+      <!-- Footer -->
+      <div style="border-top:1px solid #E2E8F0;padding-top:12px;text-align:center;font-size:11px;color:#94A3B8">
+        M3A Group ÔÇô Merci pour votre confiance ??
+      </div>
+    </div>`;
+}
+
+function previewFacture(){
+  liveUpdateFacture();
+  toast('AperÔÇôu mis ÔÇô jour','ok');
+}
+
+function printFacture(){
+  liveUpdateFacture();
+  const preview = $('facture-preview').innerHTML;
+  const printZone = $('print-zone');
+  printZone.innerHTML = `<html><head><style>
+    body{font-family:'Inter',sans-serif;margin:0;padding:20px;color:#0F172A}
+    @page{margin:15mm}
+  </style></head><body>${preview}
+<!-- ============================================================ -->
+<!-- MODAL EDITION ENTREE HISTORIQUE                              -->
+<!-- ============================================================ -->
+<div id="edit-entry-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.75);z-index:8000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-size:16px;font-weight:700">&#9998; Corriger une entree</div>
+        <div id="edit-entry-subtitle" style="font-size:12px;color:var(--muted);margin-top:2px"></div>
+      </div>
+      <button onclick="closeEditEntry()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">x</button>
+    </div>
+    <div style="padding:20px 24px">
+
+      <!-- Statut -->
+      <div style="margin-bottom:14px">
+        <label class="cfg-label">Statut</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+          <button type="button" class="adm-st-btn" data-est="ACTIF" onclick="editSetSt('ACTIF',this)">Travail</button>
+          <button type="button" class="adm-st-btn" data-est="REPOS" onclick="editSetSt('REPOS',this)">Repos</button>
+          <button type="button" class="adm-st-btn" data-est="PANNE" onclick="editSetSt('PANNE',this)">Panne</button>
+        </div>
+      </div>
+
+      <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+        <div><label class="cfg-label">Km compteur</label><input type="number" id="edit-km" placeholder="optionnel" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+        <div><label class="cfg-label">Nb courses Yango</label><input type="number" id="edit-nb" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+      </div>
+
+      <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+        <div><label class="cfg-label">CA Yango brut (XOF)</label><input type="number" id="edit-ca" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+        <div><label class="cfg-label">CA Hors Yango (XOF)</label><input type="number" id="edit-ad" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+      </div>
+
+      <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+        <div><label class="cfg-label">Versement recu (XOF)</label><input type="number" id="edit-vers" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+        <div><label class="cfg-label">Bonus Yango (XOF)</label><input type="number" id="edit-bonus" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+      </div>
+
+      <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+        <div><label class="cfg-label">Wallet Yango (solde XOF)</label><input type="number" id="edit-wal" placeholder="optionnel" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+        <div><label class="cfg-label">Note Yango (/5)</label><input type="number" id="edit-note" min="0" max="5" step="0.1" placeholder="optionnel" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+      </div>
+
+      <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+        <div><label class="cfg-label">Carburant (litres)</label><input type="number" id="edit-cbl" placeholder="0" step="0.01" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+        <div><label class="cfg-label">Carburant (XOF)</label><input type="number" id="edit-cbm" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <label class="cfg-label">Incident / Remarque</label>
+        <input type="text" id="edit-inc" placeholder="optionnel" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/>
+      </div>
+
+      <div style="margin-bottom:18px">
+        <label class="cfg-label">Note admin (motif correction)</label>
+        <input type="text" id="edit-owner-notes" placeholder="Ex: correction saisie manuelle" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/>
+      </div>
+
+      <div id="edit-entry-result" style="margin-bottom:12px"></div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeEditEntry()">Annuler</button>
+        <button class="btn btn-primary" id="edit-save-btn" onclick="saveEditEntry()">&#10003; Sauvegarder les corrections</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   EDITION ENTREES HISTORIQUE ÔÇô ADMIN
+   ============================================================ */
+let _editEntryId = null;
+
+function openEditEntry(rowId){
+  const entry = JOURNAL.find(d => {
+    const id = d.id || (d.date+'_'+d.vehicle_id);
+    return String(id) === String(rowId);
+  });
+  if(!entry){ toast('Entr\u00e9e introuvable','err'); return; }
+  _editEntryId = rowId;
+
+  // Sous-titre
+  $('edit-entry-subtitle').textContent = frDate(entry.date) + (entry.vehicle_id ? ' \u2014 ' + entry.vehicle_id : '');
+
+  // PrÔÇô-remplir statut
+  document.querySelectorAll('[data-est]').forEach(b=>{
+    b.classList.toggle('active', b.dataset.est === (entry.statut||'ACTIF'));
+  });
+
+  // PrÔÇô-remplir champs
+  const set = (id, val) => { const el=$(id); if(el) el.value = (val!=null && val!=='')?val:''; };
+  set('edit-km',   entry.km);
+  set('edit-nb',   entry.nb_courses_yango);
+  set('edit-ca',   entry.ca_yango_brut);
+  set('edit-ad',   entry.ca_hors_yango);
+  set('edit-vers', entry.vers_recu);
+  set('edit-bonus',entry.bonus_yango);
+  set('edit-wal',  entry.wal_solde);
+  set('edit-note', entry.note_yango);
+  set('edit-cbl',  entry.carb_l);
+  set('edit-cbm',  entry.carb_xof);
+  set('edit-inc',  entry.incident);
+  set('edit-owner-notes', '');
+
+  $('edit-entry-result').innerHTML = '';
+  $('edit-save-btn').disabled = false;
+  $('edit-save-btn').textContent = '\u2713 Sauvegarder les corrections';
+
+  $('edit-entry-modal').style.display='flex';
+}
+
+function closeEditEntry(){
+  $('edit-entry-modal').style.display='none';
+  _editEntryId = null;
+}
+
+function editSetSt(st, btn){
+  document.querySelectorAll('[data-est]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function saveEditEntry(){
+  if(!_editEntryId){ toast('Aucune entr\u00e9e s\u00e9lectionn\u00e9e','err'); return; }
+  const entry = JOURNAL.find(d => {
+    const id = d.id || (d.date+'_'+d.vehicle_id);
+    return String(id) === String(_editEntryId);
+  });
+  if(!entry){ toast('Entr\u00e9e introuvable','err'); return; }
+
+  const statut = document.querySelector('[data-est].active')?.dataset.est || entry.statut || 'ACTIF';
+  const g = id => { const el=$(id); return el?el.value.trim():''; };
+
+  const corrections = {
+    statut,
+    km:               g('edit-km')    !== '' ? +g('edit-km')    : null,
+    nb_courses_yango: g('edit-nb')    !== '' ? +g('edit-nb')    : 0,
+    ca_yango_brut:    g('edit-ca')    !== '' ? +g('edit-ca')    : 0,
+    ca_hors_yango:    g('edit-ad')    !== '' ? +g('edit-ad')    : 0,
+    vers_recu:        g('edit-vers')  !== '' ? +g('edit-vers')  : 0,
+    bonus_yango:      g('edit-bonus') !== '' ? +g('edit-bonus') : null,
+    wal_solde:        g('edit-wal')   !== '' ? +g('edit-wal')   : null,
+    note_yango:       g('edit-note')  !== '' ? +g('edit-note')  : null,
+    carb_l:           g('edit-cbl')   !== '' ? +g('edit-cbl')   : 0,
+    carb_xof:         g('edit-cbm')   !== '' ? +g('edit-cbm')   : 0,
+    incident:         g('edit-inc'),
+    owner_notes:      g('edit-owner-notes') || '[Correction admin]'
+  };
+
+  const btn = $('edit-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Envoi...';
+  $('edit-entry-result').innerHTML = '';
+
+  try {
+    // On envoie soit par journal_id (si dispo) soit date+vehicle_id
+    const payload = {
+      token: TOKEN,
+      journal_id: entry.id || null,
+      date: entry.date,
+      vehicle_id: entry.vehicle_id,
+      corrections
+    };
+    const r = await api('journal_edit', payload);
+    if(r.error){
+      $('edit-entry-result').innerHTML = '<div class="alert danger" style="padding:10px 14px;border-radius:8px;background:var(--danger-l);color:var(--danger);font-size:13px">Erreur : '+r.error+'</div>';
+      return;
+    }
+    $('edit-entry-result').innerHTML = '<div class="alert success" style="padding:10px 14px;border-radius:8px;background:var(--vert-l);color:var(--vert);font-size:13px">\u2713 Corrections enregistr\u00e9es</div>';
+    toast('\u2713 Entr\u00e9e corrig\u00e9e','ok');
+    setTimeout(()=>{ closeEditEntry(); refresh(); }, 1200);
+  } catch(e){
+    $('edit-entry-result').innerHTML = '<div class="alert danger" style="padding:10px 14px;border-radius:8px;background:var(--danger-l);color:var(--danger);font-size:13px">Erreur r\u00e9seau : '+e.message+'</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '\u2713 Sauvegarder les corrections';
+  }
+}
+
+// Fermer modal en cliquant dehors
+document.getElementById('edit-entry-modal').addEventListener('click', function(e){
+  if(e.target === this) closeEditEntry();
+});
+</script>
+</body></html>`;
+  
+  // Ouvrir dans nouvelle fenÔÇôtre pour impression
+  const w = window.open('','_blank','width=800,height=1000');
+  w.document.write(`<!DOCTYPE html><html><head>
+    <meta charset="UTF-8">
+    <title>${factureNum}</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+      body{font-family:'Inter',sans-serif;margin:0;padding:30px;color:#0F172A;background:#fff}
+      @page{margin:10mm;size:A4}
+    </style>
+  </head><body>
+    ${preview}
+    <script>window.onload=()=>{window.print();}<\/script>
+  
+<!-- ============================================================ -->
+<!-- MODAL EDITION ENTREE HISTORIQUE                              -->
+<!-- ============================================================ -->
+<div id="edit-entry-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.75);z-index:8000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-size:16px;font-weight:700">&#9998; Corriger une entree</div>
+        <div id="edit-entry-subtitle" style="font-size:12px;color:var(--muted);margin-top:2px"></div>
+      </div>
+      <button onclick="closeEditEntry()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">x</button>
+    </div>
+    <div style="padding:20px 24px">
+
+      <!-- Statut -->
+      <div style="margin-bottom:14px">
+        <label class="cfg-label">Statut</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+          <button type="button" class="adm-st-btn" data-est="ACTIF" onclick="editSetSt('ACTIF',this)">Travail</button>
+          <button type="button" class="adm-st-btn" data-est="REPOS" onclick="editSetSt('REPOS',this)">Repos</button>
+          <button type="button" class="adm-st-btn" data-est="PANNE" onclick="editSetSt('PANNE',this)">Panne</button>
+        </div>
+      </div>
+
+      <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+        <div><label class="cfg-label">Km compteur</label><input type="number" id="edit-km" placeholder="optionnel" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+        <div><label class="cfg-label">Nb courses Yango</label><input type="number" id="edit-nb" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+      </div>
+
+      <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+        <div><label class="cfg-label">CA Yango brut (XOF)</label><input type="number" id="edit-ca" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+        <div><label class="cfg-label">CA Hors Yango (XOF)</label><input type="number" id="edit-ad" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+      </div>
+
+      <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+        <div><label class="cfg-label">Versement recu (XOF)</label><input type="number" id="edit-vers" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+        <div><label class="cfg-label">Bonus Yango (XOF)</label><input type="number" id="edit-bonus" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+      </div>
+
+      <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+        <div><label class="cfg-label">Wallet Yango (solde XOF)</label><input type="number" id="edit-wal" placeholder="optionnel" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+        <div><label class="cfg-label">Note Yango (/5)</label><input type="number" id="edit-note" min="0" max="5" step="0.1" placeholder="optionnel" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+      </div>
+
+      <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+        <div><label class="cfg-label">Carburant (litres)</label><input type="number" id="edit-cbl" placeholder="0" step="0.01" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+        <div><label class="cfg-label">Carburant (XOF)</label><input type="number" id="edit-cbm" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <label class="cfg-label">Incident / Remarque</label>
+        <input type="text" id="edit-inc" placeholder="optionnel" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/>
+      </div>
+
+      <div style="margin-bottom:18px">
+        <label class="cfg-label">Note admin (motif correction)</label>
+        <input type="text" id="edit-owner-notes" placeholder="Ex: correction saisie manuelle" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/>
+      </div>
+
+      <div id="edit-entry-result" style="margin-bottom:12px"></div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeEditEntry()">Annuler</button>
+        <button class="btn btn-primary" id="edit-save-btn" onclick="saveEditEntry()">&#10003; Sauvegarder les corrections</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   EDITION ENTREES HISTORIQUE ÔÇô ADMIN
+   ============================================================ */
+let _editEntryId = null;
+
+function openEditEntry(rowId){
+  const entry = JOURNAL.find(d => {
+    const id = d.id || (d.date+'_'+d.vehicle_id);
+    return String(id) === String(rowId);
+  });
+  if(!entry){ toast('Entr\u00e9e introuvable','err'); return; }
+  _editEntryId = rowId;
+
+  // Sous-titre
+  $('edit-entry-subtitle').textContent = frDate(entry.date) + (entry.vehicle_id ? ' \u2014 ' + entry.vehicle_id : '');
+
+  // PrÔÇô-remplir statut
+  document.querySelectorAll('[data-est]').forEach(b=>{
+    b.classList.toggle('active', b.dataset.est === (entry.statut||'ACTIF'));
+  });
+
+  // PrÔÇô-remplir champs
+  const set = (id, val) => { const el=$(id); if(el) el.value = (val!=null && val!=='')?val:''; };
+  set('edit-km',   entry.km);
+  set('edit-nb',   entry.nb_courses_yango);
+  set('edit-ca',   entry.ca_yango_brut);
+  set('edit-ad',   entry.ca_hors_yango);
+  set('edit-vers', entry.vers_recu);
+  set('edit-bonus',entry.bonus_yango);
+  set('edit-wal',  entry.wal_solde);
+  set('edit-note', entry.note_yango);
+  set('edit-cbl',  entry.carb_l);
+  set('edit-cbm',  entry.carb_xof);
+  set('edit-inc',  entry.incident);
+  set('edit-owner-notes', '');
+
+  $('edit-entry-result').innerHTML = '';
+  $('edit-save-btn').disabled = false;
+  $('edit-save-btn').textContent = '\u2713 Sauvegarder les corrections';
+
+  $('edit-entry-modal').style.display='flex';
+}
+
+function closeEditEntry(){
+  $('edit-entry-modal').style.display='none';
+  _editEntryId = null;
+}
+
+function editSetSt(st, btn){
+  document.querySelectorAll('[data-est]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function saveEditEntry(){
+  if(!_editEntryId){ toast('Aucune entr\u00e9e s\u00e9lectionn\u00e9e','err'); return; }
+  const entry = JOURNAL.find(d => {
+    const id = d.id || (d.date+'_'+d.vehicle_id);
+    return String(id) === String(_editEntryId);
+  });
+  if(!entry){ toast('Entr\u00e9e introuvable','err'); return; }
+
+  const statut = document.querySelector('[data-est].active')?.dataset.est || entry.statut || 'ACTIF';
+  const g = id => { const el=$(id); return el?el.value.trim():''; };
+
+  const corrections = {
+    statut,
+    km:               g('edit-km')    !== '' ? +g('edit-km')    : null,
+    nb_courses_yango: g('edit-nb')    !== '' ? +g('edit-nb')    : 0,
+    ca_yango_brut:    g('edit-ca')    !== '' ? +g('edit-ca')    : 0,
+    ca_hors_yango:    g('edit-ad')    !== '' ? +g('edit-ad')    : 0,
+    vers_recu:        g('edit-vers')  !== '' ? +g('edit-vers')  : 0,
+    bonus_yango:      g('edit-bonus') !== '' ? +g('edit-bonus') : null,
+    wal_solde:        g('edit-wal')   !== '' ? +g('edit-wal')   : null,
+    note_yango:       g('edit-note')  !== '' ? +g('edit-note')  : null,
+    carb_l:           g('edit-cbl')   !== '' ? +g('edit-cbl')   : 0,
+    carb_xof:         g('edit-cbm')   !== '' ? +g('edit-cbm')   : 0,
+    incident:         g('edit-inc'),
+    owner_notes:      g('edit-owner-notes') || '[Correction admin]'
+  };
+
+  const btn = $('edit-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Envoi...';
+  $('edit-entry-result').innerHTML = '';
+
+  try {
+    // On envoie soit par journal_id (si dispo) soit date+vehicle_id
+    const payload = {
+      token: TOKEN,
+      journal_id: entry.id || null,
+      date: entry.date,
+      vehicle_id: entry.vehicle_id,
+      corrections
+    };
+    const r = await api('journal_edit', payload);
+    if(r.error){
+      $('edit-entry-result').innerHTML = '<div class="alert danger" style="padding:10px 14px;border-radius:8px;background:var(--danger-l);color:var(--danger);font-size:13px">Erreur : '+r.error+'</div>';
+      return;
+    }
+    $('edit-entry-result').innerHTML = '<div class="alert success" style="padding:10px 14px;border-radius:8px;background:var(--vert-l);color:var(--vert);font-size:13px">\u2713 Corrections enregistr\u00e9es</div>';
+    toast('\u2713 Entr\u00e9e corrig\u00e9e','ok');
+    setTimeout(()=>{ closeEditEntry(); refresh(); }, 1200);
+  } catch(e){
+    $('edit-entry-result').innerHTML = '<div class="alert danger" style="padding:10px 14px;border-radius:8px;background:var(--danger-l);color:var(--danger);font-size:13px">Erreur r\u00e9seau : '+e.message+'</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '\u2713 Sauvegarder les corrections';
+  }
+}
+
+// Fermer modal en cliquant dehors
+document.getElementById('edit-entry-modal').addEventListener('click', function(e){
+  if(e.target === this) closeEditEntry();
+});
+</script>
+</body></html>`);
+  w.document.close();
+}
+
+function resetFacture(){
+  ['fac-prenom','fac-nom','fac-societe','fac-email','fac-tel','fac-adresse',
+   'fac-vehicule','fac-desc','fac-notes'].forEach(id => {
+    const el = $(id); if(el) el.value = '';
+  });
+  $('fac-tva').value = '0';
+  $('fac-statut').value = 'payee';
+  $('fac-paiement').selectedIndex = 0;
+  factureLignes = [];
+  initFactures();
+  toast('Formulaire rÔÇôinitialisÔÇô','ok');
+}
+
+    <!-- VIEW EVENTS -->
+    <div class="view-pane" id="pane-events" style="display:none">
+      <div class="flex-between" style="margin:4px 0 14px">
+        <div><h1>&#9889; Evenements ponctuels</h1>
+          <div class="muted" style="font-size:12px;margin-top:2px">Declarations des chauffeurs</div></div>
+        <button class="btn-sec" onclick="loadEvents()">&#8635; Rafraichir</button>
+      </div>
+      <div id="events-filter" style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
+        <select id="ev-filter-user" style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px" onchange="renderEvents()">
+          <option value="">Tous les chauffeurs</option>
+        </select>
+        <select id="ev-filter-type" style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px" onchange="renderEvents()">
+          <option value="">Tous les types</option>
+          <option value="versement">Versement cash</option>
+          <option value="carburant">Carburant</option>
+          <option value="peage">P&#233;age</option>
+          <option value="controle_routier">Contr&#244;le routier</option>
+          <option value="bonus">Bonus / Prime</option>
+          <option value="incident">Incident</option>
+          <option value="reparation">R&#233;paration</option>
+          <option value="accident">Accident</option>
+          <option value="amende">Amende</option>
+          <option value="assurance">Assurance</option>
+          <option value="visite">Visite technique</option>
+          <option value="autre">Autre</option>
+        </select>
+      <select id="ev-filter-stat" style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px" onchange="renderEvents()">
+        <option value="">Tous les statuts</option>
+        <option value="PENDING">En attente</option>
+        <option value="APPROVED">Valid&eacute;s</option>
+        <option value="REJECTED">Refus&eacute;s</option>
+      </select>
+      </div>
+      <div id="events-list"><div class="muted center" style="padding:40px 0">Chargement...</div></div>
+    </div>
+
+    <!-- VIEW ADVANCES -->
+    <div class="view-pane" id="pane-advances" style="display:none">
+      <div class="flex-between" style="margin:4px 0 14px">
+        <div><h1>&#128181; Demandes d'acompte</h1>
+          <div class="muted" style="font-size:12px;margin-top:2px">Validation des avances chauffeur</div></div>
+        <button class="btn-sec" onclick="loadAdvances()">&#8635; Rafraichir</button>
+      </div>
+      <div id="adv-filter" style="margin-bottom:12px">
+        <select id="adv-filter-st" style="padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px" onchange="renderAdvances()">
+          <option value="">Tous les statuts</option>
+          <option value="PENDING">En attente</option>
+          <option value="APPROVED">Approuve</option>
+          <option value="REJECTED">Refuse</option>
+        </select>
+      </div>
+      <div id="advances-list"><div class="muted center" style="padding:40px 0">Chargement...</div></div>
+    </div>
+// ===== FIN MODULE FACTURES =====
+
+// ===== MODULE EVENTS & ADVANCES =====
+let EVENTS_DATA = [];
+let ADVANCES_DATA = [];
+
+async function loadEvents() {
+  document.getElementById('events-list').innerHTML = '<div class="muted center" style="padding:30px 0">Chargement...</div>';
+  const r = await api('events_list', { token: TOKEN });
+  if (r.error) { document.getElementById('events-list').innerHTML = '<div class="alert-err">' + r.error + '</div>'; return; }
+  EVENTS_DATA = r.events || [];
+  const sel = document.getElementById('ev-filter-user');
+  const users = [...new Set(EVENTS_DATA.map(e => e.username))].filter(Boolean);
+  sel.innerHTML = '<option value="">Tous les chauffeurs</option>' + users.map(u => '<option value="'+u+'">'+u+'</option>').join('');
+  renderEvents();
+}
+
+function renderEvents() {
+  const filterUser = document.getElementById('ev-filter-user').value;
+  const filterType = document.getElementById('ev-filter-type').value;
+  const evStatEl = document.getElementById('ev-filter-stat');
+  const filterStat = evStatEl ? evStatEl.value : '';
+  let items = EVENTS_DATA;
+  if (filterUser) items = items.filter(e => e.username === filterUser);
+  if (filterType) items = items.filter(e => e.type === filterType);
+  if (filterStat) items = items.filter(e => (e.status||'PENDING') === filterStat);
+  const list = document.getElementById('events-list');
+  if (!items.length) { list.innerHTML = '<div class="muted center" style="padding:30px 0">Aucun &eacute;v&eacute;nement</div>'; return; }
+  const typeLabels = { versement:'Versement cash', carburant:'Carburant', peage:'P&eacute;age', controle_routier:'Contr&ocirc;le routier', bonus:'Bonus/Prime', reparation:'R&eacute;paration', incident:'Incident', accident:'Accident', amende:'Amende', assurance:'Assurance', visite:'Visite tech.', autre:'Autre' };
+  const stBadge = {
+    PENDING:'<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">EN ATTENTE</span>',
+    APPROVED:'<span style="background:#D1FAE5;color:#065F46;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">&#10003; VALID&Eacute;</span>',
+    REJECTED:'<span style="background:#FEE2E2;color:#991B1B;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">&#10005; REFUS&Eacute;</span>'
+  };
+  list.innerHTML = items.sort((a,b) => (b.timestamp||b.date||'').localeCompare(a.timestamp||a.date||'')).map(ev => {
+    const photos = (() => { try { return JSON.parse(ev.photo_json||ev.photos||'[]'); } catch(e){ return []; } })();
+    const photoHTML = photos.filter(p=>p.url).map(p => '<a href="'+p.url+'" target="_blank" class="btn-sec" style="font-size:11px;padding:4px 8px">&#128247; Photo</a>').join('');
+    const st = ev.status || 'PENDING';
+    const borderCol = st==='APPROVED' ? 'var(--vert)' : st==='REJECTED' ? 'var(--danger)' : 'var(--orange)';
+    const editBtn = '<button class="btn-sec" style="padding:5px 12px;font-size:11px" onclick="editEvent(' + "'" + '+ev.id+' + "'" + ')">' + '&#9998; Modifier</button>';
+    const actionBtns = st === 'PENDING' ? (
+      '<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap">' +
+        '<button class="btn btn-vert" style="padding:6px 14px;font-size:12px" onclick="approveEvent(' + "'" + '+ev.id+' + "'" + ')">&#10003; Valider</button>' +
+        '<button class="btn btn-danger" style="padding:6px 14px;font-size:12px" onclick="rejectEventFn(' + "'" + '+ev.id+' + "'" + ')">&#10005; Rejeter</button>' +
+        editBtn +
+      '</div>'
+    ) : ('<div style="margin-top:8px">'+(ev.reject_reason?'<div style="font-size:11px;color:var(--danger);margin-bottom:6px">Motif: '+ev.reject_reason+'</div>':'')+editBtn+'</div>');
+    return '<div class="card" style="margin-bottom:10px;border-left:3px solid '+borderCol+'">' +
+      '<div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:6px">' +
+        '<div>' +
+          '<div style="font-weight:700;font-size:14px">'+fmtDate(ev.date)+'</div>' +
+          '<div style="font-size:12px;color:var(--muted);margin-top:1px">'+ev.vehicle_label+' &mdash; '+ev.username+'</div>' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px">' +
+          '<span style="background:var(--gold-l);color:var(--gold-d);padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">'+(typeLabels[ev.type]||ev.type||'-')+'</span>' +
+          (stBadge[st]||'') +
+        '</div>' +
+      '</div>' +
+      (ev.montant&&+ev.montant ? '<div style="font-size:16px;font-weight:700;margin-top:8px;color:var(--danger)">'+fmt(ev.montant)+' XOF'+(ev.litres&&+ev.litres?' <span style="font-size:13px;color:var(--muted)">| '+ev.litres+' L</span>':'')+'</div>' : '') +
+      (ev.description ? '<div style="font-size:13px;color:#334155;margin-top:6px">'+ev.description+'</div>' : '') +
+      (ev.compteur_km ? '<div style="font-size:12px;color:var(--muted);margin-top:4px">Compteur: '+ev.compteur_km+' km</div>' : '') +
+      (photoHTML ? '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">'+photoHTML+'</div>' : '') +
+      actionBtns +
+      '<div style="font-size:10px;color:var(--muted);margin-top:8px">'+(ev.timestamp?new Date(ev.timestamp).toLocaleString('fr-FR'):fmtDate(ev.date))+'</div>' +
+    '</div>';
+  }).join('');
+}
+
+async function approveEvent(id) {
+  if (!confirm('Valider cet \u00e9v\u00e9nement ?')) return;
+  const r = await api('validate_event', { token: TOKEN, event_id: id });
+  if (r.error) { alert('Erreur : ' + r.error); return; }
+  const ev = EVENTS_DATA.find(e => e.id === id);
+  if (ev) ev.status = 'APPROVED';
+  renderEvents();
+}
+
+async function rejectEventFn(id) {
+  const reason = prompt('Motif du rejet (optionnel) :') || '';
+  const r = await api('reject_event', { token: TOKEN, event_id: id, reason });
+  if (r.error) { alert('Erreur : ' + r.error); return; }
+  const ev = EVENTS_DATA.find(e => e.id === id);
+  if (ev) { ev.status = 'REJECTED'; ev.reject_reason = reason; }
+  renderEvents();
+}
+
+async function loadAdvances() {
+  document.getElementById('advances-list').innerHTML = '<div class="muted center" style="padding:30px 0">Chargement...</div>';
+  const r = await api('advances_list', { token: TOKEN });
+  if (r.error) { document.getElementById('advances-list').innerHTML = '<div class="alert-err">' + r.error + '</div>'; return; }
+  ADVANCES_DATA = r.advances || [];
+  renderAdvances();
+}
+
+function renderAdvances() {
+  const filterSt = document.getElementById('adv-filter-st').value;
+  let items = ADVANCES_DATA;
+  if (filterSt) items = items.filter(a => a.status === filterSt);
+  const list = document.getElementById('advances-list');
+  if (!items.length) { list.innerHTML = '<div class="muted center" style="padding:30px 0">Aucune demande</div>'; return; }
+  const stBadge = {
+    PENDING: '<span style="background:#FEF3C7;color:#92400E;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">EN ATTENTE</span>',
+    APPROVED: '<span style="background:#D1FAE5;color:#065F46;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">APPROUVE</span>',
+    REJECTED: '<span style="background:#FEE2E2;color:#991B1B;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700">REFUSE</span>'
+  };
+  list.innerHTML = items.sort((a,b) => (b.date||'').localeCompare(a.date||'')).map(adv => {
+    const isPending = adv.status === 'PENDING';
+    return '<div class="card" style="margin-bottom:10px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:6px">' +
+        '<div><div style="font-weight:700;font-size:14px">'+fmtDate(adv.date)+'</div>' +
+        '<div style="font-size:12px;color:var(--muted);margin-top:2px">'+adv.vehicle_label+'</div></div>' +
+        (stBadge[adv.status]||adv.status) +
+      '</div>' +
+      '<div style="font-size:20px;font-weight:800;margin:10px 0;color:var(--navy)">'+fmt(adv.montant)+'</div>' +
+      '<div style="font-size:13px;color:#334155"><strong>Motif :</strong> '+adv.motif+'</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-top:4px">Par '+adv.username+'</div>' +
+      (adv.admin_note ? '<div style="font-size:12px;color:var(--muted);margin-top:6px;font-style:italic">Note admin : '+adv.admin_note+'</div>' : '') +
+      (isPending ? '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">' +
+        '<input id="adv-note-'+adv.id+'" placeholder="Note (obligatoire pour refus)" style="flex:1;min-width:140px;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:13px"/>' +
+        '<button onclick="doValidateAdvance(\''+adv.id+'\')" style="background:#059669;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px">&#10003; Approuver</button>' +
+        '<button onclick="doRejectAdvance(\''+adv.id+'\')" style="background:#DC2626;color:#fff;border:none;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:700;font-size:13px">&#10007; Refuser</button>' +
+      '</div>' : '') +
+    '</div>';
+  }).join('');
+}
+
+async function doValidateAdvance(id) {
+  const noteEl = document.getElementById('adv-note-'+id);
+  const note = noteEl ? noteEl.value : '';
+  const r = await api('validate_advance', { token: TOKEN, advance_id: id, admin_note: note });
+  if (r.error) { toast(r.error, 'err'); return; }
+  toast('Acompte approuv\u00e9 \u2713', 'ok');
+  loadAdvances();
+}
+
+async function doRejectAdvance(id) {
+  const noteEl = document.getElementById('adv-note-'+id);
+  const note = noteEl ? noteEl.value : '';
+  if (!note) { toast('Renseigne une note de refus', 'err'); return; }
+  const r = await api('reject_advance', { token: TOKEN, advance_id: id, admin_note: note });
+  if (r.error) { toast(r.error, 'err'); return; }
+  toast('Demande refus\u00e9e', 'ok');
+  loadAdvances();
+}
+// ===== FIN MODULE EVENTS & ADVANCES =====
+</script>
+
+<!-- ============================================================ -->
+<!-- MODAL EDITION ENTREE HISTORIQUE                              -->
+<!-- ============================================================ -->
+<div id="edit-entry-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.75);z-index:8000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:16px;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 16px;border-bottom:1px solid var(--border)">
+      <div>
+        <div style="font-size:16px;font-weight:700">&#9998; Corriger une entree</div>
+        <div id="edit-entry-subtitle" style="font-size:12px;color:var(--muted);margin-top:2px"></div>
+      </div>
+      <button onclick="closeEditEntry()" style="background:none;border:none;font-size:22px;cursor:pointer;color:var(--muted);line-height:1">x</button>
+    </div>
+    <div style="padding:20px 24px">
+
+      <!-- Statut -->
+      <div style="margin-bottom:14px">
+        <label class="cfg-label">Statut</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px">
+          <button type="button" class="adm-st-btn" data-est="ACTIF" onclick="editSetSt('ACTIF',this)">Travail</button>
+          <button type="button" class="adm-st-btn" data-est="REPOS" onclick="editSetSt('REPOS',this)">Repos</button>
+          <button type="button" class="adm-st-btn" data-est="PANNE" onclick="editSetSt('PANNE',this)">Panne</button>
+        </div>
+      </div>
+
+      <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+        <div><label class="cfg-label">Km compteur</label><input type="number" id="edit-km" placeholder="optionnel" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+        <div><label class="cfg-label">Nb courses Yango</label><input type="number" id="edit-nb" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+      </div>
+
+      <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+        <div><label class="cfg-label">CA Yango brut (XOF)</label><input type="number" id="edit-ca" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+        <div><label class="cfg-label">CA Hors Yango (XOF)</label><input type="number" id="edit-ad" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+      </div>
+
+      <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+        <div><label class="cfg-label">Versement recu (XOF)</label><input type="number" id="edit-vers" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+        <div><label class="cfg-label">Bonus Yango (XOF)</label><input type="number" id="edit-bonus" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+      </div>
+
+      <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+        <div><label class="cfg-label">Wallet Yango (solde XOF)</label><input type="number" id="edit-wal" placeholder="optionnel" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+        <div><label class="cfg-label">Note Yango (/5)</label><input type="number" id="edit-note" min="0" max="5" step="0.1" placeholder="optionnel" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+      </div>
+
+      <div class="row cols-2" style="gap:12px;margin-bottom:12px">
+        <div><label class="cfg-label">Carburant (litres)</label><input type="number" id="edit-cbl" placeholder="0" step="0.01" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+        <div><label class="cfg-label">Carburant (XOF)</label><input type="number" id="edit-cbm" placeholder="0" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/></div>
+      </div>
+
+      <div style="margin-bottom:14px">
+        <label class="cfg-label">Incident / Remarque</label>
+        <input type="text" id="edit-inc" placeholder="optionnel" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/>
+      </div>
+
+      <div style="margin-bottom:18px">
+        <label class="cfg-label">Note admin (motif correction)</label>
+        <input type="text" id="edit-owner-notes" placeholder="Ex: correction saisie manuelle" style="width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px"/>
+      </div>
+
+      <div id="edit-entry-result" style="margin-bottom:12px"></div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeEditEntry()">Annuler</button>
+        <button class="btn btn-primary" id="edit-save-btn" onclick="saveEditEntry()">&#10003; Sauvegarder les corrections</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   EDITION ENTREES HISTORIQUE ÔÇô ADMIN
+   ============================================================ */
+let _editEntryId = null;
+
+function openEditEntry(rowId){
+  const entry = JOURNAL.find(d => {
+    const id = d.id || (d.date+'_'+d.vehicle_id);
+    return String(id) === String(rowId);
+  });
+  if(!entry){ toast('Entr\u00e9e introuvable','err'); return; }
+  _editEntryId = rowId;
+
+  // Sous-titre
+  $('edit-entry-subtitle').textContent = frDate(entry.date) + (entry.vehicle_id ? ' \u2014 ' + entry.vehicle_id : '');
+
+  // PrÔÇô-remplir statut
+  document.querySelectorAll('[data-est]').forEach(b=>{
+    b.classList.toggle('active', b.dataset.est === (entry.statut||'ACTIF'));
+  });
+
+  // PrÔÇô-remplir champs
+  const set = (id, val) => { const el=$(id); if(el) el.value = (val!=null && val!=='')?val:''; };
+  set('edit-km',   entry.km);
+  set('edit-nb',   entry.nb_courses_yango);
+  set('edit-ca',   entry.ca_yango_brut);
+  set('edit-ad',   entry.ca_hors_yango);
+  set('edit-vers', entry.vers_recu);
+  set('edit-bonus',entry.bonus_yango);
+  set('edit-wal',  entry.wal_solde);
+  set('edit-note', entry.note_yango);
+  set('edit-cbl',  entry.carb_l);
+  set('edit-cbm',  entry.carb_xof);
+  set('edit-inc',  entry.incident);
+  set('edit-owner-notes', '');
+
+  $('edit-entry-result').innerHTML = '';
+  $('edit-save-btn').disabled = false;
+  $('edit-save-btn').textContent = '\u2713 Sauvegarder les corrections';
+
+  $('edit-entry-modal').style.display='flex';
+}
+
+function closeEditEntry(){
+  $('edit-entry-modal').style.display='none';
+  _editEntryId = null;
+}
+
+function editSetSt(st, btn){
+  document.querySelectorAll('[data-est]').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+async function saveEditEntry(){
+  if(!_editEntryId){ toast('Aucune entr\u00e9e s\u00e9lectionn\u00e9e','err'); return; }
+  const entry = JOURNAL.find(d => {
+    const id = d.id || (d.date+'_'+d.vehicle_id);
+    return String(id) === String(_editEntryId);
+  });
+  if(!entry){ toast('Entr\u00e9e introuvable','err'); return; }
+
+  const statut = document.querySelector('[data-est].active')?.dataset.est || entry.statut || 'ACTIF';
+  const g = id => { const el=$(id); return el?el.value.trim():''; };
+
+  const corrections = {
+    statut,
+    km:               g('edit-km')    !== '' ? +g('edit-km')    : null,
+    nb_courses_yango: g('edit-nb')    !== '' ? +g('edit-nb')    : 0,
+    ca_yango_brut:    g('edit-ca')    !== '' ? +g('edit-ca')    : 0,
+    ca_hors_yango:    g('edit-ad')    !== '' ? +g('edit-ad')    : 0,
+    vers_recu:        g('edit-vers')  !== '' ? +g('edit-vers')  : 0,
+    bonus_yango:      g('edit-bonus') !== '' ? +g('edit-bonus') : null,
+    wal_solde:        g('edit-wal')   !== '' ? +g('edit-wal')   : null,
+    note_yango:       g('edit-note')  !== '' ? +g('edit-note')  : null,
+    carb_l:           g('edit-cbl')   !== '' ? +g('edit-cbl')   : 0,
+    carb_xof:         g('edit-cbm')   !== '' ? +g('edit-cbm')   : 0,
+    incident:         g('edit-inc'),
+    owner_notes:      g('edit-owner-notes') || '[Correction admin]'
+  };
+
+  const btn = $('edit-save-btn');
+  btn.disabled = true;
+  btn.textContent = 'Envoi...';
+  $('edit-entry-result').innerHTML = '';
+
+  try {
+    // On envoie soit par journal_id (si dispo) soit date+vehicle_id
+    const payload = {
+      token: TOKEN,
+      journal_id: entry.id || null,
+      date: entry.date,
+      vehicle_id: entry.vehicle_id,
+      corrections
+    };
+    const r = await api('journal_edit', payload);
+    if(r.error){
+      $('edit-entry-result').innerHTML = '<div class="alert danger" style="padding:10px 14px;border-radius:8px;background:var(--danger-l);color:var(--danger);font-size:13px">Erreur : '+r.error+'</div>';
+      return;
+    }
+    $('edit-entry-result').innerHTML = '<div class="alert success" style="padding:10px 14px;border-radius:8px;background:var(--vert-l);color:var(--vert);font-size:13px">\u2713 Corrections enregistr\u00e9es</div>';
+    toast('\u2713 Entr\u00e9e corrig\u00e9e','ok');
+    setTimeout(()=>{ closeEditEntry(); refresh(); }, 1200);
+  } catch(e){
+    $('edit-entry-result').innerHTML = '<div class="alert danger" style="padding:10px 14px;border-radius:8px;background:var(--danger-l);color:var(--danger);font-size:13px">Erreur r\u00e9seau : '+e.message+'</div>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '\u2713 Sauvegarder les corrections';
+  }
+}
+
+// Fermer modal en cliquant dehors
+document.getElementById('edit-entry-modal').addEventListener('click', function(e){
+  if(e.target === this) closeEditEntry();
+});
+</script>
+
+<!-- MODAL Edit Event -->
+<div id="modal-edit-ev" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.6);z-index:9000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:16px;padding:24px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:90vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px">
+      <h2 style="font-size:16px;font-weight:700">&#9998; Modifier l&rsquo;&eacute;v&eacute;nement</h2>
+      <button onclick="closeEditEvent()" style="background:none;border:none;font-size:22px;cursor:pointer;color:#64748B">&times;</button>
+    </div>
+    <div style="margin-bottom:14px">
+      <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#64748B;font-weight:700;margin-bottom:6px">Date</label>
+      <input type="date" id="ev-edit-date" style="width:100%;padding:12px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;font-family:inherit"/>
+    </div>
+    <div style="margin-bottom:14px">
+      <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#64748B;font-weight:700;margin-bottom:6px">Type</label>
+      <select id="ev-edit-type" style="width:100%;padding:12px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;font-family:inherit;-webkit-appearance:none">
+        <option value="versement">Versement cash</option>
+        <option value="carburant">Carburant</option>
+        <option value="peage">Peage</option>
+        <option value="controle_routier">Controle routier</option>
+        <option value="bonus">Bonus / Prime</option>
+        <option value="reparation">Reparation / Entretien</option>
+        <option value="incident">Incident</option>
+        <option value="accident">Accident</option>
+        <option value="amende">Amende</option>
+        <option value="assurance">Assurance</option>
+        <option value="visite">Visite technique</option>
+        <option value="autre">Autre</option>
+      </select>
+    </div>
+    <div style="margin-bottom:14px">
+      <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#64748B;font-weight:700;margin-bottom:6px">Montant (XOF)</label>
+      <input type="number" id="ev-edit-montant" style="width:100%;padding:12px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;font-family:inherit" placeholder="0" inputmode="numeric"/>
+    </div>
+    <div style="margin-bottom:20px">
+      <label style="display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:#64748B;font-weight:700;margin-bottom:6px">Description</label>
+      <textarea id="ev-edit-desc" rows="3" style="width:100%;padding:12px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:15px;font-family:inherit;resize:vertical" placeholder="Description..."></textarea>
+    </div>
+    <div id="ev-edit-err" style="display:none;margin-bottom:12px;padding:10px;background:#FEE2E2;color:#991B1B;border-radius:8px;font-size:13px"></div>
+    <div style="display:flex;gap:10px">
+      <button onclick="closeEditEvent()" style="flex:1;padding:12px;border:1.5px solid #E2E8F0;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;background:#fff;font-family:inherit">Annuler</button>
+      <button id="ev-edit-save-btn" onclick="saveEventEdit()" style="flex:2;padding:12px;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;background:linear-gradient(135deg,#C9A227,#B8861E);color:#0F172A;font-family:inherit">&#10003; Enregistrer</button>
+    </div>
+  </div>
+</div>
+<script>
+var _editEventId=null;
+function editEvent(id){var ev=EVENTS_DATA.find(function(e){return e.id===id;});if(!ev)return;_editEventId=id;document.getElementById('ev-edit-date').value=ev.date||'';document.getElementById('ev-edit-type').value=ev.type||'autre';document.getElementById('ev-edit-montant').value=ev.montant||'';document.getElementById('ev-edit-desc').value=ev.description||'';document.getElementById('ev-edit-err').style.display='none';document.getElementById('modal-edit-ev').style.display='flex';}
+function closeEditEvent(){document.getElementById('modal-edit-ev').style.display='none';_editEventId=null;}
+async function saveEventEdit(){var date=document.getElementById('ev-edit-date').value;var type=document.getElementById('ev-edit-type').value;var montant=+(document.getElementById('ev-edit-montant').value)||0;var desc=document.getElementById('ev-edit-desc').value.trim();var errEl=document.getElementById('ev-edit-err');var btn=document.getElementById('ev-edit-save-btn');if(!date){errEl.textContent='Date obligatoire';errEl.style.display='block';return;}btn.textContent='Enregistrement...';btn.disabled=true;errEl.style.display='none';try{var r=await api('update_event',{token:TOKEN,event_id:_editEventId,date:date,type:type,montant:montant,description:desc});if(r.error){errEl.textContent='Erreur : '+r.error;errEl.style.display='block';return;}var ev=EVENTS_DATA.find(function(e){return e.id===_editEventId;});if(ev){ev.date=date;ev.type=type;ev.montant=montant;ev.description=desc;}closeEditEvent();renderEvents();}catch(e){errEl.textContent='Erreur reseau : '+e.message;errEl.style.display='block';}finally{btn.textContent='Enregistrer';btn.disabled=false;}}
+document.addEventListener('DOMContentLoaded',function(){var m=document.getElementById('modal-edit-ev');if(m)m.addEventListener('click',function(e){if(e.target===this)closeEditEvent();});});
+</script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

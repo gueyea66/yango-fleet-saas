@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>M3A Yango</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:linear-gradient(135deg,#0F172A 0%,#1E293B 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;color:#fff}
+.box{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:42px 32px;max-width:440px;width:100%;text-align:center;backdrop-filter:blur(20px)}
+.logo{font-size:30px;font-weight:800;letter-spacing:2px;margin-bottom:6px}
+.logo span{color:#C9A227}
+.sub{font-size:12px;color:rgba(255,255,255,.55);letter-spacing:.5px;margin-bottom:38px}
+h1{font-size:18px;font-weight:600;margin-bottom:8px}
+.hint{color:rgba(255,255,255,.55);font-size:13px;margin-bottom:30px;line-height:1.5}
+.row{display:flex;flex-direction:column;gap:12px}
+.btn{padding:18px 24px;border-radius:11px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;text-decoration:none;display:block;border:none;transition:.2s;text-transform:uppercase;letter-spacing:.6px}
+.btn-gold{background:linear-gradient(135deg,#C9A227 0%,#B8861E 100%);color:#0F172A;box-shadow:0 4px 20px rgba(201,162,39,.35)}
+.btn-gold:hover{transform:translateY(-2px);box-shadow:0 8px 26px rgba(201,162,39,.45)}
+.btn-ghost{background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.18)}
+.btn-ghost:hover{background:rgba(255,255,255,.12)}
+.foot{margin-top:30px;font-size:11px;color:rgba(255,255,255,.4)}
+.ico{display:block;font-size:22px;margin-bottom:4px}
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="logo">M3A<span>SOLUTION</span></div>
+    <div class="sub">Transport VTC &bull; Plateforme Yango &bull; Dakar</div>
+    <h1>Bienvenue</h1>
+    <div class="hint">Choisis ton espace ci-dessous.</div>
+    <div class="row">
+      <a class="btn btn-gold" href="chauffeur.html"><span class="ico">&#x1F696;</span>Espace chauffeur</a>
+      <a class="btn btn-ghost" href="admin.html"><span class="ico">&#x1F4CA;</span>Espace propri&eacute;taire</a>
+    </div>
+    <div class="foot">&copy; M3A Group &mdash; R&eacute;serv&eacute; aux utilisateurs autoris&eacute;s</div>
+  </div>
+</body>
+</html>

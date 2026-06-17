@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>M3A — Setup Firebase</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Inter',sans-serif;background:#F0F4FF;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+:root{--navy:#0F172A;--gold:#C9A227;--green:#059669;--green-bg:#D1FAE5;--red:#DC2626;--red-bg:#FEE2E2;--border:#E2E8F0;--muted:#64748B}
+.box{background:#fff;border-radius:16px;padding:36px 32px;width:100%;max-width:560px;box-shadow:0 16px 48px rgba(0,0,0,.12)}
+.logo{font-size:22px;font-weight:900;letter-spacing:1.5px;color:var(--navy);text-align:center;margin-bottom:6px}
+.logo em{color:var(--gold);font-style:normal}
+h1{font-size:18px;font-weight:800;text-align:center;margin-bottom:4px}
+.sub{font-size:13px;color:var(--muted);text-align:center;margin-bottom:28px}
+.step{border:1.5px solid var(--border);border-radius:12px;padding:18px;margin-bottom:14px}
+.step-title{font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:14px}
+.step-num{background:var(--navy);color:#fff;width:26px;height:26px;border-radius:50%;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.step.done{border-color:var(--green);background:var(--green-bg)}
+.step.done .step-num{background:var(--green)}
+.field{margin-bottom:10px}
+.field label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;margin-bottom:4px}
+.field input{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-family:'Inter',sans-serif;font-size:14px;color:var(--navy)}
+.field input:focus{outline:none;border-color:var(--gold)}
+.btn{width:100%;padding:14px;border:none;border-radius:10px;font-family:'Inter',sans-serif;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;transition:.15s}
+.btn-navy{background:var(--navy);color:#fff}.btn-gold{background:linear-gradient(135deg,var(--gold),#B8861E);color:var(--navy)}
+.btn-green{background:var(--green);color:#fff}.btn:disabled{opacity:.6;pointer-events:none}
+.log{margin-top:14px;padding:12px;background:#F8FAFC;border-radius:8px;font-size:12px;line-height:1.8;max-height:200px;overflow-y:auto;display:none}
+.log.show{display:block}
+.log-ok{color:var(--green)}.log-err{color:var(--red)}.log-info{color:var(--muted)}
+.rules-box{background:#0F172A;border-radius:10px;padding:14px;margin-top:12px;font-size:11px;color:#94A3B8;font-family:monospace;line-height:1.6;white-space:pre-wrap;overflow-x:auto}
+.warn{background:var(--red-bg);border:1px solid var(--red);border-radius:8px;padding:12px;font-size:12px;color:#7F1D1D;margin-bottom:14px;line-height:1.5}
+.success-screen{display:none;text-align:center;padding:20px 0}
+.success-screen .big{font-size:64px;margin-bottom:16px}
+.success-screen h2{font-size:20px;font-weight:800;margin-bottom:8px}
+.success-screen p{font-size:14px;color:var(--muted);margin-bottom:20px}
+.link-btn{display:inline-block;background:var(--navy);color:#fff;padding:12px 24px;border-radius:10px;font-size:14px;font-weight:700;text-decoration:none;margin:4px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="firebase-config.js"></script>
+
+<div class="box" id="main-box">
+  <div class="logo">M3A<em>SOLUTION</em></div>
+  <h1>🔧 Configuration initiale</h1>
+  <p class="sub">Lance ce setup UNE SEULE FOIS pour initialiser Firebase.</p>
+
+  <div class="warn">
+    ⚠️ <strong>Avant de continuer</strong> — dans <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a>, va dans <strong>Firestore → Règles</strong> et colle ces règles temporaires pour permettre le setup :
+    <div class="rules-box">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}</div>
+    Après le setup, tu appliqueras les règles définitives (affichées en bas de page).
+  </div>
+
+  <!-- STEP 1 : ADMIN -->
+  <div class="step" id="step1">
+    <div class="step-title"><span class="step-num">1</span> Créer le compte Admin</div>
+    <div class="field"><label>Identifiant admin</label><input type="text" id="admin-user" value="admin" autocapitalize="off"/></div>
+    <div class="field"><label>Mot de passe admin (min. 6 caractères)</label><input type="password" id="admin-pw" placeholder="Ex: MonPW2026!"/></div>
+    <div class="field"><label>Nom du propriétaire</label><input type="text" id="admin-name" placeholder="Ex: Abdou Gueye"/></div>
+  </div>
+
+  <!-- STEP 2 : CHAUFFEUR K3 -->
+  <div class="step" id="step2">
+    <div class="step-title"><span class="step-num">2</span> Créer le compte Chauffeur Kia K3</div>
+    <div class="field"><label>Identifiant chauffeur</label><input type="text" id="k3-user" value="k3" autocapitalize="off"/></div>
+    <div class="field"><label>Mot de passe chauffeur (min. 6 caractères)</label><input type="password" id="k3-pw" placeholder="Ex: k3pass2026"/></div>
+    <div class="field"><label>Nom complet du chauffeur</label><input type="text" id="k3-name" placeholder="Ex: Prénom Nom"/></div>
+    <div class="field"><label>Véhicule</label><input type="text" id="k3-veh" value="Kia K3"/></div>
+    <div class="field"><label>Plaque</label><input type="text" id="k3-plate" value="AB-872-JG"/></div>
+  </div>
+
+  <!-- STEP 3 : CONFIG -->
+  <div class="step" id="step3">
+    <div class="step-title"><span class="step-num">3</span> Paramètres de base</div>
+    <div class="field"><label>Commission Yango (%)</label><input type="number" id="cfg-comY" value="15" step="0.1"/></div>
+    <div class="field"><label>Commission partenaire (%)</label><input type="number" id="cfg-comP" value="0.75" step="0.01"/></div>
+    <div class="field"><label>Lien Wave professionnel</label><input type="text" id="cfg-wave" value="https://pay.wave.com/m/M_sn_d50Ecx7IDoPx/c/sn/"/></div>
+  </div>
+
+  <button class="btn btn-gold" id="btn-run" style="margin-top:4px">🚀 Lancer la configuration</button>
+  <div class="log" id="setup-log"></div>
+
+  <!-- SUCCESS -->
+  <div class="success-screen" id="success-screen">
+    <div class="big">🎉</div>
+    <h2>Firebase configuré avec succès !</h2>
+    <p>Tous les comptes et paramètres ont été créés. Tu peux maintenant utiliser la plateforme.</p>
+    <a href="admin.html" class="link-btn">🔐 Accéder à l'Admin</a>
+    <a href="chauffeur.html" class="link-btn" style="background:var(--gold);color:var(--navy)">🚗 Tester le Chauffeur</a>
+
+    <div style="margin-top:24px;text-align:left">
+      <p style="font-size:13px;font-weight:700;color:var(--navy);margin-bottom:8px">⚠️ Applique maintenant les règles Firestore définitives dans Firebase Console :</p>
+      <div class="rules-box">rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /config/{doc} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    match /users/{uid} {
+      allow read: if request.auth.uid == uid ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow write: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    match /submissions/{subId} {
+      allow read: if request.auth.uid == resource.data.user_id ||
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow create: if request.auth.uid == request.resource.data.user_id;
+      allow update: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+  }
+}</div>
+      <p style="font-size:11px;color:var(--muted);margin-top:8px">Firebase Console → Firestore Database → Règles → Colle → Publier</p>
+    </div>
+  </div>
+</div>
+
+<script>
+firebase.initializeApp(FIREBASE_CONFIG);
+const auth = firebase.auth();
+const db   = firebase.firestore();
+
+const $ = id => document.getElementById(id);
+const log = (msg, cls='log-info') => {
+  const el = $('setup-log');
+  el.classList.add('show');
+  el.innerHTML += `<div class="${cls}">${msg}</div>`;
+  el.scrollTop = el.scrollHeight;
+};
+
+$('btn-run').addEventListener('click', runSetup);
+
+async function runSetup() {
+  $('btn-run').disabled = true;
+  $('btn-run').innerHTML = '<span class="spin"></span> Configuration en cours…';
+  $('setup-log').innerHTML = '';
+
+  const adminUser  = $('admin-user').value.trim().toLowerCase();
+  const adminPw    = $('admin-pw').value;
+  const adminName  = $('admin-name').value.trim();
+  const k3User     = $('k3-user').value.trim().toLowerCase();
+  const k3Pw       = $('k3-pw').value;
+  const k3Name     = $('k3-name').value.trim();
+  const k3Veh      = $('k3-veh').value.trim();
+  const k3Plate    = $('k3-plate').value.trim();
+  const comY       = +$('cfg-comY').value || 15;
+  const comP       = +$('cfg-comP').value || 0.75;
+  const waveUrl    = $('cfg-wave').value.trim();
+
+  if (!adminUser || adminPw.length < 6) { log('❌ Identifiant admin et mot de passe (6+ car.) requis.','log-err'); $('btn-run').disabled=false; $('btn-run').innerHTML='🚀 Lancer la configuration'; return; }
+  if (!k3User    || k3Pw.length < 6)    { log('❌ Identifiant chauffeur et mot de passe (6+ car.) requis.','log-err'); $('btn-run').disabled=false; $('btn-run').innerHTML='🚀 Lancer la configuration'; return; }
+
+  try {
+    // ── 1. Créer compte admin ──────────────────────────────
+    log('📧 Création du compte admin…');
+    let adminUid;
+    try {
+      const cred = await auth.createUserWithEmailAndPassword(adminUser + EMAIL_DOMAIN, adminPw);
+      adminUid = cred.user.uid;
+      log('✅ Compte admin créé : ' + adminUser + EMAIL_DOMAIN, 'log-ok');
+    } catch(e) {
+      if (e.code === 'auth/email-already-in-use') {
+        log('ℹ️ Compte admin existe déjà — connexion…', 'log-info');
+        const cred = await auth.signInWithEmailAndPassword(adminUser + EMAIL_DOMAIN, adminPw);
+        adminUid = cred.user.uid;
+        log('✅ Connecté en tant qu\'admin existant', 'log-ok');
+      } else throw e;
+    }
+
+    // ── 2. Profil Firestore admin ──────────────────────────
+    log('📝 Enregistrement du profil admin dans Firestore…');
+    await db.collection('users').doc(adminUid).set({
+      username: adminUser,
+      full_name: adminName || 'Propriétaire',
+      role: 'admin',
+      vehicle_id: null,
+      created_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    log('✅ Profil admin enregistré', 'log-ok');
+
+    // ── 3. Config ──────────────────────────────────────────
+    log('⚙️ Enregistrement de la config…');
+    await db.collection('config').doc('app').set({ comY, comP, wave_url: waveUrl });
+    log('✅ Config enregistrée (comY:' + comY + '%, comP:' + comP + '%, Wave OK)', 'log-ok');
+
+    // ── 4. Déconnexion admin, créer chauffeur ───────────────
+    log('🔄 Déconnexion admin temporaire pour créer le chauffeur…');
+    await auth.signOut();
+
+    log('📧 Création du compte chauffeur ' + k3User + '…');
+    let k3Uid;
+    try {
+      const cred = await auth.createUserWithEmailAndPassword(k3User + EMAIL_DOMAIN, k3Pw);
+      k3Uid = cred.user.uid;
+      log('✅ Compte chauffeur créé : ' + k3User + EMAIL_DOMAIN, 'log-ok');
+    } catch(e) {
+      if (e.code === 'auth/email-already-in-use') {
+        log('ℹ️ Compte chauffeur existe déjà', 'log-info');
+        const cred = await auth.signInWithEmailAndPassword(k3User + EMAIL_DOMAIN, k3Pw);
+        k3Uid = cred.user.uid;
+      } else throw e;
+    }
+
+    // ── 5. Profil Firestore chauffeur ───────────────────────
+    log('📝 Enregistrement du profil chauffeur…');
+    await db.collection('users').doc(k3Uid).set({
+      username: k3User,
+      full_name: k3Name || k3User,
+      role: 'driver',
+      vehicle_id: k3User,
+      vehicle_name: k3Veh || 'Kia K3',
+      vehicle_plate: k3Plate,
+      created_at: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    log('✅ Profil chauffeur enregistré', 'log-ok');
+
+    // ── 6. Reconnexion admin ────────────────────────────────
+    log('🔄 Reconnexion en tant qu\'admin…');
+    await auth.signOut();
+    await auth.signInWithEmailAndPassword(adminUser + EMAIL_DOMAIN, adminPw);
+    log('✅ Admin reconnecté', 'log-ok');
+
+    // ── SUCCÈS ──────────────────────────────────────────────
+    log('🎉 SETUP TERMINÉ avec succès !', 'log-ok');
+    await auth.signOut();
+    setTimeout(() => {
+      document.getElementById('setup-log').style.display = 'none';
+      document.getElementById('step1').style.display = 'none';
+      document.getElementById('step2').style.display = 'none';
+      document.getElementById('step3').style.display = 'none';
+      document.querySelector('.warn').style.display = 'none';
+      document.getElementById('btn-run').style.display = 'none';
+      document.getElementById('success-screen').style.display = 'block';
+    }, 1000);
+
+  } catch(e) {
+    log('❌ ERREUR : ' + e.message, 'log-err');
+    log('ℹ️ Vérifie que les règles Firestore sont en mode "allow read, write: if true" pendant le setup.', 'log-info');
+    $('btn-run').disabled = false;
+    $('btn-run').innerHTML = '🔄 Réessayer';
+    await auth.signOut().catch(() => {});
+  }
+}
+</script>
+</body>
+</html>
