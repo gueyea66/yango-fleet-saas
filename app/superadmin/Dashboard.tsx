@@ -169,9 +169,9 @@ export default function Dashboard() {
     ]=await Promise.all([
       sb.from("tenants").select("id,slug,name,plan,active,trial_ends_at,plan_expires_at,created_at"),
       sb.from("profiles").select("id,tenant_id,role"),
-      sb.from("daily_reports").select("tenant_id,driver_id,gross_income,net_income,expenses").gte("report_date",monthStart),
-      sb.from("daily_reports").select("gross_income,net_income"),
-      sb.from("daily_reports").select("report_date,gross_income,net_income").gte("report_date",new Date(Date.now()-30*864e5).toISOString().slice(0,10)).order("report_date"),
+      sb.from("daily_reports").select("tenant_id,driver_id,gross_earnings,net_after_expenses").gte("date",monthStart),
+      sb.from("daily_reports").select("gross_earnings,net_after_expenses"),
+      sb.from("daily_reports").select("date,gross_earnings,net_after_expenses").gte("date",new Date(Date.now()-30*864e5).toISOString().slice(0,10)).order("date"),
       sb.from("tenant_settings").select("tenant_id,app_name,primary_color"),
     ]);
 
@@ -189,16 +189,16 @@ export default function Dashboard() {
     (rMonth||[]).forEach((r:any)=>{
       if(!rByT[r.tenant_id]) rByT[r.tenant_id]={count:0,gross:0,net:0};
       rByT[r.tenant_id].count++;
-      rByT[r.tenant_id].gross+=r.gross_income||0;
-      rByT[r.tenant_id].net+=r.net_income||0;
+      rByT[r.tenant_id].gross+=r.gross_earnings||0;
+      rByT[r.tenant_id].net+=r.net_after_expenses||0;
     });
 
     const dMap:Record<string,DailyPoint>={};
     (rDaily||[]).forEach((r:any)=>{
-      if(!dMap[r.report_date]) dMap[r.report_date]={date:r.report_date,reports:0,gross:0,net:0};
-      dMap[r.report_date].reports++;
-      dMap[r.report_date].gross+=r.gross_income||0;
-      dMap[r.report_date].net+=r.net_income||0;
+      if(!dMap[r.date]) dMap[r.date]={date:r.date,reports:0,gross:0,net:0};
+      dMap[r.date].reports++;
+      dMap[r.date].gross+=r.gross_earnings||0;
+      dMap[r.date].net+=r.net_after_expenses||0;
     });
     setDaily(Object.values(dMap).sort((a,b)=>a.date.localeCompare(b.date)));
 
@@ -224,10 +224,10 @@ export default function Dashboard() {
     });
     setRows(tRows);
 
-    const gMonth=(rMonth||[]).reduce((s:number,r:any)=>s+(r.gross_income||0),0);
-    const nMonth=(rMonth||[]).reduce((s:number,r:any)=>s+(r.net_income||0),0);
-    const gAll=(rAll||[]).reduce((s:number,r:any)=>s+(r.gross_income||0),0);
-    const nAll=(rAll||[]).reduce((s:number,r:any)=>s+(r.net_income||0),0);
+    const gMonth=(rMonth||[]).reduce((s:number,r:any)=>s+(r.gross_earnings||0),0);
+    const nMonth=(rMonth||[]).reduce((s:number,r:any)=>s+(r.net_after_expenses||0),0);
+    const gAll=(rAll||[]).reduce((s:number,r:any)=>s+(r.gross_earnings||0),0);
+    const nAll=(rAll||[]).reduce((s:number,r:any)=>s+(r.net_after_expenses||0),0);
     const paidTenants=tRows.filter(t=>t.plan_expires_at&&t.active).length;
     const conv=trial+paidTenants>0?(paidTenants/(trial+paidTenants))*100:0;
 
