@@ -37,3 +37,4 @@ Thumbs.db
 
 .vercel
 .env*.local
+firebase-config.js
