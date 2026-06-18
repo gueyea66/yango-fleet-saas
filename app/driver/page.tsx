@@ -334,7 +334,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
     setSaving(true);
     try {
       const supabase = createClient() as any;
-      const { error } = await supabase.from("daily_reports").insert({
+      const { data: newReport, error } = await supabase.from("daily_reports").insert({
         driver_id: profile.id, tenant_id: profile.tenant_id, date: form.date, end_odometer: n(form.end_odometer),
         gross_earnings: calc.base + n(form.off_yango_revenue), yango_gross: n(form.yango_gross), yango_bonus: n(form.yango_bonus),
         off_yango_revenue: n(form.off_yango_revenue), solde_yango: n(form.solde_yango), yango_trip_count: n(form.yango_trip_count), off_yango_trip_count: n(form.off_yango_trip_count),
@@ -343,8 +343,16 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         net_after_expenses: calc.total,
         vehicle_id: vehicle?.id ?? null,
         expense_count: 0, status: "submitted", comment: form.comment,
-      });
+      }).select("id").single();
       if (error) throw error;
+      // Link pending uploads to this report
+      if (newReport?.id) {
+        await supabase.from("uploads")
+          .update({ ref_id: newReport.id })
+          .eq("driver_id", profile.id)
+          .eq("file_type", "report")
+          .like("file_path", "%/pending/%");
+      }
       setSubmitted(true);
     } catch (err: any) { alert("Erreur : " + err.message); }
     finally { setSaving(false); }

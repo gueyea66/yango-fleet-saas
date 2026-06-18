@@ -1094,9 +1094,9 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
     (async () => {
       const supabase = createClient() as any;
       const { data } = await supabase.from("uploads").select("*").eq("driver_id", report.driver_id).order("created_at", { ascending: false });
-      // Only keep files that belong to this report (path contains report.id)
+      // Keep files linked to this report: either by ref_id or file_path (legacy path)
       const enriched = (data || [])
-        .filter((u: any) => u.file_path?.includes(report.id))
+        .filter((u: any) => u.ref_id === report.id || u.file_path?.includes(report.id))
         .map((u: any) => {
         const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(u.file_path);
         return { ...u, publicUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(u.file_name) };
