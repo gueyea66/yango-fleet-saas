@@ -120,33 +120,93 @@ export default function DriverApp() {
   ];
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: "#080a0f", maxWidth: 480, margin: "0 auto" }}>
-      {/* Header */}
-      <div className="px-5 py-4 flex items-center justify-between sticky top-0 z-50"
-        style={{ background: "#0d1117", borderBottom: "1px solid #1e2330" }}>
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#3d4560" }}>Yango Fleet</div>
-          <div className="font-semibold text-sm text-white">{profile.full_name}</div>
+    <div className="min-h-screen flex flex-col md:flex-row" style={{ background: "#080a0f" }}>
+
+      {/* ── DESKTOP SIDEBAR ── (hidden on mobile) */}
+      <aside className="hidden md:flex flex-col sticky top-0 h-screen z-40 shrink-0"
+        style={{ width: 220, background: "#0d1117", borderRight: "1px solid #1e2330" }}>
+        {/* Logo / user */}
+        <div className="px-5 py-6 border-b" style={{ borderColor: "#1e2330" }}>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base font-black text-black shrink-0"
+              style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>Y</div>
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#3d4560" }}>Yango Fleet</div>
+              <div className="font-semibold text-sm text-white truncate max-w-[120px]">{profile.full_name}</div>
+            </div>
+          </div>
+          <div className="text-xs px-2 py-1 rounded-md font-mono" style={{ background: "#1e2330", color: "#555e75" }}>
+            ID : {profile.driver_id || "—"}
+          </div>
         </div>
-        <button onClick={() => signOut()} className="text-xs px-3 py-1.5 rounded-lg"
-          style={{ background: "#1e2330", color: "#8b92a8", border: "1px solid #2a2f3d" }}>
-          Déco
-        </button>
+        {/* Nav */}
+        <nav className="flex-1 py-4 px-3 space-y-1">
+          {navItems.map(([id, icon, label]) => (
+            <button key={id} onClick={() => setTab(id)}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
+              style={{
+                background: tab === id ? "rgba(245,166,35,.1)" : "transparent",
+                color: tab === id ? "#f5a623" : "#555e75",
+                border: tab === id ? "1px solid rgba(245,166,35,.2)" : "1px solid transparent",
+              }}>
+              <span className="text-base">{icon}</span>
+              <span>{label}</span>
+            </button>
+          ))}
+        </nav>
+        {/* Sign out */}
+        <div className="p-4 border-t" style={{ borderColor: "#1e2330" }}>
+          <button onClick={() => signOut()}
+            className="w-full text-xs py-2 rounded-lg transition-all"
+            style={{ background: "#1e2330", color: "#8b92a8", border: "1px solid #2a2f3d" }}>
+            Se déconnecter →
+          </button>
+        </div>
+      </aside>
+
+      {/* ── MAIN COLUMN ── */}
+      <div className="flex-1 flex flex-col min-h-screen md:min-h-0">
+
+        {/* Mobile header (hidden on desktop) */}
+        <div className="md:hidden px-5 py-4 flex items-center justify-between sticky top-0 z-50"
+          style={{ background: "#0d1117", borderBottom: "1px solid #1e2330" }}>
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#3d4560" }}>Yango Fleet</div>
+            <div className="font-semibold text-sm text-white">{profile.full_name}</div>
+          </div>
+          <button onClick={() => signOut()} className="text-xs px-3 py-1.5 rounded-lg"
+            style={{ background: "#1e2330", color: "#8b92a8", border: "1px solid #2a2f3d" }}>
+            Déco
+          </button>
+        </div>
+
+        {/* Desktop page title bar */}
+        <div className="hidden md:flex items-center justify-between px-8 py-5 border-b shrink-0"
+          style={{ borderColor: "#1e2330", background: "#0a0c10" }}>
+          <div className="font-semibold text-white text-base">
+            {navItems.find(([id]) => id === tab)?.[2] ?? "Accueil"}
+          </div>
+          <div className="text-xs" style={{ color: "#374151" }}>
+            {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto pb-20 md:pb-0">
+          <div className="md:max-w-3xl md:mx-auto md:px-0">
+            {tab === "home"     && <HomeTab    profile={profile} onNav={setTab} cfg={DEFAULT_CFG} />}
+            {tab === "report"   && <ReportTab  profile={profile} onBack={() => setTab("home")} cfg={DEFAULT_CFG} />}
+            {tab === "expense"  && <ExpenseTab profile={profile} onBack={() => setTab("home")} />}
+            {tab === "history"  && <HistoryTab profile={profile} onBack={() => setTab("home")} cfg={DEFAULT_CFG} />}
+            {tab === "profil"   && <ProfilTab  profile={profile} onBack={() => setTab("home")} />}
+            {tab === "pilotage" && <DriverPilotageTab profile={profile} onBack={() => setTab("home")} />}
+            {tab === "repos"    && <ReposTab   profile={profile} onBack={() => setTab("home")} />}
+          </div>
+        </div>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 pb-20 overflow-y-auto">
-        {tab === "home"    && <HomeTab    profile={profile} onNav={setTab} cfg={DEFAULT_CFG} />}
-        {tab === "report"  && <ReportTab  profile={profile} onBack={() => setTab("home")} cfg={DEFAULT_CFG} />}
-        {tab === "expense" && <ExpenseTab profile={profile} onBack={() => setTab("home")} />}
-        {tab === "history" && <HistoryTab profile={profile} onBack={() => setTab("home")} cfg={DEFAULT_CFG} />}
-        {tab === "profil"  && <ProfilTab  profile={profile} onBack={() => setTab("home")} />}
-        {tab === "pilotage" && <DriverPilotageTab profile={profile} onBack={() => setTab("home")} />}
-        {tab === "repos"    && <ReposTab profile={profile} onBack={() => setTab("home")} />}
-      </div>
-
-      {/* Bottom nav */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] flex z-50"
+      {/* ── MOBILE BOTTOM NAV ── (hidden on desktop) */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 flex z-50"
         style={{ background: "#0d1117", borderTop: "1px solid #1e2330" }}>
         {navItems.map(([id, icon, label]) => (
           <button key={id} onClick={() => setTab(id)}
