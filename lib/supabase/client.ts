@@ -1,8 +1,10 @@
-import { createClient as createSupabaseClient, SupabaseClient } from "@supabase/supabase-js";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
-let instance: SupabaseClient | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let instance: any = null;
 
-export const createClient = (): SupabaseClient => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const createClient = (): any => {
   if (!instance) {
     instance = createSupabaseClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
