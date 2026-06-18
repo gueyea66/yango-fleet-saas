@@ -43,6 +43,8 @@ export default function SuperAdminPage() {
   const [adminForm, setAdminForm] = useState<Record<string, { email: string; password: string }>>({});
   const [extendDays, setExtendDays] = useState<Record<string, string>>({});
   const [keyForm, setKeyForm] = useState({ current: "", newKey: "", confirm: "" });
+  const [globalSettings, setGlobalSettings] = useState({ whatsapp: "", phone: "", companyName: "M3A Solutions", defaultTrialDays: "30", defaultPlan: "standard" });
+  const [settingsLoading, setSettingsLoading] = useState(false);
 
   const sb = createClient() as any;
   const notify = (text: string, ok = true) => { setMsg({ text, ok }); setTimeout(() => setMsg(null), 4000); };
@@ -91,7 +93,33 @@ export default function SuperAdminPage() {
     setLoading(false);
   }
 
-  useEffect(() => { if (authed) load(); }, [authed]);
+  useEffect(() => {
+    if (authed) {
+      load();
+      loadGlobalSettings();
+    }
+  }, [authed]);
+
+  async function loadGlobalSettings() {
+    const { data } = await sb.from("superadmin_settings").select("key,value");
+    if (!data) return;
+    const map: Record<string,string> = {};
+    data.forEach((r: any) => { map[r.key] = r.value; });
+    setGlobalSettings(prev => ({
+      whatsapp: map["whatsapp"] || prev.whatsapp,
+      phone: map["phone"] || prev.phone,
+      companyName: map["company_name"] || prev.companyName,
+      defaultTrialDays: map["default_trial_days"] || prev.defaultTrialDays,
+      defaultPlan: map["default_plan"] || prev.defaultPlan,
+    }));
+  }
+
+  async function saveGlobalSetting(key: string, value: string) {
+    setSettingsLoading(true);
+    await sb.from("superadmin_settings").upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    setSettingsLoading(false);
+    notify("✓ Paramètre sauvegardé");
+  }
 
   async function apiPost(url: string, body: object) {
     const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ superadminKey: key, ...body }) });
@@ -208,29 +236,148 @@ export default function SuperAdminPage() {
 
         {/* Settings tab */}
         {activeTab === "settings" && (
-          <div style={{ background: "#0d1117", border: "0.5px solid #1e2330", borderRadius: 12, padding: 28, maxWidth: 420 }}>
-            <div style={{ fontSize: 11, color: "#f5a623", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 20 }}>Changer la clé d'accès</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              <div>
-                <label style={S.label}>Clé actuelle</label>
-                <input type="password" placeholder="••••••••" value={keyForm.current}
-                  onChange={e => setKeyForm(f => ({ ...f, current: e.target.value }))} style={S.input} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+
+            {msg && (
+              <div style={{ gridColumn: "1/-1", background: msg.ok ? "#f5a62312" : "#ef444412", border: `0.5px solid ${msg.ok ? "#f5a62340" : "#ef444440"}`, borderRadius: 8, padding: "10px 16px", color: msg.ok ? "#f5a623" : "#f87171", fontSize: 13 }}>
+                {msg.text}
               </div>
-              <div>
-                <label style={S.label}>Nouvelle clé (8 caractères min)</label>
-                <input type="password" placeholder="••••••••" value={keyForm.newKey}
-                  onChange={e => setKeyForm(f => ({ ...f, newKey: e.target.value }))} style={S.input} />
+            )}
+
+            {/* Sécurité — clé d'accès */}
+            <div style={{ background: "#0d1117", border: "0.5px solid #1e2330", borderRadius: 12, padding: 24 }}>
+              <div style={{ fontSize: 11, color: "#f5a623", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 18 }}>🔐 Sécurité — Clé d'accès</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div>
+                  <label style={S.label}>Clé actuelle</label>
+                  <input type="password" placeholder="••••••••" value={keyForm.current}
+                    onChange={e => setKeyForm(f => ({ ...f, current: e.target.value }))} style={S.input} />
+                </div>
+                <div>
+                  <label style={S.label}>Nouvelle clé (8 caractères min)</label>
+                  <input type="password" placeholder="Nouvelle clé sécurisée" value={keyForm.newKey}
+                    onChange={e => setKeyForm(f => ({ ...f, newKey: e.target.value }))} style={S.input} />
+                </div>
+                <div>
+                  <label style={S.label}>Confirmer la nouvelle clé</label>
+                  <input type="password" placeholder="••••••••" value={keyForm.confirm}
+                    onChange={e => setKeyForm(f => ({ ...f, confirm: e.target.value }))} style={S.input} />
+                </div>
+                <button onClick={changeKey}
+                  style={{ background: "#f5a623", color: "#080a0f", border: "none", borderRadius: 8, padding: "11px", fontWeight: 700, cursor: "pointer", marginTop: 4 }}>
+                  Mettre à jour la clé →
+                </button>
+                <div style={{ fontSize: 10, color: "#374151", marginTop: 2 }}>La clé est stockée en base, changeable à tout moment.</div>
               </div>
-              <div>
-                <label style={S.label}>Confirmer la nouvelle clé</label>
-                <input type="password" placeholder="••••••••" value={keyForm.confirm}
-                  onChange={e => setKeyForm(f => ({ ...f, confirm: e.target.value }))} style={S.input} />
-              </div>
-              <button onClick={changeKey}
-                style={{ background: "#f5a623", color: "#080a0f", border: "none", borderRadius: 8, padding: "11px", fontWeight: 700, cursor: "pointer", marginTop: 4 }}>
-                Mettre à jour la clé →
-              </button>
             </div>
+
+            {/* Contacts */}
+            <div style={{ background: "#0d1117", border: "0.5px solid #1e2330", borderRadius: 12, padding: 24 }}>
+              <div style={{ fontSize: 11, color: "#f5a623", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 18 }}>📞 Contacts & Support</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div>
+                  <label style={S.label}>Numéro WhatsApp (affiché sur la page de verrouillage)</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input placeholder="+221 77 000 00 00" value={globalSettings.whatsapp}
+                      onChange={e => setGlobalSettings(p => ({ ...p, whatsapp: e.target.value }))} style={{ ...S.input, flex: 1 }} />
+                    <button onClick={() => saveGlobalSetting("whatsapp", globalSettings.whatsapp)} disabled={settingsLoading}
+                      style={{ background: "#22c55e", color: "#080a0f", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+                      ✓
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label style={S.label}>Téléphone direct</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input placeholder="+221 33 000 00 00" value={globalSettings.phone}
+                      onChange={e => setGlobalSettings(p => ({ ...p, phone: e.target.value }))} style={{ ...S.input, flex: 1 }} />
+                    <button onClick={() => saveGlobalSetting("phone", globalSettings.phone)} disabled={settingsLoading}
+                      style={{ background: "#22c55e", color: "#080a0f", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}>
+                      ✓
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label style={S.label}>Nom de la société (affiché aux clients)</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input placeholder="M3A Solutions" value={globalSettings.companyName}
+                      onChange={e => setGlobalSettings(p => ({ ...p, companyName: e.target.value }))} style={{ ...S.input, flex: 1 }} />
+                    <button onClick={() => saveGlobalSetting("company_name", globalSettings.companyName)} disabled={settingsLoading}
+                      style={{ background: "#22c55e", color: "#080a0f", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}>
+                      ✓
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Defaults SaaS */}
+            <div style={{ background: "#0d1117", border: "0.5px solid #1e2330", borderRadius: 12, padding: 24 }}>
+              <div style={{ fontSize: 11, color: "#f5a623", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 18 }}>⚙ Défauts SaaS</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                <div>
+                  <label style={S.label}>Durée d'essai par défaut (jours)</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <input type="number" min={1} max={90} placeholder="30" value={globalSettings.defaultTrialDays}
+                      onChange={e => setGlobalSettings(p => ({ ...p, defaultTrialDays: e.target.value }))} style={{ ...S.input, flex: 1 }} />
+                    <button onClick={() => saveGlobalSetting("default_trial_days", globalSettings.defaultTrialDays)} disabled={settingsLoading}
+                      style={{ background: "#22c55e", color: "#080a0f", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}>
+                      ✓
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label style={S.label}>Plan par défaut pour les nouveaux clients</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <select value={globalSettings.defaultPlan} onChange={e => setGlobalSettings(p => ({ ...p, defaultPlan: e.target.value }))}
+                      style={{ ...S.input, flex: 1, cursor: "pointer" }}>
+                      <option value="standard">Standard — 35 000 XOF/mois</option>
+                      <option value="pro">Pro — 75 000 XOF/mois</option>
+                    </select>
+                    <button onClick={() => saveGlobalSetting("default_plan", globalSettings.defaultPlan)} disabled={settingsLoading}
+                      style={{ background: "#22c55e", color: "#080a0f", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}>
+                      ✓
+                    </button>
+                  </div>
+                </div>
+                <div style={{ background: "#080a0f", borderRadius: 8, padding: 12, marginTop: 4 }}>
+                  <div style={{ fontSize: 10, color: "#6b7280", marginBottom: 6 }}>Horizons de notification (définis dans le système)</div>
+                  {["J-14 (vert)","J-7 (jaune)","J-3 (orange)","J-1 (rouge)","Expiration (rouge, verrouillage)"].map((h,i) => (
+                    <div key={i} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+                      <span style={{ width:7, height:7, borderRadius:"50%", background:["#22c55e","#f5a623","#f97316","#ef4444","#ef4444"][i], display:"inline-block" }}/>
+                      <span style={{ fontSize:11, color:"#9ca3af" }}>{h}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Infos système */}
+            <div style={{ background: "#0d1117", border: "0.5px solid #1e2330", borderRadius: 12, padding: 24 }}>
+              <div style={{ fontSize: 11, color: "#f5a623", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 18 }}>ℹ Informations Système</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {[
+                  ["Version", "1.0.0 — Yango Fleet SaaS"],
+                  ["Base de données", "Supabase · schéma fleet"],
+                  ["Hébergement", "Vercel · yango-fleet-saas.vercel.app"],
+                  ["Auth", "Supabase Auth — email virtuel drivers"],
+                  ["Plans", "Standard 35k XOF · Pro 75k XOF"],
+                  ["Devise", "XOF (Franc CFA)"],
+                  ["Timezone", "Africa/Dakar (UTC+0)"],
+                  ["Session", `Connecté · clé active`],
+                ].map(([k,v]) => (
+                  <div key={k} style={{ display:"flex", justifyContent:"space-between", borderBottom:"0.5px solid #1e2330", paddingBottom:6 }}>
+                    <span style={{ fontSize:11, color:"#6b7280" }}>{k}</span>
+                    <span style={{ fontSize:11, color:"#f0f2f7" }}>{v}</span>
+                  </div>
+                ))}
+                <button onClick={() => { setAuthed(false); setKey(""); }}
+                  style={{ background:"#ef444412", color:"#ef4444", border:"0.5px solid #ef444430", borderRadius:8, padding:"9px 16px", cursor:"pointer", fontWeight:700, fontSize:12, marginTop:8 }}>
+                  Déconnecter →
+                </button>
+              </div>
+            </div>
+
           </div>
         )}
 
