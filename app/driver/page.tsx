@@ -307,18 +307,25 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
   const [todayReport, setTodayReport] = useState<any>(null);
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [vehicle, setVehicle] = useState<any>(null);
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const n = (s: string) => parseFloat(s) || 0;
 
   useEffect(() => {
     (async () => {
       const supabase = createClient() as any;
-      const { data } = await supabase.from("daily_reports").select("*").eq("driver_id", profile.id).eq("date", today).maybeSingle();
-      if (data) setTodayReport(data);
+      const [{ data: rep }, { data: veh }] = await Promise.all([
+        supabase.from("daily_reports").select("*").eq("driver_id", profile.id).eq("date", today).maybeSingle(),
+        supabase.from("vehicles").select("id,plate,partner_rate").eq("driver_id", profile.id).maybeSingle(),
+      ]);
+      if (rep) setTodayReport(rep);
+      if (veh) setVehicle(veh);
     })();
   }, [profile.id, today]);
 
-  const calc = calcReport(n(form.yango_gross), n(form.yango_bonus), n(form.off_yango_revenue), cfg);
+  // Use vehicle partner_rate if available, else fall back to cfg
+  const effectiveCfg = { ...cfg, comm_partner: vehicle?.partner_rate != null ? vehicle.partner_rate * 100 : cfg.comm_partner };
+  const calc = calcReport(n(form.yango_gross), n(form.yango_bonus), n(form.off_yango_revenue), effectiveCfg);
   const canEdit = !todayReport || todayReport.status === "rejected";
 
   const submit = async () => {
@@ -330,7 +337,10 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         driver_id: profile.id, date: form.date, end_odometer: n(form.end_odometer),
         gross_earnings: calc.base + n(form.off_yango_revenue), yango_gross: n(form.yango_gross), yango_bonus: n(form.yango_bonus),
         off_yango_revenue: n(form.off_yango_revenue), solde_yango: n(form.solde_yango), yango_trip_count: n(form.yango_trip_count), off_yango_trip_count: n(form.off_yango_trip_count),
-        commission_rate: cfg.comm_yango / 100, commission_amount: calc.commY + calc.commP, net_after_expenses: calc.total,
+        commission_rate: effectiveCfg.comm_yango / 100, commission_amount: calc.commY + calc.commP,
+        partner_rate: effectiveCfg.comm_partner / 100,
+        net_after_expenses: calc.total,
+        vehicle_id: vehicle?.id ?? null,
         expense_count: 0, status: "submitted", comment: form.comment,
       });
       if (error) throw error;
@@ -374,7 +384,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         {(n(form.yango_gross) > 0 || n(form.yango_bonus) > 0 || n(form.off_yango_revenue) > 0) && (
           <div className="rounded-2xl p-4" style={{ background: "rgba(245,166,35,.04)", border: "1px solid rgba(245,166,35,.15)" }}>
             <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "#f5a623" }}>Aperçu calcul</div>
-            {[["Base Yango", calc.base, false], [`Commission Yango (${cfg.comm_yango}%)`, calc.commY, true], [`Comm. partenaire (${cfg.comm_partner}%)`, calc.commP, true], ["Net Yango", calc.netY, false], ["Hors Yango", calc.offYango, false], ...(n(form.solde_yango) > 0 ? [["💳 Solde wallet", n(form.solde_yango), false]] : [])].map(([l, v, neg]) => (
+            {[["Base Yango", calc.base, false], [`Commission Yango (${effectiveCfg.comm_yango}%)`, calc.commY, true], [`Comm. partenaire (${effectiveCfg.comm_partner.toFixed(2)}%)`, calc.commP, true], ["Net Yango", calc.netY, false], ["Hors Yango", calc.offYango, false], ...(n(form.solde_yango) > 0 ? [["💳 Solde wallet", n(form.solde_yango), false]] : [])].map(([l, v, neg]) => (
               <div key={String(l)} className="flex justify-between text-xs py-1.5" style={{ borderBottom: "1px solid rgba(245,166,35,.07)" }}>
                 <span style={{ color: "#555e75" }}>{l}</span>
                 <span className="font-mono font-semibold" style={{ color: neg ? "#ef4444" : "#8b92a8" }}>{neg ? "- " : ""}{xof(Math.abs(Number(v)))}</span>
@@ -441,14 +451,25 @@ function UploadBlock({ driverId, refId, refType, label = "📎 Photos / Reçus" 
     finally { setUploading(false); }
   };
 
+  const cameraRef = useRef<HTMLInputElement>(null);
+
   return (
     <div className="rounded-xl p-4" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
       <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "#3d4560" }}>{label}</div>
-      <button onClick={() => fileRef.current?.click()} disabled={uploading}
-        className="w-full py-2.5 rounded-xl text-sm font-medium border-dashed border-2 mb-3 transition-all"
-        style={{ background: "transparent", borderColor: uploading ? "#f5a623" : "#2a2f3d", color: uploading ? "#f5a623" : "#555e75" }}>
-        {uploading ? "⏳ Upload..." : "+ Ajouter photos / reçus (multiple)"}
-      </button>
+      <div className="flex gap-2 mb-3">
+        <button onClick={() => cameraRef.current?.click()} disabled={uploading}
+          className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all"
+          style={{ background: uploading ? "#1e2330" : "rgba(245,166,35,.08)", border: "1px solid rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
+          {uploading ? "⏳ Upload..." : "📷 Photo"}
+        </button>
+        <button onClick={() => fileRef.current?.click()} disabled={uploading}
+          className="flex-1 py-2.5 rounded-xl text-sm font-medium border-dashed border-2 transition-all"
+          style={{ background: "transparent", borderColor: uploading ? "#f5a623" : "#2a2f3d", color: uploading ? "#f5a623" : "#555e75" }}>
+          {uploading ? "⏳" : "📁 Fichier / Galerie"}
+        </button>
+      </div>
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+        onChange={(e) => { Array.from(e.target.files || []).forEach(upload); e.target.value = ""; }} />
       <input ref={fileRef} type="file" accept="image/*,.pdf" multiple className="hidden"
         onChange={(e) => { Array.from(e.target.files || []).forEach(upload); e.target.value = ""; }} />
       {loadingFiles && <div className="text-xs text-center py-2" style={{ color: "#3d4560" }}>Chargement...</div>}
@@ -734,7 +755,7 @@ function ExpenseCard({ expense, driverId }: { expense: any; driverId: string }) 
 // ─── PROFIL / KYC ────────────────────────────────────
 function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }) {
   const [vehicle, setVehicle] = useState<any>(null);
-  const [vehicleForm, setVehicleForm] = useState({ plate: "", make: "", model: "", year: "" });
+  const [vehicleForm, setVehicleForm] = useState({ plate: "", make: "", model: "", year: "", partner_rate: "0.75" });
   const [savingVehicle, setSavingVehicle] = useState(false);
   const [vehicleSaved, setVehicleSaved] = useState(false);
 
@@ -750,7 +771,7 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
     (async () => {
       const supabase = createClient() as any;
       const { data: v } = await supabase.from("vehicles").select("*").eq("driver_id", profile.id).maybeSingle();
-      if (v) { setVehicle(v); setVehicleForm({ plate: v.plate || v.license_plate || "", make: v.make || "", model: v.model || "", year: v.year ? String(v.year) : "" }); }
+      if (v) { setVehicle(v); setVehicleForm({ plate: v.plate || v.license_plate || "", make: v.make || "", model: v.model || "", year: v.year ? String(v.year) : "", partner_rate: v.partner_rate != null ? String(v.partner_rate * 100) : "0.75" }); }
       const { data: d } = await supabase.from("uploads").select("*").eq("driver_id", profile.id).order("created_at", { ascending: false });
       setDocs(d || []);
     })();
@@ -761,7 +782,7 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
     setSavingVehicle(true);
     try {
       const supabase = createClient() as any;
-      const payload = { driver_id: profile.id, plate: vehicleForm.plate, make: vehicleForm.make, model: vehicleForm.model, year: vehicleForm.year ? parseInt(vehicleForm.year) : null };
+      const payload = { driver_id: profile.id, plate: vehicleForm.plate, make: vehicleForm.make, model: vehicleForm.model, year: vehicleForm.year ? parseInt(vehicleForm.year) : null, partner_rate: parseFloat(vehicleForm.partner_rate || "0.75") / 100 };
       if (vehicle) {
         await supabase.from("vehicles").update(payload).eq("id", vehicle.id);
       } else {
@@ -828,9 +849,14 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
             <Field label="Marque"><InpText type="text" placeholder="ex: Toyota" value={vehicleForm.make} onChange={(v) => setVehicleForm((f) => ({ ...f, make: v }))} /></Field>
             <Field label="Modèle"><InpText type="text" placeholder="ex: Corolla" value={vehicleForm.model} onChange={(v) => setVehicleForm((f) => ({ ...f, model: v }))} /></Field>
           </div>
-          <Field label="Année">
-            <InpText type="number" placeholder="ex: 2020" value={vehicleForm.year} onChange={(v) => setVehicleForm((f) => ({ ...f, year: v }))} />
-          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Année">
+              <InpText type="number" placeholder="ex: 2020" value={vehicleForm.year} onChange={(v) => setVehicleForm((f) => ({ ...f, year: v }))} />
+            </Field>
+            <Field label="Comm. partenaire (%)">
+              <InpText type="number" placeholder="ex: 0.75" value={vehicleForm.partner_rate} onChange={(v) => setVehicleForm((f) => ({ ...f, partner_rate: v }))} />
+            </Field>
+          </div>
           <button onClick={saveVehicle} disabled={savingVehicle}
             className="w-full py-3 rounded-xl text-sm font-bold transition-all"
             style={{ background: vehicleSaved ? "rgba(34,197,94,.1)" : "linear-gradient(135deg,#f5a623,#e8951a)", color: vehicleSaved ? "#22c55e" : "#000", border: vehicleSaved ? "1px solid rgba(34,197,94,.3)" : "none" }}>
