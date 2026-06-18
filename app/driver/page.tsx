@@ -367,11 +367,11 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
       if (error) throw error;
       if (newReport?.id) {
         setReportId(newReport.id);
-        await supabase.from("action_logs").insert({
+        void supabase.from("action_logs").insert({
           tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
           entity_type: "daily_report", entity_id: newReport.id, action: "submitted",
           metadata: { date: form.date, net: calc.total },
-        }).catch(() => {});
+        });
       }
       setSubmitted(true);
     } catch (err: any) { alert("Erreur : " + err.message); }
@@ -564,11 +564,11 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
       const expId = data?.id || null;
       setExpenseId(expId);
       if (expId) {
-        await supabase.from("action_logs").insert({
+        void supabase.from("action_logs").insert({
           tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
           entity_type: "expense", entity_id: expId, action: "submitted",
           metadata: { category: form.type, amount: parseFloat(form.amount) },
-        }).catch(() => {});
+        });
       }
       setSubmitted(true);
     } catch (err: any) { alert("Erreur : " + err.message); }
@@ -699,11 +699,11 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
       const supabase = createClient() as any;
       const { error } = await supabase.from("daily_reports").update({ status: "submitted" }).eq("id", report.id);
       if (error) throw error;
-      await supabase.from("action_logs").insert({
+      void supabase.from("action_logs").insert({
         tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
         entity_type: "daily_report", entity_id: report.id, action: "submitted",
         metadata: { date: report.date, resubmission: true },
-      }).catch(() => {});
+      });
       onRefresh();
     } catch (err: any) { alert("Erreur : " + err.message); }
     finally { setSaving(false); }
@@ -829,11 +829,11 @@ function ExpenseCard({ expense, driverId, profile, onRefresh }: { expense: any; 
       const supabase = createClient() as any;
       const { error } = await supabase.from("expenses").update({ status: "submitted" }).eq("id", expense.id);
       if (error) throw error;
-      await supabase.from("action_logs").insert({
+      void supabase.from("action_logs").insert({
         tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
         entity_type: "expense", entity_id: expense.id, action: "submitted",
         metadata: { category: expense.category, amount: expense.amount, resubmission: true },
-      }).catch(() => {});
+      });
       onRefresh();
     } catch (err: any) { alert("Erreur : " + err.message); }
     finally { setSaving(false); }

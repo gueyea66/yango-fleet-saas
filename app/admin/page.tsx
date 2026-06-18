@@ -915,12 +915,12 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
       const supabase = createClient() as any;
       const { error } = await supabase.from("expenses").update({ status }).eq("id", expense.id);
       if (error) throw error;
-      // Log action
-      await supabase.from("action_logs").insert({
+      // Log action (fire-and-forget — non-critical)
+      void supabase.from("action_logs").insert({
         tenant_id: expense.tenant_id, actor_role: "admin",
         entity_type: "expense", entity_id: expense.id, action: status,
         metadata: { category: expense.category, amount: expense.amount },
-      }).catch(() => {});
+      });
       setCurrentStatus(status);
       onRefresh();
     } catch (err: any) { alert("Erreur : " + err.message); }
@@ -1151,12 +1151,12 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
         ...(note ? { comment: note } : {}),
       }).eq("id", report.id);
       if (error) throw error;
-      // Log action
-      await supabase.from("action_logs").insert({
+      // Log action (fire-and-forget — non-critical)
+      void supabase.from("action_logs").insert({
         tenant_id: report.tenant_id, actor_role: "admin",
         entity_type: "daily_report", entity_id: report.id, action: status,
         metadata: { date: report.date, net: parseFloat(netEdit) || report.net_after_expenses },
-      }).catch(() => {});
+      });
       onRefresh();
     } catch (err: any) { alert("Erreur : " + err.message); }
     finally { setSaving(false); }
