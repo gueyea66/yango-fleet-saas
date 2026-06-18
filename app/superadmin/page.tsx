@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { PLAN_LIMITS, getTrialStatus, type Plan } from "@/lib/plans";
+import Dashboard from "./Dashboard";
 
 // Key is verified server-side via /api/superadmin/verify
 
@@ -33,7 +34,7 @@ export default function SuperAdminPage() {
   const [authed, setAuthed] = useState(false);
   const [key, setKey] = useState("");
   const [authError, setAuthError] = useState("");
-  const [activeTab, setActiveTab] = useState<"clients" | "settings">("clients");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "clients" | "settings">("dashboard");
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -191,16 +192,19 @@ export default function SuperAdminPage() {
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: 4, marginBottom: 28, borderBottom: "0.5px solid #1e2330", paddingBottom: 0 }}>
-          {(["clients", "settings"] as const).map(tab => (
+          {([["dashboard", "📊 Dashboard"], ["clients", "🏢 Clients"], ["settings", "⚙ Paramètres"]] as const).map(([tab, label]) => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               style={{ background: "none", border: "none", padding: "8px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600,
                 color: activeTab === tab ? "#f5a623" : "#6b7280",
                 borderBottom: activeTab === tab ? "2px solid #f5a623" : "2px solid transparent",
                 marginBottom: -1 }}>
-              {tab === "clients" ? "Clients" : "⚙ Paramètres"}
+              {label}
             </button>
           ))}
         </div>
+
+        {/* Dashboard tab */}
+        {activeTab === "dashboard" && <Dashboard />}
 
         {/* Settings tab */}
         {activeTab === "settings" && (
