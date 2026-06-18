@@ -72,6 +72,7 @@ export default function DriversPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "create",
+          adminUserId: user?.id,
           driverId: formData.driverId.toUpperCase(),
           fullName: formData.fullName,
           password: formData.password,
@@ -110,6 +111,7 @@ export default function DriversPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "delete",
+          adminUserId: user?.id,
           driverId,
         }),
       });
@@ -266,7 +268,7 @@ export default function DriversPage() {
 
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleDeleteDriver(driver.driver_id)}
+                    onClick={() => handleDeleteDriver(driver.driver_id || driver.id)}
                     className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded text-sm"
                   >
                     Supprimer
