@@ -328,6 +328,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [vehicle, setVehicle] = useState<any>(null);
+  const [reportId, setReportId] = useState<string | null>(null);
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const n = (s: string) => parseFloat(s) || 0;
 
@@ -364,18 +365,13 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         expense_count: 0, status: "submitted", comment: form.comment,
       }).select("id").single();
       if (error) throw error;
-      // Link pending uploads to this report + log action
       if (newReport?.id) {
-        await supabase.from("uploads")
-          .update({ ref_id: newReport.id })
-          .eq("driver_id", profile.id)
-          .eq("file_type", "report")
-          .like("file_path", "%/pending/%");
+        setReportId(newReport.id);
         await supabase.from("action_logs").insert({
           tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
           entity_type: "daily_report", entity_id: newReport.id, action: "submitted",
           metadata: { date: form.date, net: calc.total },
-        });
+        }).catch(() => {});
       }
       setSubmitted(true);
     } catch (err: any) { alert("Erreur : " + err.message); }
@@ -383,11 +379,18 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
   };
 
   if (submitted) return (
-    <div className="p-6 pt-16 text-center">
-      <div className="text-5xl mb-4">📋</div>
-      <div className="text-lg font-semibold text-white mb-2">Rapport soumis !</div>
-      <div className="text-sm mb-6" style={{ color: "#555e75" }}>En attente de validation</div>
-      <button onClick={onBack} className="px-6 py-2.5 rounded-xl text-sm font-bold text-black" style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>Retour accueil</button>
+    <div className="p-4">
+      <div className="text-center pt-10 pb-6">
+        <div className="text-5xl mb-4">📋</div>
+        <div className="text-lg font-semibold text-white mb-2">Rapport soumis !</div>
+        <div className="text-sm mb-4" style={{ color: "#555e75" }}>En attente de validation</div>
+      </div>
+      {reportId && (
+        <div className="mb-6">
+          <UploadBlock driverId={profile.id} refId={reportId} refType="report" label="📎 Ajouter photos / documents" />
+        </div>
+      )}
+      <button onClick={onBack} className="w-full py-3 rounded-xl text-sm font-bold text-black" style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>Retour accueil</button>
     </div>
   );
 
@@ -431,8 +434,8 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         )}
 
         <Field label="Commentaire"><InpTextarea placeholder="Optionnel..." value={form.comment} onChange={(v) => set("comment", v)} disabled={!canEdit} /></Field>
-        {canEdit && <UploadBlock driverId={profile.id} refId={null} refType="report" label="📎 Photos / documents du rapport" />}
         {canEdit && <BtnPrimary onClick={submit} disabled={saving}>{saving ? "Enregistrement..." : "Soumettre le rapport →"}</BtnPrimary>}
+        {canEdit && <div className="text-xs text-center" style={{ color: "#3d4560" }}>Vous pourrez ajouter des photos après soumission</div>}
       </div>
     </div>
   );
@@ -450,13 +453,14 @@ function UploadBlock({ driverId, refId, refType, label = "📎 Photos / Reçus" 
     if (!refId) return;
     setLoadingFiles(true);
     const supabase = createClient() as any;
-    supabase.from("uploads").select("file_name,file_path,file_type")
+    supabase.from("uploads").select("file_name,file_path,file_type,ref_id")
       .eq("driver_id", driverId)
       .eq("file_type", refType)
       .then(({ data }: any) => {
         if (data?.length) {
           const mapped = data
-            .filter((f: any) => f.file_path?.includes(refId))
+            // Match by ref_id (new) OR by path containing refId (legacy)
+            .filter((f: any) => f.ref_id === refId || f.file_path?.includes(refId))
             .map((f: any) => {
               const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(f.file_path);
               const isImg = /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(f.file_name);
@@ -477,7 +481,7 @@ function UploadBlock({ driverId, refId, refType, label = "📎 Photos / Reçus" 
       const { error } = await supabase.storage.from("kyc-documents").upload(path, file, { upsert: true });
       if (error) throw error;
       const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(path);
-      await supabase.from("uploads").insert({ driver_id: driverId, file_name: file.name, file_path: path, file_type: refType, file_size: file.size });
+      await supabase.from("uploads").insert({ driver_id: driverId, file_name: file.name, file_path: path, file_type: refType, file_size: file.size, ...(refId ? { ref_id: refId } : {}) });
       const isImg = /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(file.name);
       setFiles((p) => [...p, { name: file.name, url: publicUrl, isImg }]);
     } catch (err: any) { alert("Upload échoué : " + err.message); }
@@ -559,15 +563,12 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
       if (error) throw error;
       const expId = data?.id || null;
       setExpenseId(expId);
-      // Link pending uploads to this expense
       if (expId) {
-        await supabase.from("uploads").update({ ref_id: expId })
-          .eq("driver_id", profile.id).eq("file_type", "expense").like("file_path", "%/pending/%");
         await supabase.from("action_logs").insert({
           tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
           entity_type: "expense", entity_id: expId, action: "submitted",
           metadata: { category: form.type, amount: parseFloat(form.amount) },
-        });
+        }).catch(() => {});
       }
       setSubmitted(true);
     } catch (err: any) { alert("Erreur : " + err.message); }
@@ -616,9 +617,8 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
           </div>
         )}
         <Field label="Note"><InpTextarea placeholder="Optionnel..." value={form.comment} onChange={(v) => set("comment", v)} /></Field>
-        {/* Upload BEFORE submit */}
-        <UploadBlock driverId={profile.id} refId={null} refType="expense" label="📎 Ajouter photos / reçus maintenant" />
         <BtnPrimary onClick={submit} disabled={saving}>{saving ? "Enregistrement..." : "Soumettre →"}</BtnPrimary>
+        <div className="text-xs text-center" style={{ color: "#3d4560" }}>Vous pourrez ajouter des photos après soumission</div>
       </div>
     </div>
   );
