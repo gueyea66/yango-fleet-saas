@@ -133,6 +133,7 @@ export default function AdminPage() {
     ["dashboard", "📊 Dashboard"],
     ["pending", "⏳ Soumissions"],
     ["history", "📜 Historique"],
+    ["calendrier", "📅 Calendrier"],
     ["payments", "💵 Paiements"],
     ["pilotage", "🎯 Pilotage"],
     ["vehicles", "🔧 Véhicules"],
@@ -221,7 +222,7 @@ export default function AdminPage() {
         <div className="p-6 lg:p-10 w-full max-w-none" style={{ background: "#080a0f", minHeight: "100vh" }}>
 
         {/* ── DRIVER / VEHICLE FILTER BAR ── */}
-        {["pending", "history", "payments", "avances", "dashboard"].includes(tab) && allDrivers.length > 0 && (
+        {["pending", "history", "calendrier", "payments", "avances", "dashboard"].includes(tab) && allDrivers.length > 0 && (
           <div className="mb-6 flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#3d4560" }}>Filtrer :</span>
             <button onClick={() => setFilterDriverId("")}
@@ -710,6 +711,7 @@ export default function AdminPage() {
           </div>
         )}
 
+        {tab === "calendrier" && <CalendrierTab filterDriverId={filterDriverId} allDrivers={allDrivers} />}
         {tab === "payments" && <PaymentsTab filterDriverId={filterDriverId} />}
         {tab === "avances" && <AvancesTab filterDriverId={filterDriverId} />}
         {tab === "pilotage" && (
@@ -1947,6 +1949,247 @@ function AvancesTab({ filterDriverId = "" }: { filterDriverId?: string }) {
               </div>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── CALENDRIER TAB ───────────────────────────────────
+function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string; allDrivers: any[] }) {
+  const today = new Date();
+  const [viewYear, setViewYear] = useState(today.getFullYear());
+  const [viewMonth, setViewMonth] = useState(today.getMonth()); // 0-indexed
+  const [events, setEvents] = useState<any[]>([]); // daily_reports with [REPOS] or normal
+  const [loading, setLoading] = useState(false);
+  const [addModal, setAddModal] = useState<{ date: string } | null>(null);
+  const [addDriver, setAddDriver] = useState("");
+  const [addMotif, setAddMotif] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const monthStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
+  const monthStart = `${monthStr}-01`;
+  const lastDay = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const monthEnd = `${monthStr}-${String(lastDay).padStart(2, "0")}`;
+
+  const load = async () => {
+    setLoading(true);
+    const supabase = createClient() as any;
+    const { data } = await supabase.from("daily_reports")
+      .select("id, driver_id, date, status, comment, gross_earnings, net_after_expenses")
+      .gte("date", monthStart)
+      .lte("date", monthEnd)
+      .order("date");
+    setEvents(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, [monthStr]);
+
+  const prevMonth = () => { if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); } else setViewMonth(m => m - 1); };
+  const nextMonth = () => { if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); } else setViewMonth(m => m + 1); };
+
+  // Build calendar grid
+  const firstDow = new Date(viewYear, viewMonth, 1).getDay(); // 0=Sun
+  const startPad = (firstDow + 6) % 7; // Mon-first
+  const days = Array.from({ length: lastDay }, (_, i) => i + 1);
+
+  const drivers = filterDriverId ? allDrivers.filter(d => d.id === filterDriverId) : allDrivers;
+
+  const eventsForDay = (day: number) => {
+    const dateStr = `${monthStr}-${String(day).padStart(2, "0")}`;
+    return events.filter(e => e.date === dateStr && (!filterDriverId || e.driver_id === filterDriverId));
+  };
+
+  const driverName = (driverId: string) => {
+    const d = allDrivers.find(d => d.id === driverId);
+    return d ? d.full_name : driverId.slice(0, 6);
+  };
+
+  const addRepos = async () => {
+    if (!addModal || !addDriver) return;
+    setSaving(true);
+    try {
+      const supabase = createClient() as any;
+      const { data: exists } = await supabase.from("daily_reports")
+        .select("id").eq("driver_id", addDriver).eq("date", addModal.date).maybeSingle();
+      if (exists) { alert("Un rapport existe déjà pour ce chauffeur à cette date."); setSaving(false); return; }
+      await supabase.from("daily_reports").insert({
+        driver_id: addDriver, date: addModal.date, status: "approved",
+        comment: `[REPOS]${addMotif ? " " + addMotif : ""}`,
+        gross_earnings: 0, yango_gross: 0, yango_bonus: 0, off_yango_revenue: 0,
+        net_after_expenses: 0, commission_rate: 0, commission_amount: 0, expense_count: 0,
+      });
+      setAddModal(null); setAddMotif(""); setAddDriver("");
+      await load();
+    } catch (err: any) { alert("Erreur : " + err.message); }
+    finally { setSaving(false); }
+  };
+
+  const deleteEvent = async (id: string) => {
+    if (!confirm("Supprimer cet événement ?")) return;
+    const supabase = createClient() as any;
+    await supabase.from("daily_reports").delete().eq("id", id);
+    await load();
+  };
+
+  const MONTHS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+  const DAYS = ["Lun","Mar","Mer","Jeu","Ven","Sam","Dim"];
+  const todayStr = today.toISOString().slice(0, 10);
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h2 className="text-2xl font-bold text-white">📅 Calendrier chauffeurs</h2>
+        <div className="flex items-center gap-2">
+          <button onClick={prevMonth} className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold"
+            style={{ background: "#1e2330", color: "#8b92a8" }}>‹</button>
+          <span className="text-sm font-bold text-white px-3">{MONTHS[viewMonth]} {viewYear}</span>
+          <button onClick={nextMonth} className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold"
+            style={{ background: "#1e2330", color: "#8b92a8" }}>›</button>
+          <button onClick={() => { setViewYear(today.getFullYear()); setViewMonth(today.getMonth()); }}
+            className="text-xs px-3 py-1.5 rounded-lg font-semibold ml-1"
+            style={{ background: "#1e2330", color: "#555e75" }}>Aujourd'hui</button>
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="flex gap-4 flex-wrap text-xs">
+        {[["#6366f1","Repos planifié"],["#22c55e","Travaillé"],["#f5a623","En attente"],["#ef4444","Rejeté"]].map(([c, l]) => (
+          <div key={l} className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm" style={{ background: c }} /><span style={{ color: "#8b92a8" }}>{l}</span></div>
+        ))}
+      </div>
+
+      {/* Calendar grid */}
+      {loading ? (
+        <div className="text-center py-12" style={{ color: "#3d4560" }}>Chargement...</div>
+      ) : (
+        <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid #1e2330" }}>
+          {/* Day headers */}
+          <div className="grid grid-cols-7" style={{ background: "#0d1117", borderBottom: "1px solid #1e2330" }}>
+            {DAYS.map(d => (
+              <div key={d} className="text-center py-2 text-xs font-bold uppercase tracking-widest" style={{ color: "#3d4560" }}>{d}</div>
+            ))}
+          </div>
+          {/* Weeks */}
+          <div className="grid grid-cols-7" style={{ background: "#080a0f" }}>
+            {Array.from({ length: startPad }).map((_, i) => (
+              <div key={`pad-${i}`} style={{ borderRight: "1px solid #0d1117", borderBottom: "1px solid #0d1117", minHeight: 80 }} />
+            ))}
+            {days.map((day) => {
+              const dateStr = `${monthStr}-${String(day).padStart(2, "0")}`;
+              const dayEvents = eventsForDay(day);
+              const isToday = dateStr === todayStr;
+              const isPast = dateStr < todayStr;
+              const isFuture = dateStr > todayStr;
+              return (
+                <div key={day} onClick={() => { if (!isFuture || true) { setAddModal({ date: dateStr }); if (drivers.length === 1) setAddDriver(drivers[0].id); } }}
+                  className="cursor-pointer transition-all hover:bg-opacity-80"
+                  style={{ borderRight: "1px solid #0d1117", borderBottom: "1px solid #0d1117", minHeight: 80, padding: "6px", background: isToday ? "rgba(245,166,35,.05)" : "transparent" }}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-bold" style={{ color: isToday ? "#f5a623" : isPast ? "#3d4560" : "#8b92a8",
+                      background: isToday ? "rgba(245,166,35,.15)" : "transparent", borderRadius: 4, padding: "0 3px" }}>
+                      {day}
+                    </span>
+                    {isFuture && <span className="text-[9px]" style={{ color: "#2a2f3d" }}>+</span>}
+                  </div>
+                  <div className="space-y-0.5">
+                    {dayEvents.slice(0, 3).map((e) => {
+                      const isRepos = e.comment?.startsWith("[REPOS]");
+                      const color = isRepos
+                        ? (e.status === "approved" ? "#6366f1" : e.status === "rejected" ? "#ef4444" : "#a5b4fc")
+                        : (e.status === "approved" ? "#22c55e" : e.status === "rejected" ? "#ef4444" : "#f5a623");
+                      return (
+                        <div key={e.id} onClick={(ev) => { ev.stopPropagation(); }}
+                          className="text-[10px] px-1.5 py-0.5 rounded font-semibold truncate flex items-center justify-between group"
+                          style={{ background: color + "20", color, border: `1px solid ${color}40` }}>
+                          <span className="truncate">{isRepos ? "🛌" : "✓"} {driverName(e.driver_id)}</span>
+                          <button onClick={(ev) => { ev.stopPropagation(); deleteEvent(e.id); }}
+                            className="ml-1 opacity-0 group-hover:opacity-100 text-[9px] flex-shrink-0"
+                            style={{ color: "#ef4444" }}>✕</button>
+                        </div>
+                      );
+                    })}
+                    {dayEvents.length > 3 && <div className="text-[9px]" style={{ color: "#3d4560" }}>+{dayEvents.length - 3} autres</div>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Add repos modal */}
+      {addModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: "rgba(0,0,0,.75)" }} onClick={() => setAddModal(null)}>
+          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}
+            onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <div className="font-bold text-white">📅 {addModal.date}</div>
+              <button onClick={() => setAddModal(null)} className="text-gray-400 hover:text-white">✕</button>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#555e75" }}>Chauffeur</label>
+              <select value={addDriver} onChange={(e) => setAddDriver(e.target.value)}
+                className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }}>
+                <option value="">-- Sélectionner --</option>
+                {allDrivers.map((d) => <option key={d.id} value={d.id}>{d.full_name} {d.plate ? `· ${d.plate}` : ""}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#555e75" }}>Motif (optionnel)</label>
+              <input type="text" value={addMotif} onChange={(e) => setAddMotif(e.target.value)}
+                placeholder="Congé, maladie, entretien..." className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }} />
+            </div>
+            <button onClick={addRepos} disabled={saving || !addDriver}
+              className="w-full py-3 rounded-xl text-sm font-bold"
+              style={{ background: saving || !addDriver ? "#1e2330" : "linear-gradient(135deg,#6366f1,#4f46e5)",
+                color: saving || !addDriver ? "#3d4560" : "#fff" }}>
+              {saving ? "Enregistrement..." : "🛌 Planifier le repos"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Driver summary for the month */}
+      {drivers.length > 0 && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {drivers.map((d) => {
+            const dEvents = events.filter(e => e.driver_id === d.id);
+            const reposCount = dEvents.filter(e => e.comment?.startsWith("[REPOS]")).length;
+            const travailCount = dEvents.filter(e => !e.comment?.startsWith("[REPOS]")).length;
+            const totalNet = dEvents.filter(e => !e.comment?.startsWith("[REPOS]")).reduce((s, e) => s + (e.net_after_expenses || 0), 0);
+            return (
+              <div key={d.id} className="rounded-2xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black text-black"
+                    style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>{d.full_name[0]}</div>
+                  <div>
+                    <div className="text-sm font-bold text-white">{d.full_name}</div>
+                    {d.plate && <div className="text-[10px] font-mono" style={{ color: "#3d4560" }}>{d.plate}</div>}
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div className="rounded-xl py-2" style={{ background: "#080a0f" }}>
+                    <div className="text-lg font-bold" style={{ color: "#22c55e" }}>{travailCount}</div>
+                    <div className="text-[10px]" style={{ color: "#3d4560" }}>Jours travaillés</div>
+                  </div>
+                  <div className="rounded-xl py-2" style={{ background: "#080a0f" }}>
+                    <div className="text-lg font-bold" style={{ color: "#6366f1" }}>{reposCount}</div>
+                    <div className="text-[10px]" style={{ color: "#3d4560" }}>Repos</div>
+                  </div>
+                  <div className="rounded-xl py-2" style={{ background: "#080a0f" }}>
+                    <div className="text-sm font-bold font-mono" style={{ color: "#f5a623" }}>{(totalNet / 1000).toFixed(0)}k</div>
+                    <div className="text-[10px]" style={{ color: "#3d4560" }}>Net XOF</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

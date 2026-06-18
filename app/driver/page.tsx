@@ -997,13 +997,16 @@ function ReposTab({ profile, onBack }: { profile: Profile; onBack: () => void })
   useEffect(() => {
     (async () => {
       const supabase = createClient() as any;
-      const monthStart = today.slice(0, 7) + "-01";
+      // Show past month + 2 months ahead for planning
+      const from = new Date(); from.setMonth(from.getMonth() - 1);
+      const to = new Date(); to.setMonth(to.getMonth() + 2);
       const { data } = await supabase.from("daily_reports")
         .select("date,status,comment")
         .eq("driver_id", profile.id)
-        .gte("date", monthStart)
+        .gte("date", from.toISOString().slice(0, 10))
+        .lte("date", to.toISOString().slice(0, 10))
         .like("comment", "[REPOS]%")
-        .order("date", { ascending: false });
+        .order("date", { ascending: true });
       setExisting(data || []);
     })();
   }, [profile.id, today, submitted]);
@@ -1062,8 +1065,8 @@ function ReposTab({ profile, onBack }: { profile: Profile; onBack: () => void })
           </div>
         </div>
 
-        <Field label="Date du repos">
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} max={today}
+        <Field label="Date du repos (passé ou futur)">
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
             className="w-full rounded-xl px-4 py-3 text-sm outline-none"
             style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7", colorScheme: "dark" }} />
         </Field>
@@ -1085,7 +1088,7 @@ function ReposTab({ profile, onBack }: { profile: Profile; onBack: () => void })
         {existing.length > 0 && (
           <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid #1e2330" }}>
             <div className="px-4 py-3 text-xs font-bold uppercase tracking-wider" style={{ background: "#0d1117", color: "#555e75" }}>
-              Repos déclarés ce mois
+              Repos déclarés / planifiés (mois précédent → +2 mois)
             </div>
             {existing.map((r) => (
               <div key={r.date} className="flex items-center justify-between px-4 py-3" style={{ borderTop: "1px solid #0d1117", background: "#080a0f" }}>
