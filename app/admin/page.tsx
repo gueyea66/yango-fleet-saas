@@ -31,6 +31,22 @@ export default function AdminPage() {
   const [editForm, setEditForm] = useState<Partial<DailyReport>>({});
   const [loadingReports, setLoadingReports] = useState(false);
 
+  // Driver / vehicle filter (global, shared across tabs)
+  const [filterDriverId, setFilterDriverId] = useState("");
+  const [allDrivers, setAllDrivers] = useState<any[]>([]); // { id, full_name, driver_id, plate }
+
+  useEffect(() => {
+    (async () => {
+      const supabase = createClient() as any;
+      const [{ data: profs }, { data: vehs }] = await Promise.all([
+        supabase.from("profiles").select("id, full_name, driver_id").eq("role", "driver").order("full_name"),
+        supabase.from("vehicles").select("driver_id, plate"),
+      ]);
+      const plateMap = Object.fromEntries((vehs || []).map((v: any) => [v.driver_id, v.plate]));
+      setAllDrivers((profs || []).map((p: any) => ({ ...p, plate: plateMap[p.id] || null })));
+    })();
+  }, []);
+
   // Date filter for dashboard
   const now = new Date();
   const [filterYear, setFilterYear] = useState(now.getFullYear());
@@ -203,6 +219,29 @@ export default function AdminPage() {
         <div className="lg:hidden" style={{ height: 88 }} /> {/* mobile header offset */}
         <div className="lg:pl-[220px]">
         <div className="p-6 lg:p-10 w-full max-w-none" style={{ background: "#080a0f", minHeight: "100vh" }}>
+
+        {/* ── DRIVER / VEHICLE FILTER BAR ── */}
+        {["pending", "history", "payments", "avances", "dashboard"].includes(tab) && allDrivers.length > 0 && (
+          <div className="mb-6 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#3d4560" }}>Filtrer :</span>
+            <button onClick={() => setFilterDriverId("")}
+              className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
+              style={{ background: !filterDriverId ? "#f5a623" : "#1e2330", color: !filterDriverId ? "#000" : "#555e75" }}>
+              Tous
+            </button>
+            {allDrivers.map((d) => (
+              <button key={d.id} onClick={() => setFilterDriverId(filterDriverId === d.id ? "" : d.id)}
+                className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5"
+                style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "#1e2330",
+                  color: filterDriverId === d.id ? "#f5a623" : "#555e75",
+                  border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}` }}>
+                <span>👤 {d.full_name}</span>
+                {d.plate && <span className="font-mono px-1.5 py-0.5 rounded" style={{ background: "#080a0f", color: "#8b92a8", fontSize: 10 }}>🚗 {d.plate}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+
         {tab === "dashboard" && (
           <div className="space-y-8">
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -526,8 +565,8 @@ export default function AdminPage() {
 
         {tab === "pending" && (
           <ReportList
-            reports={reports.filter((r) => r.status === "submitted")}
-            expenses={expenses.filter((e) => (e.status || "submitted") === "submitted")}
+            reports={reports.filter((r) => r.status === "submitted" && (!filterDriverId || r.driver_id === filterDriverId))}
+            expenses={expenses.filter((e) => (e.status || "submitted") === "submitted" && (!filterDriverId || e.driver_id === filterDriverId))}
             loading={loadingReports}
             emptyMsg="Aucune soumission en attente"
             title="Soumissions en attente"
@@ -537,8 +576,8 @@ export default function AdminPage() {
 
         {tab === "history" && (
           <ReportList
-            reports={reports}
-            expenses={expenses}
+            reports={reports.filter((r) => !filterDriverId || r.driver_id === filterDriverId)}
+            expenses={expenses.filter((e) => !filterDriverId || e.driver_id === filterDriverId)}
             loading={loadingReports}
             emptyMsg="Aucun rapport"
             title="Tous les rapports"
@@ -671,8 +710,8 @@ export default function AdminPage() {
           </div>
         )}
 
-        {tab === "payments" && <PaymentsTab />}
-        {tab === "avances" && <AvancesTab />}
+        {tab === "payments" && <PaymentsTab filterDriverId={filterDriverId} />}
+        {tab === "avances" && <AvancesTab filterDriverId={filterDriverId} />}
         {tab === "pilotage" && (
           <div className="text-center py-12">
             <div className="text-4xl mb-3">🎯</div>
@@ -1407,7 +1446,7 @@ function InsightsPanel({ kpis }: { kpis: any }) {
 }
 
 // ─── PAYMENTS TAB ─────────────────────────────────────
-function PaymentsTab() {
+function PaymentsTab({ filterDriverId = "" }: { filterDriverId?: string }) {
   const [payments, setPayments] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1481,8 +1520,10 @@ function PaymentsTab() {
     return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize" style={{ color, background: bg }}>{t}</span>;
   };
 
+  const filteredPayments = filterDriverId ? payments.filter((p) => p.driver_id === filterDriverId) : payments;
+
   // Group by driver for totals
-  const totByDriver = payments.reduce((acc: any, p) => {
+  const totByDriver = filteredPayments.reduce((acc: any, p) => {
     const name = p.profiles?.full_name || p.driver_id;
     acc[name] = (acc[name] || 0) + (p.amount || 0);
     return acc;
@@ -1583,11 +1624,11 @@ function PaymentsTab() {
       {/* List */}
       {loading ? (
         <div className="text-center py-12" style={{ color: "#3d4560" }}>Chargement...</div>
-      ) : payments.length === 0 ? (
+      ) : filteredPayments.length === 0 ? (
         <div className="text-center py-12" style={{ color: "#3d4560" }}>Aucun paiement enregistré</div>
       ) : (
         <div className="space-y-2">
-          {payments.map((p) => (
+          {filteredPayments.map((p) => (
             <PaymentRow key={p.id} payment={p} onDelete={() => deletePayment(p.id)} typeBadge={typeBadge} xof={xof} />
           ))}
         </div>
@@ -1706,7 +1747,7 @@ function PaymentRow({ payment: p, onDelete, typeBadge, xof }: { payment: any; on
 }
 
 // ─── AVANCES TAB ─────────────────────────────────────
-function AvancesTab() {
+function AvancesTab({ filterDriverId = "" }: { filterDriverId?: string }) {
   const [advances, setAdvances] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1769,9 +1810,13 @@ function AvancesTab() {
     await load();
   };
 
+  const filteredAdvances = filterDriverId ? advances.filter((a) => a.driver_id === filterDriverId) : advances;
+
   // Group by driver
-  const byDriver = drivers.map((d) => {
-    const dAdvs = advances.filter((a) => a.driver_id === d.id);
+  const byDriver = drivers
+    .filter((d) => !filterDriverId || d.id === filterDriverId)
+    .map((d) => {
+    const dAdvs = filteredAdvances.filter((a) => a.driver_id === d.id);
     const pending = dAdvs.filter((a) => !a.is_deducted).reduce((s, a) => s + (a.amount || 0), 0);
     const deducted = dAdvs.filter((a) => a.is_deducted).reduce((s, a) => s + (a.amount || 0), 0);
     return { ...d, advances: dAdvs, pending, deducted };
