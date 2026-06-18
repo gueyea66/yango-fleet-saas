@@ -228,6 +228,7 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
   const [monthPending, setMonthPending] = useState(0);
   const [todayStatus, setTodayStatus] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [rejectedCount, setRejectedCount] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -235,16 +236,18 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
       const today = new Date().toISOString().split("T")[0];
       const monthStart = today.slice(0, 7) + "-01";
 
-      const [{ data: m }, { data: mp }, { data: t }, { data: p }] = await Promise.all([
+      const [{ data: m }, { data: mp }, { data: t }, { data: p }, { data: rej }] = await Promise.all([
         supabase.from("daily_reports").select("net_after_expenses").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).gte("date", monthStart).eq("status", "approved"),
         supabase.from("daily_reports").select("net_after_expenses").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).gte("date", monthStart).eq("status", "submitted"),
         supabase.from("daily_reports").select("status").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("date", today).maybeSingle(),
         supabase.from("daily_reports").select("id").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("status", "submitted"),
+        supabase.from("daily_reports").select("id, date").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("status", "rejected"),
       ]);
       setMonthNet((m || []).reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0));
       setMonthPending((mp || []).reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0));
       setTodayStatus(t?.status ?? null);
       setPendingCount(p?.length ?? 0);
+      setRejectedCount((rej || []).length);
     })();
   }, [profile.id]);
 
@@ -270,6 +273,14 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
         <div className="text-xs rounded-xl px-4 py-3" style={{ background: "rgba(245,166,35,.07)", border: "1px solid rgba(245,166,35,.15)", color: "#f5c842" }}>
           📬 {pendingCount} rapport(s) en attente de validation
         </div>
+      )}
+
+      {rejectedCount > 0 && (
+        <button onClick={() => onNav("history")} className="w-full text-left rounded-xl px-4 py-3"
+          style={{ background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.3)", color: "#ef4444" }}>
+          <span className="font-semibold text-sm">⚠ {rejectedCount} rapport(s) rejeté(s)</span>
+          <span className="block text-xs mt-0.5" style={{ color: "#f87171" }}>Voir l'historique → resoumettre ou archiver</span>
+        </button>
       )}
 
       <div className="grid grid-cols-2 gap-3">
@@ -664,7 +675,10 @@ function HistoryTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => 
         <div className="space-y-3">
           {expenses.length === 0 && <div className="text-center py-12 text-sm" style={{ color: "#3d4560" }}>Aucune dépense</div>}
           {expenses.map((e) => (
-            <ExpenseCard key={e.id} expense={e} driverId={profile.id} />
+            <ExpenseCard key={e.id} expense={e} driverId={profile.id} profile={profile} onRefresh={() => {
+              const supabase = createClient() as any;
+              supabase.from("expenses").select("*").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).order("expense_date", { ascending: false, nullsFirst: false }).limit(30).then(({ data }: any) => { if (data) setExpenses(data); });
+            }} />
           ))}
         </div>
       )}
@@ -674,10 +688,38 @@ function HistoryTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => 
 
 // ─── REPORT HISTORY CARD (with solde + edit) ─────────
 function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profile: Profile; onRefresh: () => void }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(report.status === "rejected"); // auto-open rejected
   const [editing, setEditing] = useState(false);
   const [solde, setSolde] = useState(String(report.solde_yango || ""));
   const [saving, setSaving] = useState(false);
+
+  const resubmit = async () => {
+    setSaving(true);
+    try {
+      const supabase = createClient() as any;
+      const { error } = await supabase.from("daily_reports").update({ status: "submitted" }).eq("id", report.id);
+      if (error) throw error;
+      await supabase.from("action_logs").insert({
+        tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
+        entity_type: "daily_report", entity_id: report.id, action: "submitted",
+        metadata: { date: report.date, resubmission: true },
+      }).catch(() => {});
+      onRefresh();
+    } catch (err: any) { alert("Erreur : " + err.message); }
+    finally { setSaving(false); }
+  };
+
+  const archive = async () => {
+    if (!confirm("Archiver ce rapport rejeté ? Il ne sera plus visible dans les soumissions.")) return;
+    setSaving(true);
+    try {
+      const supabase = createClient() as any;
+      const { error } = await supabase.from("daily_reports").update({ status: "archived" }).eq("id", report.id);
+      if (error) throw error;
+      onRefresh();
+    } catch (err: any) { alert("Erreur : " + err.message); }
+    finally { setSaving(false); }
+  };
 
   const badge = (status: string) => {
     const map: Record<string, [string, string]> = { approved: ["#22c55e", "rgba(34,197,94,.1)"], rejected: ["#ef4444", "rgba(239,68,68,.1)"] };
@@ -746,39 +788,117 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
             )}
           </div>
           <UploadBlock driverId={profile.id} refId={report.id} refType="report" label="📎 Pièces jointes" />
+          {report.status === "rejected" && (
+            <div className="flex gap-2 pt-1">
+              <button onClick={resubmit} disabled={saving}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+                style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)", color: "#000" }}>
+                {saving ? "..." : "🔁 Resoumettre"}
+              </button>
+              <button onClick={archive} disabled={saving}
+                className="py-2.5 px-4 rounded-xl text-sm"
+                style={{ background: "#1e2330", color: "#555e75", border: "1px solid #2a2f3d" }}>
+                Archiver
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-// ─── EXPENSE CARD (history with upload) ──────────────
-function ExpenseCard({ expense, driverId }: { expense: any; driverId: string }) {
-  const [open, setOpen] = useState(false);
+// ─── EXPENSE CARD (history with upload + status) ─────
+function ExpenseCard({ expense, driverId, profile, onRefresh }: { expense: any; driverId: string; profile: any; onRefresh: () => void }) {
+  const [open, setOpen] = useState(expense.status === "rejected");
+  const [saving, setSaving] = useState(false);
+
+  const statusBadge = (status: string) => {
+    const map: Record<string, [string, string]> = {
+      approved: ["#22c55e", "rgba(34,197,94,.1)"],
+      rejected: ["#ef4444", "rgba(239,68,68,.1)"],
+    };
+    const [color, bg] = map[status] ?? ["#f5a623", "rgba(245,166,35,.1)"];
+    const label = status === "approved" ? "Validée" : status === "rejected" ? "Rejetée" : "En attente";
+    return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color, background: bg }}>{label}</span>;
+  };
+
+  const resubmit = async () => {
+    setSaving(true);
+    try {
+      const supabase = createClient() as any;
+      const { error } = await supabase.from("expenses").update({ status: "submitted" }).eq("id", expense.id);
+      if (error) throw error;
+      await supabase.from("action_logs").insert({
+        tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
+        entity_type: "expense", entity_id: expense.id, action: "submitted",
+        metadata: { category: expense.category, amount: expense.amount, resubmission: true },
+      }).catch(() => {});
+      onRefresh();
+    } catch (err: any) { alert("Erreur : " + err.message); }
+    finally { setSaving(false); }
+  };
+
+  const archive = async () => {
+    if (!confirm("Archiver cette dépense rejetée ?")) return;
+    setSaving(true);
+    try {
+      const supabase = createClient() as any;
+      const { error } = await supabase.from("expenses").update({ status: "archived" }).eq("id", expense.id);
+      if (error) throw error;
+      onRefresh();
+    } catch (err: any) { alert("Erreur : " + err.message); }
+    finally { setSaving(false); }
+  };
+
   return (
-    <div className="rounded-2xl" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+    <div className="rounded-2xl" style={{
+      background: "#0d1117",
+      border: `1px solid ${expense.status === "rejected" ? "rgba(239,68,68,.3)" : expense.status === "approved" ? "rgba(34,197,94,.15)" : "#1e2330"}`,
+    }}>
       <div className="flex items-start justify-between p-4">
-        <div>
-          <div className="font-semibold text-sm text-white">{expense.category}</div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="font-semibold text-sm text-white">{expense.category}</div>
+            {statusBadge(expense.status || "submitted")}
+          </div>
           <div className="text-xs mt-0.5" style={{ color: "#3d4560" }}>
             📅 {expense.expense_date || expense.created_at?.slice(0, 10)}
-            {expense.expense_date && expense.expense_date !== expense.created_at?.slice(0, 10) && (
-              <span style={{ color: "#3d4560", marginLeft: 4 }}>(soumis le {expense.created_at?.slice(0, 10)})</span>
-            )}
           </div>
           {expense.description && <div className="text-xs mt-1" style={{ color: "#555e75" }}>{expense.description}</div>}
+          {expense.status === "rejected" && (
+            <div className="text-xs mt-1 font-semibold" style={{ color: "#ef4444" }}>
+              ⚠ Rejetée — action requise
+            </div>
+          )}
         </div>
-        <div className="text-right">
+        <div className="text-right ml-3 flex-shrink-0">
           <div className="font-mono font-bold text-sm" style={{ color: "#ef4444" }}>-{xof(expense.amount || 0)}</div>
           <button onClick={() => setOpen(!open)} className="text-[10px] mt-1 px-2 py-0.5 rounded-full transition-all"
             style={{ background: open ? "rgba(245,166,35,.15)" : "#1e2330", color: open ? "#f5a623" : "#555e75" }}>
-            {open ? "▲ Fermer" : "📎 Pièces jointes"}
+            {open ? "▲ Fermer" : "📎 Détails"}
           </button>
         </div>
       </div>
       {open && (
-        <div className="px-4 pb-4">
-          <UploadBlock driverId={driverId} refId={expense.id} refType="expense" label="Ajouter / voir photos" />
+        <div className="px-4 pb-4 border-t space-y-3" style={{ borderColor: "#1e2330" }}>
+          <div className="pt-3">
+            <UploadBlock driverId={driverId} refId={expense.id} refType="expense" label="Ajouter / voir photos" />
+          </div>
+          {expense.status === "rejected" && (
+            <div className="flex gap-2">
+              <button onClick={resubmit} disabled={saving}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+                style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)", color: "#000" }}>
+                {saving ? "..." : "🔁 Resoumettre"}
+              </button>
+              <button onClick={archive} disabled={saving}
+                className="py-2.5 px-4 rounded-xl text-sm"
+                style={{ background: "#1e2330", color: "#555e75", border: "1px solid #2a2f3d" }}>
+                Archiver
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
