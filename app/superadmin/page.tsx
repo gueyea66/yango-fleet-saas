@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { PLAN_LIMITS, getTrialStatus, type Plan } from "@/lib/plans";
 
-const SUPERADMIN_KEY = process.env.NEXT_PUBLIC_SUPERADMIN_KEY || "m3a-super-2026";
+// Key is verified server-side via /api/superadmin/verify
 
 const PLAN_COLORS: Record<string, string> = { standard: "#f5a623", pro: "#8b5cf6" };
 
@@ -32,6 +32,8 @@ function daysLabel(iso: string | null): string {
 export default function SuperAdminPage() {
   const [authed, setAuthed] = useState(false);
   const [key, setKey] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [activeTab, setActiveTab] = useState<"clients" | "settings">("clients");
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -39,9 +41,34 @@ export default function SuperAdminPage() {
   const [form, setForm] = useState({ slug: "", name: "", app_name: "", plan: "standard", primary_color: "#f5a623", model: "fixed", base_amount: "0", commission_rate: "0", trial_days: "30" });
   const [adminForm, setAdminForm] = useState<Record<string, { email: string; password: string }>>({});
   const [extendDays, setExtendDays] = useState<Record<string, string>>({});
+  const [keyForm, setKeyForm] = useState({ current: "", newKey: "", confirm: "" });
 
   const sb = createClient() as any;
   const notify = (text: string, ok = true) => { setMsg({ text, ok }); setTimeout(() => setMsg(null), 4000); };
+
+  async function verifyAndLogin() {
+    setAuthError("");
+    const res = await fetch("/api/superadmin/verify", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key }),
+    });
+    const d = await res.json();
+    if (d.ok) { setAuthed(true); } else { setAuthError("Clé incorrecte"); }
+  }
+
+  async function changeKey() {
+    if (keyForm.newKey !== keyForm.confirm) return notify("Les clés ne correspondent pas", false);
+    if (keyForm.newKey.length < 8) return notify("Clé trop courte (8 caractères min)", false);
+    const res = await fetch("/api/superadmin/settings", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ currentKey: keyForm.current, newKey: keyForm.newKey }),
+    });
+    const d = await res.json();
+    if (d.error) return notify(d.error, false);
+    notify("✓ Clé d'accès mise à jour — utilisez la nouvelle clé à la prochaine connexion");
+    setKeyForm({ current: "", newKey: "", confirm: "" });
+    setKey(keyForm.newKey);
+  }
 
   async function load() {
     setLoading(true);
@@ -138,13 +165,13 @@ export default function SuperAdminPage() {
       <div style={{ background: "#0d1117", border: "0.5px solid #1e2330", borderRadius: 16, padding: 40, width: 340 }}>
         <div style={{ color: "#f5a623", fontWeight: 700, fontSize: 18, marginBottom: 4 }}>M3A · Superadmin</div>
         <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 24 }}>Accès réservé — M3A Solutions</div>
-        <input type="password" placeholder="Clé d'accès" value={key} onChange={e => setKey(e.target.value)}
-          style={{ ...S.input, marginBottom: 12 }} onKeyDown={e => e.key === "Enter" && setAuthed(key === SUPERADMIN_KEY)} />
-        <button onClick={() => setAuthed(key === SUPERADMIN_KEY)}
+        <input type="password" placeholder="Clé d'accès" value={key} onChange={e => { setKey(e.target.value); setAuthError(""); }}
+          style={{ ...S.input, marginBottom: 12 }} onKeyDown={e => e.key === "Enter" && verifyAndLogin()} />
+        <button onClick={verifyAndLogin}
           style={{ width: "100%", background: "#f5a623", color: "#080a0f", border: "none", borderRadius: 8, padding: 10, fontWeight: 700, cursor: "pointer" }}>
           Accéder →
         </button>
-        {key && key !== SUPERADMIN_KEY && <p style={{ color: "#ef4444", fontSize: 12, marginTop: 8 }}>Clé incorrecte</p>}
+        {authError && <p style={{ color: "#ef4444", fontSize: 12, marginTop: 8 }}>{authError}</p>}
       </div>
     </div>
   );
@@ -153,7 +180,7 @@ export default function SuperAdminPage() {
     <div style={{ minHeight: "100vh", background: "#080a0f", padding: "32px 24px", color: "#f0f2f7", fontFamily: "system-ui, sans-serif" }}>
       <div style={{ maxWidth: 980, margin: "0 auto" }}>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 36 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 28 }}>
           <div style={{ background: "#f5a623", borderRadius: 8, width: 40, height: 40, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, color: "#080a0f" }}>M3</div>
           <div>
             <div style={{ fontWeight: 700, fontSize: 18 }}>Superadmin Panel</div>
@@ -161,6 +188,49 @@ export default function SuperAdminPage() {
           </div>
           <button onClick={load} style={{ marginLeft: "auto", background: "#1e2330", border: "none", borderRadius: 8, padding: "8px 16px", color: "#9ca3af", cursor: "pointer", fontSize: 13 }}>↻ Rafraîchir</button>
         </div>
+
+        {/* Tabs */}
+        <div style={{ display: "flex", gap: 4, marginBottom: 28, borderBottom: "0.5px solid #1e2330", paddingBottom: 0 }}>
+          {(["clients", "settings"] as const).map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              style={{ background: "none", border: "none", padding: "8px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600,
+                color: activeTab === tab ? "#f5a623" : "#6b7280",
+                borderBottom: activeTab === tab ? "2px solid #f5a623" : "2px solid transparent",
+                marginBottom: -1 }}>
+              {tab === "clients" ? "Clients" : "⚙ Paramètres"}
+            </button>
+          ))}
+        </div>
+
+        {/* Settings tab */}
+        {activeTab === "settings" && (
+          <div style={{ background: "#0d1117", border: "0.5px solid #1e2330", borderRadius: 12, padding: 28, maxWidth: 420 }}>
+            <div style={{ fontSize: 11, color: "#f5a623", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 20 }}>Changer la clé d'accès</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div>
+                <label style={S.label}>Clé actuelle</label>
+                <input type="password" placeholder="••••••••" value={keyForm.current}
+                  onChange={e => setKeyForm(f => ({ ...f, current: e.target.value }))} style={S.input} />
+              </div>
+              <div>
+                <label style={S.label}>Nouvelle clé (8 caractères min)</label>
+                <input type="password" placeholder="••••••••" value={keyForm.newKey}
+                  onChange={e => setKeyForm(f => ({ ...f, newKey: e.target.value }))} style={S.input} />
+              </div>
+              <div>
+                <label style={S.label}>Confirmer la nouvelle clé</label>
+                <input type="password" placeholder="••••••••" value={keyForm.confirm}
+                  onChange={e => setKeyForm(f => ({ ...f, confirm: e.target.value }))} style={S.input} />
+              </div>
+              <button onClick={changeKey}
+                style={{ background: "#f5a623", color: "#080a0f", border: "none", borderRadius: 8, padding: "11px", fontWeight: 700, cursor: "pointer", marginTop: 4 }}>
+                Mettre à jour la clé →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === "clients" && (<>
 
         {msg && (
           <div style={{ background: msg.ok ? "#f5a62312" : "#ef444412", border: `0.5px solid ${msg.ok ? "#f5a62340" : "#ef444440"}`, borderRadius: 8, padding: "10px 16px", marginBottom: 24, color: msg.ok ? "#f5a623" : "#f87171", fontSize: 13 }}>
@@ -363,6 +433,8 @@ export default function SuperAdminPage() {
             + Créer le client
           </button>
         </div>
+
+        </>)}
 
         <div style={{ marginTop: 40, fontSize: 11, color: "#1f2937", textAlign: "center" }}>
           © 2026 M3A Solutions — Superadmin Panel
