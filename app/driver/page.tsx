@@ -42,6 +42,7 @@ interface Profile {
   driver_id: string;
   full_name: string;
   role: string;
+  tenant_id: string;
 }
 
 export default function DriverApp() {
@@ -234,9 +235,9 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
       const monthStart = today.slice(0, 7) + "-01";
 
       const [{ data: m }, { data: t }, { data: p }] = await Promise.all([
-        supabase.from("daily_reports").select("net_after_expenses").eq("driver_id", profile.id).gte("date", monthStart).eq("status", "approved"),
-        supabase.from("daily_reports").select("status").eq("driver_id", profile.id).eq("date", today).maybeSingle(),
-        supabase.from("daily_reports").select("id").eq("driver_id", profile.id).eq("status", "submitted"),
+        supabase.from("daily_reports").select("net_after_expenses").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).gte("date", monthStart).eq("status", "approved"),
+        supabase.from("daily_reports").select("status").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("date", today).maybeSingle(),
+        supabase.from("daily_reports").select("id").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("status", "submitted"),
       ]);
       setMonthNet((m || []).reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0));
       setTodayStatus(t?.status ?? null);
@@ -315,7 +316,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
     (async () => {
       const supabase = createClient() as any;
       const [{ data: rep }, { data: veh }] = await Promise.all([
-        supabase.from("daily_reports").select("*").eq("driver_id", profile.id).eq("date", today).maybeSingle(),
+        supabase.from("daily_reports").select("*").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("date", today).maybeSingle(),
         supabase.from("vehicles").select("id,plate,partner_rate").eq("driver_id", profile.id).maybeSingle(),
       ]);
       if (rep) setTodayReport(rep);
@@ -334,7 +335,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
     try {
       const supabase = createClient() as any;
       const { error } = await supabase.from("daily_reports").insert({
-        driver_id: profile.id, date: form.date, end_odometer: n(form.end_odometer),
+        driver_id: profile.id, tenant_id: profile.tenant_id, date: form.date, end_odometer: n(form.end_odometer),
         gross_earnings: calc.base + n(form.off_yango_revenue), yango_gross: n(form.yango_gross), yango_bonus: n(form.yango_bonus),
         off_yango_revenue: n(form.off_yango_revenue), solde_yango: n(form.solde_yango), yango_trip_count: n(form.yango_trip_count), off_yango_trip_count: n(form.off_yango_trip_count),
         commission_rate: effectiveCfg.comm_yango / 100, commission_amount: calc.commY + calc.commP,
@@ -519,8 +520,8 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
     try {
       const supabase = createClient() as any;
       const { data, error } = await supabase.from("expenses").insert({
-        driver_id: profile.id, category: form.type, amount: parseFloat(form.amount),
-        expense_date: form.expense_date, // user-entered date
+        driver_id: profile.id, tenant_id: profile.tenant_id, category: form.type, amount: parseFloat(form.amount),
+        expense_date: form.expense_date,
         description: [form.odometer ? `KM: ${form.odometer}` : null, form.fuel_liters ? `${form.fuel_liters}L` : null, form.comment || null].filter(Boolean).join(" · ") || null,
       }).select().single();
       if (error) throw error;
@@ -591,8 +592,8 @@ function HistoryTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => 
     (async () => {
       const supabase = createClient() as any;
       const [{ data: r }, { data: e }] = await Promise.all([
-        supabase.from("daily_reports").select("*").eq("driver_id", profile.id).order("date", { ascending: false }).limit(30),
-        supabase.from("expenses").select("*").eq("driver_id", profile.id).order("expense_date", { ascending: false, nullsFirst: false }).limit(30),
+        supabase.from("daily_reports").select("*").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).order("date", { ascending: false }).limit(30),
+        supabase.from("expenses").select("*").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).order("expense_date", { ascending: false, nullsFirst: false }).limit(30),
       ]);
       setReports(r || []);
       setExpenses(e || []);
@@ -623,7 +624,7 @@ function HistoryTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => 
           {reports.map((r) => (
             <ReportHistoryCard key={r.id} report={r} profile={profile} onRefresh={() => {
               const supabase = createClient() as any;
-              supabase.from("daily_reports").select("*").eq("driver_id", profile.id).order("date", { ascending: false }).limit(30).then(({ data }: any) => { if (data) setReports(data); });
+              supabase.from("daily_reports").select("*").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).order("date", { ascending: false }).limit(30).then(({ data }: any) => { if (data) setReports(data); });
             }} />
           ))}
         </div>
@@ -1003,6 +1004,7 @@ function ReposTab({ profile, onBack }: { profile: Profile; onBack: () => void })
       const { data } = await supabase.from("daily_reports")
         .select("date,status,comment")
         .eq("driver_id", profile.id)
+        .eq("tenant_id", profile.tenant_id)
         .gte("date", from.toISOString().slice(0, 10))
         .lte("date", to.toISOString().slice(0, 10))
         .like("comment", "[REPOS]%")
@@ -1018,10 +1020,11 @@ function ReposTab({ profile, onBack }: { profile: Profile; onBack: () => void })
       const supabase = createClient() as any;
       // Check if already declared for this date
       const { data: exists } = await supabase.from("daily_reports")
-        .select("id").eq("driver_id", profile.id).eq("date", date).maybeSingle();
+        .select("id").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("date", date).maybeSingle();
       if (exists) { alert("Un rapport existe déjà pour cette date."); setSaving(false); return; }
       const { error } = await supabase.from("daily_reports").insert({
         driver_id: profile.id,
+        tenant_id: profile.tenant_id,
         date,
         status: "submitted",
         comment: `[REPOS]${motif ? " " + motif.trim() : ""}`,
@@ -1135,7 +1138,7 @@ function DriverPilotageTab({ profile, onBack }: { profile: Profile; onBack: () =
       const daysRemaining = daysInMonth - daysElapsed;
 
       const { data: reps } = await supabase.from("daily_reports").select("date,net_after_expenses,yango_gross,yango_bonus,off_yango_revenue")
-        .eq("driver_id", profile.id).gte("date", start).lte("date", todayStr).neq("status", "rejected");
+        .eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).gte("date", start).lte("date", todayStr).neq("status", "rejected");
       const mtdNet = (reps || []).reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0);
       const mtdDays = new Set((reps || []).map((r: any) => r.date)).size || 1;
       const dailyAvg = mtdNet / mtdDays;
@@ -1151,7 +1154,7 @@ function DriverPilotageTab({ profile, onBack }: { profile: Profile; onBack: () =
       const prevStart = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}-01`;
       const prevEnd = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}-${new Date(prevMonth.getFullYear(), prevMonth.getMonth() + 1, 0).getDate()}`;
       const { data: prevReps } = await supabase.from("daily_reports").select("net_after_expenses,date")
-        .eq("driver_id", profile.id).gte("date", prevStart).lte("date", prevEnd).neq("status", "rejected");
+        .eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).gte("date", prevStart).lte("date", prevEnd).neq("status", "rejected");
       const prevNet = (prevReps || []).reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0);
       const prevDays = new Set((prevReps || []).map((r: any) => r.date)).size || 1;
       const prevDailyAvg = prevNet / prevDays;
