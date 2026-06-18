@@ -139,6 +139,7 @@ export default function AdminPage() {
     ["vehicles", "🔧 Véhicules"],
     ["avances", "💰 Avances"],
     ["drivers", "🚗 Conducteurs"],
+    ["journal", "📋 Journal"],
     ["settings", "⚙️ Paramètres"],
   ];
 
@@ -726,6 +727,8 @@ export default function AdminPage() {
           </div>
         )}
 
+        {tab === "journal" && <ActionLogsTab />}
+
         {tab === "settings" && (
           <div>
             <h2 className="text-2xl font-bold text-white mb-6">Paramètres</h2>
@@ -912,6 +915,12 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
       const supabase = createClient() as any;
       const { error } = await supabase.from("expenses").update({ status }).eq("id", expense.id);
       if (error) throw error;
+      // Log action
+      await supabase.from("action_logs").insert({
+        tenant_id: expense.tenant_id, actor_role: "admin",
+        entity_type: "expense", entity_id: expense.id, action: status,
+        metadata: { category: expense.category, amount: expense.amount },
+      }).catch(() => {});
       setCurrentStatus(status);
       onRefresh();
     } catch (err: any) { alert("Erreur : " + err.message); }
@@ -926,7 +935,7 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
         .eq("file_type", "expense")
         .order("created_at", { ascending: false });
       const enriched = (data || [])
-        .filter((u: any) => u.file_path?.includes(expense.id))
+        .filter((u: any) => u.ref_id === expense.id || u.file_path?.includes(expense.id))
         .map((u: any) => {
           const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(u.file_path);
           return { ...u, publicUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(u.file_name) };
@@ -1142,6 +1151,12 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
         ...(note ? { comment: note } : {}),
       }).eq("id", report.id);
       if (error) throw error;
+      // Log action
+      await supabase.from("action_logs").insert({
+        tenant_id: report.tenant_id, actor_role: "admin",
+        entity_type: "daily_report", entity_id: report.id, action: status,
+        metadata: { date: report.date, net: parseFloat(netEdit) || report.net_after_expenses },
+      }).catch(() => {});
       onRefresh();
     } catch (err: any) { alert("Erreur : " + err.message); }
     finally { setSaving(false); }
@@ -2197,6 +2212,87 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
 }
 
 // ─── KPI CARD ─────────────────────────────────────────
+// ─── ACTION LOGS TAB ──────────────────────────────────
+function ActionLogsTab() {
+  const [logs, setLogs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [profiles, setProfiles] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    (async () => {
+      const supabase = createClient() as any;
+      const [{ data: logsData }, { data: profs }] = await Promise.all([
+        supabase.from("action_logs").select("*").order("created_at", { ascending: false }).limit(200),
+        supabase.from("profiles").select("id, full_name"),
+      ]);
+      const pm: Record<string, string> = {};
+      (profs || []).forEach((p: any) => { pm[p.id] = p.full_name; });
+      setProfiles(pm);
+      setLogs(logsData || []);
+      setLoading(false);
+    })();
+  }, []);
+
+  const actionLabel: Record<string, [string, string]> = {
+    submitted: ["⏳", "#f5a623"],
+    approved:  ["✅", "#22c55e"],
+    rejected:  ["❌", "#ef4444"],
+    edited:    ["✏️", "#3b82f6"],
+  };
+
+  const entityLabel: Record<string, string> = {
+    daily_report: "Rapport",
+    expense: "Dépense",
+  };
+
+  if (loading) return <div className="text-center py-16 text-sm" style={{ color: "#555e75" }}>Chargement...</div>;
+
+  return (
+    <div>
+      <h2 className="text-xl font-bold text-white mb-6">📋 Journal des actions</h2>
+      {logs.length === 0 ? (
+        <div className="text-center py-16 text-sm" style={{ color: "#555e75" }}>Aucune action enregistrée</div>
+      ) : (
+        <div className="space-y-2">
+          {logs.map((log) => {
+            const [icon, color] = actionLabel[log.action] || ["•", "#555e75"];
+            return (
+              <div key={log.id} className="flex items-start gap-3 rounded-xl px-4 py-3"
+                style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+                <span className="text-lg mt-0.5">{icon}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-semibold text-white"
+                      style={{ color }}>
+                      {log.action.charAt(0).toUpperCase() + log.action.slice(1)}
+                    </span>
+                    <span className="text-xs px-2 py-0.5 rounded-full"
+                      style={{ background: "#1e2330", color: "#8b92a8" }}>
+                      {entityLabel[log.entity_type] || log.entity_type}
+                    </span>
+                    <span className="text-xs" style={{ color: "#555e75" }}>
+                      par <span style={{ color: "#8b92a8" }}>{log.actor_role === "driver" ? (profiles[log.actor_id] || "chauffeur") : "admin"}</span>
+                    </span>
+                  </div>
+                  {log.metadata && (
+                    <div className="text-xs mt-0.5" style={{ color: "#3d4560" }}>
+                      {log.entity_type === "expense" && `${log.metadata.category} · ${new Intl.NumberFormat("fr-FR").format(log.metadata.amount)} XOF`}
+                      {log.entity_type === "daily_report" && `Date ${log.metadata.date} · Net ${new Intl.NumberFormat("fr-FR").format(log.metadata.net)} XOF`}
+                    </div>
+                  )}
+                </div>
+                <div className="text-xs whitespace-nowrap" style={{ color: "#3d4560" }}>
+                  {new Date(log.created_at).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function KPICard({ label, value, color, sub, negative, big }: {
   label: string; value: number; color: string; sub?: string; negative?: boolean; big?: boolean;
 }) {

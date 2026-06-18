@@ -225,6 +225,7 @@ export default function DriverApp() {
 // ─── HOME ────────────────────────────────────────────
 function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) => void; cfg: Cfg }) {
   const [monthNet, setMonthNet] = useState(0);
+  const [monthPending, setMonthPending] = useState(0);
   const [todayStatus, setTodayStatus] = useState<string | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
 
@@ -234,12 +235,14 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
       const today = new Date().toISOString().split("T")[0];
       const monthStart = today.slice(0, 7) + "-01";
 
-      const [{ data: m }, { data: t }, { data: p }] = await Promise.all([
+      const [{ data: m }, { data: mp }, { data: t }, { data: p }] = await Promise.all([
         supabase.from("daily_reports").select("net_after_expenses").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).gte("date", monthStart).eq("status", "approved"),
+        supabase.from("daily_reports").select("net_after_expenses").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).gte("date", monthStart).eq("status", "submitted"),
         supabase.from("daily_reports").select("status").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("date", today).maybeSingle(),
         supabase.from("daily_reports").select("id").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("status", "submitted"),
       ]);
       setMonthNet((m || []).reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0));
+      setMonthPending((mp || []).reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0));
       setTodayStatus(t?.status ?? null);
       setPendingCount(p?.length ?? 0);
     })();
@@ -283,7 +286,12 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
       <div className="rounded-2xl p-5" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
         <div className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: "#3d4560" }}>Mois en cours</div>
         <div className="text-3xl font-bold text-white font-mono mb-1">{xof(monthNet)}</div>
-        <div className="text-xs mb-4" style={{ color: "#3d4560" }}>Net validé · {level.label}</div>
+        <div className="text-xs mb-1" style={{ color: "#3d4560" }}>Net validé · {level.label}</div>
+        {monthPending > 0 && (
+          <div className="text-xs mb-3 px-2 py-1 rounded-lg inline-block" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623" }}>
+            ⏳ {xof(monthPending)} en attente de validation
+          </div>
+        )}
         {nextLevel ? (
           <>
             <div className="h-1.5 rounded-full overflow-hidden mb-2" style={{ background: "#1e2330" }}>
@@ -345,13 +353,18 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         expense_count: 0, status: "submitted", comment: form.comment,
       }).select("id").single();
       if (error) throw error;
-      // Link pending uploads to this report
+      // Link pending uploads to this report + log action
       if (newReport?.id) {
         await supabase.from("uploads")
           .update({ ref_id: newReport.id })
           .eq("driver_id", profile.id)
           .eq("file_type", "report")
           .like("file_path", "%/pending/%");
+        await supabase.from("action_logs").insert({
+          tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
+          entity_type: "daily_report", entity_id: newReport.id, action: "submitted",
+          metadata: { date: form.date, net: calc.total },
+        });
       }
       setSubmitted(true);
     } catch (err: any) { alert("Erreur : " + err.message); }
@@ -529,11 +542,22 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
       const supabase = createClient() as any;
       const { data, error } = await supabase.from("expenses").insert({
         driver_id: profile.id, tenant_id: profile.tenant_id, category: form.type, amount: parseFloat(form.amount),
-        expense_date: form.expense_date,
+        expense_date: form.expense_date, status: "submitted",
         description: [form.odometer ? `KM: ${form.odometer}` : null, form.fuel_liters ? `${form.fuel_liters}L` : null, form.comment || null].filter(Boolean).join(" · ") || null,
       }).select().single();
       if (error) throw error;
-      setExpenseId(data?.id || null);
+      const expId = data?.id || null;
+      setExpenseId(expId);
+      // Link pending uploads to this expense
+      if (expId) {
+        await supabase.from("uploads").update({ ref_id: expId })
+          .eq("driver_id", profile.id).eq("file_type", "expense").like("file_path", "%/pending/%");
+        await supabase.from("action_logs").insert({
+          tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
+          entity_type: "expense", entity_id: expId, action: "submitted",
+          metadata: { category: form.type, amount: parseFloat(form.amount) },
+        });
+      }
       setSubmitted(true);
     } catch (err: any) { alert("Erreur : " + err.message); }
     finally { setSaving(false); }

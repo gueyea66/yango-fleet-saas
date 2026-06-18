@@ -103,17 +103,22 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string) {
         supabase.from("profiles").select("id, full_name, driver_id").eq("tenant_id", tid).eq("role", "driver"),
       ]);
 
-      const reps: any[] = allReps || [];
-      const todayReps: any[] = todayRep || [];
-      const weekReps: any[] = weekRep || [];
+      // Only approved reports count in real figures
+      const reps: any[] = (allReps || []).filter((r: any) => r.status === "approved");
+      const repsAll: any[] = allReps || []; // all (including pending) for pending display
+      const todayReps: any[] = (todayRep || []).filter((r: any) => r.status === "approved");
+      const weekReps: any[] = (weekRep || []).filter((r: any) => r.status === "approved");
       const drivers: any[] = driverProfiles || [];
 
       // Filter expenses by user-entered date (expense_date) or created_at fallback
+      // Only approved expenses count in real figures
       const getED = (e: any) => e.expense_date || e.created_at?.slice(0, 10) || "";
       const exps: any[] = (allExps || []).filter((e: any) => {
         const d = getED(e);
-        return d >= periodStart && d <= periodEnd;
+        const isApproved = !e.status || e.status === "approved"; // legacy rows without status count as approved
+        return isApproved && d >= periodStart && d <= periodEnd;
       });
+      const expsPending: any[] = (allExps || []).filter((e: any) => e.status === "submitted");
 
       // Filter salary payments by salary_month (imputation month) or payment_date fallback
       const getSalaryDate = (p: any) => p.salary_month?.slice(0, 10) || p.payment_date || p.created_at?.slice(0, 10) || "";
@@ -216,9 +221,9 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string) {
 
       const activeDays = new Set(reps.map((r) => r.date)).size || 1;
 
-      // ── TODAY / WEEK ──
-      const todayExpenses = (allExps || []).filter((e: any) => getED(e) === today).reduce((s: number, e: any) => s + e.amount, 0);
-      const weekExpAmt = (allExps || []).filter((e: any) => getED(e) >= weekAgo && getED(e) <= today).reduce((s: number, e: any) => s + e.amount, 0);
+      // ── TODAY / WEEK (approved only) ──
+      const todayExpenses = (allExps || []).filter((e: any) => getED(e) === today && (!e.status || e.status === "approved")).reduce((s: number, e: any) => s + e.amount, 0);
+      const weekExpAmt = (allExps || []).filter((e: any) => getED(e) >= weekAgo && getED(e) <= today && (!e.status || e.status === "approved")).reduce((s: number, e: any) => s + e.amount, 0);
       const weekActiveDays = new Set(weekReps.map((r: any) => r.date)).size || 1;
 
       setKPIs({
