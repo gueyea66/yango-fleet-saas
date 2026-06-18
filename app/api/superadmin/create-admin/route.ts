@@ -27,13 +27,18 @@ export async function POST(req: NextRequest) {
 
   if (authError) return NextResponse.json({ error: authError.message }, { status: 400 });
 
-  await adminClient.from("profiles").insert({
+  const { error: profileError } = await adminClient.from("profiles").insert({
     id: user.user.id,
     tenant_id: tenantId,
     email,
     full_name: email.split("@")[0],
     role: "admin",
   });
+
+  if (profileError) {
+    await (adminClient.auth.admin as any).deleteUser(user.user.id);
+    return NextResponse.json({ error: "Profil non créé : " + profileError.message }, { status: 400 });
+  }
 
   return NextResponse.json({ id: user.user.id, email });
 }
