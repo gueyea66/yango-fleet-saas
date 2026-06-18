@@ -845,6 +845,7 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
   const [editCategory, setEditCategory] = useState(expense.category || "");
   const [editDesc, setEditDesc] = useState(expense.description || "");
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0)) + " XOF";
   const expenseTypes = ["Carburant", "Péage", "Contrôle routier", "Entretien", "Lavage", "Amende", "Solde Yango", "Autre"];
 
@@ -968,11 +969,20 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
           {/* Pièces jointes */}
           <div className="rounded-xl p-4" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
             <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "#3d4560" }}>📎 Pièces jointes</div>
-            <button onClick={() => fileRef.current?.click()} disabled={uploading}
-              className="w-full py-2.5 rounded-xl text-sm border-dashed border-2 mb-3"
-              style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "#555e75" }}>
-              {uploading ? "⏳ Upload..." : "+ Ajouter document (admin)"}
-            </button>
+            <div className="flex gap-2 mb-3">
+              <button onClick={() => cameraRef.current?.click()} disabled={uploading}
+                className="flex-1 py-2.5 rounded-xl text-sm border"
+                style={{ background: uploading ? "#1e2330" : "rgba(245,166,35,.08)", borderColor: "rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
+                {uploading ? "⏳" : "📷 Photo"}
+              </button>
+              <button onClick={() => fileRef.current?.click()} disabled={uploading}
+                className="flex-1 py-2.5 rounded-xl text-sm border-dashed border-2"
+                style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "#555e75" }}>
+                {uploading ? "⏳ Upload..." : "📁 Fichier / Galerie"}
+              </button>
+            </div>
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+              onChange={(e) => { Array.from(e.target.files || []).forEach(uploadFile); e.target.value = ""; }} />
             <input ref={fileRef} type="file" accept="image/*,.pdf" multiple className="hidden"
               onChange={(e) => { Array.from(e.target.files || []).forEach(uploadFile); e.target.value = ""; }} />
             {uploads.filter((u: any) => u.isImg).length > 0 && (
@@ -1036,14 +1046,17 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
   const [uploads, setUploads] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0)) + " XOF";
 
   useEffect(() => {
     (async () => {
       const supabase = createClient() as any;
       const { data } = await supabase.from("uploads").select("*").eq("driver_id", report.driver_id).order("created_at", { ascending: false });
-      // Enrich with public URLs
-      const enriched = (data || []).map((u: any) => {
+      // Only keep files that belong to this report (path contains report.id)
+      const enriched = (data || [])
+        .filter((u: any) => u.file_path?.includes(report.id))
+        .map((u: any) => {
         const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(u.file_path);
         return { ...u, publicUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(u.file_name) };
       });
@@ -1219,11 +1232,20 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
           {/* Attachments */}
           <div className="rounded-xl p-4" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
             <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "#3d4560" }}>📎 Pièces jointes</div>
-            <button onClick={() => fileRef.current?.click()} disabled={uploading}
-              className="w-full py-2.5 rounded-xl text-sm border-dashed border-2 mb-3"
-              style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "#555e75" }}>
-              {uploading ? "⏳ Upload..." : "+ Ajouter document (admin)"}
-            </button>
+            <div className="flex gap-2 mb-3">
+              <button onClick={() => cameraRef.current?.click()} disabled={uploading}
+                className="flex-1 py-2.5 rounded-xl text-sm border"
+                style={{ background: uploading ? "#1e2330" : "rgba(245,166,35,.08)", borderColor: "rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
+                {uploading ? "⏳" : "📷 Photo"}
+              </button>
+              <button onClick={() => fileRef.current?.click()} disabled={uploading}
+                className="flex-1 py-2.5 rounded-xl text-sm border-dashed border-2"
+                style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "#555e75" }}>
+                {uploading ? "⏳ Upload..." : "📁 Fichier / Galerie"}
+              </button>
+            </div>
+            <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+              onChange={(e) => { Array.from(e.target.files || []).forEach(uploadFile); e.target.value = ""; }} />
             <input ref={fileRef} type="file" accept="image/*,.pdf" multiple className="hidden"
               onChange={(e) => { Array.from(e.target.files || []).forEach(uploadFile); e.target.value = ""; }} />
             {/* Image grid */}
@@ -1579,6 +1601,7 @@ function PaymentUpload({ paymentId, driverId }: { paymentId: string; driverId: s
   const [uploads, setUploads] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const supabase = createClient() as any;
@@ -1607,11 +1630,20 @@ function PaymentUpload({ paymentId, driverId }: { paymentId: string; driverId: s
 
   return (
     <div>
-      <button onClick={() => fileRef.current?.click()} disabled={uploading}
-        className="w-full py-2 rounded-xl text-xs border-dashed border-2 mb-2"
-        style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "#555e75" }}>
-        {uploading ? "⏳ Upload..." : "+ Ajouter justificatifs / reçus (multiple)"}
-      </button>
+      <div className="flex gap-2 mb-2">
+        <button onClick={() => cameraRef.current?.click()} disabled={uploading}
+          className="flex-1 py-2 rounded-xl text-xs border"
+          style={{ background: uploading ? "#1e2330" : "rgba(245,166,35,.08)", borderColor: "rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
+          {uploading ? "⏳" : "📷 Photo"}
+        </button>
+        <button onClick={() => fileRef.current?.click()} disabled={uploading}
+          className="flex-1 py-2 rounded-xl text-xs border-dashed border-2"
+          style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "#555e75" }}>
+          {uploading ? "⏳ Upload..." : "📁 Fichier / Galerie"}
+        </button>
+      </div>
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+        onChange={(e) => { Array.from(e.target.files || []).forEach(upload); e.target.value = ""; }} />
       <input ref={fileRef} type="file" accept="image/*,.pdf" multiple className="hidden"
         onChange={(e) => { Array.from(e.target.files || []).forEach(upload); e.target.value = ""; }} />
       {uploads.filter(u => u.isImg).length > 0 && (

@@ -764,7 +764,9 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
+  const docCameraRef = useRef<HTMLInputElement>(null);
   const avatarRef = useRef<HTMLInputElement>(null);
+  const avatarCameraRef = useRef<HTMLInputElement>(null);
   const [docType, setDocType] = useState("CNI");
 
   useEffect(() => {
@@ -825,9 +827,11 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
               style={{ background: avatarUrl ? "none" : "linear-gradient(135deg,#f5a623,#e8951a)" }}>
               {avatarUrl ? <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" /> : profile.full_name[0]}
             </div>
-            <button onClick={() => avatarRef.current?.click()}
+            <button onClick={() => avatarCameraRef.current?.click()}
               className="absolute -bottom-1 -right-1 w-6 h-6 rounded-lg flex items-center justify-center text-xs"
-              style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#8b92a8" }}>✏️</button>
+              style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#8b92a8" }}>📷</button>
+            <input ref={avatarCameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(f, "Photo de profil"); }} />
             <input ref={avatarRef} type="file" accept="image/*" className="hidden"
               onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(f, "Photo de profil"); }} />
           </div>
@@ -876,11 +880,20 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
               {docTypes.map((t) => <option key={t}>{t}</option>)}
             </select>
           </Field>
-          <button onClick={() => fileRef.current?.click()} disabled={!!uploading}
-            className="w-full py-3 rounded-xl text-sm font-semibold border-dashed border-2 transition-all"
-            style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "#555e75" }}>
-            {uploading ? `Upload ${uploading}...` : `+ Ajouter ${docType}`}
-          </button>
+          <div className="flex gap-2">
+            <button onClick={() => docCameraRef.current?.click()} disabled={!!uploading}
+              className="flex-1 py-3 rounded-xl text-sm font-semibold border transition-all"
+              style={{ background: uploading ? "#1e2330" : "rgba(245,166,35,.08)", borderColor: "rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
+              {uploading ? "⏳" : "📷 Photo"}
+            </button>
+            <button onClick={() => fileRef.current?.click()} disabled={!!uploading}
+              className="flex-1 py-3 rounded-xl text-sm font-semibold border-dashed border-2 transition-all"
+              style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "#555e75" }}>
+              {uploading ? `Upload ${uploading}...` : `📁 ${docType}`}
+            </button>
+          </div>
+          <input ref={docCameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(f, docType); }} />
           <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden"
             onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(f, docType); }} />
         </div>
