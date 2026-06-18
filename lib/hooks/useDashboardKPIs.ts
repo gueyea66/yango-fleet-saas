@@ -75,17 +75,25 @@ const ZERO: DashboardKPIs = {
   loading: true, error: null,
 };
 
-export function useDashboardKPIs(dateFrom?: string, dateTo?: string) {
+export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTenantId?: string | null) {
   const [kpis, setKPIs] = useState<DashboardKPIs>(ZERO);
 
   const loadKPIs = useCallback(async () => {
     try {
       const supabase = createClient() as any;
-      const tid = await getTenantId();
+      // Use explicit tenantId if provided (admin page), otherwise fall back to slug-based detection
+      let tid: string | null = explicitTenantId || null;
+      if (!tid) {
+        try { tid = await getTenantId(); } catch { /* no tenant context, query all */ }
+      }
       const today = new Date().toISOString().split("T")[0];
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
       const periodStart = dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
       const periodEnd = dateTo || today;
+
+      // Build base queries — conditionally filter by tenant_id if available
+      const repQ = (q: any) => tid ? q.eq("tenant_id", tid) : q;
+      const saasQ = (q: any) => q.eq("source", "saas"); // exclude legacy yango-app records
 
       const [
         { data: allReps },
@@ -95,12 +103,14 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string) {
         { data: weekRep },
         { data: driverProfiles },
       ] = await Promise.all([
-        supabase.from("daily_reports").select("*").eq("tenant_id", tid).gte("date", periodStart).lte("date", periodEnd).order("date"),
-        supabase.from("expenses").select("*").eq("tenant_id", tid),
-        supabase.from("payments").select("*").eq("tenant_id", tid),
-        supabase.from("daily_reports").select("*").eq("tenant_id", tid).eq("date", today),
-        supabase.from("daily_reports").select("*").eq("tenant_id", tid).gte("date", weekAgo).lte("date", today),
-        supabase.from("profiles").select("id, full_name, driver_id").eq("tenant_id", tid).eq("role", "driver"),
+        saasQ(repQ(supabase.from("daily_reports").select("*"))).gte("date", periodStart).lte("date", periodEnd).order("date"),
+        saasQ(repQ(supabase.from("expenses").select("*"))),
+        repQ(supabase.from("payments").select("*")),
+        saasQ(repQ(supabase.from("daily_reports").select("*"))).eq("date", today),
+        saasQ(repQ(supabase.from("daily_reports").select("*"))).gte("date", weekAgo).lte("date", today),
+        tid
+          ? supabase.from("profiles").select("id, full_name, driver_id").eq("tenant_id", tid).eq("role", "driver")
+          : supabase.from("profiles").select("id, full_name, driver_id").eq("role", "driver"),
       ]);
 
       // Only approved reports count in real figures
@@ -255,7 +265,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string) {
       setKPIs((prev) => ({ ...prev, loading: false, error: err instanceof Error ? err.message : "Erreur" }));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFrom, dateTo]);
+  }, [dateFrom, dateTo, explicitTenantId]);
 
   useEffect(() => {
     setKPIs((prev) => ({ ...prev, loading: true }));

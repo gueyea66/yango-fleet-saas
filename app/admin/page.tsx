@@ -34,18 +34,32 @@ export default function AdminPage() {
   // Driver / vehicle filter (global, shared across tabs)
   const [filterDriverId, setFilterDriverId] = useState("");
   const [allDrivers, setAllDrivers] = useState<any[]>([]); // { id, full_name, driver_id, plate }
+  const [adminTenantId, setAdminTenantId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       const supabase = createClient() as any;
       const [{ data: profs }, { data: vehs }] = await Promise.all([
-        supabase.from("profiles").select("id, full_name, driver_id").eq("role", "driver").order("full_name"),
+        supabase.from("profiles").select("id, full_name, driver_id, tenant_id").eq("role", "driver").order("full_name"),
         supabase.from("vehicles").select("driver_id, plate"),
       ]);
       const plateMap = Object.fromEntries((vehs || []).map((v: any) => [v.driver_id, v.plate]));
       setAllDrivers((profs || []).map((p: any) => ({ ...p, plate: plateMap[p.id] || null })));
+      // Get tenant_id from first driver profile (all drivers share the same tenant)
+      const firstWithTenant = (profs || []).find((p: any) => p.tenant_id);
+      if (firstWithTenant?.tenant_id) setAdminTenantId(firstWithTenant.tenant_id);
     })();
   }, []);
+
+  // Also try to get tenant_id from the admin's own profile
+  useEffect(() => {
+    if (!user || adminTenantId) return;
+    (async () => {
+      const supabase = createClient() as any;
+      const { data: adminProfile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).maybeSingle();
+      if (adminProfile?.tenant_id) setAdminTenantId(adminProfile.tenant_id);
+    })();
+  }, [user, adminTenantId]);
 
   // Date filter for dashboard
   const now = new Date();
@@ -55,7 +69,7 @@ export default function AdminPage() {
   const lastMonth = Math.max(...filterMonths);
   const lastDay = new Date(filterYear, lastMonth, 0).getDate();
   const periodTo = `${filterYear}-${String(lastMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-  const kpis = useDashboardKPIs(periodFrom, periodTo);
+  const kpis = useDashboardKPIs(periodFrom, periodTo, adminTenantId);
 
   useEffect(() => {
     if (!loading && !user) {
