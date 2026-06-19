@@ -977,170 +977,244 @@ function ExpenseCard({ expense, driverId, profile, onRefresh }: { expense: any; 
 }
 
 // ─── PROFIL / KYC ────────────────────────────────────
+const KYC_DOCS = [
+  { type: "cni_recto",    label: "CNI — Recto",     required: true },
+  { type: "cni_verso",    label: "CNI — Verso",     required: true },
+  { type: "permis_recto", label: "Permis — Recto",  required: true },
+  { type: "permis_verso", label: "Permis — Verso",  required: true },
+  { type: "contrat",      label: "Contrat signé",   required: true },
+  { type: "photo_profil", label: "Photo de profil", required: false },
+];
+
+const LEVEL_LABELS: Record<string, { label: string; color: string }> = {
+  debutant:      { label: "Débutant",      color: "#f5a623" },
+  intermediaire: { label: "Intermédiaire", color: "#3b82f6" },
+  confirme:      { label: "Confirmé",      color: "#22c55e" },
+};
+
+const ONBOARDING_LABELS: Record<string, { label: string; color: string }> = {
+  incomplete: { label: "Dossier incomplet",            color: "#555e75" },
+  pending:    { label: "En attente de soumission",     color: "#f5a623" },
+  in_review:  { label: "En cours de vérification",    color: "#3b82f6" },
+  approved:   { label: "✓ Dossier validé",             color: "#22c55e" },
+  rejected:   { label: "✗ Dossier rejeté",             color: "#ef4444" },
+};
+
 function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }) {
+  const [fullProfile, setFullProfile] = useState<any>(null);
+  const [infoForm, setInfoForm] = useState({ address: "", city: "", birth_date: "", nationality: "", license_number: "", license_expiry: "", emergency_name: "", emergency_phone: "", emergency_relation: "", years_experience: "0" });
+  const [savingInfo, setSavingInfo] = useState(false);
+  const [infoSaved, setInfoSaved] = useState(false);
+
   const [vehicle, setVehicle] = useState<any>(null);
   const [vehicleForm, setVehicleForm] = useState({ plate: "", make: "", model: "", year: "", partner_rate: "0.75" });
   const [savingVehicle, setSavingVehicle] = useState(false);
   const [vehicleSaved, setVehicleSaved] = useState(false);
 
-  const [docs, setDocs] = useState<any[]>([]);
+  const [kycDocs, setKycDocs] = useState<Record<string, any>>({});
   const [uploading, setUploading] = useState<string | null>(null);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const fileRef = useRef<HTMLInputElement>(null);
-  const docCameraRef = useRef<HTMLInputElement>(null);
-  const avatarRef = useRef<HTMLInputElement>(null);
-  const avatarCameraRef = useRef<HTMLInputElement>(null);
-  const [docType, setDocType] = useState("CNI");
+  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  useEffect(() => {
-    (async () => {
-      const supabase = createClient() as any;
-      const { data: v } = await supabase.from("vehicles").select("*").eq("driver_id", profile.id).maybeSingle();
-      if (v) { setVehicle(v); setVehicleForm({ plate: v.plate || v.license_plate || "", make: v.make || "", model: v.model || "", year: v.year ? String(v.year) : "", partner_rate: v.partner_rate != null ? String(v.partner_rate * 100) : "0.75" }); }
-      const { data: d } = await supabase.from("uploads").select("*").eq("driver_id", profile.id).order("created_at", { ascending: false });
-      setDocs(d || []);
-    })();
-  }, [profile.id]);
+  const loadData = async () => {
+    const supabase = createClient() as any;
+    const [{ data: p }, { data: v }, { data: docs }] = await Promise.all([
+      supabase.from("profiles").select("*").eq("id", profile.id).single(),
+      supabase.from("vehicles").select("*").eq("driver_id", profile.id).maybeSingle(),
+      supabase.from("kyc_documents").select("*").eq("driver_id", profile.id),
+    ]);
+    if (p) {
+      setFullProfile(p);
+      setInfoForm({ address: p.address || "", city: p.city || "", birth_date: p.birth_date || "", nationality: p.nationality || "", license_number: p.license_number || "", license_expiry: p.license_expiry || "", emergency_name: p.emergency_name || "", emergency_phone: p.emergency_phone || "", emergency_relation: p.emergency_relation || "", years_experience: String(p.years_experience ?? 0) });
+    }
+    if (v) { setVehicle(v); setVehicleForm({ plate: v.plate || "", make: v.make || "", model: v.model || "", year: v.year ? String(v.year) : "", partner_rate: v.partner_rate != null ? String(v.partner_rate * 100) : "0.75" }); }
+    const docMap: Record<string, any> = {};
+    (docs || []).forEach((d: any) => { docMap[d.doc_type] = d; });
+    setKycDocs(docMap);
+  };
+
+  useEffect(() => { loadData(); }, [profile.id]);
+
+  const setInfo = (k: string, v: string) => setInfoForm((f) => ({ ...f, [k]: v }));
+
+  const saveInfo = async () => {
+    setSavingInfo(true);
+    const supabase = createClient() as any;
+    await supabase.from("profiles").update({ address: infoForm.address, city: infoForm.city, birth_date: infoForm.birth_date || null, nationality: infoForm.nationality, license_number: infoForm.license_number, license_expiry: infoForm.license_expiry || null, emergency_name: infoForm.emergency_name, emergency_phone: infoForm.emergency_phone, emergency_relation: infoForm.emergency_relation, years_experience: parseInt(infoForm.years_experience) || 0 }).eq("id", profile.id);
+    setSavingInfo(false);
+    setInfoSaved(true);
+    setTimeout(() => setInfoSaved(false), 2000);
+    await loadData();
+  };
 
   const saveVehicle = async () => {
     if (!vehicleForm.plate) { alert("Plaque d'immatriculation requise"); return; }
     setSavingVehicle(true);
-    try {
-      const supabase = createClient() as any;
-      const payload = { driver_id: profile.id, plate: vehicleForm.plate, make: vehicleForm.make, model: vehicleForm.model, year: vehicleForm.year ? parseInt(vehicleForm.year) : null, partner_rate: parseFloat(vehicleForm.partner_rate || "0.75") / 100 };
-      if (vehicle) {
-        await supabase.from("vehicles").update(payload).eq("id", vehicle.id);
-      } else {
-        const { data } = await supabase.from("vehicles").insert(payload).select().single();
-        setVehicle(data);
-      }
-      setVehicleSaved(true);
-      setTimeout(() => setVehicleSaved(false), 2000);
-    } catch (err: any) { alert("Erreur : " + err.message); }
-    finally { setSavingVehicle(false); }
+    const supabase = createClient() as any;
+    const payload = { driver_id: profile.id, tenant_id: profile.tenant_id, plate: vehicleForm.plate, make: vehicleForm.make, model: vehicleForm.model, year: vehicleForm.year ? parseInt(vehicleForm.year) : null, partner_rate: parseFloat(vehicleForm.partner_rate || "0.75") / 100 };
+    if (vehicle) await supabase.from("vehicles").update(payload).eq("id", vehicle.id);
+    else { const { data } = await supabase.from("vehicles").insert(payload).select().single(); setVehicle(data); }
+    setSavingVehicle(false);
+    setVehicleSaved(true);
+    setTimeout(() => setVehicleSaved(false), 2000);
   };
 
-  const uploadDoc = async (file: File, type: string) => {
-    setUploading(type);
+  const uploadDoc = async (file: File, docType: string) => {
+    setUploading(docType);
     try {
       const supabase = createClient() as any;
-      const path = `kyc/${profile.id}/${type}-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-      const { error: uploadError } = await supabase.storage.from("kyc-documents").upload(path, file, { upsert: true });
-      if (uploadError) throw uploadError;
-      const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(path);
-      await supabase.from("uploads").insert({ driver_id: profile.id, file_path: path, file_name: file.name, file_type: type, file_size: file.size });
-      const { data: d } = await supabase.from("uploads").select("*").eq("driver_id", profile.id).order("created_at", { ascending: false });
-      setDocs(d || []);
-      if (type === "Photo de profil") setAvatarUrl(publicUrl);
+      const ext = file.name.split(".").pop() || "jpg";
+      const path = `${profile.tenant_id}/${profile.id}/${docType}.${ext}`;
+      const { error: upErr } = await supabase.storage.from("kyc-documents").upload(path, file, { upsert: true });
+      if (upErr) throw upErr;
+      const existing = kycDocs[docType];
+      if (existing) {
+        await supabase.from("kyc_documents").update({ file_path: path, file_name: file.name, file_size: file.size, status: "pending", uploaded_at: new Date().toISOString() }).eq("id", existing.id);
+      } else {
+        await supabase.from("kyc_documents").insert({ driver_id: profile.id, tenant_id: profile.tenant_id, doc_type: docType, file_path: path, file_name: file.name, file_size: file.size, status: "pending" });
+      }
+      await loadData();
     } catch (err: any) { alert("Erreur upload : " + err.message); }
     finally { setUploading(null); }
   };
 
-  const docTypes = ["CNI", "Permis de conduire", "Photo de profil", "Autre"];
+  const submitDossier = async () => {
+    setSubmitting(true);
+    const supabase = createClient() as any;
+    await supabase.from("profiles").update({ onboarding_status: "in_review", onboarding_submitted: new Date().toISOString() }).eq("id", profile.id);
+    await loadData();
+    setSubmitting(false);
+  };
+
+  const requiredDocs = KYC_DOCS.filter((d) => d.required);
+  const completedRequired = requiredDocs.filter((d) => kycDocs[d.type]).length;
+  const allRequiredDone = completedRequired === requiredDocs.length;
+  const status = fullProfile?.onboarding_status || "incomplete";
+  const level = fullProfile?.driver_level || "debutant";
+  const statusInfo = ONBOARDING_LABELS[status] ?? ONBOARDING_LABELS.incomplete;
+  const levelInfo = LEVEL_LABELS[level] ?? LEVEL_LABELS.debutant;
+  const canSubmit = allRequiredDone && (status === "incomplete" || status === "pending" || status === "rejected");
 
   return (
-    <div className="p-4">
-      <BackHeader title="Mon profil" onBack={onBack} />
+    <div className="p-4 space-y-4">
+      <BackHeader title="Mon profil & KYC" onBack={onBack} />
 
-      {/* Identity */}
-      <div className="rounded-2xl p-5 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-        <div className="flex items-center gap-4 mb-4">
-          <div className="relative">
-            <div className="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center text-2xl font-bold text-black"
-              style={{ background: avatarUrl ? "none" : "linear-gradient(135deg,#f5a623,#e8951a)" }}>
-              {avatarUrl ? <img src={avatarUrl} alt="avatar" className="w-full h-full object-cover" /> : profile.full_name[0]}
-            </div>
-            <button onClick={() => avatarCameraRef.current?.click()}
-              className="absolute -bottom-1 -right-1 w-6 h-6 rounded-lg flex items-center justify-center text-xs"
-              style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#8b92a8" }}>📷</button>
-            <input ref={avatarCameraRef} type="file" accept="image/*" capture="environment" className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(f, "Photo de profil"); }} />
-            <input ref={avatarRef} type="file" accept="image/*" className="hidden"
-              onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(f, "Photo de profil"); }} />
-          </div>
-          <div>
-            <div className="font-bold text-white">{profile.full_name}</div>
-            <div className="text-xs mt-1" style={{ color: "#555e75" }}>ID : <span className="font-mono">{profile.driver_id}</span></div>
-          </div>
+      {/* Status banner */}
+      <div className="rounded-2xl px-4 py-3 flex items-center justify-between" style={{ background: "#0d1117", border: `1px solid ${statusInfo.color}30` }}>
+        <div>
+          <div className="text-xs font-semibold" style={{ color: statusInfo.color }}>{statusInfo.label}</div>
+          {fullProfile?.onboarding_notes && status === "rejected" && (
+            <div className="text-xs mt-1" style={{ color: "#ef4444" }}>Note : {fullProfile.onboarding_notes}</div>
+          )}
         </div>
+        <span className="text-xs px-2 py-0.5 rounded-full font-semibold" style={{ background: `${levelInfo.color}18`, color: levelInfo.color }}>
+          {levelInfo.label}
+        </span>
       </div>
 
-      {/* Vehicle */}
-      <div className="rounded-2xl p-5 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-        <div className="text-xs uppercase tracking-widest font-semibold mb-4" style={{ color: "#3d4560" }}>🚗 Véhicule assigné</div>
+      {/* Infos personnelles */}
+      <div className="rounded-2xl p-5" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+        <div className="text-xs uppercase tracking-widest font-semibold mb-4" style={{ color: "#3d4560" }}>👤 Informations personnelles</div>
         <div className="space-y-3">
-          <Field label="Plaque d'immatriculation *">
-            <InpText type="text" placeholder="ex: DK-1234-AA" value={vehicleForm.plate} onChange={(v) => setVehicleForm((f) => ({ ...f, plate: v }))} />
-          </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Marque"><InpText type="text" placeholder="ex: Toyota" value={vehicleForm.make} onChange={(v) => setVehicleForm((f) => ({ ...f, make: v }))} /></Field>
-            <Field label="Modèle"><InpText type="text" placeholder="ex: Corolla" value={vehicleForm.model} onChange={(v) => setVehicleForm((f) => ({ ...f, model: v }))} /></Field>
+            <Field label="Date de naissance"><InpText type="date" value={infoForm.birth_date} onChange={(v) => setInfo("birth_date", v)} /></Field>
+            <Field label="Nationalité"><InpText type="text" placeholder="Sénégalaise" value={infoForm.nationality} onChange={(v) => setInfo("nationality", v)} /></Field>
           </div>
+          <Field label="Adresse"><InpText type="text" placeholder="Rue, quartier" value={infoForm.address} onChange={(v) => setInfo("address", v)} /></Field>
+          <Field label="Ville"><InpText type="text" placeholder="Dakar" value={infoForm.city} onChange={(v) => setInfo("city", v)} /></Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Année">
-              <InpText type="number" placeholder="ex: 2020" value={vehicleForm.year} onChange={(v) => setVehicleForm((f) => ({ ...f, year: v }))} />
-            </Field>
-            <Field label="Comm. partenaire (%)">
-              <InpText type="number" placeholder="ex: 0.75" value={vehicleForm.partner_rate} onChange={(v) => setVehicleForm((f) => ({ ...f, partner_rate: v }))} />
-            </Field>
+            <Field label="N° Permis"><InpText type="text" placeholder="DK-XXXXX" value={infoForm.license_number} onChange={(v) => setInfo("license_number", v)} /></Field>
+            <Field label="Expiration permis"><InpText type="date" value={infoForm.license_expiry} onChange={(v) => setInfo("license_expiry", v)} /></Field>
           </div>
-          <button onClick={saveVehicle} disabled={savingVehicle}
-            className="w-full py-3 rounded-xl text-sm font-bold transition-all"
-            style={{ background: vehicleSaved ? "rgba(34,197,94,.1)" : "linear-gradient(135deg,#f5a623,#e8951a)", color: vehicleSaved ? "#22c55e" : "#000", border: vehicleSaved ? "1px solid rgba(34,197,94,.3)" : "none" }}>
-            {vehicleSaved ? "✓ Enregistré" : savingVehicle ? "Enregistrement..." : vehicle ? "Mettre à jour" : "Enregistrer le véhicule"}
-          </button>
+          <Field label="Années d'expérience"><InpText type="number" placeholder="0" value={infoForm.years_experience} onChange={(v) => setInfo("years_experience", v)} /></Field>
         </div>
+        <div className="mt-4 pt-4" style={{ borderTop: "1px solid #1e2330" }}>
+          <div className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: "#3d4560" }}>🆘 Contact d'urgence</div>
+          <div className="space-y-3">
+            <Field label="Nom"><InpText type="text" placeholder="Prénom Nom" value={infoForm.emergency_name} onChange={(v) => setInfo("emergency_name", v)} /></Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Téléphone"><InpText type="tel" placeholder="+221 77 XXX XX XX" value={infoForm.emergency_phone} onChange={(v) => setInfo("emergency_phone", v)} /></Field>
+              <Field label="Relation"><InpText type="text" placeholder="Conjoint, parent..." value={infoForm.emergency_relation} onChange={(v) => setInfo("emergency_relation", v)} /></Field>
+            </div>
+          </div>
+        </div>
+        <button onClick={saveInfo} disabled={savingInfo} className="w-full mt-4 py-2.5 rounded-xl text-sm font-semibold transition-all"
+          style={{ background: infoSaved ? "rgba(34,197,94,.1)" : "rgba(245,166,35,.1)", color: infoSaved ? "#22c55e" : "#f5a623", border: `1px solid ${infoSaved ? "rgba(34,197,94,.2)" : "rgba(245,166,35,.2)"}` }}>
+          {infoSaved ? "✓ Enregistré" : savingInfo ? "..." : "Enregistrer les infos"}
+        </button>
       </div>
 
       {/* Documents KYC */}
       <div className="rounded-2xl p-5" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-        <div className="text-xs uppercase tracking-widest font-semibold mb-4" style={{ color: "#3d4560" }}>📄 Documents KYC</div>
-
-        {/* Upload new */}
-        <div className="mb-4 space-y-3">
-          <Field label="Type de document">
-            <select value={docType} onChange={(e) => setDocType(e.target.value)} className="input-base">
-              {docTypes.map((t) => <option key={t}>{t}</option>)}
-            </select>
-          </Field>
-          <div className="flex gap-2">
-            <button onClick={() => docCameraRef.current?.click()} disabled={!!uploading}
-              className="flex-1 py-3 rounded-xl text-sm font-semibold border transition-all"
-              style={{ background: uploading ? "#1e2330" : "rgba(245,166,35,.08)", borderColor: "rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
-              {uploading ? "⏳" : "📷 Photo"}
-            </button>
-            <button onClick={() => fileRef.current?.click()} disabled={!!uploading}
-              className="flex-1 py-3 rounded-xl text-sm font-semibold border-dashed border-2 transition-all"
-              style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "#555e75" }}>
-              {uploading ? `Upload ${uploading}...` : `📁 ${docType}`}
-            </button>
+        <div className="flex items-center justify-between mb-1">
+          <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: "#3d4560" }}>📄 Documents requis</div>
+          <div className="text-xs font-semibold" style={{ color: completedRequired === requiredDocs.length ? "#22c55e" : "#f5a623" }}>
+            {completedRequired}/{requiredDocs.length} complétés
           </div>
-          <input ref={docCameraRef} type="file" accept="image/*" capture="environment" className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(f, docType); }} />
-          <input ref={fileRef} type="file" accept="image/*,.pdf" className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(f, docType); }} />
         </div>
-
-        {/* Docs list */}
-        {docs.length > 0 && (
-          <div className="space-y-2">
-            <div className="text-xs font-semibold mb-2" style={{ color: "#3d4560" }}>Documents uploadés</div>
-            {docs.map((d) => (
-              <div key={d.id} className="flex items-center justify-between rounded-xl px-3 py-2.5" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
-                <div>
-                  <div className="text-xs font-semibold text-white">{d.file_type || d.file_name}</div>
-                  <div className="text-[10px] mt-0.5" style={{ color: "#3d4560" }}>{d.file_name} · {d.created_at?.slice(0, 10)}</div>
+        <div className="text-[10px] mb-4" style={{ color: "#3d4560" }}>Photo ou PDF · Max 10 Mo par fichier</div>
+        <div className="space-y-2">
+          {KYC_DOCS.map((doc) => {
+            const uploaded = kycDocs[doc.type];
+            const isUploading = uploading === doc.type;
+            const docStatus = uploaded?.status || null;
+            const statusColor = docStatus === "approved" ? "#22c55e" : docStatus === "rejected" ? "#ef4444" : uploaded ? "#f5a623" : "#2a2f3d";
+            return (
+              <div key={doc.type} className="rounded-xl px-3 py-2.5 flex items-center justify-between gap-2"
+                style={{ background: "#080a0f", border: `1px solid ${statusColor}40` }}>
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: statusColor }} />
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-white truncate">
+                      {doc.label} {doc.required && <span style={{ color: "#ef4444" }}>*</span>}
+                    </div>
+                    {uploaded && <div className="text-[10px]" style={{ color: "#3d4560" }}>{uploaded.file_name} · {docStatus === "approved" ? "✓ Validé" : docStatus === "rejected" ? "✗ Rejeté" : "En attente"}</div>}
+                  </div>
                 </div>
-                <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: "rgba(34,197,94,.1)", color: "#22c55e" }}>✓</span>
+                <button onClick={() => fileRefs.current[doc.type]?.click()} disabled={isUploading}
+                  className="flex-shrink-0 text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
+                  style={{ background: "rgba(245,166,35,.1)", color: isUploading ? "#555e75" : "#f5a623", border: "1px solid rgba(245,166,35,.15)" }}>
+                  {isUploading ? "..." : uploaded ? "Remplacer" : "Uploader"}
+                </button>
+                <input type="file" accept="image/*,.pdf" className="hidden"
+                  ref={(el) => { fileRefs.current[doc.type] = el; }}
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(f, doc.type); }} />
               </div>
-            ))}
-          </div>
+            );
+          })}
+        </div>
+        {canSubmit && (
+          <button onClick={submitDossier} disabled={submitting}
+            className="w-full mt-4 py-3 rounded-xl font-bold transition-all"
+            style={{ background: submitting ? "#2a2f3d" : "linear-gradient(135deg,#f5a623,#e8951a)", color: submitting ? "#555e75" : "#000" }}>
+            {submitting ? "Envoi en cours..." : "📤 Soumettre mon dossier pour vérification"}
+          </button>
         )}
-        {docs.length === 0 && <div className="text-xs text-center py-4" style={{ color: "#3d4560" }}>Aucun document uploadé</div>}
+        {status === "in_review" && <div className="mt-4 text-center text-xs" style={{ color: "#3b82f6" }}>🔍 Dossier en cours de vérification par l'équipe</div>}
+        {status === "approved" && <div className="mt-4 text-center text-xs font-semibold" style={{ color: "#22c55e" }}>✅ Dossier validé — Bienvenue !</div>}
       </div>
 
-      {/* Avances sur salaire */}
+      {/* Véhicule */}
+      <div className="rounded-2xl p-5" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+        <div className="text-xs uppercase tracking-widest font-semibold mb-4" style={{ color: "#3d4560" }}>🚗 Véhicule assigné</div>
+        <div className="space-y-3">
+          <Field label="Plaque *"><InpText type="text" placeholder="ex: DK-1234-AA" value={vehicleForm.plate} onChange={(v) => setVehicleForm((f) => ({ ...f, plate: v }))} /></Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Marque"><InpText type="text" placeholder="Toyota" value={vehicleForm.make} onChange={(v) => setVehicleForm((f) => ({ ...f, make: v }))} /></Field>
+            <Field label="Modèle"><InpText type="text" placeholder="Corolla" value={vehicleForm.model} onChange={(v) => setVehicleForm((f) => ({ ...f, model: v }))} /></Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Année"><InpText type="number" placeholder="2020" value={vehicleForm.year} onChange={(v) => setVehicleForm((f) => ({ ...f, year: v }))} /></Field>
+            <Field label="Comm. partenaire (%)"><InpText type="number" placeholder="0.75" value={vehicleForm.partner_rate} onChange={(v) => setVehicleForm((f) => ({ ...f, partner_rate: v }))} /></Field>
+          </div>
+          <button onClick={saveVehicle} disabled={savingVehicle} className="w-full py-3 rounded-xl text-sm font-bold transition-all"
+            style={{ background: vehicleSaved ? "rgba(34,197,94,.1)" : "linear-gradient(135deg,#f5a623,#e8951a)", color: vehicleSaved ? "#22c55e" : "#000", border: vehicleSaved ? "1px solid rgba(34,197,94,.3)" : "none" }}>
+            {vehicleSaved ? "✓ Enregistré" : savingVehicle ? "..." : vehicle ? "Mettre à jour" : "Enregistrer le véhicule"}
+          </button>
+        </div>
+      </div>
+
       <DriverAvancesSection driverId={profile.id} />
     </div>
   );

@@ -160,6 +160,7 @@ export default function AdminPage() {
     ["drivers", "🚗 Conducteurs"],
     ["journal", "📋 Journal"],
     ["remuneration", "💼 Rémunération"],
+    ["kyc", "🪪 KYC"],
     ["settings", "⚙️ Paramètres"],
   ];
 
@@ -757,6 +758,9 @@ export default function AdminPage() {
           <div className="p-6 text-sm" style={{ color: "#555e75" }}>Chargement du tenant...</div>
         )}
 
+        {tab === "kyc" && adminTenantId && <KycAdminTab tenantId={adminTenantId} />}
+        {tab === "kyc" && !adminTenantId && <div className="p-6 text-sm" style={{ color: "#555e75" }}>Chargement...</div>}
+
         {tab === "settings" && (
           <div>
             <h2 className="text-2xl font-bold text-white mb-6">Paramètres</h2>
@@ -770,6 +774,236 @@ export default function AdminPage() {
         </div>{/* end max-w-none */}
         </div>{/* end lg:pl-[220px] */}
       </main>
+    </div>
+  );
+}
+
+// ─── KYC ADMIN TAB ───────────────────────────────────
+const KYC_DOC_DEFS = [
+  { type: "cni_recto",    label: "CNI Recto" },
+  { type: "cni_verso",    label: "CNI Verso" },
+  { type: "permis_recto", label: "Permis Recto" },
+  { type: "permis_verso", label: "Permis Verso" },
+  { type: "contrat",      label: "Contrat" },
+  { type: "photo_profil", label: "Photo" },
+];
+
+const ONBOARDING_STATUS_COLORS: Record<string, string> = {
+  incomplete: "#555e75",
+  pending:    "#555e75",
+  in_review:  "#3b82f6",
+  approved:   "#22c55e",
+  rejected:   "#ef4444",
+};
+
+const LEVEL_OPTS = [
+  { value: "debutant",      label: "Débutant" },
+  { value: "intermediaire", label: "Intermédiaire" },
+  { value: "confirme",      label: "Confirmé" },
+];
+
+function KycAdminTab({ tenantId }: { tenantId: string }) {
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [driverDocs, setDriverDocs] = useState<any[]>([]);
+  const [driverProfile, setDriverProfile] = useState<any>(null);
+  const [docUrls, setDocUrls] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [level, setLevel] = useState("debutant");
+  const supabase = (createClient as any)();
+
+  const loadDrivers = async () => {
+    const { data } = await supabase.from("profiles").select("id,full_name,driver_id,driver_level,onboarding_status,onboarding_submitted,joined_at").eq("tenant_id", tenantId).eq("role", "driver").order("full_name");
+    setDrivers(data || []);
+  };
+
+  const loadDriver = async (id: string) => {
+    const [{ data: p }, { data: docs }] = await Promise.all([
+      supabase.from("profiles").select("*").eq("id", id).single(),
+      supabase.from("kyc_documents").select("*").eq("driver_id", id),
+    ]);
+    setDriverProfile(p);
+    setDriverDocs(docs || []);
+    setNotes(p?.onboarding_notes || "");
+    setLevel(p?.driver_level || "debutant");
+    // Get signed URLs for docs
+    const urls: Record<string, string> = {};
+    for (const doc of (docs || [])) {
+      const { data: su } = await supabase.storage.from("kyc-documents").createSignedUrl(doc.file_path, 3600);
+      if (su?.signedUrl) urls[doc.doc_type] = su.signedUrl;
+    }
+    setDocUrls(urls);
+  };
+
+  useEffect(() => { loadDrivers(); }, [tenantId]);
+
+  const selectDriver = async (id: string) => {
+    setSelected(id);
+    setDocUrls({});
+    await loadDriver(id);
+  };
+
+  const updateDocStatus = async (docId: string, status: "approved" | "rejected") => {
+    await supabase.from("kyc_documents").update({ status, reviewed_at: new Date().toISOString() }).eq("id", docId);
+    await loadDriver(selected!);
+  };
+
+  const setOnboardingStatus = async (status: string) => {
+    setSaving(true);
+    await supabase.from("profiles").update({ onboarding_status: status, onboarding_reviewed: new Date().toISOString(), onboarding_notes: notes, driver_level: level }).eq("id", selected);
+    await loadDriver(selected!);
+    await loadDrivers();
+    setSaving(false);
+  };
+
+  const autoLevel = () => {
+    if (!driverProfile) return;
+    const trips = driverProfile.total_trips || 0;
+    const joined = driverProfile.joined_at ? new Date(driverProfile.joined_at) : new Date();
+    const months = Math.floor((Date.now() - joined.getTime()) / (1000 * 60 * 60 * 24 * 30));
+    if (trips >= 500 || months >= 12) setLevel("confirme");
+    else if (trips >= 100 || months >= 3) setLevel("intermediaire");
+    else setLevel("debutant");
+  };
+
+  const statusBadge = (s: string) => (
+    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: `${ONBOARDING_STATUS_COLORS[s] || "#555e75"}18`, color: ONBOARDING_STATUS_COLORS[s] || "#555e75" }}>
+      {s === "approved" ? "Validé" : s === "rejected" ? "Rejeté" : s === "in_review" ? "En revue" : s === "incomplete" ? "Incomplet" : "Pending"}
+    </span>
+  );
+
+  if (selected && driverProfile) {
+    const completedDocs = KYC_DOC_DEFS.filter((d) => driverDocs.find((x) => x.doc_type === d.type));
+    return (
+      <div className="p-4 space-y-4">
+        <div className="flex items-center gap-3 mb-2">
+          <button onClick={() => setSelected(null)} className="text-sm px-3 py-1.5 rounded-lg" style={{ background: "#1e2330", color: "#8b92a8" }}>← Retour</button>
+          <div>
+            <div className="font-bold text-white">{driverProfile.full_name}</div>
+            <div className="text-xs" style={{ color: "#555e75" }}>{driverProfile.driver_id} · {completedDocs.length}/{KYC_DOC_DEFS.length} docs</div>
+          </div>
+          <div className="ml-auto">{statusBadge(driverProfile.onboarding_status || "incomplete")}</div>
+        </div>
+
+        {/* Personal info */}
+        <div className="rounded-2xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+          <div className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: "#3d4560" }}>Informations</div>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+            {[["Adresse", driverProfile.address], ["Ville", driverProfile.city], ["Naissance", driverProfile.birth_date], ["Nationalité", driverProfile.nationality], ["Permis", driverProfile.license_number], ["Expiration", driverProfile.license_expiry], ["Expérience", driverProfile.years_experience != null ? `${driverProfile.years_experience} ans` : "—"], ["Contact urgence", driverProfile.emergency_name], ["Tél urgence", driverProfile.emergency_phone], ["Relation", driverProfile.emergency_relation]].map(([k, v]) => (
+              <div key={k}><span style={{ color: "#555e75" }}>{k} : </span><span className="text-white">{v || "—"}</span></div>
+            ))}
+          </div>
+        </div>
+
+        {/* Documents */}
+        <div className="rounded-2xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+          <div className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: "#3d4560" }}>Documents KYC</div>
+          <div className="space-y-3">
+            {KYC_DOC_DEFS.map((def) => {
+              const doc = driverDocs.find((d) => d.doc_type === def.type);
+              const url = docUrls[def.type];
+              const docStatusColor = doc?.status === "approved" ? "#22c55e" : doc?.status === "rejected" ? "#ef4444" : doc ? "#f5a623" : "#2a2f3d";
+              return (
+                <div key={def.type} className="rounded-xl p-3" style={{ background: "#080a0f", border: `1px solid ${docStatusColor}30` }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs font-semibold text-white">{def.label}</div>
+                    {doc ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px]" style={{ color: docStatusColor }}>{doc.status === "approved" ? "✓ Approuvé" : doc.status === "rejected" ? "✗ Rejeté" : "⏳ En attente"}</span>
+                        {doc.status !== "approved" && <button onClick={() => updateDocStatus(doc.id, "approved")} className="text-[10px] px-2 py-0.5 rounded font-semibold" style={{ background: "rgba(34,197,94,.1)", color: "#22c55e" }}>Approuver</button>}
+                        {doc.status !== "rejected" && <button onClick={() => updateDocStatus(doc.id, "rejected")} className="text-[10px] px-2 py-0.5 rounded font-semibold" style={{ background: "rgba(239,68,68,.1)", color: "#ef4444" }}>Rejeter</button>}
+                      </div>
+                    ) : (
+                      <span className="text-[10px]" style={{ color: "#3d4560" }}>Non uploadé</span>
+                    )}
+                  </div>
+                  {url && (
+                    url.toLowerCase().includes(".pdf") ? (
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs underline" style={{ color: "#f5a623" }}>📄 Voir le PDF</a>
+                    ) : (
+                      <a href={url} target="_blank" rel="noopener noreferrer">
+                        <img src={url} alt={def.label} className="w-full max-h-48 object-contain rounded-lg" style={{ background: "#1e2330" }} />
+                      </a>
+                    )
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Decision */}
+        <div className="rounded-2xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+          <div className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: "#3d4560" }}>Décision & Niveau</div>
+          <div className="space-y-3">
+            <div>
+              <div className="text-xs mb-1.5" style={{ color: "#8b92a8" }}>Niveau chauffeur</div>
+              <div className="flex gap-2">
+                {LEVEL_OPTS.map((o) => (
+                  <button key={o.value} onClick={() => setLevel(o.value)}
+                    className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
+                    style={{ background: level === o.value ? "rgba(245,166,35,.15)" : "#080a0f", color: level === o.value ? "#f5a623" : "#555e75", border: `1px solid ${level === o.value ? "rgba(245,166,35,.3)" : "#2a2f3d"}` }}>
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+              <button onClick={autoLevel} className="mt-2 text-[10px] w-full py-1 rounded-lg" style={{ background: "#1e2330", color: "#555e75" }}>
+                Auto-suggérer selon l'expérience
+              </button>
+            </div>
+            <div>
+              <div className="text-xs mb-1.5" style={{ color: "#8b92a8" }}>Note / motif de rejet</div>
+              <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Optionnel — visible du chauffeur si rejeté"
+                className="w-full rounded-xl px-3 py-2 text-xs resize-none outline-none"
+                style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#fff" }} />
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setOnboardingStatus("approved")} disabled={saving}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all"
+                style={{ background: "rgba(34,197,94,.1)", color: "#22c55e", border: "1px solid rgba(34,197,94,.2)" }}>
+                ✓ Valider le dossier
+              </button>
+              <button onClick={() => setOnboardingStatus("rejected")} disabled={saving}
+                className="flex-1 py-2.5 rounded-xl text-xs font-bold transition-all"
+                style={{ background: "rgba(239,68,68,.1)", color: "#ef4444", border: "1px solid rgba(239,68,68,.2)" }}>
+                ✗ Rejeter
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4">
+      <h2 className="text-xl font-bold text-white mb-1">KYC & Onboarding</h2>
+      <p className="text-xs mb-4" style={{ color: "#555e75" }}>Vérification des dossiers chauffeurs</p>
+      {drivers.length === 0 && <div className="text-sm text-center py-8" style={{ color: "#3d4560" }}>Aucun chauffeur enregistré</div>}
+      <div className="space-y-2">
+        {drivers.map((d) => {
+          const s = d.onboarding_status || "incomplete";
+          const sc = ONBOARDING_STATUS_COLORS[s] || "#555e75";
+          return (
+            <button key={d.id} onClick={() => selectDriver(d.id)} className="w-full rounded-xl px-4 py-3 flex items-center gap-3 transition-all text-left"
+              style={{ background: "#0d1117", border: `1px solid ${sc}20` }}>
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm text-black flex-shrink-0"
+                style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>
+                {d.full_name?.[0] || "?"}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-white truncate">{d.full_name}</div>
+                <div className="text-[10px]" style={{ color: "#555e75" }}>{d.driver_id}</div>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {statusBadge(s)}
+                <span className="text-[10px]" style={{ color: "#3d4560" }}>›</span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
