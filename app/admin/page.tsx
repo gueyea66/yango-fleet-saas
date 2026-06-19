@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth/context";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -702,22 +702,8 @@ export default function AdminPage() {
           </div>
         )}
 
-        {tab === "vehicles" && (
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-white">Analytics Véhicules</h2>
-              <button
-                onClick={() => router.push("/admin/vehicles")}
-                className="bg-yellow-500 hover:bg-yellow-600 text-black font-semibold px-4 py-2 rounded"
-              >
-                Voir les stats détaillées →
-              </button>
-            </div>
-            <p className="text-gray-400">
-              Consommation, dépenses, marge nette et autres métriques pour chaque véhicule.
-            </p>
-          </div>
-        )}
+        {tab === "vehicles" && adminTenantId && <FleetTab tenantId={adminTenantId} />}
+        {tab === "vehicles" && !adminTenantId && <div className="p-6 text-sm" style={{ color: "#555e75" }}>Chargement...</div>}
 
         {tab === "drivers" && (
           <div>
@@ -774,6 +760,359 @@ export default function AdminPage() {
         </div>{/* end max-w-none */}
         </div>{/* end lg:pl-[220px] */}
       </main>
+    </div>
+  );
+}
+
+// ─── SHARED FORM HELPERS (admin) ─────────────────────
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "#555e75" }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+
+function InpText({ type, placeholder, value, onChange }: { type: string; placeholder?: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <input type={type} placeholder={placeholder} value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+      style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#fff" }} />
+  );
+}
+
+// ─── FLEET TAB ───────────────────────────────────────
+const VEHICLE_STATUS_META: Record<string, { label: string; color: string }> = {
+  active:      { label: "Actif",        color: "#22c55e" },
+  maintenance: { label: "Maintenance",  color: "#f5a623" },
+  inactive:    { label: "Inactif",      color: "#555e75" },
+  sold:        { label: "Vendu",        color: "#3d4560" },
+};
+
+const MAINT_TYPE_META: Record<string, string> = {
+  maintenance:       "🔧 Entretien",
+  reparation:        "🔨 Réparation",
+  accident:          "⚠️ Accident",
+  visite_technique:  "📋 Visite technique",
+  vidange:           "🛢️ Vidange",
+  autre:             "📌 Autre",
+};
+
+function daysUntil(dateStr: string | null): number | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  return Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+}
+
+function ExpiryBadge({ label, dateStr }: { label: string; dateStr: string | null }) {
+  const days = daysUntil(dateStr);
+  const color = days === null ? "#3d4560" : days < 0 ? "#ef4444" : days < 30 ? "#f5a623" : "#22c55e";
+  const text = days === null ? "Non renseigné" : days < 0 ? `Expiré (${Math.abs(days)}j)` : days === 0 ? "Expire aujourd'hui" : `${days}j`;
+  return (
+    <div className="text-[10px]">
+      <span style={{ color: "#555e75" }}>{label} : </span>
+      <span style={{ color }}>{text}</span>
+    </div>
+  );
+}
+
+const EMPTY_VEH = { plate: "", make: "", model: "", year: "", color: "", fuel_type: "essence", transmission: "manuelle", vin: "", mileage: "0", status: "active", insurance_company: "", insurance_number: "", insurance_expiry: "", visite_expiry: "", notes: "", driver_id: "" };
+
+function FleetTab({ tenantId }: { tenantId: string }) {
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [vehicle, setVehicle] = useState<any>(null);
+  const [maintenance, setMaintenance] = useState<any[]>([]);
+  const [form, setForm] = useState({ ...EMPTY_VEH });
+  const [maintForm, setMaintForm] = useState({ type: "maintenance", title: "", description: "", cost: "0", mileage_at: "", date: new Date().toISOString().slice(0, 10) });
+  const [saving, setSaving] = useState(false);
+  const [savingMaint, setSavingMaint] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [showMaintForm, setShowMaintForm] = useState(false);
+  const [isNew, setIsNew] = useState(false);
+
+  const supabase = (createClient as any)();
+  const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
+
+  const loadVehicles = async () => {
+    const { data } = await supabase.from("vehicles").select("*").eq("tenant_id", tenantId).order("plate");
+    setVehicles(data || []);
+  };
+
+  const loadDrivers = async () => {
+    const { data } = await supabase.from("profiles").select("id,full_name,driver_id").eq("tenant_id", tenantId).eq("role", "driver").order("full_name");
+    setDrivers(data || []);
+  };
+
+  const loadVehicle = async (id: string) => {
+    const [{ data: v }, { data: m }] = await Promise.all([
+      supabase.from("vehicles").select("*").eq("id", id).single(),
+      supabase.from("vehicle_maintenance").select("*").eq("vehicle_id", id).order("date", { ascending: false }),
+    ]);
+    setVehicle(v);
+    setMaintenance(m || []);
+    if (v) setForm({ plate: v.plate || "", make: v.make || "", model: v.model || "", year: String(v.year || ""), color: v.color || "", fuel_type: v.fuel_type || "essence", transmission: v.transmission || "manuelle", vin: v.vin || "", mileage: String(v.mileage || 0), status: v.status || "active", insurance_company: v.insurance_company || "", insurance_number: v.insurance_number || "", insurance_expiry: v.insurance_expiry || "", visite_expiry: v.visite_expiry || "", notes: v.notes || "", driver_id: v.driver_id || "" });
+  };
+
+  useEffect(() => { loadVehicles(); loadDrivers(); }, [tenantId]);
+
+  const selectVehicle = async (id: string) => { setSelected(id); setShowForm(false); setShowMaintForm(false); await loadVehicle(id); };
+
+  const setF = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const saveVehicle = async () => {
+    if (!form.plate) { alert("Plaque requise"); return; }
+    setSaving(true);
+    const payload = { tenant_id: tenantId, plate: form.plate, make: form.make, model: form.model, year: form.year ? parseInt(form.year) : null, color: form.color, fuel_type: form.fuel_type, transmission: form.transmission, vin: form.vin, mileage: parseInt(form.mileage) || 0, status: form.status, insurance_company: form.insurance_company, insurance_number: form.insurance_number, insurance_expiry: form.insurance_expiry || null, visite_expiry: form.visite_expiry || null, notes: form.notes, driver_id: form.driver_id || null };
+    if (isNew) {
+      const { data } = await supabase.from("vehicles").insert(payload).select().single();
+      await loadVehicles();
+      if (data) { setSelected(data.id); await loadVehicle(data.id); }
+    } else {
+      await supabase.from("vehicles").update(payload).eq("id", selected);
+      await loadVehicles();
+      await loadVehicle(selected!);
+    }
+    setSaving(false);
+    setShowForm(false);
+    setIsNew(false);
+  };
+
+  const saveMaint = async () => {
+    if (!maintForm.title) { alert("Titre requis"); return; }
+    setSavingMaint(true);
+    const driver = drivers.find((d) => d.id === vehicle?.driver_id);
+    await supabase.from("vehicle_maintenance").insert({ vehicle_id: selected, tenant_id: tenantId, driver_id: driver?.id || null, type: maintForm.type, title: maintForm.title, description: maintForm.description, cost: parseFloat(maintForm.cost) || 0, mileage_at: maintForm.mileage_at ? parseInt(maintForm.mileage_at) : null, date: maintForm.date, status: "done" });
+    setMaintForm({ type: "maintenance", title: "", description: "", cost: "0", mileage_at: "", date: new Date().toISOString().slice(0, 10) });
+    setSavingMaint(false);
+    setShowMaintForm(false);
+    await loadVehicle(selected!);
+  };
+
+  const totalMaintCost = maintenance.reduce((s, m) => s + (m.cost || 0), 0);
+  const assignedDriver = drivers.find((d) => d.id === vehicle?.driver_id);
+
+  // ── VEHICLE DETAIL VIEW ──
+  if (selected && vehicle) {
+    const statusMeta = VEHICLE_STATUS_META[vehicle.status] || VEHICLE_STATUS_META.active;
+    return (
+      <div className="p-4 space-y-4">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <button onClick={() => { setSelected(null); setVehicle(null); setShowForm(false); }} className="text-sm px-3 py-1.5 rounded-lg" style={{ background: "#1e2330", color: "#8b92a8" }}>← Flotte</button>
+          <div className="flex-1">
+            <div className="font-bold text-white text-lg">{vehicle.plate}</div>
+            <div className="text-xs" style={{ color: "#555e75" }}>{vehicle.make} {vehicle.model} {vehicle.year}</div>
+          </div>
+          <span className="text-xs px-2 py-1 rounded-full font-semibold" style={{ background: `${statusMeta.color}18`, color: statusMeta.color }}>{statusMeta.label}</span>
+          <button onClick={() => setShowForm(!showForm)} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623", border: "1px solid rgba(245,166,35,.2)" }}>✏️ Modifier</button>
+        </div>
+
+        {/* Edit form */}
+        {showForm && (
+          <div className="rounded-2xl p-4 space-y-3" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+            <div className="text-xs uppercase tracking-widest font-semibold mb-2" style={{ color: "#3d4560" }}>Modifier le véhicule</div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Plaque *"><InpText type="text" value={form.plate} onChange={(v) => setF("plate", v)} /></Field>
+              <Field label="Statut">
+                <select value={form.status} onChange={(e) => setF("status", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#fff" }}>
+                  {Object.entries(VEHICLE_STATUS_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                </select>
+              </Field>
+              <Field label="Marque"><InpText type="text" value={form.make} onChange={(v) => setF("make", v)} /></Field>
+              <Field label="Modèle"><InpText type="text" value={form.model} onChange={(v) => setF("model", v)} /></Field>
+              <Field label="Année"><InpText type="number" value={form.year} onChange={(v) => setF("year", v)} /></Field>
+              <Field label="Couleur"><InpText type="text" value={form.color} onChange={(v) => setF("color", v)} /></Field>
+              <Field label="Carburant">
+                <select value={form.fuel_type} onChange={(e) => setF("fuel_type", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#fff" }}>
+                  {["essence", "diesel", "hybride", "électrique", "gpl"].map((f) => <option key={f}>{f}</option>)}
+                </select>
+              </Field>
+              <Field label="Transmission">
+                <select value={form.transmission} onChange={(e) => setF("transmission", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#fff" }}>
+                  {["manuelle", "automatique"].map((f) => <option key={f}>{f}</option>)}
+                </select>
+              </Field>
+              <Field label="VIN / Châssis"><InpText type="text" value={form.vin} onChange={(v) => setF("vin", v)} /></Field>
+              <Field label="Kilométrage"><InpText type="number" value={form.mileage} onChange={(v) => setF("mileage", v)} /></Field>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Assureur"><InpText type="text" value={form.insurance_company} onChange={(v) => setF("insurance_company", v)} /></Field>
+              <Field label="N° Police"><InpText type="text" value={form.insurance_number} onChange={(v) => setF("insurance_number", v)} /></Field>
+              <Field label="Expir. assurance"><InpText type="date" value={form.insurance_expiry} onChange={(v) => setF("insurance_expiry", v)} /></Field>
+              <Field label="Expir. visite tech."><InpText type="date" value={form.visite_expiry} onChange={(v) => setF("visite_expiry", v)} /></Field>
+            </div>
+            <Field label="Chauffeur assigné">
+              <select value={form.driver_id} onChange={(e) => setF("driver_id", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#fff" }}>
+                <option value="">— Aucun —</option>
+                {drivers.map((d) => <option key={d.id} value={d.id}>{d.full_name} ({d.driver_id})</option>)}
+              </select>
+            </Field>
+            <Field label="Notes"><InpText type="text" value={form.notes} onChange={(v) => setF("notes", v)} /></Field>
+            <button onClick={saveVehicle} disabled={saving} className="w-full py-2.5 rounded-xl text-sm font-bold transition-all"
+              style={{ background: saving ? "#2a2f3d" : "linear-gradient(135deg,#f5a623,#e8951a)", color: saving ? "#555e75" : "#000" }}>
+              {saving ? "Enregistrement..." : "✓ Enregistrer"}
+            </button>
+          </div>
+        )}
+
+        {/* Info cards */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-2xl p-3" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+            <div className="text-[10px] uppercase tracking-widest mb-2" style={{ color: "#3d4560" }}>Documents</div>
+            <ExpiryBadge label="Assurance" dateStr={vehicle.insurance_expiry} />
+            <ExpiryBadge label="Visite tech." dateStr={vehicle.visite_expiry} />
+            {vehicle.insurance_company && <div className="text-[10px] mt-1" style={{ color: "#555e75" }}>Assureur : {vehicle.insurance_company}</div>}
+          </div>
+          <div className="rounded-2xl p-3" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+            <div className="text-[10px] uppercase tracking-widest mb-2" style={{ color: "#3d4560" }}>Stats</div>
+            <div className="text-xs" style={{ color: "#8b92a8" }}>Kilométrage : <span className="text-white font-semibold">{xof(vehicle.mileage)} km</span></div>
+            <div className="text-xs mt-1" style={{ color: "#8b92a8" }}>Coût maint. total : <span className="text-white font-semibold">{xof(totalMaintCost)} XOF</span></div>
+            {assignedDriver && <div className="text-xs mt-1" style={{ color: "#8b92a8" }}>Chauffeur : <span className="text-white">{assignedDriver.full_name}</span></div>}
+          </div>
+        </div>
+
+        {/* Maintenance */}
+        <div className="rounded-2xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: "#3d4560" }}>Historique maintenance</div>
+            <button onClick={() => setShowMaintForm(!showMaintForm)} className="text-xs px-3 py-1 rounded-lg font-semibold" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623", border: "1px solid rgba(245,166,35,.2)" }}>+ Ajouter</button>
+          </div>
+
+          {showMaintForm && (
+            <div className="mb-4 p-3 rounded-xl space-y-2" style={{ background: "#080a0f", border: "1px solid #2a2f3d" }}>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Type">
+                  <select value={maintForm.type} onChange={(e) => setMaintForm((f) => ({ ...f, type: e.target.value }))} className="w-full rounded-xl px-3 py-2 text-xs outline-none" style={{ background: "#0d1117", border: "1px solid #2a2f3d", color: "#fff" }}>
+                    {Object.entries(MAINT_TYPE_META).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                  </select>
+                </Field>
+                <Field label="Date"><InpText type="date" value={maintForm.date} onChange={(v) => setMaintForm((f) => ({ ...f, date: v }))} /></Field>
+              </div>
+              <Field label="Titre *"><InpText type="text" placeholder="ex: Vidange + filtres" value={maintForm.title} onChange={(v) => setMaintForm((f) => ({ ...f, title: v }))} /></Field>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="Coût (XOF)"><InpText type="number" value={maintForm.cost} onChange={(v) => setMaintForm((f) => ({ ...f, cost: v }))} /></Field>
+                <Field label="Km au compteur"><InpText type="number" value={maintForm.mileage_at} onChange={(v) => setMaintForm((f) => ({ ...f, mileage_at: v }))} /></Field>
+              </div>
+              <Field label="Description"><InpText type="text" placeholder="Détails..." value={maintForm.description} onChange={(v) => setMaintForm((f) => ({ ...f, description: v }))} /></Field>
+              <button onClick={saveMaint} disabled={savingMaint} className="w-full py-2 rounded-xl text-xs font-bold text-black" style={{ background: savingMaint ? "#2a2f3d" : "linear-gradient(135deg,#f5a623,#e8951a)" }}>
+                {savingMaint ? "..." : "Enregistrer"}
+              </button>
+            </div>
+          )}
+
+          {maintenance.length === 0 && <div className="text-xs text-center py-3" style={{ color: "#3d4560" }}>Aucun historique</div>}
+          <div className="space-y-2">
+            {maintenance.map((m) => (
+              <div key={m.id} className="rounded-xl px-3 py-2.5" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="text-xs font-semibold text-white">{MAINT_TYPE_META[m.type] || m.type} — {m.title}</div>
+                    {m.description && <div className="text-[10px] mt-0.5" style={{ color: "#555e75" }}>{m.description}</div>}
+                    <div className="text-[10px] mt-0.5" style={{ color: "#3d4560" }}>{m.date} {m.mileage_at ? `· ${xof(m.mileage_at)} km` : ""}</div>
+                  </div>
+                  <div className="text-xs font-semibold flex-shrink-0 ml-2" style={{ color: m.cost > 0 ? "#f5a623" : "#3d4560" }}>
+                    {m.cost > 0 ? `-${xof(m.cost)}` : "—"} XOF
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ── VEHICLE LIST VIEW ──
+  return (
+    <div className="p-4">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-xl font-bold text-white">Gestion de flotte</h2>
+          <p className="text-xs mt-0.5" style={{ color: "#555e75" }}>{vehicles.length} véhicule{vehicles.length !== 1 ? "s" : ""}</p>
+        </div>
+        <button onClick={() => { setIsNew(true); setForm({ ...EMPTY_VEH }); setSelected("__new__"); setVehicle({}); setMaintenance([]); setShowForm(true); }}
+          className="text-sm px-4 py-2 rounded-xl font-bold text-black"
+          style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>
+          + Ajouter
+        </button>
+      </div>
+
+      {/* New vehicle form (inline) */}
+      {selected === "__new__" && showForm && (
+        <div className="rounded-2xl p-4 mb-4 space-y-3" style={{ background: "#0d1117", border: "1px solid rgba(245,166,35,.3)" }}>
+          <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: "#f5a623" }}>Nouveau véhicule</div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Plaque *"><InpText type="text" value={form.plate} onChange={(v) => setF("plate", v)} /></Field>
+            <Field label="Marque"><InpText type="text" value={form.make} onChange={(v) => setF("make", v)} /></Field>
+            <Field label="Modèle"><InpText type="text" value={form.model} onChange={(v) => setF("model", v)} /></Field>
+            <Field label="Année"><InpText type="number" value={form.year} onChange={(v) => setF("year", v)} /></Field>
+            <Field label="Couleur"><InpText type="text" value={form.color} onChange={(v) => setF("color", v)} /></Field>
+            <Field label="Carburant">
+              <select value={form.fuel_type} onChange={(e) => setF("fuel_type", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#fff" }}>
+                {["essence", "diesel", "hybride", "électrique", "gpl"].map((f) => <option key={f}>{f}</option>)}
+              </select>
+            </Field>
+            <Field label="Expir. assurance"><InpText type="date" value={form.insurance_expiry} onChange={(v) => setF("insurance_expiry", v)} /></Field>
+            <Field label="Expir. visite tech."><InpText type="date" value={form.visite_expiry} onChange={(v) => setF("visite_expiry", v)} /></Field>
+          </div>
+          <Field label="Chauffeur assigné">
+            <select value={form.driver_id} onChange={(e) => setF("driver_id", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#fff" }}>
+              <option value="">— Aucun —</option>
+              {drivers.map((d) => <option key={d.id} value={d.id}>{d.full_name} ({d.driver_id})</option>)}
+            </select>
+          </Field>
+          <div className="flex gap-2">
+            <button onClick={saveVehicle} disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-black" style={{ background: saving ? "#2a2f3d" : "linear-gradient(135deg,#f5a623,#e8951a)" }}>
+              {saving ? "..." : "Créer le véhicule"}
+            </button>
+            <button onClick={() => { setSelected(null); setShowForm(false); setIsNew(false); }} className="px-4 rounded-xl text-sm" style={{ background: "#1e2330", color: "#8b92a8" }}>
+              Annuler
+            </button>
+          </div>
+        </div>
+      )}
+
+      {vehicles.length === 0 && !showForm && (
+        <div className="text-center py-12">
+          <div className="text-4xl mb-3">🚗</div>
+          <p className="text-white font-semibold mb-1">Aucun véhicule enregistré</p>
+          <p className="text-sm" style={{ color: "#555e75" }}>Ajoutez votre premier véhicule avec le bouton ci-dessus.</p>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {vehicles.map((v) => {
+          const sm = VEHICLE_STATUS_META[v.status] || VEHICLE_STATUS_META.active;
+          const insuranceDays = daysUntil(v.insurance_expiry);
+          const visiteDays = daysUntil(v.visite_expiry);
+          const hasAlert = (insuranceDays !== null && insuranceDays < 30) || (visiteDays !== null && visiteDays < 30);
+          const driver = drivers.find((d) => d.id === v.driver_id);
+          return (
+            <button key={v.id} onClick={() => selectVehicle(v.id)}
+              className="w-full rounded-xl px-4 py-3 flex items-center gap-3 transition-all text-left"
+              style={{ background: "#0d1117", border: `1px solid ${hasAlert ? "rgba(245,166,35,.3)" : "#1e2330"}` }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: "#1e2330" }}>🚗</div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-white">{v.plate}</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: `${sm.color}18`, color: sm.color }}>{sm.label}</span>
+                  {hasAlert && <span className="text-[10px]" style={{ color: "#f5a623" }}>⚠️</span>}
+                </div>
+                <div className="text-xs" style={{ color: "#555e75" }}>{v.make} {v.model} {v.year} {driver ? `· ${driver.full_name}` : ""}</div>
+                <div className="flex gap-3 mt-0.5">
+                  {v.insurance_expiry && <ExpiryBadge label="Ass." dateStr={v.insurance_expiry} />}
+                  {v.visite_expiry && <ExpiryBadge label="Visite" dateStr={v.visite_expiry} />}
+                </div>
+              </div>
+              <span className="text-xs" style={{ color: "#3d4560" }}>›</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
