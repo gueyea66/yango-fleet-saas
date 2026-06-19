@@ -1555,6 +1555,42 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
           <div className="text-xs mt-1" style={{ color: "#555e75" }}>CA net MTD : {xof(stats.mtdNet)} → votre part : <span style={{ color: "#f5a623" }}>{xof(stats.mtdNet * cfg.commission_rate)}</span></div>
         </div>
       )}
+
+      {/* Résumé modèle hybrid */}
+      {cfg.model === "hybrid" && (() => {
+        const bonusUnlocked = cfg.bonus_threshold > 0 && stats.mtdNet >= cfg.bonus_threshold;
+        const bonusProjected = cfg.bonus_threshold > 0 && stats.projectedNet >= cfg.bonus_threshold;
+        const salaireMTD = cfg.base_amount + (bonusUnlocked ? cfg.bonus_amount : 0) + (cfg.commission_rate > 0 ? stats.mtdNet * cfg.commission_rate : 0);
+        const salaireProj = cfg.base_amount + (bonusProjected ? cfg.bonus_amount : 0) + (cfg.commission_rate > 0 ? stats.projectedNet * cfg.commission_rate : 0);
+        return (
+          <div className="rounded-2xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+            <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "#3d4560" }}>Rémunération projetée</div>
+            <div className="grid grid-cols-2 gap-3">
+              {[
+                { label: "Salaire fixe", value: xof(cfg.base_amount), color: "#8b92a8" },
+                { label: "Bonus " + (bonusProjected ? "✓ débloqué" : `(seuil : ${xof(cfg.bonus_threshold)})`), value: xof(cfg.bonus_amount), color: bonusProjected ? "#22c55e" : "#3d4560" },
+                ...(cfg.commission_rate > 0 ? [{ label: `Commission (${Math.round(cfg.commission_rate * 100)}%)`, value: xof(stats.projectedNet * cfg.commission_rate), color: "#f5a623" }] : []),
+                { label: "Total projeté", value: xof(salaireProj), color: "#f0f2f7" },
+              ].map((k) => (
+                <div key={k.label} className="rounded-xl p-3" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
+                  <div className="text-[10px] mb-1" style={{ color: "#3d4560" }}>{k.label}</div>
+                  <div className="text-sm font-mono font-bold" style={{ color: k.color }}>{k.value}</div>
+                </div>
+              ))}
+            </div>
+            {cfg.bonus_threshold > 0 && !bonusUnlocked && (
+              <div className="mt-3">
+                <div className="text-xs mb-1" style={{ color: "#555e75" }}>
+                  Progression vers le bonus ({xof(cfg.bonus_threshold - stats.mtdNet)} restants)
+                </div>
+                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "#1e2330" }}>
+                  <div className="h-full rounded-full" style={{ width: `${Math.min(100, (stats.mtdNet / cfg.bonus_threshold) * 100)}%`, background: "#f5a623" }} />
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 }

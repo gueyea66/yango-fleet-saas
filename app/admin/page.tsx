@@ -35,6 +35,7 @@ export default function AdminPage() {
   const [filterDriverId, setFilterDriverId] = useState("");
   const [allDrivers, setAllDrivers] = useState<any[]>([]); // { id, full_name, driver_id, plate }
   const [adminTenantId, setAdminTenantId] = useState<string | null>(null);
+  const [remunCfg, setRemunCfg] = useState<any>(null);
 
   useEffect(() => {
     (async () => {
@@ -47,7 +48,11 @@ export default function AdminPage() {
       setAllDrivers((profs || []).map((p: any) => ({ ...p, plate: plateMap[p.id] || null })));
       // Get tenant_id from first driver profile (all drivers share the same tenant)
       const firstWithTenant = (profs || []).find((p: any) => p.tenant_id);
-      if (firstWithTenant?.tenant_id) setAdminTenantId(firstWithTenant.tenant_id);
+      if (firstWithTenant?.tenant_id) {
+        setAdminTenantId(firstWithTenant.tenant_id);
+        const { data: rc } = await supabase.from("remuneration_config").select("*").eq("tenant_id", firstWithTenant.tenant_id).maybeSingle();
+        if (rc) setRemunCfg(rc);
+      }
     })();
   }, []);
 
@@ -572,6 +577,9 @@ export default function AdminPage() {
                 {kpis.dailyRows.length > 0 && (
                   <DailyTable data={kpis.dailyRows} periodFrom={periodFrom} periodTo={periodTo} />
                 )}
+
+                {/* Rémunération estimée — adaptatif selon modèle */}
+                {remunCfg && <RemunerationDashboardBlock kpis={kpis} cfg={remunCfg} />}
 
                 {/* Insights */}
                 <InsightsPanel kpis={kpis} />
@@ -1426,6 +1434,91 @@ function DailyTable({ data, periodFrom, periodTo }: { data: any[]; periodFrom: s
             </tr>
           </tfoot>
         </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── REMUNERATION DASHBOARD BLOCK ─────────────────────
+function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
+  const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0)) + " XOF";
+  const daysElapsed = new Date().getDate();
+  const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
+  const model: string = cfg.model || "tiered";
+
+  const modelLabel: Record<string, string> = {
+    fixed: "Salaire fixe", tiered: "Paliers CA net", percent: "% du CA",
+    hybrid: "Fixe + bonus", location: "Loyer journalier",
+  };
+
+  // Compute estimates per model
+  let items: { label: string; value: string; color: string; sub?: string }[] = [];
+
+  if (model === "fixed") {
+    const masseSalariale = (cfg.base_amount || 0) * (kpis.totalDrivers || 1);
+    items = [
+      { label: "Salaire/driver", value: xof(cfg.base_amount), color: "#f5a623" },
+      { label: "Masse salariale totale", value: xof(masseSalariale), color: "#ef4444", sub: `${kpis.totalDrivers} drivers` },
+      { label: "CA net période", value: xof(kpis.totalBrut), color: "#22c55e" },
+      { label: "Marge après salaires", value: xof(kpis.totalBrut - masseSalariale), color: kpis.totalBrut - masseSalariale >= 0 ? "#22c55e" : "#ef4444" },
+    ];
+  } else if (model === "tiered") {
+    const tiers: any[] = Array.isArray(cfg.salary_tiers) ? cfg.salary_tiers : [];
+    const sorted = [...tiers].sort((a, b) => b.min_net - a.min_net);
+    const avgPerDriver = kpis.totalDrivers > 0 ? kpis.totalBrut / kpis.totalDrivers : 0;
+    const estTier = sorted.find((t) => avgPerDriver >= t.min_net) ?? sorted[sorted.length - 1];
+    const estSalaire = estTier?.total_salary ?? cfg.base_amount ?? 0;
+    const masseSalariale = estSalaire * (kpis.totalDrivers || 1);
+    items = [
+      { label: "CA net moy/driver", value: xof(avgPerDriver), color: "#f5a623", sub: "Base estimation palier" },
+      { label: "Palier estimé", value: estTier?.label ?? "—", color: "#8b92a8", sub: `→ ${xof(estSalaire)}/driver` },
+      { label: "Masse salariale estimée", value: xof(masseSalariale), color: "#ef4444", sub: `${kpis.totalDrivers} drivers` },
+      { label: "Marge après salaires", value: xof(kpis.totalBrut - masseSalariale), color: kpis.totalBrut - masseSalariale >= 0 ? "#22c55e" : "#ef4444" },
+    ];
+  } else if (model === "percent") {
+    const partDriver = kpis.totalBrut * (cfg.commission_rate || 0);
+    const partOpe = kpis.totalBrut - partDriver;
+    items = [
+      { label: `Part drivers (${Math.round((cfg.commission_rate || 0) * 100)}%)`, value: xof(partDriver), color: "#ef4444" },
+      { label: "Part opérateur", value: xof(partOpe), color: "#22c55e" },
+      { label: "CA net période", value: xof(kpis.totalBrut), color: "#f5a623" },
+      { label: "Taux opérateur", value: `${Math.round((1 - (cfg.commission_rate || 0)) * 100)}%`, color: "#8b92a8" },
+    ];
+  } else if (model === "hybrid") {
+    const avgPerDriver = kpis.totalDrivers > 0 ? kpis.totalBrut / kpis.totalDrivers : 0;
+    const bonusDrivers = cfg.bonus_threshold > 0 && avgPerDriver >= cfg.bonus_threshold ? kpis.totalDrivers : 0;
+    const masseSalariale = (cfg.base_amount || 0) * (kpis.totalDrivers || 1) + bonusDrivers * (cfg.bonus_amount || 0) + kpis.totalBrut * (cfg.commission_rate || 0);
+    items = [
+      { label: "Masse fixe", value: xof((cfg.base_amount || 0) * (kpis.totalDrivers || 1)), color: "#f5a623", sub: `${kpis.totalDrivers} × ${xof(cfg.base_amount)}` },
+      { label: "Bonus estimés", value: xof(bonusDrivers * (cfg.bonus_amount || 0)), color: "#a855f7", sub: bonusDrivers > 0 ? `${bonusDrivers} drivers ont atteint le seuil` : `Seuil : ${xof(cfg.bonus_threshold)}` },
+      { label: "Masse salariale totale", value: xof(masseSalariale), color: "#ef4444" },
+      { label: "Marge après salaires", value: xof(kpis.totalBrut - masseSalariale), color: kpis.totalBrut - masseSalariale >= 0 ? "#22c55e" : "#ef4444" },
+    ];
+  } else if (model === "location") {
+    const loyerParDriver = (cfg.daily_rent || 0) * daysElapsed;
+    const loyerTotal = loyerParDriver * (kpis.totalDrivers || 1);
+    const loyerMensuel = (cfg.daily_rent || 0) * daysInMonth * (kpis.totalDrivers || 1);
+    items = [
+      { label: `Loyer/jour/driver`, value: xof(cfg.daily_rent), color: "#f5a623" },
+      { label: `Loyer collecté (${daysElapsed}j)`, value: xof(loyerTotal), color: "#22c55e", sub: `${kpis.totalDrivers} drivers` },
+      { label: "Loyer mensuel projeté", value: xof(loyerMensuel), color: "#3b82f6", sub: `${daysInMonth}j × ${kpis.totalDrivers} drivers` },
+      { label: "CA net drivers (après loyer)", value: xof(kpis.totalBrut - loyerTotal), color: "#8b92a8", sub: "Géré par les drivers" },
+    ];
+  }
+
+  return (
+    <div>
+      <h3 className="text-sm uppercase tracking-widest font-semibold mb-4" style={{ color: "#555e75" }}>
+        Rémunération — <span style={{ color: "#f5a623" }}>{modelLabel[model] ?? model}</span>
+      </h3>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {items.map((item) => (
+          <div key={item.label} className="rounded-xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330", borderLeft: `3px solid ${item.color}` }}>
+            <div className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: "#555e75" }}>{item.label}</div>
+            <div className="text-lg font-mono font-bold" style={{ color: item.color }}>{item.value}</div>
+            {item.sub && <div className="text-[10px] mt-1" style={{ color: "#3d4560" }}>{item.sub}</div>}
+          </div>
+        ))}
       </div>
     </div>
   );
