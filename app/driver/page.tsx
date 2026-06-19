@@ -1568,7 +1568,7 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
             <div className="grid grid-cols-2 gap-3">
               {[
                 { label: "Salaire fixe", value: xof(cfg.base_amount), color: "#8b92a8" },
-                { label: "Bonus " + (bonusProjected ? "✓ débloqué" : `(seuil : ${xof(cfg.bonus_threshold)})`), value: xof(cfg.bonus_amount), color: bonusProjected ? "#22c55e" : "#3d4560" },
+                { label: bonusUnlocked ? "Bonus ✓ débloqué" : bonusProjected ? "Bonus ✓ projeté fin de mois" : `Bonus (seuil : ${xof(cfg.bonus_threshold)})`, value: xof(cfg.bonus_amount), color: bonusUnlocked ? "#22c55e" : bonusProjected ? "#f5a623" : "#3d4560" },
                 ...(cfg.commission_rate > 0 ? [{ label: `Commission (${Math.round(cfg.commission_rate * 100)}%)`, value: xof(stats.projectedNet * cfg.commission_rate), color: "#f5a623" }] : []),
                 { label: "Total projeté", value: xof(salaireProj), color: "#f0f2f7" },
               ].map((k) => (
