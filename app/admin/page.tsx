@@ -148,21 +148,42 @@ export default function AdminPage() {
     return null;
   }
 
-  const tabs = [
-    ["dashboard", "📊 Dashboard"],
-    ["pending", "⏳ Soumissions"],
-    ["history", "📜 Historique"],
-    ["calendrier", "📅 Calendrier"],
-    ["payments", "💵 Paiements"],
-    ["pilotage", "🎯 Pilotage"],
-    ["vehicles", "🔧 Véhicules"],
-    ["avances", "💰 Avances"],
-    ["drivers", "🚗 Conducteurs"],
-    ["journal", "📋 Journal"],
-    ["remuneration", "💼 Rémunération"],
-    ["kyc", "🪪 KYC"],
-    ["settings", "⚙️ Paramètres"],
+  const tabGroups = [
+    {
+      label: "Opérations",
+      items: [
+        ["dashboard",   "📊", "Dashboard"],
+        ["pending",     "⏳", "Soumissions"],
+        ["history",     "📜", "Historique"],
+        ["calendrier",  "📅", "Calendrier"],
+      ],
+    },
+    {
+      label: "Finance",
+      items: [
+        ["payments",    "💵", "Paiements"],
+        ["avances",     "💰", "Avances"],
+        ["pilotage",    "🎯", "Pilotage"],
+      ],
+    },
+    {
+      label: "Flotte",
+      items: [
+        ["vehicles",    "🔧", "Véhicules"],
+        ["drivers",     "🚗", "Conducteurs"],
+        ["kyc",         "🪪", "KYC"],
+      ],
+    },
+    {
+      label: "Config",
+      items: [
+        ["remuneration","💼", "Rémunération"],
+        ["journal",     "📋", "Journal"],
+        ["settings",    "⚙️", "Paramètres"],
+      ],
+    },
   ];
+  const tabs = tabGroups.flatMap((g) => g.items.map(([id, , label]) => [id, label]));
 
   return (
     <div className="min-h-screen flex" style={{ background: "#080a0f" }}>
@@ -182,18 +203,25 @@ export default function AdminPage() {
           </div>
         </div>
 
-        {/* Nav items */}
-        <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-          {tabs.map(([id, label]) => (
-            <button key={id} onClick={() => setTab(id)} className="w-full text-left px-3 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5"
-              style={{
-                background: tab === id ? "rgba(245,166,35,.12)" : "transparent",
-                color: tab === id ? "#f5a623" : "#555e75",
-                border: `1px solid ${tab === id ? "rgba(245,166,35,.2)" : "transparent"}`,
-              }}>
-              <span className="text-base leading-none">{label.split(" ")[0]}</span>
-              <span>{label.split(" ").slice(1).join(" ")}</span>
-            </button>
+        {/* Nav items grouped */}
+        <nav className="flex-1 px-3 py-4 overflow-y-auto">
+          {tabGroups.map((group) => (
+            <div key={group.label} className="mb-4">
+              <div className="px-3 mb-1 text-[9px] uppercase tracking-[0.12em] font-bold" style={{ color: "#3d4560" }}>{group.label}</div>
+              <div className="space-y-0.5">
+                {group.items.map(([id, icon, label]) => (
+                  <button key={id} onClick={() => setTab(id)} className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5"
+                    style={{
+                      background: tab === id ? "rgba(245,166,35,.12)" : "transparent",
+                      color: tab === id ? "#f5a623" : "#8b92a8",
+                      border: `1px solid ${tab === id ? "rgba(245,166,35,.2)" : "transparent"}`,
+                    }}>
+                    <span className="text-sm leading-none w-4 text-center flex-shrink-0">{icon}</span>
+                    <span className="truncate">{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 
@@ -226,14 +254,19 @@ export default function AdminPage() {
       </div>
 
       {/* ── MOBILE NAV TABS ── */}
-      <div className="lg:hidden fixed top-12 left-0 right-0 z-40 flex gap-0.5 overflow-x-auto px-2 py-1.5"
+      <div className="lg:hidden fixed top-12 left-0 right-0 z-40 flex items-center gap-0 overflow-x-auto"
         style={{ background: "#0d1117", borderBottom: "1px solid #1e2330" }}>
-        {tabs.map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id)}
-            className="flex-shrink-0 text-xs px-3 py-1.5 rounded-lg font-medium whitespace-nowrap"
-            style={{ background: tab === id ? "rgba(245,166,35,.12)" : "transparent", color: tab === id ? "#f5a623" : "#555e75" }}>
-            {label}
-          </button>
+        {tabGroups.map((group, gi) => (
+          <React.Fragment key={group.label}>
+            {gi > 0 && <div className="flex-shrink-0 w-px h-6 mx-1" style={{ background: "#1e2330" }} />}
+            {group.items.map(([id, icon]) => (
+              <button key={id} onClick={() => setTab(id)}
+                className="flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium"
+                style={{ color: tab === id ? "#f5a623" : "#555e75", borderBottom: tab === id ? "2px solid #f5a623" : "2px solid transparent" }}>
+                <span className="text-base leading-none">{icon}</span>
+              </button>
+            ))}
+          </React.Fragment>
         ))}
       </div>
 
