@@ -313,11 +313,11 @@ export default function AdminPage() {
                     Période — Recettes vs Charges
                   </h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-4">
-                    <KPICard label="Brut Yango" value={kpis.brutYango} color="#f5a623" sub={`Moy/jour: ${kpis.avgBrutPerDay.toLocaleString("fr-FR")} XOF`} />
+                    <KPICard label="Brut Yango" value={kpis.brutYango} color="#f5a623" sub={`Moy/jour: ${Math.round(kpis.avgBrutPerDay).toLocaleString("fr-FR")} XOF`} />
                     <KPICard label="Net Yango" value={kpis.netYango} color="#3b82f6" sub="Après commission" />
                     <KPICard label="Hors Yango" value={kpis.horsYango} color="#a855f7" sub="Recettes off-platform" />
-                    <KPICard label="Total Recettes (net)" value={kpis.totalBrut} color="#22c55e" sub={`Moy/jour: ${kpis.avgNetPerDay.toLocaleString("fr-FR")} XOF`} />
-                    <KPICard label="Total Dépenses" value={kpis.totalDepenses} color="#ef4444" negative sub={`Moy/jour: ${kpis.avgDepensesPerDay.toLocaleString("fr-FR")} XOF`} />
+                    <KPICard label="Total Recettes (net)" value={kpis.totalBrut} color="#22c55e" sub={`Moy/jour: ${Math.round(kpis.avgNetPerDay).toLocaleString("fr-FR")} XOF`} />
+                    <KPICard label="Total Dépenses" value={kpis.totalDepenses} color="#ef4444" negative sub={`Moy/jour: ${Math.round(kpis.avgDepensesPerDay).toLocaleString("fr-FR")} XOF`} />
                     <KPICard label="NET FINAL" value={kpis.netFinal} color={kpis.netFinal >= 0 ? "#22c55e" : "#ef4444"} big sub={`${kpis.monthMarginPercent.toFixed(1)}% de marge`} />
                   </div>
                 </div>
@@ -332,7 +332,7 @@ export default function AdminPage() {
                         Revenus
                       </div>
                       <div className="text-2xl font-bold text-white font-mono mt-2">
-                        {kpis.todayRevenue.toLocaleString("fr-FR")}
+                        {Math.round(kpis.todayRevenue).toLocaleString("fr-FR")}
                         <span className="text-sm text-gray-400"> XOF</span>
                       </div>
                       <div className="text-xs text-gray-400 mt-1">
@@ -345,7 +345,7 @@ export default function AdminPage() {
                         Dépenses
                       </div>
                       <div className="text-2xl font-bold text-white font-mono mt-2">
-                        {kpis.todayExpenses.toLocaleString("fr-FR")}
+                        {Math.round(kpis.todayExpenses).toLocaleString("fr-FR")}
                         <span className="text-sm text-gray-400"> XOF</span>
                       </div>
                     </div>
@@ -367,7 +367,7 @@ export default function AdminPage() {
                             : "text-red-400"
                         }`}
                       >
-                        {kpis.todayNetMargin.toLocaleString("fr-FR")}
+                        {Math.round(kpis.todayNetMargin).toLocaleString("fr-FR")}
                         <span className="text-sm text-gray-400"> XOF</span>
                       </div>
                     </div>
@@ -395,10 +395,10 @@ export default function AdminPage() {
                         Revenus
                       </div>
                       <div className="text-2xl font-bold text-yellow-400 font-mono mt-2">
-                        {kpis.weekRevenue.toLocaleString("fr-FR")} XOF
+                        {Math.round(kpis.weekRevenue).toLocaleString("fr-FR")} XOF
                       </div>
                       <div className="text-xs text-gray-400 mt-2">
-                        Moy/jour: {kpis.weekAvgDailyRevenue.toLocaleString("fr-FR")} XOF
+                        Moy/jour: {Math.round(kpis.weekAvgDailyRevenue).toLocaleString("fr-FR")} XOF
                       </div>
                     </div>
 
@@ -407,7 +407,7 @@ export default function AdminPage() {
                         Dépenses
                       </div>
                       <div className="text-2xl font-bold text-red-400 font-mono mt-2">
-                        {kpis.weekExpenses.toLocaleString("fr-FR")} XOF
+                        {Math.round(kpis.weekExpenses).toLocaleString("fr-FR")} XOF
                       </div>
                     </div>
 
@@ -422,7 +422,7 @@ export default function AdminPage() {
                             : "text-red-400"
                         }`}
                       >
-                        {kpis.weekNetMargin.toLocaleString("fr-FR")} XOF
+                        {Math.round(kpis.weekNetMargin).toLocaleString("fr-FR")} XOF
                       </div>
                     </div>
                   </div>
@@ -439,7 +439,7 @@ export default function AdminPage() {
                         Revenus totaux
                       </div>
                       <div className="text-2xl font-bold text-yellow-400 font-mono mt-2">
-                        {kpis.monthRevenue.toLocaleString("fr-FR")} XOF
+                        {Math.round(kpis.monthRevenue).toLocaleString("fr-FR")} XOF
                       </div>
                     </div>
 
@@ -448,7 +448,7 @@ export default function AdminPage() {
                         Dépenses totales
                       </div>
                       <div className="text-2xl font-bold text-red-400 font-mono mt-2">
-                        {kpis.monthExpenses.toLocaleString("fr-FR")} XOF
+                        {Math.round(kpis.monthExpenses).toLocaleString("fr-FR")} XOF
                       </div>
                     </div>
 
@@ -472,7 +472,7 @@ export default function AdminPage() {
                         Moy/chauffeur
                       </div>
                       <div className="text-2xl font-bold text-white font-mono mt-2">
-                        {kpis.avgRevenuePerDriver.toLocaleString("fr-FR")} XOF
+                        {Math.round(kpis.avgRevenuePerDriver).toLocaleString("fr-FR")} XOF
                       </div>
                     </div>
                   </div>
@@ -634,7 +634,7 @@ export default function AdminPage() {
                       </div>
                       <div>
                         <div className="font-bold text-yellow-500 font-mono">
-                          {report.net_after_expenses.toLocaleString("fr-FR")} XOF
+                          {Math.round(report.net_after_expenses).toLocaleString("fr-FR")} XOF
                         </div>
                         <span
                           className={`inline-block text-xs font-semibold px-2 py-1 rounded mt-1 ${
