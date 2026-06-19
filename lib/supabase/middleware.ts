@@ -47,7 +47,7 @@ export const updateSession = async (request: NextRequest) => {
       if (tenant) {
         // Suspended by superadmin
         if (!tenant.active) {
-          return NextResponse.redirect(new URL("/locked", request.url));
+          return NextResponse.redirect(new URL("/locked?reason=inactive", request.url));
         }
 
         // Check expiry: plan_expires_at takes priority over trial_ends_at
@@ -55,7 +55,7 @@ export const updateSession = async (request: NextRequest) => {
         if (expiresAt) {
           const expired = new Date(expiresAt).getTime() < Date.now();
           if (expired && path !== "/locked") {
-            return NextResponse.redirect(new URL("/locked", request.url));
+            return NextResponse.redirect(new URL("/locked?reason=expired", request.url));
           }
         }
       }

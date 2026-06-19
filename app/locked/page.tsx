@@ -1,7 +1,15 @@
 "use client";
 export const dynamic = "force-dynamic";
 
-export default function LockedPage() {
+import { useSearchParams } from "next/navigation";
+import { Suspense } from "react";
+
+function LockedContent() {
+  const params = useSearchParams();
+  const reason = params.get("reason");
+
+  const isInactive = reason === "inactive";
+
   return (
     <div style={{
       minHeight: "100vh",
@@ -19,11 +27,17 @@ export default function LockedPage() {
       }}>
         <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
         <h1 style={{ color: "#f0f2f7", fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
-          Accès suspendu
+          {isInactive ? "Compte suspendu" : "Accès expiré"}
         </h1>
-        <p style={{ color: "#6b7280", fontSize: 14, lineHeight: 1.6, marginBottom: 32 }}>
-          Votre période d'accès est terminée.<br />
-          Contactez M3A pour renouveler votre abonnement et retrouver l'accès à votre flotte.
+        <p style={{ color: "#6b7280", fontSize: 14, lineHeight: 1.6, marginBottom: 8 }}>
+          {isInactive
+            ? "Votre compte a été suspendu par l'administrateur."
+            : "Votre période d'essai ou d'abonnement est terminée."}
+        </p>
+        <p style={{ color: "#374151", fontSize: 12, marginBottom: 32 }}>
+          {isInactive
+            ? "Contactez M3A pour réactiver votre accès."
+            : "Connectez-vous à /superadmin → cliquez sur votre tenant → Étendre l'accès."}
         </p>
 
         <a href="https://wa.me/221770000000?text=Je+souhaite+renouveler+mon+abonnement+Fleet+SaaS"
@@ -69,5 +83,13 @@ export default function LockedPage() {
         </button>
       </div>
     </div>
+  );
+}
+
+export default function LockedPage() {
+  return (
+    <Suspense>
+      <LockedContent />
+    </Suspense>
   );
 }
