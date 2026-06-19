@@ -7,17 +7,28 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
 import { createClient } from "@/lib/supabase/client";
 
-const DEFAULT_CFG = {
+import type { RemunerationConfig } from "@/lib/tenant/types";
+
+type Cfg = RemunerationConfig;
+
+const DEFAULT_CFG: Cfg = {
+  id: "", tenant_id: "",
+  model: "tiered",
+  base_amount: 200000,
+  commission_rate: 0,
+  bonus_threshold: 0,
+  bonus_amount: 0,
   comm_yango: 15,
   comm_partner: 0.75,
-  salary_rules: [
+  salary_tiers: [
     { min_net: 0,       total_salary: 200000, label: "Base" },
     { min_net: 1000000, total_salary: 230000, label: "Palier 1" },
     { min_net: 1150000, total_salary: 260000, label: "Palier 2" },
     { min_net: 1300000, total_salary: 300000, label: "Palier 3" },
   ],
+  target_net: 1300000,
+  daily_rent: 0,
 };
-type Cfg = typeof DEFAULT_CFG;
 
 function calcReport(yangoGross: number, yangoBonus: number, offYango: number, cfg: Cfg) {
   const base = yangoGross + yangoBonus;
@@ -28,7 +39,8 @@ function calcReport(yangoGross: number, yangoBonus: number, offYango: number, cf
 }
 
 function salaryLevel(net: number, cfg: Cfg) {
-  return [...cfg.salary_rules].sort((a, b) => b.min_net - a.min_net).find((r) => net >= r.min_net) ?? cfg.salary_rules[0];
+  const tiers = [...(cfg.salary_tiers || [])].sort((a, b) => b.min_net - a.min_net);
+  return tiers.find((r) => net >= r.min_net) ?? tiers[tiers.length - 1] ?? { min_net: 0, total_salary: cfg.base_amount, label: "Base" };
 }
 
 function xof(n: number) {
@@ -50,6 +62,7 @@ export default function DriverApp() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("home");
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [cfg, setCfg] = useState<Cfg>(DEFAULT_CFG);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
 
@@ -73,6 +86,21 @@ export default function DriverApp() {
         setProfileError("Profil introuvable. Contactez l'administrateur.");
       } else {
         setProfile(data);
+        // Load remuneration config for this tenant
+        if (data.tenant_id) {
+          const { data: remun } = await supabase
+            .from("remuneration_config")
+            .select("*")
+            .eq("tenant_id", data.tenant_id)
+            .maybeSingle();
+          if (remun) {
+            setCfg({
+              ...DEFAULT_CFG,
+              ...remun,
+              salary_tiers: Array.isArray(remun.salary_tiers) ? remun.salary_tiers : DEFAULT_CFG.salary_tiers,
+            });
+          }
+        }
       }
     } catch {
       setProfileError("Erreur de chargement du profil.");
@@ -195,12 +223,12 @@ export default function DriverApp() {
         {/* Content */}
         <div className="flex-1 overflow-y-auto pb-20 md:pb-0">
           <div className="md:max-w-3xl md:mx-auto md:px-0">
-            {tab === "home"     && <HomeTab    profile={profile} onNav={setTab} cfg={DEFAULT_CFG} />}
-            {tab === "report"   && <ReportTab  profile={profile} onBack={() => setTab("home")} cfg={DEFAULT_CFG} />}
+            {tab === "home"     && <HomeTab    profile={profile} onNav={setTab} cfg={cfg} />}
+            {tab === "report"   && <ReportTab  profile={profile} onBack={() => setTab("home")} cfg={cfg} />}
             {tab === "expense"  && <ExpenseTab profile={profile} onBack={() => setTab("home")} />}
-            {tab === "history"  && <HistoryTab profile={profile} onBack={() => setTab("home")} cfg={DEFAULT_CFG} />}
+            {tab === "history"  && <HistoryTab profile={profile} onBack={() => setTab("home")} cfg={cfg} />}
             {tab === "profil"   && <ProfilTab  profile={profile} onBack={() => setTab("home")} />}
-            {tab === "pilotage" && <DriverPilotageTab profile={profile} onBack={() => setTab("home")} />}
+            {tab === "pilotage" && <DriverPilotageTab profile={profile} onBack={() => setTab("home")} cfg={cfg} />}
             {tab === "repos"    && <ReposTab   profile={profile} onBack={() => setTab("home")} />}
           </div>
         </div>
@@ -251,10 +279,6 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
     })();
   }, [profile.id]);
 
-  const level = salaryLevel(monthNet, cfg);
-  const nextLevel = cfg.salary_rules.find((r) => r.min_net > monthNet && r.total_salary > level.total_salary);
-  const progress = nextLevel ? Math.min(100, ((monthNet - level.min_net) / (nextLevel.min_net - level.min_net)) * 100) : 100;
-
   return (
     <div className="p-4 space-y-4">
       <div className="rounded-2xl p-4" style={{
@@ -297,24 +321,71 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
       <div className="rounded-2xl p-5" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
         <div className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: "#3d4560" }}>Mois en cours</div>
         <div className="text-3xl font-bold text-white font-mono mb-1">{xof(monthNet)}</div>
-        <div className="text-xs mb-1" style={{ color: "#3d4560" }}>Net validé · {level.label}</div>
         {monthPending > 0 && (
           <div className="text-xs mb-3 px-2 py-1 rounded-lg inline-block" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623" }}>
             ⏳ {xof(monthPending)} en attente de validation
           </div>
         )}
-        {nextLevel ? (
-          <>
-            <div className="h-1.5 rounded-full overflow-hidden mb-2" style={{ background: "#1e2330" }}>
-              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progress}%`, background: "#f5a623" }} />
-            </div>
-            <div className="text-xs" style={{ color: "#555e75" }}>
-              {xof(nextLevel.min_net - monthNet)} pour <span style={{ color: "#f5a623" }}>{nextLevel.label}</span> → {xof(nextLevel.total_salary)}
-            </div>
-          </>
-        ) : (
-          <div className="text-xs font-semibold" style={{ color: "#22c55e" }}>🎉 Objectif max ! Salaire : {xof(level.total_salary)}</div>
+
+        {/* Affichage adaptatif selon le modèle de rémunération */}
+        {(cfg.model === "tiered") && (() => {
+          const level = salaryLevel(monthNet, cfg);
+          const nextLevel = cfg.salary_tiers.find((r) => r.min_net > monthNet && r.total_salary > level.total_salary);
+          const progress = nextLevel ? Math.min(100, ((monthNet - level.min_net) / (nextLevel.min_net - level.min_net)) * 100) : 100;
+          return (
+            <>
+              <div className="text-xs mb-2" style={{ color: "#3d4560" }}>Net validé · {level.label} → {xof(level.total_salary)}</div>
+              {nextLevel ? (
+                <>
+                  <div className="h-1.5 rounded-full overflow-hidden mb-2" style={{ background: "#1e2330" }}>
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progress}%`, background: "#f5a623" }} />
+                  </div>
+                  <div className="text-xs" style={{ color: "#555e75" }}>
+                    {xof(nextLevel.min_net - monthNet)} pour <span style={{ color: "#f5a623" }}>{nextLevel.label}</span> → {xof(nextLevel.total_salary)}
+                  </div>
+                </>
+              ) : (
+                <div className="text-xs font-semibold" style={{ color: "#22c55e" }}>🎉 Palier max atteint · Salaire : {xof(level.total_salary)}</div>
+              )}
+            </>
+          );
+        })()}
+
+        {cfg.model === "fixed" && (
+          <div className="text-xs" style={{ color: "#3d4560" }}>
+            Salaire fixe mensuel : <span className="font-bold" style={{ color: "#22c55e" }}>{xof(cfg.base_amount)}</span>
+          </div>
         )}
+
+        {cfg.model === "percent" && (
+          <div className="text-xs" style={{ color: "#3d4560" }}>
+            Votre part ({Math.round(cfg.commission_rate * 100)}%) : <span className="font-bold" style={{ color: "#22c55e" }}>{xof(monthNet * cfg.commission_rate)}</span>
+          </div>
+        )}
+
+        {cfg.model === "hybrid" && (() => {
+          const bonus = monthNet >= cfg.bonus_threshold && cfg.bonus_threshold > 0 ? cfg.bonus_amount : 0;
+          return (
+            <div className="text-xs space-y-1" style={{ color: "#3d4560" }}>
+              <div>Fixe : <span className="text-white">{xof(cfg.base_amount)}</span></div>
+              {cfg.bonus_threshold > 0 && (
+                <div>Bonus {monthNet >= cfg.bonus_threshold ? "✓" : `(atteint à ${xof(cfg.bonus_threshold)})`} : <span style={{ color: bonus > 0 ? "#22c55e" : "#555e75" }}>{xof(cfg.bonus_amount)}</span></div>
+              )}
+            </div>
+          );
+        })()}
+
+        {cfg.model === "location" && (() => {
+          const daysElapsed = new Date().getDate();
+          const rentDue = cfg.daily_rent * daysElapsed;
+          const netAfterRent = Math.max(0, monthNet - rentDue);
+          return (
+            <div className="text-xs space-y-1 mt-1" style={{ color: "#3d4560" }}>
+              <div>Loyer dû ({daysElapsed}j × {xof(cfg.daily_rent)}/j) : <span style={{ color: "#ef4444" }}>{xof(rentDue)}</span></div>
+              <div>Net après loyer : <span className="font-bold" style={{ color: netAfterRent > 0 ? "#22c55e" : "#ef4444" }}>{xof(netAfterRent)}</span></div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );
@@ -1266,17 +1337,13 @@ function ReposTab({ profile, onBack }: { profile: Profile; onBack: () => void })
 }
 
 // ─── DRIVER PILOTAGE TAB ─────────────────────────────
-function DriverPilotageTab({ profile, onBack }: { profile: Profile; onBack: () => void }) {
+function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => void; cfg: Cfg }) {
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const RULES = [
-    { min_net: 0,       total_salary: 200000, label: "Base" },
-    { min_net: 1000000, total_salary: 230000, label: "Palier 1" },
-    { min_net: 1150000, total_salary: 260000, label: "Palier 2" },
-    { min_net: 1300000, total_salary: 300000, label: "Palier 3 (Max)" },
-  ];
-  const TARGET = 1300000;
+  // Derive RULES and TARGET from cfg — no hardcoding
+  const RULES = cfg.salary_tiers.length > 0 ? cfg.salary_tiers : DEFAULT_CFG.salary_tiers;
+  const TARGET = cfg.target_net > 0 ? cfg.target_net : (RULES[RULES.length - 1]?.min_net ?? 1300000);
 
   useEffect(() => {
     (async () => {
@@ -1311,10 +1378,16 @@ function DriverPilotageTab({ profile, onBack }: { profile: Profile; onBack: () =
       const prevDays = new Set((prevReps || []).map((r: any) => r.date)).size || 1;
       const prevDailyAvg = prevNet / prevDays;
 
-      setStats({ mtdNet, mtdDays, dailyAvg, projectedNet, needed, tier, curTier, nextTier, progress, daysElapsed, daysRemaining, daysInMonth, prevNet, prevDailyAvg });
+      // Location model: net après loyer
+      const rentDue = cfg.model === "location" ? cfg.daily_rent * daysElapsed : 0;
+      const netAfterRent = cfg.model === "location" ? Math.max(0, mtdNet - rentDue) : 0;
+      const rentProjected = cfg.model === "location" ? cfg.daily_rent * daysInMonth : 0;
+
+      setStats({ mtdNet, mtdDays, dailyAvg, projectedNet, needed, tier, curTier, nextTier, progress, daysElapsed, daysRemaining, daysInMonth, prevNet, prevDailyAvg, rentDue, netAfterRent, rentProjected });
       setLoading(false);
     })();
-  }, [profile.id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.id, cfg.model, cfg.daily_rent, cfg.target_net]);
 
   if (loading) return <div className="flex items-center justify-center py-20"><p className="text-sm" style={{ color: "#3d4560" }}>Calcul en cours...</p></div>;
   if (!stats) return null;
@@ -1335,11 +1408,31 @@ function DriverPilotageTab({ profile, onBack }: { profile: Profile; onBack: () =
             NET après commissions
           </div>
         </div>
-        <div className="text-3xl font-bold font-mono mb-1 mt-2" style={{ color: "#f5a623" }}>{xof(stats.projectedNet)} <span className="text-sm font-normal" style={{ color: "#555e75" }}>XOF</span></div>
-        <div className="text-[10px] mb-2" style={{ color: "#3d4560" }}>
-          = Brut Yango − commission Yango (15%) − commission partenaire (0,75%)
+        <div className="text-3xl font-bold font-mono mb-1 mt-2" style={{ color: "#f5a623" }}>
+          {cfg.model === "location" ? xof(stats.projectedNet - stats.rentProjected) : xof(stats.projectedNet)}
+          <span className="text-sm font-normal ml-1" style={{ color: "#555e75" }}>XOF</span>
         </div>
-        <div className="text-sm" style={{ color: "#555e75" }}>Palier projeté : <span className="font-bold" style={{ color: "#f5a623" }}>{stats.tier.label}</span> → salaire <span className="font-mono font-bold" style={{ color: "#22c55e" }}>{xof(stats.tier.total_salary)} XOF</span></div>
+        <div className="text-[10px] mb-2" style={{ color: "#3d4560" }}>
+          {cfg.model === "location"
+            ? `= CA projeté − loyer mensuel (${cfg.daily_rent.toLocaleString("fr-FR")} XOF/j × ${stats.daysInMonth}j)`
+            : `= Brut Yango − comm. Yango (${cfg.comm_yango}%) − comm. partenaire (${cfg.comm_partner}%)`}
+        </div>
+        {cfg.model === "tiered" && (
+          <div className="text-sm" style={{ color: "#555e75" }}>Palier projeté : <span className="font-bold" style={{ color: "#f5a623" }}>{stats.tier.label}</span> → salaire <span className="font-mono font-bold" style={{ color: "#22c55e" }}>{xof(stats.tier.total_salary)}</span></div>
+        )}
+        {cfg.model === "fixed" && (
+          <div className="text-sm" style={{ color: "#555e75" }}>Salaire fixe : <span className="font-mono font-bold" style={{ color: "#22c55e" }}>{xof(cfg.base_amount)}</span></div>
+        )}
+        {cfg.model === "location" && (
+          <div className="text-sm" style={{ color: "#555e75" }}>
+            Loyer projeté ce mois : <span className="font-mono font-bold" style={{ color: "#ef4444" }}>{xof(stats.rentProjected)}</span>
+          </div>
+        )}
+        {cfg.model === "percent" && (
+          <div className="text-sm" style={{ color: "#555e75" }}>
+            Votre part ({Math.round(cfg.commission_rate * 100)}%) : <span className="font-mono font-bold" style={{ color: "#22c55e" }}>{xof(stats.projectedNet * cfg.commission_rate)}</span>
+          </div>
+        )}
       </div>
 
       {/* Progress to target */}
@@ -1380,46 +1473,88 @@ function DriverPilotageTab({ profile, onBack }: { profile: Profile; onBack: () =
           style={{ background: "rgba(239,68,68,.07)", border: "1px solid rgba(239,68,68,.2)" }}>
           <span>🚨</span>
           <div className="text-xs" style={{ color: "#f87171" }}>
-            Rythme insuffisant. Il vous faut <strong>{xof(stats.needed - stats.dailyAvg)} XOF/j de plus</strong> pour atteindre l'objectif. Projection actuelle : {stats.tier.label} ({xof(stats.tier.total_salary)} XOF).
+            Rythme insuffisant. Il vous faut <strong>{xof(stats.needed - stats.dailyAvg)} XOF/j de plus</strong> pour atteindre l'objectif.
+            {cfg.model === "tiered" && stats.tier && ` Projection actuelle : ${stats.tier.label} (${xof(stats.tier.total_salary)}).`}
+            {cfg.model === "location" && ` Loyer mensuel : ${xof(stats.rentProjected)}.`}
           </div>
         </div>
       )}
 
-      {/* Next tier progress */}
-      {stats.nextTier && (
+      {/* Location model: loyer dashboard */}
+      {cfg.model === "location" && (
+        <div className="rounded-2xl p-4 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+          <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "#3d4560" }}>Loyer opérateur</div>
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: `Loyer/jour`, value: xof(cfg.daily_rent), color: "#f5a623" },
+              { label: `Jours travaillés (MTD)`, value: `${stats.mtdDays}j`, color: "#8b92a8" },
+              { label: `Loyer dû (${stats.daysElapsed}j)`, value: xof(stats.rentDue), color: "#ef4444" },
+              { label: `Net après loyer`, value: xof(stats.netAfterRent), color: stats.netAfterRent > 0 ? "#22c55e" : "#ef4444" },
+            ].map((k) => (
+              <div key={k.label} className="rounded-xl p-3" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
+                <div className="text-[10px] mb-1" style={{ color: "#3d4560" }}>{k.label}</div>
+                <div className="text-sm font-mono font-bold" style={{ color: k.color }}>{k.value}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Next tier progress (tiered only) */}
+      {cfg.model === "tiered" && stats.nextTier && (
         <div className="rounded-2xl p-4 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
           <div className="text-xs font-semibold mb-2" style={{ color: "#555e75" }}>Progression vers {stats.nextTier.label}</div>
           <div className="h-1.5 rounded-full overflow-hidden mb-1.5" style={{ background: "#1e2330" }}>
             <div className="h-full rounded-full" style={{ width: `${stats.progress}%`, background: "#f5a623" }} />
           </div>
           <div className="text-xs" style={{ color: "#3d4560" }}>
-            {xof(stats.nextTier.min_net - stats.mtdNet)} XOF pour atteindre {stats.nextTier.label} → salaire {xof(stats.nextTier.total_salary)} XOF
+            {xof(stats.nextTier.min_net - stats.mtdNet)} pour atteindre {stats.nextTier.label} → salaire {xof(stats.nextTier.total_salary)}
           </div>
         </div>
       )}
 
-      {/* Salary tiers reference */}
-      <div className="rounded-2xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-        <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "#3d4560" }}>Grille salaires</div>
-        {RULES.map((r, i) => {
-          const isActive = r.label === stats.curTier.label;
-          const isProjected = r.label === stats.tier.label && !isActive;
-          return (
-            <div key={i} className="flex items-center justify-between py-2" style={{ borderBottom: i < RULES.length - 1 ? "1px solid #0a0c10" : "none" }}>
-              <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full" style={{ background: isActive ? "#22c55e" : isProjected ? "#f5a623" : "#2a2f3d" }} />
-                <span className="text-xs" style={{ color: isActive ? "#22c55e" : isProjected ? "#f5a623" : "#555e75" }}>
-                  {r.label} {isActive && "← actuel"} {isProjected && "← projeté"}
-                </span>
+      {/* Grille salaires (tiered only) */}
+      {cfg.model === "tiered" && RULES.length > 0 && (
+        <div className="rounded-2xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+          <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "#3d4560" }}>Grille salaires</div>
+          {RULES.map((r, i) => {
+            const isActive = r.label === stats.curTier?.label;
+            const isProjected = r.label === stats.tier?.label && !isActive;
+            return (
+              <div key={i} className="flex items-center justify-between py-2" style={{ borderBottom: i < RULES.length - 1 ? "1px solid #0a0c10" : "none" }}>
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 rounded-full" style={{ background: isActive ? "#22c55e" : isProjected ? "#f5a623" : "#2a2f3d" }} />
+                  <span className="text-xs" style={{ color: isActive ? "#22c55e" : isProjected ? "#f5a623" : "#555e75" }}>
+                    {r.label} {isActive && "← actuel"} {isProjected && "← projeté"}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs font-mono font-bold" style={{ color: isActive || isProjected ? "#f0f2f7" : "#3d4560" }}>{xof(r.total_salary)}</span>
+                  <span className="text-[10px] ml-1" style={{ color: "#3d4560" }}>≥ {xof(r.min_net)}</span>
+                </div>
               </div>
-              <div className="text-right">
-                <span className="text-xs font-mono font-bold" style={{ color: isActive || isProjected ? "#f0f2f7" : "#3d4560" }}>{xof(r.total_salary)} XOF</span>
-                <span className="text-[10px] ml-1" style={{ color: "#3d4560" }}>≥ {xof(r.min_net)}</span>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Résumé modèle fixe */}
+      {cfg.model === "fixed" && (
+        <div className="rounded-2xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+          <div className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: "#3d4560" }}>Rémunération</div>
+          <div className="text-sm text-white">Salaire fixe mensuel : <span className="font-mono font-bold" style={{ color: "#22c55e" }}>{xof(cfg.base_amount)}</span></div>
+          <div className="text-xs mt-1" style={{ color: "#555e75" }}>Indépendant du CA — versé chaque mois.</div>
+        </div>
+      )}
+
+      {/* Résumé modèle percent */}
+      {cfg.model === "percent" && (
+        <div className="rounded-2xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+          <div className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: "#3d4560" }}>Votre part</div>
+          <div className="text-sm text-white">{Math.round(cfg.commission_rate * 100)}% du CA net</div>
+          <div className="text-xs mt-1" style={{ color: "#555e75" }}>CA net MTD : {xof(stats.mtdNet)} → votre part : <span style={{ color: "#f5a623" }}>{xof(stats.mtdNet * cfg.commission_rate)}</span></div>
+        </div>
+      )}
     </div>
   );
 }

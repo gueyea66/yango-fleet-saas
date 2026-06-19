@@ -154,6 +154,7 @@ export default function AdminPage() {
     ["avances", "💰 Avances"],
     ["drivers", "🚗 Conducteurs"],
     ["journal", "📋 Journal"],
+    ["remuneration", "💼 Rémunération"],
     ["settings", "⚙️ Paramètres"],
   ];
 
@@ -743,33 +744,18 @@ export default function AdminPage() {
 
         {tab === "journal" && <ActionLogsTab />}
 
+        {tab === "remuneration" && adminTenantId && <RemunerationSettingsTab tenantId={adminTenantId} />}
+        {tab === "remuneration" && !adminTenantId && (
+          <div className="p-6 text-sm" style={{ color: "#555e75" }}>Chargement du tenant...</div>
+        )}
+
         {tab === "settings" && (
           <div>
             <h2 className="text-2xl font-bold text-white mb-6">Paramètres</h2>
-            <div className="bg-gray-800 rounded-lg border border-gray-700 p-6 max-w-md">
-              <div className="mb-6">
-                <label className="text-xs uppercase text-gray-400 tracking-widest font-semibold block mb-2">
-                  Commission Yango (%)
-                </label>
-                <input
-                  type="number"
-                  defaultValue="15"
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white"
-                />
-              </div>
-              <div className="mb-6">
-                <label className="text-xs uppercase text-gray-400 tracking-widest font-semibold block mb-2">
-                  Commission Partenaire (%)
-                </label>
-                <input
-                  type="number"
-                  defaultValue="0.75"
-                  className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white"
-                />
-              </div>
-              <button className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-semibold py-3 rounded">
-                Enregistrer les paramètres
-              </button>
+            <div className="rounded-2xl p-6 max-w-md" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+              <p className="text-sm mb-4" style={{ color: "#555e75" }}>
+                La configuration des commissions et du modèle de rémunération se trouve dans l'onglet <strong className="text-white">💼 Rémunération</strong>.
+              </p>
             </div>
           </div>
         )}
@@ -2303,6 +2289,268 @@ function ActionLogsTab() {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── REMUNERATION SETTINGS TAB ───────────────────────
+type RemuModel = "fixed" | "tiered" | "percent" | "hybrid" | "location";
+interface SalaryTier { min_net: number; total_salary: number; label: string }
+interface RemunCfg {
+  model: RemuModel;
+  base_amount: number;
+  commission_rate: number;
+  bonus_threshold: number;
+  bonus_amount: number;
+  comm_yango: number;
+  comm_partner: number;
+  salary_tiers: SalaryTier[];
+  target_net: number;
+  daily_rent: number;
+}
+
+const MODEL_LABELS: Record<RemuModel, string> = {
+  fixed:    "Salaire fixe mensuel",
+  tiered:   "Paliers selon CA net",
+  percent:  "Pourcentage du CA",
+  hybrid:   "Fixe + bonus seuil",
+  location: "Loyer journalier (driver auto-géré)",
+};
+
+function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
+  const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0)) + " XOF";
+  const [cfg, setCfg] = useState<RemunCfg>({
+    model: "tiered", base_amount: 0, commission_rate: 0, bonus_threshold: 0, bonus_amount: 0,
+    comm_yango: 15, comm_partner: 0.75, salary_tiers: [], target_net: 0, daily_rent: 0,
+  });
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [configId, setConfigId] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const supabase = createClient() as any;
+      const { data } = await supabase.from("remuneration_config").select("*").eq("tenant_id", tenantId).maybeSingle();
+      if (data) {
+        setConfigId(data.id);
+        setCfg({
+          model: data.model || "tiered",
+          base_amount: data.base_amount || 0,
+          commission_rate: data.commission_rate || 0,
+          bonus_threshold: data.bonus_threshold || 0,
+          bonus_amount: data.bonus_amount || 0,
+          comm_yango: data.comm_yango ?? 15,
+          comm_partner: data.comm_partner ?? 0.75,
+          salary_tiers: Array.isArray(data.salary_tiers) ? data.salary_tiers : [],
+          target_net: data.target_net || 0,
+          daily_rent: data.daily_rent || 0,
+        });
+      }
+      setLoading(false);
+    })();
+  }, [tenantId]);
+
+  const set = (k: keyof RemunCfg, v: any) => setCfg((c) => ({ ...c, [k]: v }));
+  const setTier = (i: number, k: keyof SalaryTier, v: any) => {
+    const tiers = [...cfg.salary_tiers];
+    tiers[i] = { ...tiers[i], [k]: k === "label" ? v : parseFloat(v) || 0 };
+    set("salary_tiers", tiers);
+  };
+  const addTier = () => set("salary_tiers", [...cfg.salary_tiers, { min_net: 0, total_salary: 0, label: `Palier ${cfg.salary_tiers.length + 1}` }]);
+  const removeTier = (i: number) => set("salary_tiers", cfg.salary_tiers.filter((_, j) => j !== i));
+
+  const save = async () => {
+    setSaving(true);
+    const supabase = createClient() as any;
+    const payload = { ...cfg, tenant_id: tenantId, updated_at: new Date().toISOString() };
+    const { error } = configId
+      ? await supabase.from("remuneration_config").update(payload).eq("id", configId)
+      : await supabase.from("remuneration_config").insert(payload);
+    setSaving(false);
+    if (!error) { setSaved(true); setTimeout(() => setSaved(false), 2500); }
+    else alert("Erreur : " + error.message);
+  };
+
+  const inp = "w-full rounded-xl px-3 py-2 text-sm text-white font-mono";
+  const inpStyle = { background: "#080a0f", border: "1px solid #2a2f3d", outline: "none" };
+  const lbl = "text-xs uppercase tracking-wider font-semibold mb-1 block";
+
+  if (loading) return <div className="py-20 text-center text-sm" style={{ color: "#3d4560" }}>Chargement...</div>;
+
+  return (
+    <div className="max-w-2xl">
+      <h2 className="text-2xl font-bold text-white mb-1">💼 Rémunération</h2>
+      <p className="text-sm mb-6" style={{ color: "#555e75" }}>Configuration du modèle de paiement des chauffeurs pour ce tenant.</p>
+
+      {/* Model selector */}
+      <div className="rounded-2xl p-5 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+        <label className={lbl} style={{ color: "#3d4560" }}>Modèle de rémunération</label>
+        <div className="grid grid-cols-1 gap-2 mt-2">
+          {(Object.entries(MODEL_LABELS) as [RemuModel, string][]).map(([key, label]) => (
+            <button key={key} onClick={() => set("model", key)}
+              className="flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all"
+              style={{
+                background: cfg.model === key ? "rgba(245,166,35,.1)" : "#080a0f",
+                border: `1px solid ${cfg.model === key ? "rgba(245,166,35,.4)" : "#1e2330"}`,
+              }}>
+              <div className="w-3 h-3 rounded-full border-2 flex-shrink-0" style={{ borderColor: cfg.model === key ? "#f5a623" : "#2a2f3d", background: cfg.model === key ? "#f5a623" : "transparent" }} />
+              <div>
+                <div className="text-sm font-semibold" style={{ color: cfg.model === key ? "#f5a623" : "#8b92a8" }}>{label}</div>
+                <div className="text-[10px] mt-0.5" style={{ color: "#3d4560" }}>
+                  {key === "fixed"    && "Salaire fixe peu importe le CA. Idéal pour partenariats stables."}
+                  {key === "tiered"   && "Grille de paliers : le salaire monte avec le CA net mensuel."}
+                  {key === "percent"  && "Le chauffeur garde X% du CA net. Simple et proportionnel."}
+                  {key === "hybrid"   && "Salaire fixe + bonus débloqué si un seuil CA est atteint."}
+                  {key === "location" && "Le chauffeur paie un loyer/jour à l'opérateur. Gère lui-même ses charges et son salaire."}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Commissions (tous modèles) */}
+      <div className="rounded-2xl p-5 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+        <div className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: "#3d4560" }}>Commissions plateformes</div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={lbl} style={{ color: "#555e75" }}>Commission Yango (%)</label>
+            <input type="number" value={cfg.comm_yango} onChange={(e) => set("comm_yango", parseFloat(e.target.value) || 0)}
+              className={inp} style={inpStyle} step="0.1" />
+            <div className="text-[10px] mt-1" style={{ color: "#3d4560" }}>Prélevée par Yango sur le brut</div>
+          </div>
+          <div>
+            <label className={lbl} style={{ color: "#555e75" }}>Commission Partenaire (%)</label>
+            <input type="number" value={cfg.comm_partner} onChange={(e) => set("comm_partner", parseFloat(e.target.value) || 0)}
+              className={inp} style={inpStyle} step="0.01" />
+            <div className="text-[10px] mt-1" style={{ color: "#3d4560" }}>Prélevée en plus par l'opérateur</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Fixed */}
+      {cfg.model === "fixed" && (
+        <div className="rounded-2xl p-5 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+          <div className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: "#3d4560" }}>Salaire fixe</div>
+          <label className={lbl} style={{ color: "#555e75" }}>Montant mensuel (XOF)</label>
+          <input type="number" value={cfg.base_amount} onChange={(e) => set("base_amount", parseFloat(e.target.value) || 0)}
+            className={inp} style={inpStyle} />
+        </div>
+      )}
+
+      {/* Tiered */}
+      {cfg.model === "tiered" && (
+        <div className="rounded-2xl p-5 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-xs uppercase tracking-wider font-semibold" style={{ color: "#3d4560" }}>Grille de paliers</div>
+            <button onClick={addTier} className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+              style={{ background: "rgba(245,166,35,.1)", color: "#f5a623", border: "1px solid rgba(245,166,35,.2)" }}>
+              + Ajouter palier
+            </button>
+          </div>
+          <div className="text-[10px] mb-3 px-3 py-2 rounded-lg" style={{ background: "#080a0f", color: "#555e75" }}>
+            Le premier palier (CA min = 0) est le salaire de base. Les suivants se débloquent quand le CA net mensuel dépasse le seuil.
+          </div>
+          {cfg.salary_tiers.map((t, i) => (
+            <div key={i} className="rounded-xl p-3 mb-2" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                <div>
+                  <label className={lbl} style={{ color: "#3d4560" }}>Libellé</label>
+                  <input value={t.label} onChange={(e) => setTier(i, "label", e.target.value)}
+                    className={inp} style={inpStyle} />
+                </div>
+                <div>
+                  <label className={lbl} style={{ color: "#3d4560" }}>CA min (XOF)</label>
+                  <input type="number" value={t.min_net} onChange={(e) => setTier(i, "min_net", e.target.value)}
+                    className={inp} style={inpStyle} />
+                </div>
+                <div>
+                  <label className={lbl} style={{ color: "#3d4560" }}>Salaire (XOF)</label>
+                  <input type="number" value={t.total_salary} onChange={(e) => setTier(i, "total_salary", e.target.value)}
+                    className={inp} style={inpStyle} />
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-[10px]" style={{ color: "#3d4560" }}>
+                <span>≥ {xof(t.min_net)} → {xof(t.total_salary)}</span>
+                {cfg.salary_tiers.length > 1 && (
+                  <button onClick={() => removeTier(i)} className="text-red-500 hover:text-red-400">✕ Supprimer</button>
+                )}
+              </div>
+            </div>
+          ))}
+          <div className="mt-3">
+            <label className={lbl} style={{ color: "#555e75" }}>Objectif CA net mensuel (XOF) <span style={{ color: "#3d4560" }}>— pour le Pilotage chauffeur</span></label>
+            <input type="number" value={cfg.target_net} onChange={(e) => set("target_net", parseFloat(e.target.value) || 0)}
+              className={inp} style={inpStyle} />
+          </div>
+        </div>
+      )}
+
+      {/* Percent */}
+      {cfg.model === "percent" && (
+        <div className="rounded-2xl p-5 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+          <div className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: "#3d4560" }}>Part du chauffeur</div>
+          <label className={lbl} style={{ color: "#555e75" }}>% du CA net reversé au chauffeur (0–1)</label>
+          <input type="number" value={cfg.commission_rate} onChange={(e) => set("commission_rate", parseFloat(e.target.value) || 0)}
+            className={inp} style={inpStyle} step="0.01" min="0" max="1" />
+          <div className="text-[10px] mt-1" style={{ color: "#3d4560" }}>Ex : 0.60 = le chauffeur garde 60% du CA net</div>
+        </div>
+      )}
+
+      {/* Hybrid */}
+      {cfg.model === "hybrid" && (
+        <div className="rounded-2xl p-5 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+          <div className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: "#3d4560" }}>Fixe + bonus</div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className={lbl} style={{ color: "#555e75" }}>Salaire fixe (XOF)</label>
+              <input type="number" value={cfg.base_amount} onChange={(e) => set("base_amount", parseFloat(e.target.value) || 0)}
+                className={inp} style={inpStyle} />
+            </div>
+            <div>
+              <label className={lbl} style={{ color: "#555e75" }}>Seuil CA pour bonus (XOF)</label>
+              <input type="number" value={cfg.bonus_threshold} onChange={(e) => set("bonus_threshold", parseFloat(e.target.value) || 0)}
+                className={inp} style={inpStyle} />
+            </div>
+            <div>
+              <label className={lbl} style={{ color: "#555e75" }}>Montant bonus (XOF)</label>
+              <input type="number" value={cfg.bonus_amount} onChange={(e) => set("bonus_amount", parseFloat(e.target.value) || 0)}
+                className={inp} style={inpStyle} />
+            </div>
+            <div>
+              <label className={lbl} style={{ color: "#555e75" }}>% commission (optionnel, 0–1)</label>
+              <input type="number" value={cfg.commission_rate} onChange={(e) => set("commission_rate", parseFloat(e.target.value) || 0)}
+                className={inp} style={inpStyle} step="0.01" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Location */}
+      {cfg.model === "location" && (
+        <div className="rounded-2xl p-5 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+          <div className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: "#3d4560" }}>Loyer journalier</div>
+          <label className={lbl} style={{ color: "#555e75" }}>Montant loyer/jour (XOF)</label>
+          <input type="number" value={cfg.daily_rent} onChange={(e) => set("daily_rent", parseFloat(e.target.value) || 0)}
+            className={inp} style={inpStyle} />
+          <div className="text-[10px] mt-2 px-3 py-2 rounded-lg" style={{ background: "#080a0f", color: "#555e75" }}>
+            Le chauffeur paie ce montant chaque jour travaillé à l'opérateur. Il conserve le reste de ses recettes et gère lui-même son salaire, carburant et autres charges. Le Pilotage chauffeur affiche le loyer dû et le net après loyer.
+          </div>
+          <div className="mt-4">
+            <label className={lbl} style={{ color: "#555e75" }}>Objectif CA net mensuel (XOF) <span style={{ color: "#3d4560" }}>— optionnel, pour le Pilotage</span></label>
+            <input type="number" value={cfg.target_net} onChange={(e) => set("target_net", parseFloat(e.target.value) || 0)}
+              className={inp} style={inpStyle} />
+          </div>
+        </div>
+      )}
+
+      {/* Save */}
+      <button onClick={save} disabled={saving}
+        className="w-full py-3 rounded-xl font-semibold text-black transition-all"
+        style={{ background: saved ? "#22c55e" : saving ? "#2a2f3d" : "#f5a623", color: saving ? "#555e75" : "#000" }}>
+        {saving ? "Enregistrement..." : saved ? "✓ Enregistré !" : "Enregistrer la configuration"}
+      </button>
     </div>
   );
 }

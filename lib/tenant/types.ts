@@ -19,14 +19,27 @@ export interface TenantSettings {
   operator_name: string | null;
 }
 
+export type RemunerationModel = "fixed" | "tiered" | "percent" | "hybrid" | "location";
+
+export interface SalaryTier {
+  min_net: number;
+  total_salary: number;
+  label: string;
+}
+
 export interface RemunerationConfig {
   id: string;
   tenant_id: string;
-  model: "fixed" | "percent" | "hybrid";
-  base_amount: number;
-  commission_rate: number;
-  bonus_threshold: number;
-  bonus_amount: number;
+  model: RemunerationModel;
+  base_amount: number;       // fixe mensuel (fixed / hybrid / tiered base)
+  commission_rate: number;   // % brut que le driver garde (percent / hybrid)
+  bonus_threshold: number;   // seuil CA pour bonus (hybrid)
+  bonus_amount: number;      // montant bonus (hybrid)
+  comm_yango: number;        // % commission Yango (tous modèles)
+  comm_partner: number;      // % commission partenaire (tous modèles)
+  salary_tiers: SalaryTier[];// grille paliers (tiered)
+  target_net: number;        // objectif CA net mensuel (tiered / pilotage)
+  daily_rent: number;        // loyer journalier dû à l'opérateur (location)
 }
 
 export interface TenantContext {

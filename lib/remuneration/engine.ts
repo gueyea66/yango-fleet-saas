@@ -1,10 +1,10 @@
 import type { RemunerationConfig } from "@/lib/tenant/types";
 
 export interface RemunerationInput {
-  grossYango: number;       // brut Yango du mois
-  grossOffYango: number;    // recettes hors Yango
-  daysWorked: number;       // jours travaillés
-  advances: number;         // avances déjà versées
+  grossYango: number;
+  grossOffYango: number;
+  daysWorked: number;
+  advances: number;
 }
 
 export interface RemunerationResult {
@@ -12,6 +12,7 @@ export interface RemunerationResult {
   baseSalary: number;
   commission: number;
   bonus: number;
+  rentDue: number;       // location model
   totalGross: number;
   deductAdvances: number;
   netToPay: number;
@@ -26,43 +27,61 @@ export function calculateRemuneration(
   let baseSalary = 0;
   let commission = 0;
   let bonus = 0;
+  let rentDue = 0;
 
   switch (config.model) {
     case "fixed":
       baseSalary = config.base_amount;
       break;
 
+    case "tiered": {
+      const tiers = [...(config.salary_tiers || [])].sort((a, b) => b.min_net - a.min_net);
+      const tier = tiers.find((t) => totalRevenue >= t.min_net) ?? tiers[tiers.length - 1];
+      baseSalary = tier?.total_salary ?? config.base_amount;
+      break;
+    }
+
     case "percent":
+      // driver_rate = commission_rate (0–1), driver earns that % of total revenue
       commission = totalRevenue * config.commission_rate;
       break;
 
     case "hybrid":
       baseSalary = config.base_amount;
-      commission = totalRevenue * config.commission_rate;
-      if (totalRevenue >= config.bonus_threshold && config.bonus_threshold > 0) {
+      if (config.commission_rate > 0) commission = totalRevenue * config.commission_rate;
+      if (config.bonus_threshold > 0 && totalRevenue >= config.bonus_threshold) {
         bonus = config.bonus_amount;
       }
+      break;
+
+    case "location":
+      // Driver pays daily_rent per worked day to operator, keeps everything else
+      rentDue = config.daily_rent * input.daysWorked;
+      // "salary" for the driver = net revenue - rent due (driver-managed)
+      commission = Math.max(0, totalRevenue - rentDue);
       break;
   }
 
   const totalGross = baseSalary + commission + bonus;
   const netToPay = Math.max(0, totalGross - input.advances);
 
-  const breakdownParts: string[] = [];
-  if (baseSalary > 0) breakdownParts.push(`Fixe: ${fmt(baseSalary)}`);
-  if (commission > 0) breakdownParts.push(`Commission (${(config.commission_rate * 100).toFixed(0)}%): ${fmt(commission)}`);
-  if (bonus > 0) breakdownParts.push(`Bonus: ${fmt(bonus)}`);
-  if (input.advances > 0) breakdownParts.push(`Avances: -${fmt(input.advances)}`);
+  const parts: string[] = [];
+  if (baseSalary > 0) parts.push(`Salaire: ${fmt(baseSalary)}`);
+  if (commission > 0 && config.model !== "location") parts.push(`Commission: ${fmt(commission)}`);
+  if (bonus > 0) parts.push(`Bonus: ${fmt(bonus)}`);
+  if (rentDue > 0) parts.push(`Loyer dû: ${fmt(rentDue)}`);
+  if (input.advances > 0) parts.push(`Avances: -${fmt(input.advances)}`);
 
   return {
     model: config.model,
     baseSalary,
     commission,
     bonus,
+    rentDue,
     totalGross,
     deductAdvances: input.advances,
     netToPay,
-    breakdown: breakdownParts.join(" | "),
+    breakdown: parts.join(" | "),
   };
 }
 
