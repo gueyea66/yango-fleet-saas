@@ -37,34 +37,25 @@ export default function AdminPage() {
   const [adminTenantId, setAdminTenantId] = useState<string | null>(null);
   const [remunCfg, setRemunCfg] = useState<any>(null);
 
+  // Get tenant_id from the admin's own profile FIRST, then load filtered data
   useEffect(() => {
-    (async () => {
-      const supabase = createClient() as any;
-      const [{ data: profs }, { data: vehs }] = await Promise.all([
-        supabase.from("profiles").select("id, full_name, driver_id, tenant_id").eq("role", "driver").order("full_name"),
-        supabase.from("vehicles").select("driver_id, plate"),
-      ]);
-      const plateMap = Object.fromEntries((vehs || []).map((v: any) => [v.driver_id, v.plate]));
-      setAllDrivers((profs || []).map((p: any) => ({ ...p, plate: plateMap[p.id] || null })));
-      // Get tenant_id from first driver profile (all drivers share the same tenant)
-      const firstWithTenant = (profs || []).find((p: any) => p.tenant_id);
-      if (firstWithTenant?.tenant_id) {
-        setAdminTenantId(firstWithTenant.tenant_id);
-        const { data: rc } = await supabase.from("remuneration_config").select("*").eq("tenant_id", firstWithTenant.tenant_id).maybeSingle();
-        if (rc) setRemunCfg(rc);
-      }
-    })();
-  }, []);
-
-  // Also try to get tenant_id from the admin's own profile
-  useEffect(() => {
-    if (!user || adminTenantId) return;
+    if (!user) return;
     (async () => {
       const supabase = createClient() as any;
       const { data: adminProfile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).maybeSingle();
-      if (adminProfile?.tenant_id) setAdminTenantId(adminProfile.tenant_id);
+      const tenantId = adminProfile?.tenant_id;
+      if (!tenantId) return;
+      setAdminTenantId(tenantId);
+      const [{ data: profs }, { data: vehs }, { data: rc }] = await Promise.all([
+        supabase.from("profiles").select("id, full_name, driver_id, tenant_id").eq("role", "driver").eq("tenant_id", tenantId).order("full_name"),
+        supabase.from("vehicles").select("driver_id, plate").eq("tenant_id", tenantId),
+        supabase.from("remuneration_config").select("*").eq("tenant_id", tenantId).maybeSingle(),
+      ]);
+      const plateMap = Object.fromEntries((vehs || []).map((v: any) => [v.driver_id, v.plate]));
+      setAllDrivers((profs || []).map((p: any) => ({ ...p, plate: plateMap[p.id] || null })));
+      if (rc) setRemunCfg(rc);
     })();
-  }, [user, adminTenantId]);
+  }, [user]);
 
   // Date filter for dashboard
   const now = new Date();
@@ -83,24 +74,24 @@ export default function AdminPage() {
   }, [user, loading, router]);
 
   useEffect(() => {
-    if (user && (tab === "history" || tab === "pending")) {
+    if (user && adminTenantId && (tab === "history" || tab === "pending")) {
       loadReports();
     }
-  }, [user, tab]);
+  }, [user, tab, adminTenantId]);
 
   const loadReports = async () => {
+    if (!adminTenantId) return;
     setLoadingReports(true);
     try {
       const supabase = createClient() as any;
       const [{ data: rData }, { data: eData }] = await Promise.all([
-        supabase.from("daily_reports").select("*").order("date", { ascending: false }).limit(200),
-        supabase.from("expenses").select("*").order("expense_date", { ascending: false, nullsFirst: false }).limit(200),
+        supabase.from("daily_reports").select("*").eq("tenant_id", adminTenantId).order("date", { ascending: false }).limit(200),
+        supabase.from("expenses").select("*").eq("tenant_id", adminTenantId).order("expense_date", { ascending: false, nullsFirst: false }).limit(200),
       ]);
       setReports(rData || []);
-      // Enrich expenses with driver name from profiles
       const expList = eData || [];
       if (expList.length > 0) {
-        const { data: profiles } = await supabase.from("profiles").select("id, full_name, driver_id");
+        const { data: profiles } = await supabase.from("profiles").select("id, full_name, driver_id").eq("tenant_id", adminTenantId);
         const profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.id, p]));
         setExpenses(expList.map((e: any) => ({ ...e, _profile: profileMap[e.driver_id] })));
       } else {
@@ -756,8 +747,8 @@ export default function AdminPage() {
         )}
 
         {tab === "calendrier" && <CalendrierTab filterDriverId={filterDriverId} allDrivers={allDrivers} />}
-        {tab === "payments" && <PaymentsTab filterDriverId={filterDriverId} />}
-        {tab === "avances" && <AvancesTab filterDriverId={filterDriverId} />}
+        {tab === "payments" && adminTenantId && <PaymentsTab filterDriverId={filterDriverId} tenantId={adminTenantId} />}
+        {tab === "avances" && adminTenantId && <AvancesTab filterDriverId={filterDriverId} tenantId={adminTenantId} />}
         {tab === "pilotage" && (
           <div className="text-center py-12">
             <div className="text-4xl mb-3">🎯</div>
@@ -2162,7 +2153,7 @@ function InsightsPanel({ kpis }: { kpis: any }) {
 }
 
 // ─── PAYMENTS TAB ─────────────────────────────────────
-function PaymentsTab({ filterDriverId = "" }: { filterDriverId?: string }) {
+function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: string; tenantId: string }) {
   const [payments, setPayments] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2178,14 +2169,14 @@ function PaymentsTab({ filterDriverId = "" }: { filterDriverId?: string }) {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [tenantId]);
 
   const load = async () => {
     setLoading(true);
     const supabase = createClient() as any;
     const [{ data: pays }, { data: drvs }] = await Promise.all([
-      supabase.from("payments").select("*, profiles(full_name, driver_id)").order("payment_date", { ascending: false }).limit(100),
-      supabase.from("profiles").select("id, full_name, driver_id").eq("role", "driver").order("full_name"),
+      supabase.from("payments").select("*, profiles(full_name, driver_id)").eq("tenant_id", tenantId).order("payment_date", { ascending: false }).limit(100),
+      supabase.from("profiles").select("id, full_name, driver_id").eq("role", "driver").eq("tenant_id", tenantId).order("full_name"),
     ]);
     setPayments(pays || []);
     setDrivers(drvs || []);
@@ -2200,6 +2191,7 @@ function PaymentsTab({ filterDriverId = "" }: { filterDriverId?: string }) {
       const supabase = createClient() as any;
       const { error } = await supabase.from("payments").insert({
         driver_id: form.driver_id,
+        tenant_id: tenantId,
         amount: parseFloat(form.amount),
         payment_date: form.payment_date,
         salary_month: form.salary_month || null,
@@ -2463,7 +2455,7 @@ function PaymentRow({ payment: p, onDelete, typeBadge, xof }: { payment: any; on
 }
 
 // ─── AVANCES TAB ─────────────────────────────────────
-function AvancesTab({ filterDriverId = "" }: { filterDriverId?: string }) {
+function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string; tenantId: string }) {
   const [advances, setAdvances] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2473,7 +2465,7 @@ function AvancesTab({ filterDriverId = "" }: { filterDriverId?: string }) {
   const [form, setForm] = useState({ driver_id: "", amount: "", payment_date: today, notes: "" });
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [tenantId]);
 
   const load = async () => {
     setLoading(true);
@@ -2482,9 +2474,10 @@ function AvancesTab({ filterDriverId = "" }: { filterDriverId?: string }) {
       supabase.from("payments")
         .select("*, profiles(full_name, driver_id)")
         .eq("type", "acompte")
+        .eq("tenant_id", tenantId)
         .order("payment_date", { ascending: false })
         .limit(200),
-      supabase.from("profiles").select("id, full_name, driver_id").eq("role", "driver").order("full_name"),
+      supabase.from("profiles").select("id, full_name, driver_id").eq("role", "driver").eq("tenant_id", tenantId).order("full_name"),
     ]);
     setAdvances(advs || []);
     setDrivers(drvs || []);
@@ -2499,6 +2492,7 @@ function AvancesTab({ filterDriverId = "" }: { filterDriverId?: string }) {
       const supabase = createClient() as any;
       const { error } = await supabase.from("payments").insert({
         driver_id: form.driver_id,
+        tenant_id: tenantId,
         amount: parseFloat(form.amount),
         payment_date: form.payment_date,
         type: "acompte",
