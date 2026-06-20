@@ -537,7 +537,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
               <label className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-center cursor-pointer"
                 style={{ background: "transparent", border: "1px solid #2a2f3d", color: "#555e75" }}>
                 📁 Fichier
-                <input type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
+                <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,video/*" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
               </label>
             </div>
           </div>
@@ -619,7 +619,7 @@ function UploadBlock({ driverId, refId, refType, label = "📎 Photos / Reçus" 
       </div>
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
         onChange={(e) => { Array.from(e.target.files || []).forEach(upload); e.target.value = ""; }} />
-      <input ref={fileRef} type="file" accept="image/*,.pdf" multiple className="hidden"
+      <input ref={fileRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,video/*" multiple className="hidden"
         onChange={(e) => { Array.from(e.target.files || []).forEach(upload); e.target.value = ""; }} />
       {loadingFiles && <div className="text-xs text-center py-2" style={{ color: "#3d4560" }}>Chargement...</div>}
       {files.length > 0 && (
@@ -767,7 +767,7 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
             <label className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-center cursor-pointer"
               style={{ background: "transparent", border: "1px solid #2a2f3d", color: "#555e75" }}>
               📁 Fichier
-              <input type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
+              <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,video/*" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
             </label>
           </div>
         </div>
@@ -1262,7 +1262,7 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
                   style={{ background: "rgba(245,166,35,.1)", color: isUploading ? "#555e75" : "#f5a623", border: "1px solid rgba(245,166,35,.15)" }}>
                   {isUploading ? "..." : uploaded ? "Remplacer" : "Uploader"}
                 </button>
-                <input type="file" accept="image/*,.pdf" className="hidden"
+                <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,video/*" className="hidden"
                   ref={(el) => { fileRefs.current[doc.type] = el; }}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(f, doc.type); }} />
               </div>

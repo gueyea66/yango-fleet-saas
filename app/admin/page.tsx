@@ -1356,7 +1356,7 @@ function KycAdminTab({ tenantId }: { tenantId: string }) {
                       )}
                       <label className="text-[10px] px-2 py-0.5 rounded font-semibold cursor-pointer" style={{ background: "rgba(245,166,35,.1)", color: uploadingDoc === def.type ? "#555e75" : "#f5a623" }}>
                         {uploadingDoc === def.type ? "⏳" : doc ? "🔄 Remplacer" : "📎 Uploader"}
-                        <input type="file" accept="image/*,application/pdf" className="hidden"
+                        <input type="file" accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,video/*" className="hidden"
                           onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(def.type, f); e.target.value = ""; }}
                           disabled={!!uploadingDoc} />
                       </label>
