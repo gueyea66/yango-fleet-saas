@@ -46,6 +46,28 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ id: user.user.id, email });
 }
 
+export async function PATCH(req: NextRequest) {
+  const { superadminKey, userId, email, password } = await req.json();
+  const storedKey = await getStoredKey();
+  if (superadminKey !== storedKey) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if (!userId) return NextResponse.json({ error: "userId requis" }, { status: 400 });
+
+  const updates: Record<string, string> = {};
+  if (email) updates.email = email;
+  if (password) updates.password = password;
+
+  const { error: authError } = await (adminClient.auth.admin as any).updateUserById(userId, updates);
+  if (authError) return NextResponse.json({ error: authError.message }, { status: 400 });
+
+  if (email) {
+    await adminClient.from("profiles").update({ email }).eq("id", userId);
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
 export async function DELETE(req: NextRequest) {
   const { superadminKey, userId } = await req.json();
   const storedKey = await getStoredKey();

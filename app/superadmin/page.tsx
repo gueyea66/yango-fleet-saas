@@ -42,6 +42,7 @@ export default function SuperAdminPage() {
   const [form, setForm] = useState({ slug: "", name: "", app_name: "", plan: "standard", primary_color: "#f5a623", model: "fixed", base_amount: "0", commission_rate: "0", trial_days: "30" });
   const [adminForm, setAdminForm] = useState<Record<string, { email: string; password: string }>>({});
   const [extendDays, setExtendDays] = useState<Record<string, string>>({});
+  const [editAdmin, setEditAdmin] = useState<Record<string, { email: string; password: string } | null>>({});
   const [keyForm, setKeyForm] = useState({ current: "", newKey: "", confirm: "" });
   const [globalSettings, setGlobalSettings] = useState({ whatsapp: "", phone: "", companyName: "M3A Solutions", defaultTrialDays: "30", defaultPlan: "standard" });
   const [settingsLoading, setSettingsLoading] = useState(false);
@@ -181,6 +182,23 @@ export default function SuperAdminPage() {
     const d = await apiDelete("/api/superadmin/create-admin", { userId });
     if (d.error) return notify(d.error, false);
     notify("✓ Admin supprimé"); load();
+  }
+
+  async function updateAdmin(userId: string) {
+    const f = editAdmin[userId];
+    if (!f) return;
+    const body: Record<string, string> = { userId };
+    if (f.email) body.email = f.email;
+    if (f.password) body.password = f.password;
+    const res = await fetch("/api/superadmin/create-admin", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ superadminKey: key, ...body }),
+    });
+    const d = await res.json();
+    if (d.error) return notify(d.error, false);
+    notify("✓ Admin mis à jour");
+    setEditAdmin(p => ({ ...p, [userId]: null }));
+    load();
   }
 
   const S: Record<string, React.CSSProperties> = {
@@ -464,15 +482,33 @@ export default function SuperAdminPage() {
                       <div>
                         <div style={{ fontSize: 11, color: "#f5a623", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 10 }}>Comptes Admin</div>
                         {(t.admins || []).map(a => (
-                          <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", background: "#080a0f", borderRadius: 8, marginBottom: 5 }}>
-                            <div style={{ width: 24, height: 24, borderRadius: 5, background: "#1e2330", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#9ca3af" }}>
-                              {a.email.slice(0, 1).toUpperCase()}
+                          <div key={a.id} style={{ background: "#080a0f", borderRadius: 8, marginBottom: 5 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 10px" }}>
+                              <div style={{ width: 24, height: 24, borderRadius: 5, background: "#1e2330", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, color: "#9ca3af", flexShrink: 0 }}>
+                                {a.email.slice(0, 1).toUpperCase()}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: 11, color: "#f0f2f7", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.email}</div>
+                              </div>
+                              <button onClick={() => setEditAdmin(p => ({ ...p, [a.id]: p[a.id] ? null : { email: a.email, password: "" } }))}
+                                style={{ background: "none", border: "none", color: editAdmin[a.id] ? "#f5a623" : "#6b7280", cursor: "pointer", fontSize: 11 }}>✏️</button>
+                              <button onClick={() => deleteAdmin(a.id)}
+                                style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", fontSize: 11 }}>✕</button>
                             </div>
-                            <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: 11, color: "#f0f2f7" }}>{a.email}</div>
-                            </div>
-                            <button onClick={() => deleteAdmin(a.id)}
-                              style={{ background: "none", border: "none", color: "#6b7280", cursor: "pointer", fontSize: 11 }}>✕</button>
+                            {editAdmin[a.id] && (
+                              <div style={{ padding: "0 10px 10px" }}>
+                                <input placeholder="Nouvel email" value={editAdmin[a.id]!.email}
+                                  onChange={e => setEditAdmin(p => ({ ...p, [a.id]: { ...p[a.id]!, email: e.target.value } }))}
+                                  style={{ ...S.smallInput, marginBottom: 4 }} />
+                                <input type="password" placeholder="Nouveau mot de passe (optionnel)" value={editAdmin[a.id]!.password}
+                                  onChange={e => setEditAdmin(p => ({ ...p, [a.id]: { ...p[a.id]!, password: e.target.value } }))}
+                                  style={{ ...S.smallInput, marginBottom: 6 }} />
+                                <button onClick={() => updateAdmin(a.id)}
+                                  style={{ background: "#f5a623", color: "#080a0f", border: "none", borderRadius: 6, padding: "5px 12px", fontWeight: 700, cursor: "pointer", fontSize: 11 }}>
+                                  Sauvegarder
+                                </button>
+                              </div>
+                            )}
                           </div>
                         ))}
                         <div style={{ background: "#080a0f", borderRadius: 8, padding: 10, marginTop: 8 }}>
