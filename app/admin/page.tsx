@@ -1174,6 +1174,9 @@ function KycAdminTab({ tenantId }: { tenantId: string }) {
   const [saving, setSaving] = useState(false);
   const [notes, setNotes] = useState("");
   const [level, setLevel] = useState("debutant");
+  const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileForm, setProfileForm] = useState<Record<string, string>>({});
   const supabase = (createClient as any)();
 
   const loadDrivers = async () => {
@@ -1190,13 +1193,52 @@ function KycAdminTab({ tenantId }: { tenantId: string }) {
     setDriverDocs(docs || []);
     setNotes(p?.onboarding_notes || "");
     setLevel(p?.driver_level || "debutant");
-    // Get signed URLs for docs
+    setProfileForm({
+      full_name: p?.full_name || "", address: p?.address || "", city: p?.city || "",
+      birth_date: p?.birth_date || "", nationality: p?.nationality || "",
+      license_number: p?.license_number || "", license_expiry: p?.license_expiry || "",
+      years_experience: String(p?.years_experience ?? ""),
+      emergency_name: p?.emergency_name || "", emergency_phone: p?.emergency_phone || "",
+      emergency_relation: p?.emergency_relation || "", phone_number: p?.phone_number || "",
+    });
     const urls: Record<string, string> = {};
     for (const doc of (docs || [])) {
       const { data: su } = await supabase.storage.from("kyc-documents").createSignedUrl(doc.file_path, 3600);
       if (su?.signedUrl) urls[doc.doc_type] = su.signedUrl;
     }
     setDocUrls(urls);
+  };
+
+  const uploadDoc = async (docType: string, file: File) => {
+    if (!selected) return;
+    setUploadingDoc(docType);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${selected}/${docType}_${Date.now()}.${ext}`;
+      await supabase.storage.from("kyc-documents").upload(path, file, { upsert: true });
+      const existing = driverDocs.find((d) => d.doc_type === docType);
+      if (existing) {
+        await supabase.from("kyc_documents").update({ file_path: path, file_name: file.name, file_size: file.size, status: "pending", uploaded_at: new Date().toISOString() }).eq("id", existing.id);
+      } else {
+        await supabase.from("kyc_documents").insert({ driver_id: selected, tenant_id: tenantId, doc_type: docType, file_path: path, file_name: file.name, file_size: file.size, status: "pending" });
+      }
+      await loadDriver(selected);
+    } finally {
+      setUploadingDoc(null);
+    }
+  };
+
+  const saveProfile = async () => {
+    if (!selected) return;
+    setSaving(true);
+    await supabase.from("profiles").update({
+      ...profileForm,
+      years_experience: profileForm.years_experience ? parseInt(profileForm.years_experience) : 0,
+      updated_at: new Date().toISOString(),
+    }).eq("id", selected);
+    await loadDriver(selected);
+    setEditingProfile(false);
+    setSaving(false);
   };
 
   useEffect(() => { loadDrivers(); }, [tenantId]);
@@ -1251,12 +1293,43 @@ function KycAdminTab({ tenantId }: { tenantId: string }) {
 
         {/* Personal info */}
         <div className="rounded-2xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-          <div className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: "#3d4560" }}>Informations</div>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
-            {[["Adresse", driverProfile.address], ["Ville", driverProfile.city], ["Naissance", driverProfile.birth_date], ["Nationalité", driverProfile.nationality], ["Permis", driverProfile.license_number], ["Expiration", driverProfile.license_expiry], ["Expérience", driverProfile.years_experience != null ? `${driverProfile.years_experience} ans` : "—"], ["Contact urgence", driverProfile.emergency_name], ["Tél urgence", driverProfile.emergency_phone], ["Relation", driverProfile.emergency_relation]].map(([k, v]) => (
-              <div key={k}><span style={{ color: "#555e75" }}>{k} : </span><span className="text-white">{v || "—"}</span></div>
-            ))}
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: "#3d4560" }}>Informations</div>
+            <button onClick={() => setEditingProfile(!editingProfile)} className="text-xs px-3 py-1 rounded-lg font-semibold"
+              style={{ background: editingProfile ? "rgba(245,166,35,.15)" : "#1e2330", color: editingProfile ? "#f5a623" : "#8b92a8" }}>
+              {editingProfile ? "Annuler" : "✏️ Modifier"}
+            </button>
           </div>
+          {editingProfile ? (
+            <div className="space-y-2">
+              {[
+                ["Nom complet", "full_name", "text"], ["Téléphone", "phone_number", "text"],
+                ["Adresse", "address", "text"], ["Ville", "city", "text"],
+                ["Date naissance", "birth_date", "date"], ["Nationalité", "nationality", "text"],
+                ["N° permis", "license_number", "text"], ["Expiration permis", "license_expiry", "date"],
+                ["Années d'expérience", "years_experience", "number"],
+                ["Contact urgence", "emergency_name", "text"], ["Tél urgence", "emergency_phone", "text"],
+                ["Relation", "emergency_relation", "text"],
+              ].map(([label, key, type]) => (
+                <div key={key as string}>
+                  <div className="text-[10px] mb-1" style={{ color: "#555e75" }}>{label as string}</div>
+                  <input type={type as string} value={profileForm[key as string] || ""} onChange={(e) => setProfileForm(p => ({ ...p, [key as string]: e.target.value }))}
+                    className="w-full rounded-lg px-3 py-2 text-xs outline-none"
+                    style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#f0f2f7" }} />
+                </div>
+              ))}
+              <button onClick={saveProfile} disabled={saving} className="w-full py-2.5 rounded-xl text-xs font-bold mt-2"
+                style={{ background: "rgba(245,166,35,.15)", color: "#f5a623", border: "1px solid rgba(245,166,35,.3)" }}>
+                {saving ? "Sauvegarde..." : "💾 Sauvegarder la fiche"}
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
+              {[["Adresse", driverProfile.address], ["Ville", driverProfile.city], ["Naissance", driverProfile.birth_date], ["Nationalité", driverProfile.nationality], ["Permis", driverProfile.license_number], ["Expiration", driverProfile.license_expiry], ["Expérience", driverProfile.years_experience != null ? `${driverProfile.years_experience} ans` : "—"], ["Contact urgence", driverProfile.emergency_name], ["Tél urgence", driverProfile.emergency_phone], ["Relation", driverProfile.emergency_relation]].map(([k, v]) => (
+                <div key={k as string}><span style={{ color: "#555e75" }}>{k} : </span><span className="text-white">{(v as string) || "—"}</span></div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Documents */}
@@ -1271,15 +1344,23 @@ function KycAdminTab({ tenantId }: { tenantId: string }) {
                 <div key={def.type} className="rounded-xl p-3" style={{ background: "#080a0f", border: `1px solid ${docStatusColor}30` }}>
                   <div className="flex items-center justify-between mb-2">
                     <div className="text-xs font-semibold text-white">{def.label}</div>
-                    {doc ? (
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px]" style={{ color: docStatusColor }}>{doc.status === "approved" ? "✓ Approuvé" : doc.status === "rejected" ? "✗ Rejeté" : "⏳ En attente"}</span>
-                        {doc.status !== "approved" && <button onClick={() => updateDocStatus(doc.id, "approved")} className="text-[10px] px-2 py-0.5 rounded font-semibold" style={{ background: "rgba(34,197,94,.1)", color: "#22c55e" }}>Approuver</button>}
-                        {doc.status !== "rejected" && <button onClick={() => updateDocStatus(doc.id, "rejected")} className="text-[10px] px-2 py-0.5 rounded font-semibold" style={{ background: "rgba(239,68,68,.1)", color: "#ef4444" }}>Rejeter</button>}
-                      </div>
-                    ) : (
-                      <span className="text-[10px]" style={{ color: "#3d4560" }}>Non uploadé</span>
-                    )}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {doc ? (
+                        <>
+                          <span className="text-[10px]" style={{ color: docStatusColor }}>{doc.status === "approved" ? "✓ Approuvé" : doc.status === "rejected" ? "✗ Rejeté" : "⏳ En attente"}</span>
+                          {doc.status !== "approved" && <button onClick={() => updateDocStatus(doc.id, "approved")} className="text-[10px] px-2 py-0.5 rounded font-semibold" style={{ background: "rgba(34,197,94,.1)", color: "#22c55e" }}>Approuver</button>}
+                          {doc.status !== "rejected" && <button onClick={() => updateDocStatus(doc.id, "rejected")} className="text-[10px] px-2 py-0.5 rounded font-semibold" style={{ background: "rgba(239,68,68,.1)", color: "#ef4444" }}>Rejeter</button>}
+                        </>
+                      ) : (
+                        <span className="text-[10px]" style={{ color: "#3d4560" }}>Non uploadé</span>
+                      )}
+                      <label className="text-[10px] px-2 py-0.5 rounded font-semibold cursor-pointer" style={{ background: "rgba(245,166,35,.1)", color: uploadingDoc === def.type ? "#555e75" : "#f5a623" }}>
+                        {uploadingDoc === def.type ? "⏳" : doc ? "🔄 Remplacer" : "📎 Uploader"}
+                        <input type="file" accept="image/*,application/pdf" className="hidden"
+                          onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(def.type, f); e.target.value = ""; }}
+                          disabled={!!uploadingDoc} />
+                      </label>
+                    </div>
                   </div>
                   {url && (
                     url.toLowerCase().includes(".pdf") ? (
