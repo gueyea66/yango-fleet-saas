@@ -673,10 +673,13 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
     setSaving(true);
     try {
       const supabase = createClient() as any;
+      const isFuel = form.type === "Carburant";
       const { data, error } = await supabase.from("expenses").insert({
         driver_id: profile.id, tenant_id: profile.tenant_id, category: form.type, amount: parseFloat(form.amount),
         expense_date: form.expense_date, status: "submitted",
         description: [form.odometer ? `KM: ${form.odometer}` : null, form.fuel_liters ? `${form.fuel_liters}L` : null, form.comment || null].filter(Boolean).join(" · ") || null,
+        ...(isFuel && form.fuel_liters ? { fuel_liters: parseFloat(form.fuel_liters) } : {}),
+        ...(isFuel && form.odometer ? { fuel_odometer: parseInt(form.odometer) } : {}),
       }).select().single();
       if (error) throw error;
       const expId = data?.id || null;
@@ -1515,13 +1518,91 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
       const daysElapsed = today.getDate();
       const daysRemaining = daysInMonth - daysElapsed;
 
-      const { data: reps } = await supabase.from("daily_reports").select("date,net_after_expenses,yango_gross,yango_bonus,off_yango_revenue")
-        .eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("source", "saas").gte("date", start).lte("date", todayStr).neq("status", "rejected");
-      const mtdNet = (reps || []).reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0);
+      // Fetch MTD reports with all fields needed for accurate projections
+      const [{ data: reps }, { data: fuelExps }] = await Promise.all([
+        supabase.from("daily_reports")
+          .select("date,net_after_expenses,yango_gross,yango_bonus,off_yango_revenue,solde_yango,end_odometer")
+          .eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("source", "saas")
+          .gte("date", start).lte("date", todayStr).neq("status", "rejected")
+          .order("date", { ascending: true }),
+        supabase.from("expenses")
+          .select("amount,fuel_liters,description,expense_date")
+          .eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id)
+          .eq("category", "Carburant").eq("status", "approved")
+          .gte("expense_date", start),
+      ]);
+
+      const sortedReps = (reps || []).filter((r: any) => r.end_odometer > 0 || r.solde_yango != null);
       const mtdDays = new Set((reps || []).map((r: any) => r.date)).size || 1;
-      const dailyAvg = mtdNet / mtdDays;
-      const projectedNet = mtdNet + dailyAvg * daysRemaining;
+
+      // ── Revenue per working day (unaffected by lump expenses) ──
+      const grossPerDay = (reps || []).map((r: any) =>
+        (r.yango_gross || 0) + (r.yango_bonus || 0) + (r.off_yango_revenue || 0)
+      );
+      const avgDailyGross = grossPerDay.length > 0
+        ? grossPerDay.reduce((s: number, v: number) => s + v, 0) / grossPerDay.length
+        : 0;
+
+      // ── Km/day from odometer deltas ──
+      const kmDeltas: number[] = [];
+      for (let i = 1; i < sortedReps.length; i++) {
+        const prev = sortedReps[i - 1].end_odometer;
+        const curr = sortedReps[i].end_odometer;
+        if (prev > 0 && curr > 0 && curr > prev) {
+          const delta = curr - prev;
+          if (delta > 0 && delta < 800) kmDeltas.push(delta); // sanity: <800km/day
+        }
+      }
+      const avgKmPerDay = kmDeltas.length > 0
+        ? kmDeltas.reduce((s, v) => s + v, 0) / kmDeltas.length
+        : null;
+
+      // ── Fuel wallet burn rate from solde_yango deltas ──
+      const soldeDeltas: number[] = [];
+      for (let i = 1; i < sortedReps.length; i++) {
+        const prev = sortedReps[i - 1].solde_yango;
+        const curr = sortedReps[i].solde_yango;
+        if (prev != null && curr != null) {
+          const burn = prev - curr; // positive = wallet decreased = consumed
+          if (burn > 0) soldeDeltas.push(burn);
+        }
+      }
+      const avgDailyWalletBurn = soldeDeltas.length > 0
+        ? soldeDeltas.reduce((s, v) => s + v, 0) / soldeDeltas.length
+        : null;
+
+      // ── Price per liter from approved fuel declarations ──
+      // Prefer dedicated column, fallback to parsing description ("12L")
+      let totalFuelAmount = 0, totalFuelLiters = 0;
+      for (const e of (fuelExps || [])) {
+        let liters = e.fuel_liters;
+        if (!liters && e.description) {
+          const m = String(e.description).match(/(\d+(?:\.\d+)?)\s*[Ll]/);
+          if (m) liters = parseFloat(m[1]);
+        }
+        if (liters && liters > 0 && e.amount > 0) {
+          totalFuelAmount += e.amount;
+          totalFuelLiters += liters;
+        }
+      }
+      const avgPricePerLiter = totalFuelLiters > 0 ? totalFuelAmount / totalFuelLiters : null;
+      const avgFuelCostPerKm = (avgPricePerLiter && avgKmPerDay && totalFuelLiters > 0)
+        ? totalFuelAmount / (kmDeltas.reduce((s, v) => s + v, 0) || avgKmPerDay)
+        : null;
+
+      // ── Projected daily net ──
+      // Revenue: smoothed daily gross average
+      // Expenses: wallet burn (real consumption) if available, else fallback to net_after_expenses diff
+      const projDailyNet = avgDailyGross - (avgDailyWalletBurn ?? 0);
+
+      // MTD net = sum of approved net_after_expenses (actual realized)
+      const mtdNet = (reps || []).reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0);
+
+      // Projection from today forward uses smoothed daily net
+      const projectedNet = mtdNet + projDailyNet * daysRemaining;
+      const dailyAvg = mtdNet / mtdDays; // realized avg (for display)
       const needed = (TARGET - mtdNet) / Math.max(daysRemaining, 1);
+
       const tier = [...RULES].sort((a, b) => b.min_net - a.min_net).find((r) => projectedNet >= r.min_net) ?? RULES[0];
       const curTier = [...RULES].sort((a, b) => b.min_net - a.min_net).find((r) => mtdNet >= r.min_net) ?? RULES[0];
       const nextTier = [...RULES].sort((a, b) => a.min_net - b.min_net).find((r) => r.min_net > mtdNet);
@@ -1532,7 +1613,8 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
       const prevStart = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}-01`;
       const prevEnd = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}-${new Date(prevMonth.getFullYear(), prevMonth.getMonth() + 1, 0).getDate()}`;
       const { data: prevReps } = await supabase.from("daily_reports").select("net_after_expenses,date")
-        .eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("source", "saas").gte("date", prevStart).lte("date", prevEnd).neq("status", "rejected");
+        .eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("source", "saas")
+        .gte("date", prevStart).lte("date", prevEnd).neq("status", "rejected");
       const prevNet = (prevReps || []).reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0);
       const prevDays = new Set((prevReps || []).map((r: any) => r.date)).size || 1;
       const prevDailyAvg = prevNet / prevDays;
@@ -1542,7 +1624,15 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
       const netAfterRent = cfg.model === "location" ? Math.max(0, mtdNet - rentDue) : 0;
       const rentProjected = cfg.model === "location" ? cfg.daily_rent * daysInMonth : 0;
 
-      setStats({ mtdNet, mtdDays, dailyAvg, projectedNet, needed, tier, curTier, nextTier, progress, daysElapsed, daysRemaining, daysInMonth, prevNet, prevDailyAvg, rentDue, netAfterRent, rentProjected });
+      setStats({
+        mtdNet, mtdDays, dailyAvg, projDailyNet, projectedNet, needed,
+        tier, curTier, nextTier, progress, daysElapsed, daysRemaining, daysInMonth,
+        prevNet, prevDailyAvg, rentDue, netAfterRent, rentProjected,
+        // Consommation metrics
+        avgKmPerDay, avgDailyWalletBurn, avgPricePerLiter, avgFuelCostPerKm,
+        avgDailyGross, fuelDataPoints: totalFuelLiters > 0 ? (fuelExps || []).length : 0,
+        kmDataPoints: kmDeltas.length,
+      });
       setLoading(false);
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1564,7 +1654,7 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
         <div className="flex items-center justify-between mb-1">
           <div className="text-xs uppercase tracking-wider font-semibold" style={{ color: "#3d4560" }}>Projection fin de mois</div>
           <div className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(34,197,94,.1)", color: "#22c55e" }}>
-            NET après commissions
+            {stats.avgDailyWalletBurn != null ? "Base consommation réelle" : "NET après commissions"}
           </div>
         </div>
         <div className="text-3xl font-bold font-mono mb-1 mt-2" style={{ color: "#f5a623" }}>
@@ -1625,6 +1715,50 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
           </div>
         ))}
       </div>
+
+      {/* Consommation réelle — métriques issues des deltas */}
+      {(stats.avgKmPerDay || stats.avgPricePerLiter || stats.avgDailyWalletBurn) && (
+        <div className="rounded-2xl p-4 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+          <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "#3d4560" }}>
+            Consommation réelle (base projection)
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {stats.avgKmPerDay != null && (
+              <div className="rounded-xl p-3" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
+                <div className="text-[10px] mb-1" style={{ color: "#3d4560" }}>Km/jour moy.</div>
+                <div className="text-sm font-mono font-bold" style={{ color: "#f5a623" }}>{Math.round(stats.avgKmPerDay)} km</div>
+                <div className="text-[10px]" style={{ color: "#3d4560" }}>sur {stats.kmDataPoints} jours consécutifs</div>
+              </div>
+            )}
+            {stats.avgDailyWalletBurn != null && (
+              <div className="rounded-xl p-3" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
+                <div className="text-[10px] mb-1" style={{ color: "#3d4560" }}>Burn wallet/jour</div>
+                <div className="text-sm font-mono font-bold" style={{ color: "#ef4444" }}>{xof(Math.round(stats.avgDailyWalletBurn))}</div>
+                <div className="text-[10px]" style={{ color: "#3d4560" }}>delta solde Yango J−1→J</div>
+              </div>
+            )}
+            {stats.avgPricePerLiter != null && (
+              <div className="rounded-xl p-3" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
+                <div className="text-[10px] mb-1" style={{ color: "#3d4560" }}>Prix moyen/litre</div>
+                <div className="text-sm font-mono font-bold" style={{ color: "#8b92a8" }}>{xof(Math.round(stats.avgPricePerLiter))}/L</div>
+                <div className="text-[10px]" style={{ color: "#3d4560" }}>{stats.fuelDataPoints} déclarations</div>
+              </div>
+            )}
+            {stats.avgDailyGross > 0 && (
+              <div className="rounded-xl p-3" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
+                <div className="text-[10px] mb-1" style={{ color: "#3d4560" }}>CA brut/jour lissé</div>
+                <div className="text-sm font-mono font-bold" style={{ color: "#22c55e" }}>{xof(Math.round(stats.avgDailyGross))}</div>
+                <div className="text-[10px]" style={{ color: "#3d4560" }}>avant commissions</div>
+              </div>
+            )}
+          </div>
+          {stats.avgDailyWalletBurn != null && (
+            <div className="mt-3 text-[10px] rounded-lg px-3 py-2" style={{ background: "#0a0c10", color: "#555e75" }}>
+              Projection nette/jour = {xof(Math.round(stats.avgDailyGross))} CA − {xof(Math.round(stats.avgDailyWalletBurn))} burn = <span style={{ color: stats.projDailyNet >= 0 ? "#22c55e" : "#ef4444" }}>{xof(Math.round(stats.projDailyNet))}/j</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Alert */}
       {!paceOk && (
