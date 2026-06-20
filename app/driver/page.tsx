@@ -590,12 +590,17 @@ function UploadBlock({ driverId, refId, refType, label = "📎 Photos / Reçus" 
       const supabase = createClient() as any;
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const path = `${refType}/${driverId}/${refId || "pending"}/${Date.now()}-${safeName}`;
-      const { error } = await supabase.storage.from("kyc-documents").upload(path, file, { upsert: true });
-      if (error) throw error;
-      const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(path);
+
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("path", path);
+      const res = await fetch("/api/kyc-upload", { method: "POST", body: fd });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Upload échoué");
+
       await supabase.from("uploads").insert({ driver_id: driverId, file_name: file.name, file_path: path, file_type: refType, file_size: file.size, ...(refId ? { ref_id: refId } : {}) });
       const isImg = /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(file.name);
-      setFiles((p) => [...p, { name: file.name, url: publicUrl, isImg }]);
+      setFiles((p) => [...p, { name: file.name, url: result.signedUrl || result.publicUrl, isImg }]);
     } catch (err: any) { alert("Upload échoué : " + err.message); }
     finally { setUploading(false); }
   };
@@ -1154,8 +1159,15 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
       const supabase = createClient() as any;
       const ext = file.name.split(".").pop() || "jpg";
       const path = `${profile.tenant_id}/${profile.id}/${docType}.${ext}`;
-      const { error: upErr } = await supabase.storage.from("kyc-documents").upload(path, file, { upsert: true });
-      if (upErr) throw upErr;
+
+      // Upload via server route (service role — no storage RLS needed)
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("path", path);
+      const res = await fetch("/api/kyc-upload", { method: "POST", body: fd });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Upload échoué");
+
       const existing = kycDocs[docType];
       if (existing) {
         await supabase.from("kyc_documents").update({ file_path: path, file_name: file.name, file_size: file.size, status: "pending", uploaded_at: new Date().toISOString() }).eq("id", existing.id);

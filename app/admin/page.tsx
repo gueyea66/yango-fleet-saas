@@ -38,6 +38,11 @@ export default function AdminPage() {
   const [remunCfg, setRemunCfg] = useState<any>(null);
 
   // Get tenant_id from the admin's own profile FIRST, then load filtered data
+  // Ensure storage bucket exists (idempotent)
+  useEffect(() => {
+    fetch("/api/setup-storage", { method: "POST" }).catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (!user) return;
     (async () => {
@@ -1215,14 +1220,26 @@ function KycAdminTab({ tenantId }: { tenantId: string }) {
     try {
       const ext = file.name.split(".").pop();
       const path = `${selected}/${docType}_${Date.now()}.${ext}`;
-      await supabase.storage.from("kyc-documents").upload(path, file, { upsert: true });
+
+      // Upload via server route (service role — no storage RLS needed)
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("path", path);
+      const res = await fetch("/api/kyc-upload", { method: "POST", body: fd });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Upload échoué");
+
       const existing = driverDocs.find((d) => d.doc_type === docType);
       if (existing) {
-        await supabase.from("kyc_documents").update({ file_path: path, file_name: file.name, file_size: file.size, status: "pending", uploaded_at: new Date().toISOString() }).eq("id", existing.id);
+        const { error: updErr } = await supabase.from("kyc_documents").update({ file_path: path, file_name: file.name, file_size: file.size, status: "pending", uploaded_at: new Date().toISOString() }).eq("id", existing.id);
+        if (updErr) throw new Error(`DB update: ${updErr.message}`);
       } else {
-        await supabase.from("kyc_documents").insert({ driver_id: selected, tenant_id: tenantId, doc_type: docType, file_path: path, file_name: file.name, file_size: file.size, status: "pending" });
+        const { error: insErr } = await supabase.from("kyc_documents").insert({ driver_id: selected, tenant_id: tenantId, doc_type: docType, file_path: path, file_name: file.name, file_size: file.size, status: "pending" });
+        if (insErr) throw new Error(`DB insert: ${insErr.message}`);
       }
       await loadDriver(selected);
+    } catch (err: any) {
+      alert("Upload KYC échoué : " + err.message);
     } finally {
       setUploadingDoc(null);
     }
