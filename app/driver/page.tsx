@@ -400,8 +400,10 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
   const [saving, setSaving] = useState(false);
   const [vehicle, setVehicle] = useState<any>(null);
   const [reportId, setReportId] = useState<string | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const n = (s: string) => parseFloat(s) || 0;
+  const addFiles = (files: FileList | null) => { if (files) setPendingFiles((prev) => [...prev, ...Array.from(files)]); };
 
   useEffect(() => {
     (async () => {
@@ -438,6 +440,13 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
       if (error) throw error;
       if (newReport?.id) {
         setReportId(newReport.id);
+        // Upload pending files
+        for (const file of pendingFiles) {
+          const ext = file.name.split(".").pop();
+          const path = `${profile.id}/report_${newReport.id}_${Date.now()}.${ext}`;
+          await supabase.storage.from("kyc-documents").upload(path, file, { upsert: true });
+          await supabase.from("uploads").insert({ driver_id: profile.id, tenant_id: profile.tenant_id, file_name: file.name, file_path: path, file_type: "report", file_size: file.size, ref_id: newReport.id });
+        }
         void supabase.from("action_logs").insert({
           tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
           entity_type: "daily_report", entity_id: newReport.id, action: "submitted",
@@ -505,8 +514,40 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         )}
 
         <Field label="Commentaire"><InpTextarea placeholder="Optionnel..." value={form.comment} onChange={(v) => set("comment", v)} disabled={!canEdit} /></Field>
-        {canEdit && <BtnPrimary onClick={submit} disabled={saving}>{saving ? "Enregistrement..." : "Soumettre le rapport →"}</BtnPrimary>}
-        {canEdit && <div className="text-xs text-center" style={{ color: "#3d4560" }}>Vous pourrez ajouter des photos après soumission</div>}
+
+        {canEdit && (
+          <div style={{ background: "#080a0f", border: "1px solid #1e2330", borderRadius: 16, padding: 16 }}>
+            <div className="text-xs font-semibold mb-3" style={{ color: "#8b92a8" }}>📎 Pièces jointes (optionnel)</div>
+            {pendingFiles.length > 0 && (
+              <div className="space-y-1.5 mb-3">
+                {pendingFiles.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs" style={{ color: "#8b92a8" }}>
+                    <span>📄</span><span className="flex-1 truncate">{f.name}</span>
+                    <button onClick={() => setPendingFiles((prev) => prev.filter((_, j) => j !== i))} style={{ color: "#ef4444", background: "none", border: "none", cursor: "pointer" }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="flex gap-2">
+              <label className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-center cursor-pointer"
+                style={{ background: "rgba(245,166,35,.08)", border: "1px solid rgba(245,166,35,.25)", color: "#f5a623" }}>
+                📷 Photo
+                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addFiles(e.target.files)} />
+              </label>
+              <label className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-center cursor-pointer"
+                style={{ background: "transparent", border: "1px solid #2a2f3d", color: "#555e75" }}>
+                📁 Fichier
+                <input type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
+              </label>
+            </div>
+          </div>
+        )}
+
+        {canEdit && (
+          <BtnPrimary onClick={submit} disabled={saving}>
+            {saving ? "Envoi en cours..." : pendingFiles.length > 0 ? `Soumettre + ${pendingFiles.length} fichier${pendingFiles.length > 1 ? "s" : ""} →` : "Soumettre le rapport →"}
+          </BtnPrimary>
+        )}
       </div>
     </div>
   );
@@ -618,8 +659,14 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
   const [submitted, setSubmitted] = useState(false);
   const [expenseId, setExpenseId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const expenseTypes = ["Carburant", "Péage", "Contrôle routier", "Entretien", "Lavage", "Amende", "Solde Yango", "Autre"];
+
+  const addFiles = (files: FileList | null) => {
+    if (!files) return;
+    setPendingFiles((prev) => [...prev, ...Array.from(files)]);
+  };
 
   const submit = async () => {
     if (!form.amount) { alert("Le montant est requis"); return; }
@@ -634,6 +681,15 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
       if (error) throw error;
       const expId = data?.id || null;
       setExpenseId(expId);
+      // Upload pending files
+      if (expId && pendingFiles.length > 0) {
+        for (const file of pendingFiles) {
+          const ext = file.name.split(".").pop();
+          const path = `${profile.id}/expense_${expId}_${Date.now()}.${ext}`;
+          await supabase.storage.from("kyc-documents").upload(path, file, { upsert: true });
+          await supabase.from("uploads").insert({ driver_id: profile.id, tenant_id: profile.tenant_id, file_name: file.name, file_path: path, file_type: "expense", file_size: file.size, ref_id: expId });
+        }
+      }
       if (expId) {
         void supabase.from("action_logs").insert({
           tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
@@ -688,8 +744,37 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
           </div>
         )}
         <Field label="Note"><InpTextarea placeholder="Optionnel..." value={form.comment} onChange={(v) => set("comment", v)} /></Field>
-        <BtnPrimary onClick={submit} disabled={saving}>{saving ? "Enregistrement..." : "Soumettre →"}</BtnPrimary>
-        <div className="text-xs text-center" style={{ color: "#3d4560" }}>Vous pourrez ajouter des photos après soumission</div>
+
+        {/* Justificatifs */}
+        <div style={{ background: "#080a0f", border: "1px solid #1e2330", borderRadius: 16, padding: 16 }}>
+          <div className="text-xs font-semibold mb-3" style={{ color: "#8b92a8" }}>📎 Justificatif (reçu, photo…)</div>
+          {pendingFiles.length > 0 && (
+            <div className="space-y-1.5 mb-3">
+              {pendingFiles.map((f, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs" style={{ color: "#8b92a8" }}>
+                  <span>📄</span><span className="flex-1 truncate">{f.name}</span>
+                  <button onClick={() => setPendingFiles((prev) => prev.filter((_, j) => j !== i))} style={{ color: "#ef4444", background: "none", border: "none", cursor: "pointer" }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2">
+            <label className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-center cursor-pointer"
+              style={{ background: "rgba(245,166,35,.08)", border: "1px solid rgba(245,166,35,.25)", color: "#f5a623" }}>
+              📷 Photo
+              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addFiles(e.target.files)} />
+            </label>
+            <label className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-center cursor-pointer"
+              style={{ background: "transparent", border: "1px solid #2a2f3d", color: "#555e75" }}>
+              📁 Fichier
+              <input type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
+            </label>
+          </div>
+        </div>
+
+        <BtnPrimary onClick={submit} disabled={saving}>
+          {saving ? "Envoi en cours..." : pendingFiles.length > 0 ? `Soumettre + ${pendingFiles.length} fichier${pendingFiles.length > 1 ? "s" : ""} →` : "Soumettre →"}
+        </BtnPrimary>
       </div>
     </div>
   );
