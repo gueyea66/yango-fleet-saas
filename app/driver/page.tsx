@@ -428,23 +428,35 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
     try {
       const supabase = createClient() as any;
       const { data: newReport, error } = await supabase.from("daily_reports").insert({
-        driver_id: profile.id, tenant_id: profile.tenant_id, date: form.date, end_odometer: n(form.end_odometer),
-        gross_earnings: calc.base + n(form.off_yango_revenue), yango_gross: n(form.yango_gross), yango_bonus: n(form.yango_bonus),
-        off_yango_revenue: n(form.off_yango_revenue), solde_yango: n(form.solde_yango), yango_trip_count: n(form.yango_trip_count), off_yango_trip_count: n(form.off_yango_trip_count),
-        commission_rate: effectiveCfg.comm_yango / 100, commission_amount: calc.commY + calc.commP,
+        driver_id: profile.id,
+        tenant_id: profile.tenant_id,
+        date: form.date,
+        end_odometer: n(form.end_odometer),
+        gross_earnings: calc.base + n(form.off_yango_revenue),
+        yango_gross: n(form.yango_gross),
+        yango_bonus: n(form.yango_bonus),
+        off_yango_revenue: n(form.off_yango_revenue),
+        solde_yango: form.solde_yango ? n(form.solde_yango) : null,
+        yango_trip_count: form.yango_trip_count ? n(form.yango_trip_count) : null,
+        off_yango_trip_count: form.off_yango_trip_count ? n(form.off_yango_trip_count) : null,
+        commission_rate: effectiveCfg.comm_yango / 100,
+        commission_amount: calc.commY + calc.commP,
         partner_rate: effectiveCfg.comm_partner / 100,
         net_after_expenses: calc.total,
         vehicle_id: vehicle?.id ?? null,
-        expense_count: 0, status: "submitted", comment: form.comment,
+        expense_count: 0,
+        status: "submitted",
+        comment: form.comment || null,
       }).select("id").single();
       if (error) throw error;
       if (newReport?.id) {
         setReportId(newReport.id);
-        // Upload pending files
+        // Upload pending files via API (service role)
         for (const file of pendingFiles) {
           const ext = file.name.split(".").pop();
           const path = `${profile.id}/report_${newReport.id}_${Date.now()}.${ext}`;
-          await supabase.storage.from("kyc-documents").upload(path, file, { upsert: true });
+          const fd = new FormData(); fd.append("file", file); fd.append("path", path);
+          await fetch("/api/kyc-upload", { method: "POST", body: fd });
           await supabase.from("uploads").insert({ driver_id: profile.id, tenant_id: profile.tenant_id, file_name: file.name, file_path: path, file_type: "report", file_size: file.size, ref_id: newReport.id });
         }
         void supabase.from("action_logs").insert({
@@ -678,23 +690,21 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
     setSaving(true);
     try {
       const supabase = createClient() as any;
-      const isFuel = form.type === "Carburant";
       const { data, error } = await supabase.from("expenses").insert({
         driver_id: profile.id, tenant_id: profile.tenant_id, category: form.type, amount: parseFloat(form.amount),
         expense_date: form.expense_date, status: "submitted",
         description: [form.odometer ? `KM: ${form.odometer}` : null, form.fuel_liters ? `${form.fuel_liters}L` : null, form.comment || null].filter(Boolean).join(" · ") || null,
-        ...(isFuel && form.fuel_liters ? { fuel_liters: parseFloat(form.fuel_liters) } : {}),
-        ...(isFuel && form.odometer ? { fuel_odometer: parseInt(form.odometer) } : {}),
       }).select().single();
       if (error) throw error;
       const expId = data?.id || null;
       setExpenseId(expId);
-      // Upload pending files
+      // Upload pending files via API (service role)
       if (expId && pendingFiles.length > 0) {
         for (const file of pendingFiles) {
           const ext = file.name.split(".").pop();
           const path = `${profile.id}/expense_${expId}_${Date.now()}.${ext}`;
-          await supabase.storage.from("kyc-documents").upload(path, file, { upsert: true });
+          const fd = new FormData(); fd.append("file", file); fd.append("path", path);
+          await fetch("/api/kyc-upload", { method: "POST", body: fd });
           await supabase.from("uploads").insert({ driver_id: profile.id, tenant_id: profile.tenant_id, file_name: file.name, file_path: path, file_type: "expense", file_size: file.size, ref_id: expId });
         }
       }
