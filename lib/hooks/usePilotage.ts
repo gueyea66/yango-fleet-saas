@@ -444,13 +444,20 @@ export function usePilotage(params: PilotageParams = DEFAULT_PARAMS) {
     setError(null);
     try {
       const supabase = createClient() as any;
+      // Resolve tenant_id from the current user's profile
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: myProfile } = await supabase.from("profiles").select("tenant_id").eq("id", user?.id).maybeSingle();
+      const tid: string | null = myProfile?.tenant_id || null;
+      const tQ = (q: any) => tid ? q.eq("tenant_id", tid) : q;
+      const srcQ = (q: any) => q.or("source.eq.saas,source.is.null");
+
       const today = new Date();
       const sixAgo = new Date(today.getFullYear(), today.getMonth() - 5, 1).toISOString().split("T")[0];
       const [{ data: reps }, { data: exps }, { data: pays }, { data: profs }] = await Promise.all([
-        supabase.from("daily_reports").select("*").gte("date", sixAgo).neq("status", "rejected").order("date"),
-        supabase.from("expenses").select("*"),
-        supabase.from("payments").select("*"),
-        supabase.from("profiles").select("id,full_name,driver_id").eq("role", "driver"),
+        srcQ(tQ(supabase.from("daily_reports").select("*"))).gte("date", sixAgo).neq("status", "rejected").order("date"),
+        srcQ(tQ(supabase.from("expenses").select("*"))),
+        tQ(supabase.from("payments").select("*")),
+        tQ(supabase.from("profiles").select("id,full_name,driver_id").eq("role", "driver")),
       ]);
       setRaw({ reports: reps || [], expenses: exps || [], payments: pays || [], profiles: profs || [] });
     } catch (err) {
