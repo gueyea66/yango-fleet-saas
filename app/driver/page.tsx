@@ -470,7 +470,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
           .select("id").single());
       } else {
         ({ data: newReport, error } = await supabase.from("daily_reports")
-          .insert({ driver_id: profile.id, tenant_id: profile.tenant_id, date: form.date, ...payload })
+          .insert({ driver_id: profile.id, tenant_id: profile.tenant_id, date: form.date, source: "saas", ...payload })
           .select("id").single());
       }
       if (error) throw error;
@@ -725,7 +725,7 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
       const supabase = createClient() as any;
       const { data, error } = await supabase.from("expenses").insert({
         driver_id: profile.id, tenant_id: profile.tenant_id, category: form.type, amount: parseFloat(form.amount),
-        expense_date: form.expense_date, status: "submitted",
+        expense_date: form.expense_date, status: "submitted", source: "saas",
         description: [form.odometer ? `KM: ${form.odometer}` : null, form.fuel_liters ? `${form.fuel_liters}L` : null, form.comment || null].filter(Boolean).join(" · ") || null,
       }).select().single();
       if (error) throw error;
@@ -842,8 +842,8 @@ function HistoryTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => 
     (async () => {
       const supabase = createClient() as any;
       const [{ data: r }, { data: e }] = await Promise.all([
-        supabase.from("daily_reports").select("*").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("source", "saas").order("date", { ascending: false }).limit(30),
-        supabase.from("expenses").select("*").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("source", "saas").order("expense_date", { ascending: false, nullsFirst: false }).limit(30),
+        supabase.from("daily_reports").select("*").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).or("source.eq.saas,source.is.null").order("date", { ascending: false }).limit(30),
+        supabase.from("expenses").select("*").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).or("source.eq.saas,source.is.null").order("expense_date", { ascending: false, nullsFirst: false }).limit(30),
       ]);
       setReports(r || []);
       setExpenses(e || []);
@@ -874,7 +874,7 @@ function HistoryTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => 
           {reports.map((r) => (
             <ReportHistoryCard key={r.id} report={r} profile={profile} onRefresh={() => {
               const supabase = createClient() as any;
-              supabase.from("daily_reports").select("*").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("source", "saas").order("date", { ascending: false }).limit(30).then(({ data }: any) => { if (data) setReports(data); });
+              supabase.from("daily_reports").select("*").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).or("source.eq.saas,source.is.null").order("date", { ascending: false }).limit(30).then(({ data }: any) => { if (data) setReports(data); });
             }} />
           ))}
         </div>
@@ -1533,6 +1533,7 @@ function ReposTab({ profile, onBack }: { profile: Profile; onBack: () => void })
         driver_id: profile.id,
         tenant_id: profile.tenant_id,
         date,
+        source: "saas",
         status: "submitted",
         comment: `[REPOS]${motif ? " " + motif.trim() : ""}`,
         gross_earnings: 0,
@@ -1644,7 +1645,7 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
       const [{ data: reps }, { data: fuelExps }] = await Promise.all([
         supabase.from("daily_reports")
           .select("date,net_after_expenses,yango_gross,yango_bonus,off_yango_revenue,solde_yango,end_odometer")
-          .eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("source", "saas")
+          .eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).or("source.eq.saas,source.is.null")
           .gte("date", start).lte("date", todayStr).neq("status", "rejected")
           .order("date", { ascending: true }),
         supabase.from("expenses")
@@ -1735,7 +1736,7 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
       const prevStart = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}-01`;
       const prevEnd = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, "0")}-${new Date(prevMonth.getFullYear(), prevMonth.getMonth() + 1, 0).getDate()}`;
       const { data: prevReps } = await supabase.from("daily_reports").select("net_after_expenses,date")
-        .eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("source", "saas")
+        .eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).or("source.eq.saas,source.is.null")
         .gte("date", prevStart).lte("date", prevEnd).neq("status", "rejected");
       const prevNet = (prevReps || []).reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0);
       const prevDays = new Set((prevReps || []).map((r: any) => r.date)).size || 1;

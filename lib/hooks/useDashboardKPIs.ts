@@ -105,7 +105,8 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
 
       // Build base queries — conditionally filter by tenant_id if available
       const repQ = (q: any) => tid ? q.eq("tenant_id", tid) : q;
-      const saasQ = (q: any) => q.eq("source", "saas"); // exclude legacy yango-app records
+      // Include source='saas' OR source IS NULL (before migration or default not set)
+      const saasQ = (q: any) => q.or("source.eq.saas,source.is.null");
 
       const [
         { data: allReps },
