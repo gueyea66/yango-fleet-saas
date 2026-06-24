@@ -59,6 +59,18 @@ export interface DashboardKPIs {
   dailyTrendData: Array<{ date: string; revenue: number; expenses: number; margin: number }>;
   topDrivers: Array<{ driver_id: string; earnings: number; expenses: number; margin: number }>;
 
+  // Per-driver allocation (approved + submitted, non-rejected)
+  driverAllocations: Array<{
+    driver_id: string;
+    name: string;
+    netDeclared: number;   // sum of net_after_expenses (approved + submitted)
+    netApproved: number;   // approved only
+    netPending: number;    // submitted only
+    nbReports: number;
+    nbApproved: number;
+    nbPending: number;
+  }>;
+
   loading: boolean;
   error: string | null;
 }
@@ -71,7 +83,7 @@ const ZERO: DashboardKPIs = {
   monthRevenue: 0, monthExpenses: 0, monthNetMargin: 0, monthMarginPercent: 0,
   avgFuelConsumption: 0, totalFuelCost: 0, totalDrivers: 0, avgRevenuePerDriver: 0,
   dailyRows: [], expenseBreakdown: [], dailyExpByCategory: [],
-  dailyTrendData: [], topDrivers: [],
+  dailyTrendData: [], topDrivers: [], driverAllocations: [],
   loading: true, error: null,
 };
 
@@ -231,6 +243,33 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
 
       const activeDays = new Set(reps.map((r) => r.date)).size || 1;
 
+      // ── PER-DRIVER ALLOCATIONS (approved + submitted, non-rejected) ──
+      const allActive: any[] = (allReps || []).filter((r: any) => r.status === "approved" || r.status === "submitted");
+      const driverAllocationMap = new Map<string, { name: string; netApproved: number; netPending: number; nbApproved: number; nbPending: number }>();
+      // Seed with all driver profiles so zero-report drivers still appear
+      drivers.forEach((d) => {
+        driverAllocationMap.set(d.id, { name: d.full_name || d.driver_id || d.id.slice(0, 8), netApproved: 0, netPending: 0, nbApproved: 0, nbPending: 0 });
+      });
+      allActive.forEach((r: any) => {
+        if (!driverAllocationMap.has(r.driver_id)) {
+          const p = drivers.find((d) => d.id === r.driver_id);
+          driverAllocationMap.set(r.driver_id, { name: p?.full_name || p?.driver_id || r.driver_id?.slice(0, 8), netApproved: 0, netPending: 0, nbApproved: 0, nbPending: 0 });
+        }
+        const entry = driverAllocationMap.get(r.driver_id)!;
+        if (r.status === "approved") { entry.netApproved += r.net_after_expenses || 0; entry.nbApproved++; }
+        else { entry.netPending += r.net_after_expenses || 0; entry.nbPending++; }
+      });
+      const driverAllocations = Array.from(driverAllocationMap.entries()).map(([driver_id, d]) => ({
+        driver_id,
+        name: d.name,
+        netApproved: d.netApproved,
+        netPending: d.netPending,
+        netDeclared: d.netApproved + d.netPending,
+        nbReports: d.nbApproved + d.nbPending,
+        nbApproved: d.nbApproved,
+        nbPending: d.nbPending,
+      })).sort((a, b) => b.netDeclared - a.netDeclared);
+
       // ── TODAY / WEEK (approved only) ──
       const todayExpenses = (allExps || []).filter((e: any) => getED(e) === today && (!e.status || e.status === "approved")).reduce((s: number, e: any) => s + e.amount, 0);
       const weekExpAmt = (allExps || []).filter((e: any) => getED(e) >= weekAgo && getED(e) <= today && (!e.status || e.status === "approved")).reduce((s: number, e: any) => s + e.amount, 0);
@@ -257,7 +296,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         totalFuelCost: totalExpenses > 0 ? exps.filter((e: any) => e.category === "Carburant").reduce((s: number, e: any) => s + e.amount, 0) : 0,
         totalDrivers: drivers.length,
         avgRevenuePerDriver: drivers.length ? Math.round(totalBrut / drivers.length) : 0,
-        dailyRows, expenseBreakdown, dailyExpByCategory, dailyTrendData, topDrivers,
+        dailyRows, expenseBreakdown, dailyExpByCategory, dailyTrendData, topDrivers, driverAllocations,
         loading: false, error: null,
       });
     } catch (err) {

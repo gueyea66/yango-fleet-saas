@@ -611,6 +611,11 @@ export default function AdminPage() {
                 {/* Rémunération estimée — adaptatif selon modèle */}
                 {remunCfg && <RemunerationDashboardBlock kpis={kpis} cfg={remunCfg} />}
 
+                {/* Per-driver allocation */}
+                {kpis.driverAllocations.length > 0 && remunCfg && (
+                  <DriverAllocationsBlock allocations={kpis.driverAllocations} cfg={remunCfg} />
+                )}
+
                 {/* Insights */}
                 <InsightsPanel kpis={kpis} />
               </>
@@ -2135,6 +2140,101 @@ function DailyTable({ data, periodFrom, periodTo }: { data: any[]; periodFrom: s
 }
 
 // ─── REMUNERATION DASHBOARD BLOCK ─────────────────────
+// ─── DRIVER ALLOCATIONS BLOCK ─────────────────────────
+function calcDriverSalary(netDeclared: number, cfg: any): number {
+  const model: string = cfg.model || "tiered";
+  if (model === "fixed") return cfg.base_amount || 0;
+  if (model === "tiered") {
+    const tiers: any[] = Array.isArray(cfg.salary_tiers) ? cfg.salary_tiers : [];
+    const sorted = [...tiers].sort((a, b) => b.min_net - a.min_net);
+    const tier = sorted.find((t) => netDeclared >= t.min_net) ?? sorted[sorted.length - 1];
+    return tier?.total_salary ?? cfg.base_amount ?? 0;
+  }
+  if (model === "percent") return netDeclared * (cfg.commission_rate || 0);
+  if (model === "hybrid") {
+    const base = cfg.base_amount || 0;
+    const bonus = cfg.bonus_threshold > 0 && netDeclared >= cfg.bonus_threshold ? (cfg.bonus_amount || 0) : 0;
+    return base + bonus + netDeclared * (cfg.commission_rate || 0);
+  }
+  if (model === "location") return 0; // driver keeps their own net
+  return 0;
+}
+
+function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg: any }) {
+  const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0)) + " XOF";
+  const model: string = cfg.model || "tiered";
+  const modelLabel: Record<string, string> = {
+    fixed: "Salaire fixe", tiered: "Paliers CA net", percent: "% du CA",
+    hybrid: "Fixe + bonus", location: "Loyer journalier",
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-4">
+        <h3 className="text-sm uppercase tracking-widest font-semibold" style={{ color: "#555e75" }}>
+          Allocation par chauffeur — <span style={{ color: "#f5a623" }}>{modelLabel[model] ?? model}</span>
+        </h3>
+        <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623" }}>
+          approuvé + en attente
+        </span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+        {allocations.map((d) => {
+          const salary = calcDriverSalary(d.netDeclared, cfg);
+          const hasPending = d.nbPending > 0;
+          return (
+            <div key={d.driver_id} className="rounded-2xl p-4 space-y-3"
+              style={{ background: "#0d1117", border: `1px solid ${hasPending ? "rgba(245,166,35,.25)" : "#1e2330"}` }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-semibold text-sm text-white">{d.name}</div>
+                  <div className="text-[10px] mt-0.5" style={{ color: "#3d4560" }}>
+                    {d.nbApproved > 0 && <span className="text-green-500">✓ {d.nbApproved} validés</span>}
+                    {d.nbPending > 0 && <span className="ml-1" style={{ color: "#f5a623" }}>⏳ {d.nbPending} en attente</span>}
+                    {d.nbReports === 0 && <span style={{ color: "#3d4560" }}>Aucun rapport</span>}
+                  </div>
+                </div>
+                {model === "tiered" && (() => {
+                  const tiers: any[] = Array.isArray(cfg.salary_tiers) ? cfg.salary_tiers : [];
+                  const sorted = [...tiers].sort((a, b) => b.min_net - a.min_net);
+                  const tier = sorted.find((t) => d.netDeclared >= t.min_net) ?? sorted[sorted.length - 1];
+                  return tier ? (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(59,130,246,.1)", color: "#3b82f6" }}>{tier.label}</span>
+                  ) : null;
+                })()}
+              </div>
+              <div className="space-y-1.5 text-xs" style={{ color: "#555e75" }}>
+                {d.netApproved > 0 && (
+                  <div className="flex justify-between">
+                    <span>Net approuvé</span>
+                    <span className="font-mono" style={{ color: "#22c55e" }}>{xof(d.netApproved)}</span>
+                  </div>
+                )}
+                {d.netPending > 0 && (
+                  <div className="flex justify-between">
+                    <span>Net en attente</span>
+                    <span className="font-mono" style={{ color: "#f5a623" }}>{xof(d.netPending)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between pt-1 border-t" style={{ borderColor: "#1e2330" }}>
+                  <span>Total déclaré</span>
+                  <span className="font-mono font-bold text-white">{xof(d.netDeclared)}</span>
+                </div>
+              </div>
+              {model !== "location" && (
+                <div className="rounded-xl px-3 py-2.5" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
+                  <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "#3d4560" }}>Allocation estimée</div>
+                  <div className="font-mono font-bold text-base" style={{ color: "#f5a623" }}>{xof(salary)}</div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0)) + " XOF";
   const daysElapsed = new Date().getDate();
