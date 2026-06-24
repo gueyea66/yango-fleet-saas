@@ -70,7 +70,7 @@ export default function AdminPage() {
   const lastMonth = Math.max(...filterMonths);
   const lastDay = new Date(filterYear, lastMonth, 0).getDate();
   const periodTo = `${filterYear}-${String(lastMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-  const kpis = useDashboardKPIs(periodFrom, periodTo, adminTenantId);
+  const kpis = useDashboardKPIs(periodFrom, periodTo, adminTenantId, filterDriverId || undefined);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -272,14 +272,14 @@ export default function AdminPage() {
         <div className="lg:pl-[220px]">
         <div className="p-6 lg:p-10 w-full max-w-none" style={{ background: "#080a0f", minHeight: "100vh" }}>
 
-        {/* ── DRIVER / VEHICLE FILTER BAR ── */}
-        {["pending", "history", "calendrier", "payments", "avances", "dashboard"].includes(tab) && allDrivers.length > 0 && (
-          <div className="mb-6 flex flex-wrap items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-widest" style={{ color: "#3d4560" }}>Filtrer :</span>
+        {/* ── DRIVER / VEHICLE FILTER BAR — visible on all data tabs ── */}
+        {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage"].includes(tab) && allDrivers.length > 0 && (
+          <div className="mb-6 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+            <span className="text-[10px] font-bold uppercase tracking-widest mr-1" style={{ color: "#3d4560" }}>Vue :</span>
             <button onClick={() => setFilterDriverId("")}
               className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
               style={{ background: !filterDriverId ? "#f5a623" : "#1e2330", color: !filterDriverId ? "#000" : "#555e75" }}>
-              Tous
+              👥 Tous
             </button>
             {allDrivers.map((d) => (
               <button key={d.id} onClick={() => setFilterDriverId(filterDriverId === d.id ? "" : d.id)}
@@ -287,7 +287,7 @@ export default function AdminPage() {
                 style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "#1e2330",
                   color: filterDriverId === d.id ? "#f5a623" : "#555e75",
                   border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}` }}>
-                <span>👤 {d.full_name}</span>
+                👤 {d.full_name || d.driver_id}
                 {d.plate && <span className="font-mono px-1.5 py-0.5 rounded" style={{ background: "#080a0f", color: "#8b92a8", fontSize: 10 }}>🚗 {d.plate}</span>}
               </button>
             ))}

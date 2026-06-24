@@ -433,7 +433,7 @@ function computeFromRaw(raw: RawData, params: PilotageParams): Omit<PilotageData
 }
 
 // ── MAIN HOOK ─────────────────────────────────────────
-export function usePilotage(params: PilotageParams = DEFAULT_PARAMS) {
+export function usePilotage(params: PilotageParams = DEFAULT_PARAMS, tenantId?: string | null, driverId?: string | null) {
   const [raw, setRaw] = useState<RawData | null>(null);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -443,23 +443,22 @@ export function usePilotage(params: PilotageParams = DEFAULT_PARAMS) {
     setFetching(true);
     setError(null);
     try {
-      const supabase = createClient() as any;
-      // Resolve tenant_id from the current user's profile
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data: myProfile } = await supabase.from("profiles").select("tenant_id").eq("id", user?.id).maybeSingle();
-      const tid: string | null = myProfile?.tenant_id || null;
-      const tQ = (q: any) => tid ? q.eq("tenant_id", tid) : q;
-      const srcQ = (q: any) => q.or("source.eq.saas,source.is.null");
+      // Resolve tenantId via browser client if not passed
+      let tid = tenantId || null;
+      if (!tid) {
+        const supabase = createClient() as any;
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: myProfile } = await supabase.from("profiles").select("tenant_id").eq("id", user?.id).maybeSingle();
+        tid = myProfile?.tenant_id || null;
+      }
+      if (!tid) { setError("Tenant introuvable"); setFetching(false); return; }
 
-      const today = new Date();
-      const sixAgo = new Date(today.getFullYear(), today.getMonth() - 5, 1).toISOString().split("T")[0];
-      const [{ data: reps }, { data: exps }, { data: pays }, { data: profs }] = await Promise.all([
-        srcQ(tQ(supabase.from("daily_reports").select("*"))).gte("date", sixAgo).neq("status", "rejected").order("date"),
-        srcQ(tQ(supabase.from("expenses").select("*"))),
-        tQ(supabase.from("payments").select("*")),
-        tQ(supabase.from("profiles").select("id,full_name,driver_id").eq("role", "driver")),
-      ]);
-      setRaw({ reports: reps || [], expenses: exps || [], payments: pays || [], profiles: profs || [] });
+      // Fetch via server-side API route (service role — bypasses RLS)
+      const params_url = new URLSearchParams({ tenantId: tid, ...(driverId ? { driverId } : {}) });
+      const res = await fetch(`/api/admin/pilotage-data?${params_url}`);
+      if (!res.ok) throw new Error((await res.json()).error || "Erreur API");
+      const json = await res.json();
+      setRaw({ reports: json.reports || [], expenses: json.expenses || [], payments: json.payments || [], profiles: json.profiles || [] });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur de chargement");
     } finally {
@@ -467,7 +466,7 @@ export function usePilotage(params: PilotageParams = DEFAULT_PARAMS) {
     }
   }, []);
 
-  useEffect(() => { fetchRaw(); }, [fetchRaw]);
+  useEffect(() => { fetchRaw(); }, [fetchRaw, tenantId, driverId]);
 
   // Recompute synchronously when raw data or params change (no DB call)
   useEffect(() => {

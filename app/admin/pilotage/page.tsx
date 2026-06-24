@@ -1,7 +1,7 @@
 "use client";
 export const dynamic = "force-dynamic";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
 import { usePilotage, DEFAULT_PARAMS, xofFmt, type PilotageParams } from "@/lib/hooks/usePilotage";
@@ -55,7 +55,38 @@ export default function PilotagePage() {
   const [params, setParams] = useState<PilotageParams>(DEFAULT_PARAMS);
   const [showParams, setShowParams] = useState(false);
   const [section, setSection] = useState<string>("overview");
-  const data = usePilotage(params);
+
+  // Tenant + driver/vehicle filter
+  const [tenantId, setTenantId] = useState<string | null>(null);
+  const [allDrivers, setAllDrivers] = useState<any[]>([]);
+  const [allVehicles, setAllVehicles] = useState<any[]>([]);
+  const [filterDriverId, setFilterDriverId] = useState<string>("");
+  const [filterVehicleId, setFilterVehicleId] = useState<string>("");
+
+  // Resolve tenantId + load driver/vehicle lists once on mount
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { createClient: cc } = await import("@/lib/supabase/client");
+      const sb = cc() as any;
+      const { data: prof } = await sb.from("profiles").select("tenant_id").eq("id", user.id).maybeSingle();
+      const tid = prof?.tenant_id || null;
+      setTenantId(tid);
+      if (!tid) return;
+      const [{ data: drvs }, { data: vehs }] = await Promise.all([
+        sb.from("profiles").select("id,full_name,driver_id").eq("role", "driver").eq("tenant_id", tid).order("full_name"),
+        sb.from("vehicles").select("id,plate,driver_id").eq("tenant_id", tid),
+      ]);
+      setAllDrivers(drvs || []);
+      setAllVehicles(vehs || []);
+    })();
+  }, [user]);
+
+  // When a vehicle is selected, resolve its driver
+  const effectiveDriverId = filterDriverId ||
+    (filterVehicleId ? (allVehicles.find((v: any) => v.id === filterVehicleId)?.driver_id || "") : "");
+
+  const data = usePilotage(params, tenantId, effectiveDriverId || null);
 
   if (!loading && !user) { router.push("/auth/login"); return null; }
 
@@ -147,6 +178,35 @@ export default function PilotagePage() {
              </button>
            ))}
          </nav>
+         {/* Filter: driver / vehicle */}
+         {(allDrivers.length > 0 || allVehicles.length > 0) && (
+           <div className="px-3 pb-3 space-y-2 flex-shrink-0 border-t pt-3" style={{ borderColor: "#1e2330" }}>
+             <div className="text-[9px] uppercase tracking-widest font-bold px-1" style={{ color: "#3d4560" }}>Filtre</div>
+             {allDrivers.length > 0 && (
+               <select value={filterDriverId} onChange={(e) => { setFilterDriverId(e.target.value); setFilterVehicleId(""); }}
+                 className="w-full rounded-lg px-2 py-1.5 text-xs outline-none"
+                 style={{ background: "#080a0f", border: `1px solid ${filterDriverId ? "rgba(245,166,35,.4)" : "#1e2330"}`, color: filterDriverId ? "#f5a623" : "#8b92a8" }}>
+                 <option value="">👥 Tous les chauffeurs</option>
+                 {allDrivers.map((d: any) => <option key={d.id} value={d.id}>{d.full_name || d.driver_id}</option>)}
+               </select>
+             )}
+             {allVehicles.length > 0 && (
+               <select value={filterVehicleId} onChange={(e) => { setFilterVehicleId(e.target.value); setFilterDriverId(""); }}
+                 className="w-full rounded-lg px-2 py-1.5 text-xs outline-none"
+                 style={{ background: "#080a0f", border: `1px solid ${filterVehicleId ? "rgba(245,166,35,.4)" : "#1e2330"}`, color: filterVehicleId ? "#f5a623" : "#8b92a8" }}>
+                 <option value="">🚗 Toutes les voitures</option>
+                 {allVehicles.map((v: any) => <option key={v.id} value={v.id}>{v.plate}</option>)}
+               </select>
+             )}
+             {(filterDriverId || filterVehicleId) && (
+               <button onClick={() => { setFilterDriverId(""); setFilterVehicleId(""); }}
+                 className="w-full text-[10px] py-1 rounded-lg"
+                 style={{ background: "rgba(239,68,68,.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,.2)" }}>
+                 ✕ Réinitialiser filtre
+               </button>
+             )}
+           </div>
+         )}
          <div className="px-3 pb-3 flex-shrink-0">
            <button onClick={data.refresh} className="w-full text-xs px-3 py-2 rounded-xl"
              style={{ background: "#1e2330", color: "#8b92a8", border: "1px solid #2a2f3d" }}>

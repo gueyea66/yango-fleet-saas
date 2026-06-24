@@ -87,7 +87,7 @@ const ZERO: DashboardKPIs = {
   loading: true, error: null,
 };
 
-export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTenantId?: string | null) {
+export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTenantId?: string | null, filterDriverId?: string) {
   const [kpis, setKPIs] = useState<DashboardKPIs>(ZERO);
 
   const loadKPIs = useCallback(async () => {
@@ -103,8 +103,9 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       const periodStart = dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
       const periodEnd = dateTo || today;
 
-      // Build base queries — conditionally filter by tenant_id if available
+      // Build base queries — conditionally filter by tenant_id + optional driver
       const repQ = (q: any) => tid ? q.eq("tenant_id", tid) : q;
+      const drvQ = (q: any) => filterDriverId ? q.eq("driver_id", filterDriverId) : q;
       // Include source='saas' OR source IS NULL (before migration or default not set)
       const saasQ = (q: any) => q.or("source.eq.saas,source.is.null");
 
@@ -116,11 +117,11 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         { data: weekRep },
         { data: driverProfiles },
       ] = await Promise.all([
-        saasQ(repQ(supabase.from("daily_reports").select("*"))).gte("date", periodStart).lte("date", periodEnd).order("date"),
-        saasQ(repQ(supabase.from("expenses").select("*"))),
-        repQ(supabase.from("payments").select("*")),
-        saasQ(repQ(supabase.from("daily_reports").select("*"))).eq("date", today),
-        saasQ(repQ(supabase.from("daily_reports").select("*"))).gte("date", weekAgo).lte("date", today),
+        saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).gte("date", periodStart).lte("date", periodEnd).order("date"),
+        saasQ(drvQ(repQ(supabase.from("expenses").select("*")))),
+        drvQ(repQ(supabase.from("payments").select("*"))),
+        saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).eq("date", today),
+        saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).gte("date", weekAgo).lte("date", today),
         tid
           ? supabase.from("profiles").select("id, full_name, driver_id").eq("tenant_id", tid).eq("role", "driver")
           : supabase.from("profiles").select("id, full_name, driver_id").eq("role", "driver"),
@@ -305,7 +306,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       setKPIs((prev) => ({ ...prev, loading: false, error: err instanceof Error ? err.message : "Erreur" }));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFrom, dateTo, explicitTenantId]);
+  }, [dateFrom, dateTo, explicitTenantId, filterDriverId]);
 
   useEffect(() => {
     setKPIs((prev) => ({ ...prev, loading: true }));
