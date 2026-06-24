@@ -464,7 +464,7 @@ export function usePilotage(params: PilotageParams = DEFAULT_PARAMS, tenantId?: 
     } finally {
       setFetching(false);
     }
-  }, []);
+  }, [tenantId, driverId]);
 
   useEffect(() => { fetchRaw(); }, [fetchRaw, tenantId, driverId]);
 

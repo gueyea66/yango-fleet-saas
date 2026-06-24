@@ -2,6 +2,7 @@
 export const dynamic = "force-dynamic";
 
 import { useState, useEffect } from "react";
+import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
 import { usePilotage, DEFAULT_PARAMS, xofFmt, type PilotageParams } from "@/lib/hooks/usePilotage";
@@ -67,8 +68,7 @@ export default function PilotagePage() {
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { createClient: cc } = await import("@/lib/supabase/client");
-      const sb = cc() as any;
+      const sb = createClient() as any;
       const { data: prof } = await sb.from("profiles").select("tenant_id").eq("id", user.id).maybeSingle();
       const tid = prof?.tenant_id || null;
       setTenantId(tid);

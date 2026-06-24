@@ -265,14 +265,14 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
       const monthStart = today.slice(0, 7) + "-01";
 
       const [{ data: m }, { data: mp }, { data: t }, { data: p }, { data: rej }] = await Promise.all([
+        supabase.from("daily_reports").select("net_after_expenses").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).gte("date", monthStart).in("status", ["approved", "submitted"]),
         supabase.from("daily_reports").select("net_after_expenses").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).gte("date", monthStart).eq("status", "approved"),
-        supabase.from("daily_reports").select("net_after_expenses").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).gte("date", monthStart).eq("status", "submitted"),
         supabase.from("daily_reports").select("status").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("date", today).maybeSingle(),
         supabase.from("daily_reports").select("id").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("status", "submitted"),
         supabase.from("daily_reports").select("id, date").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("status", "rejected"),
       ]);
       setMonthNet((m || []).reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0));
-      setMonthPending((mp || []).reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0));
+      setMonthPending((mp || []).reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0)); // approved only
       setTodayStatus(t?.status ?? null);
       setPendingCount(p?.length ?? 0);
       setRejectedCount((rej || []).length);
@@ -321,11 +321,18 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
       <div className="rounded-2xl p-5" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
         <div className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: "#3d4560" }}>Mois en cours</div>
         <div className="text-3xl font-bold text-white font-mono mb-1">{xof(monthNet)}</div>
-        {monthPending > 0 && (
-          <div className="text-xs mb-3 px-2 py-1 rounded-lg inline-block" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623" }}>
-            ⏳ {xof(monthPending)} en attente de validation
-          </div>
-        )}
+        <div className="flex flex-wrap gap-2 mb-3">
+          {monthPending > 0 && (
+            <div className="text-xs px-2 py-1 rounded-lg inline-block" style={{ background: "rgba(34,197,94,.08)", color: "#22c55e" }}>
+              ✓ {xof(monthPending)} validé
+            </div>
+          )}
+          {monthNet - monthPending > 0 && (
+            <div className="text-xs px-2 py-1 rounded-lg inline-block" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623" }}>
+              ⏳ {xof(monthNet - monthPending)} en attente
+            </div>
+          )}
+        </div>
 
         {/* Affichage adaptatif selon le modèle de rémunération */}
         {(cfg.model === "tiered") && (() => {
@@ -334,7 +341,7 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
           const progress = nextLevel ? Math.min(100, ((monthNet - level.min_net) / (nextLevel.min_net - level.min_net)) * 100) : 100;
           return (
             <>
-              <div className="text-xs mb-2" style={{ color: "#3d4560" }}>Net validé · {level.label} → {xof(level.total_salary)}</div>
+              <div className="text-xs mb-2" style={{ color: "#3d4560" }}>Net déclaré · {level.label} → {xof(level.total_salary)}</div>
               {nextLevel ? (
                 <>
                   <div className="h-1.5 rounded-full overflow-hidden mb-2" style={{ background: "#1e2330" }}>
