@@ -893,31 +893,56 @@ function HistoryTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => 
   );
 }
 
-// ─── REPORT HISTORY CARD (with solde + edit) ─────────
+// ─── REPORT HISTORY CARD (with full edit on rejected) ─────────
 function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profile: Profile; onRefresh: () => void }) {
-  const [open, setOpen] = useState(report.status === "rejected"); // auto-open rejected
+  const [open, setOpen] = useState(report.status === "rejected");
   const [editing, setEditing] = useState(false);
-  const [solde, setSolde] = useState(String(report.solde_yango || ""));
   const [saving, setSaving] = useState(false);
+  const s = (v: any) => (v != null && v !== 0 ? String(v) : "");
+  const [editForm, setEditForm] = useState({
+    end_odometer: s(report.end_odometer),
+    yango_gross: s(report.yango_gross),
+    yango_bonus: s(report.yango_bonus),
+    off_yango_revenue: s(report.off_yango_revenue),
+    solde_yango: s(report.solde_yango),
+    yango_trip_count: s(report.yango_trip_count),
+    off_yango_trip_count: s(report.off_yango_trip_count),
+    comment: report.comment || "",
+  });
+  const set = (k: string, v: string) => setEditForm((f) => ({ ...f, [k]: v }));
+  const n = (v: string) => parseFloat(v) || 0;
 
-  const resubmit = async () => {
+  const saveAndResubmit = async () => {
     setSaving(true);
     try {
       const supabase = createClient() as any;
-      const { error } = await supabase.from("daily_reports").update({ status: "submitted" }).eq("id", report.id);
+      const { error } = await supabase.from("daily_reports").update({
+        end_odometer: n(editForm.end_odometer),
+        yango_gross: n(editForm.yango_gross),
+        yango_bonus: n(editForm.yango_bonus),
+        off_yango_revenue: n(editForm.off_yango_revenue),
+        solde_yango: n(editForm.solde_yango) || null,
+        yango_trip_count: n(editForm.yango_trip_count) || null,
+        off_yango_trip_count: n(editForm.off_yango_trip_count) || null,
+        comment: editForm.comment || null,
+        gross_earnings: n(editForm.yango_gross) + n(editForm.off_yango_revenue),
+        status: "submitted",
+        rejection_reason: null,
+      }).eq("id", report.id);
       if (error) throw error;
       void supabase.from("action_logs").insert({
         tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
         entity_type: "daily_report", entity_id: report.id, action: "submitted",
         metadata: { date: report.date, resubmission: true },
       });
+      setEditing(false);
       onRefresh();
     } catch (err: any) { alert("Erreur : " + err.message); }
     finally { setSaving(false); }
   };
 
   const archive = async () => {
-    if (!confirm("Archiver ce rapport rejeté ? Il ne sera plus visible dans les soumissions.")) return;
+    if (!confirm("Archiver ce rapport rejeté ?")) return;
     setSaving(true);
     try {
       const supabase = createClient() as any;
@@ -934,25 +959,15 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
     return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color, background: bg }}>{status === "approved" ? "Validé" : status === "rejected" ? "Rejeté" : "En attente"}</span>;
   };
 
-  const saveSolde = async () => {
-    setSaving(true);
-    try {
-      const supabase = createClient() as any;
-      const { error } = await supabase.from("daily_reports").update({ solde_yango: parseFloat(solde) || 0 }).eq("id", report.id);
-      if (error) throw error;
-      setEditing(false);
-      onRefresh();
-    } catch (err: any) { alert("Erreur : " + err.message); }
-    finally { setSaving(false); }
-  };
+  const inputStyle = { background: "#0d1117", border: "1px solid #2a2f3d", color: "#f0f2f7", borderRadius: 10, padding: "8px 12px", width: "100%", fontSize: 13, outline: "none" };
 
   return (
-    <div className="rounded-2xl" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-      <div className="flex items-start justify-between p-4 cursor-pointer" onClick={() => setOpen(!open)}>
+    <div className="rounded-2xl" style={{ background: "#0d1117", border: `1px solid ${report.status === "rejected" ? "rgba(239,68,68,.3)" : "#1e2330"}` }}>
+      <div className="flex items-start justify-between p-4 cursor-pointer" onClick={() => { setOpen(!open); setEditing(false); }}>
         <div>
           <div className="font-semibold text-sm text-white">{report.date}</div>
           <div className="text-xs mt-0.5" style={{ color: "#3d4560" }}>
-            {[report.yango_trip_count ? `${report.yango_trip_count} Yango` : null, report.off_yango_trip_count ? `${report.off_yango_trip_count} hors` : null].filter(Boolean).join(" · ") || "—"}
+            {[report.yango_trip_count ? `${report.yango_trip_count} courses` : null, report.end_odometer ? `${report.end_odometer} km` : null].filter(Boolean).join(" · ") || "—"}
           </div>
           {report.solde_yango > 0 && <div className="text-xs mt-1" style={{ color: "#f5a623" }}>💳 {xof(report.solde_yango)}</div>}
         </div>
@@ -962,50 +977,102 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
           <span className="text-[10px]" style={{ color: "#3d4560" }}>{open ? "▲" : "▼ détails"}</span>
         </div>
       </div>
+
       {open && (
         <div className="px-4 pb-4 space-y-3 border-t" style={{ borderColor: "#1e2330" }}>
-          <div className="pt-3 space-y-1 text-xs" style={{ color: "#555e75" }}>
-            {[["Brut Yango", report.yango_gross], ["Bonus", report.yango_bonus], ["Hors Yango", report.off_yango_revenue], ["Net total", report.net_after_expenses]].map(([l, v]) =>
-              Number(v) > 0 ? <div key={l} className="flex justify-between"><span>{l}</span><span className="font-mono text-white">{xof(Number(v))}</span></div> : null
-            )}
-          </div>
-          {/* Solde editable */}
-          <div className="rounded-xl p-3" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
-            <div className="text-xs font-semibold mb-2" style={{ color: "#3d4560" }}>💳 Solde Yango (wallet)</div>
-            {editing ? (
-              <div className="flex gap-2">
-                <input type="number" value={solde} onChange={(e) => setSolde(e.target.value)}
-                  className="flex-1 rounded-lg px-3 py-2 text-sm outline-none"
-                  style={{ background: "#1e2330", border: "1px solid #f5a623", color: "#f0f2f7" }} />
-                <button onClick={saveSolde} disabled={saving}
-                  className="px-3 py-2 rounded-lg text-xs font-bold text-black"
-                  style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>
-                  {saving ? "..." : "✓"}
-                </button>
-                <button onClick={() => setEditing(false)} className="px-3 py-2 rounded-lg text-xs"
-                  style={{ background: "#1e2330", color: "#8b92a8" }}>✕</button>
-              </div>
-            ) : (
-              <div className="flex items-center justify-between">
-                <span className="font-mono text-white">{report.solde_yango > 0 ? xof(report.solde_yango) : "—"}</span>
-                <button onClick={() => { setEditing(true); setSolde(String(report.solde_yango || "")); }}
-                  className="text-xs px-2 py-1 rounded-lg"
-                  style={{ background: "#1e2330", color: "#f5a623" }}>Modifier</button>
-              </div>
-            )}
-          </div>
-          <UploadBlock driverId={profile.id} refId={report.id} refType="report" label="📎 Pièces jointes" />
+
+          {/* Motif de rejet */}
           {report.status === "rejected" && (
+            <div className="pt-3 rounded-xl p-3" style={{ background: "rgba(239,68,68,.07)", border: "1px solid rgba(239,68,68,.2)" }}>
+              <div className="text-xs font-semibold" style={{ color: "#ef4444" }}>⚠ Rapport rejeté</div>
+              {report.rejection_reason && <div className="text-xs mt-1" style={{ color: "#f87171" }}>Motif : {report.rejection_reason}</div>}
+            </div>
+          )}
+
+          {/* Mode lecture */}
+          {!editing && (
+            <div className="pt-2 space-y-1 text-xs" style={{ color: "#555e75" }}>
+              {[
+                ["🔢 Km fin de journée", report.end_odometer ? `${report.end_odometer} km` : null],
+                ["Brut Yango", report.yango_gross ? xof(report.yango_gross) : null],
+                ["Bonus Yango", report.yango_bonus ? xof(report.yango_bonus) : null],
+                ["Hors Yango", report.off_yango_revenue ? xof(report.off_yango_revenue) : null],
+                ["💳 Solde wallet", report.solde_yango ? xof(report.solde_yango) : null],
+                ["Courses Yango", report.yango_trip_count],
+                ["Courses hors", report.off_yango_trip_count],
+                ["Net total", report.net_after_expenses ? xof(report.net_after_expenses) : null],
+              ].map(([l, v]) => v != null ? (
+                <div key={String(l)} className="flex justify-between">
+                  <span>{l}</span>
+                  <span className="font-mono" style={{ color: "#f0f2f7" }}>{String(v)}</span>
+                </div>
+              ) : null)}
+              {report.comment && <div className="mt-1 italic" style={{ color: "#3d4560" }}>"{report.comment}"</div>}
+            </div>
+          )}
+
+          {/* Mode édition (rapport rejeté uniquement) */}
+          {editing && report.status === "rejected" && (
+            <div className="pt-2 space-y-3">
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  ["🔢 Km fin journée", "end_odometer"],
+                  ["Brut Yango", "yango_gross"],
+                  ["Bonus Yango", "yango_bonus"],
+                  ["Hors Yango", "off_yango_revenue"],
+                  ["💳 Solde wallet", "solde_yango"],
+                  ["Courses Yango", "yango_trip_count"],
+                  ["Courses hors", "off_yango_trip_count"],
+                ].map(([label, key]) => (
+                  <div key={key}>
+                    <div className="text-[10px] mb-1" style={{ color: "#3d4560" }}>{label}</div>
+                    <input type="number" value={editForm[key as keyof typeof editForm]}
+                      onChange={(e) => set(key, e.target.value)}
+                      style={inputStyle} />
+                  </div>
+                ))}
+              </div>
+              <div>
+                <div className="text-[10px] mb-1" style={{ color: "#3d4560" }}>Commentaire</div>
+                <textarea value={editForm.comment} onChange={(e) => set("comment", e.target.value)} rows={2}
+                  style={{ ...inputStyle, resize: "none" }} />
+              </div>
+            </div>
+          )}
+
+          <UploadBlock driverId={profile.id} refId={report.id} refType="report" label="📎 Pièces jointes" />
+
+          {/* Actions */}
+          {report.status === "rejected" && !editing && (
             <div className="flex gap-2 pt-1">
-              <button onClick={resubmit} disabled={saving}
+              <button onClick={() => setEditing(true)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold"
+                style={{ background: "#1e2330", color: "#f5a623", border: "1px solid rgba(245,166,35,.3)" }}>
+                ✏️ Modifier
+              </button>
+              <button onClick={saveAndResubmit} disabled={saving}
                 className="flex-1 py-2.5 rounded-xl text-sm font-bold"
                 style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)", color: "#000" }}>
                 {saving ? "..." : "🔁 Resoumettre"}
               </button>
               <button onClick={archive} disabled={saving}
-                className="py-2.5 px-4 rounded-xl text-sm"
+                className="py-2.5 px-3 rounded-xl text-sm"
                 style={{ background: "#1e2330", color: "#555e75", border: "1px solid #2a2f3d" }}>
                 Archiver
+              </button>
+            </div>
+          )}
+          {report.status === "rejected" && editing && (
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setEditing(false)}
+                className="py-2.5 px-4 rounded-xl text-sm"
+                style={{ background: "#1e2330", color: "#8b92a8", border: "1px solid #2a2f3d" }}>
+                Annuler
+              </button>
+              <button onClick={saveAndResubmit} disabled={saving}
+                className="flex-1 py-2.5 rounded-xl text-sm font-bold"
+                style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)", color: "#000" }}>
+                {saving ? "..." : "💾 Sauvegarder & resoumettre"}
               </button>
             </div>
           )}
