@@ -412,7 +412,23 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         supabase.from("daily_reports").select("*").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("date", today).maybeSingle(),
         supabase.from("vehicles").select("id,plate,partner_rate").eq("driver_id", profile.id).maybeSingle(),
       ]);
-      if (rep) setTodayReport(rep);
+      if (rep) {
+        setTodayReport(rep);
+        // Pré-remplir le formulaire si rapport rejeté → permet modification avant resoumission
+        if (rep.status === "rejected") {
+          setForm({
+            date: rep.date || today,
+            end_odometer: rep.end_odometer ? String(rep.end_odometer) : "",
+            yango_gross: rep.yango_gross ? String(rep.yango_gross) : "",
+            yango_bonus: rep.yango_bonus ? String(rep.yango_bonus) : "",
+            off_yango_revenue: rep.off_yango_revenue ? String(rep.off_yango_revenue) : "",
+            solde_yango: rep.solde_yango ? String(rep.solde_yango) : "",
+            yango_trip_count: rep.yango_trip_count ? String(rep.yango_trip_count) : "",
+            off_yango_trip_count: rep.off_yango_trip_count ? String(rep.off_yango_trip_count) : "",
+            comment: rep.comment || "",
+          });
+        }
+      }
       if (veh) setVehicle(veh);
     })();
   }, [profile.id, today]);
@@ -499,7 +515,15 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
     <div className="p-4">
       <BackHeader title="Rapport journalier" onBack={onBack} />
       {todayReport && todayReport.status !== "rejected" && <StatusBanner type="ok">Rapport déjà soumis · {todayReport.status === "submitted" ? "En attente" : "Validé ✓"}</StatusBanner>}
-      {todayReport?.status === "rejected" && <StatusBanner type="err">Rapport rejeté — vous pouvez le resoumettre</StatusBanner>}
+      {todayReport?.status === "rejected" && (
+        <div className="rounded-xl p-3 mb-2" style={{ background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.25)" }}>
+          <div className="text-sm font-semibold" style={{ color: "#ef4444" }}>⚠ Rapport rejeté</div>
+          {todayReport.rejection_reason && (
+            <div className="text-xs mt-1" style={{ color: "#f87171" }}>Motif : {todayReport.rejection_reason}</div>
+          )}
+          <div className="text-xs mt-1" style={{ color: "#9ca3af" }}>Modifiez les champs si nécessaire puis resoumettre.</div>
+        </div>
+      )}
       <div className="space-y-4">
         <Field label="Date">
           <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} disabled={!canEdit} max={today}
