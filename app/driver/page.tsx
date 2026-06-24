@@ -427,10 +427,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
     setSaving(true);
     try {
       const supabase = createClient() as any;
-      const { data: newReport, error } = await supabase.from("daily_reports").insert({
-        driver_id: profile.id,
-        tenant_id: profile.tenant_id,
-        date: form.date,
+      const payload = {
         end_odometer: n(form.end_odometer),
         gross_earnings: calc.base + n(form.off_yango_revenue),
         yango_gross: n(form.yango_gross),
@@ -447,7 +444,19 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         expense_count: 0,
         status: "submitted",
         comment: form.comment || null,
-      }).select("id").single();
+      };
+      // UPDATE si rapport rejeté existant, INSERT sinon
+      let newReport: any, error: any;
+      if (todayReport?.id) {
+        ({ data: newReport, error } = await supabase.from("daily_reports")
+          .update({ ...payload, rejection_reason: null })
+          .eq("id", todayReport.id)
+          .select("id").single());
+      } else {
+        ({ data: newReport, error } = await supabase.from("daily_reports")
+          .insert({ driver_id: profile.id, tenant_id: profile.tenant_id, date: form.date, ...payload })
+          .select("id").single());
+      }
       if (error) throw error;
       if (newReport?.id) {
         setReportId(newReport.id);
