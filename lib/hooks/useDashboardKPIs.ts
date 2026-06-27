@@ -92,40 +92,45 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
 
   const loadKPIs = useCallback(async () => {
     try {
-      const supabase = createClient() as any;
-      // Use explicit tenantId if provided (admin page), otherwise fall back to slug-based detection
-      let tid: string | null = explicitTenantId || null;
-      if (!tid) {
-        try { tid = await getTenantId(); } catch { /* no tenant context, query all */ }
-      }
       const today = new Date().toISOString().split("T")[0];
-      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
       const periodStart = dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
       const periodEnd = dateTo || today;
 
-      // Build base queries — conditionally filter by tenant_id + optional driver
-      const repQ = (q: any) => tid ? q.eq("tenant_id", tid) : q;
-      const drvQ = (q: any) => filterDriverId ? q.eq("driver_id", filterDriverId) : q;
-      // Include source='saas' OR source IS NULL (before migration or default not set)
-      const saasQ = (q: any) => q.or("source.eq.saas,source.is.null");
+      let allReps: any[], allExps: any[], allPayments: any[], todayRep: any[], weekRep: any[], driverProfiles: any[];
 
-      const [
-        { data: allReps },
-        { data: allExps },
-        { data: allPayments },
-        { data: todayRep },
-        { data: weekRep },
-        { data: driverProfiles },
-      ] = await Promise.all([
-        saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).gte("date", periodStart).lte("date", periodEnd).order("date"),
-        saasQ(drvQ(repQ(supabase.from("expenses").select("*")))),
-        drvQ(repQ(supabase.from("payments").select("*"))),
-        saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).eq("date", today),
-        saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).gte("date", weekAgo).lte("date", today),
-        tid
-          ? supabase.from("profiles").select("id, full_name, driver_id").eq("tenant_id", tid).eq("role", "driver")
-          : supabase.from("profiles").select("id, full_name, driver_id").eq("role", "driver"),
-      ]);
+      if (explicitTenantId) {
+        // Admin context — bypass RLS via service-role API
+        const params = new URLSearchParams({ tenantId: explicitTenantId, dateFrom: periodStart, dateTo: periodEnd });
+        if (filterDriverId) params.set("driverId", filterDriverId);
+        const json = await fetch(`/api/admin/kpis?${params}`).then((r) => r.json());
+        allReps = json.allReps || [];
+        allExps = json.allExps || [];
+        allPayments = json.allPayments || [];
+        todayRep = json.todayRep || [];
+        weekRep = json.weekRep || [];
+        driverProfiles = json.driverProfiles || [];
+      } else {
+        // Driver context — use anon client (driver reads their own data, RLS allows it)
+        const supabase = createClient() as any;
+        let tid: string | null = null;
+        try { tid = await getTenantId(); } catch { /* no tenant context */ }
+        const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+        const repQ = (q: any) => tid ? q.eq("tenant_id", tid) : q;
+        const drvQ = (q: any) => filterDriverId ? q.eq("driver_id", filterDriverId) : q;
+        const saasQ = (q: any) => q.or("source.eq.saas,source.is.null");
+        const [r1, r2, r3, r4, r5, r6] = await Promise.all([
+          saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).gte("date", periodStart).lte("date", periodEnd).order("date"),
+          saasQ(drvQ(repQ(supabase.from("expenses").select("*")))),
+          drvQ(repQ(supabase.from("payments").select("*"))),
+          saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).eq("date", today),
+          saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).gte("date", weekAgo).lte("date", today),
+          tid
+            ? supabase.from("profiles").select("id, full_name, driver_id").eq("tenant_id", tid).eq("role", "driver")
+            : supabase.from("profiles").select("id, full_name, driver_id").eq("role", "driver"),
+        ]);
+        allReps = r1.data || []; allExps = r2.data || []; allPayments = r3.data || [];
+        todayRep = r4.data || []; weekRep = r5.data || []; driverProfiles = r6.data || [];
+      }
 
       // Only approved reports count in real figures
       const reps: any[] = (allReps || []).filter((r: any) => r.status === "approved");
