@@ -93,6 +93,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
   const loadKPIs = useCallback(async () => {
     try {
       const today = new Date().toISOString().split("T")[0];
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
       const periodStart = dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
       const periodEnd = dateTo || today;
 
@@ -114,7 +115,6 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         const supabase = createClient() as any;
         let tid: string | null = null;
         try { tid = await getTenantId(); } catch { /* no tenant context */ }
-        const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
         const repQ = (q: any) => tid ? q.eq("tenant_id", tid) : q;
         const drvQ = (q: any) => filterDriverId ? q.eq("driver_id", filterDriverId) : q;
         const saasQ = (q: any) => q.or("source.eq.saas,source.is.null");
