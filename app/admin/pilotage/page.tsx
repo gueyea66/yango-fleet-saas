@@ -178,33 +178,27 @@ export default function PilotagePage() {
              </button>
            ))}
          </nav>
-         {/* Filter: driver / vehicle */}
+         {/* Filter: driver / vehicle — style VUE bar */}
          {(allDrivers.length > 0 || allVehicles.length > 0) && (
-           <div className="px-3 pb-3 space-y-2 flex-shrink-0 border-t pt-3" style={{ borderColor: "#1e2330" }}>
-             <div className="text-[9px] uppercase tracking-widest font-bold px-1" style={{ color: "#3d4560" }}>Filtre</div>
-             {allDrivers.length > 0 && (
-               <select value={filterDriverId} onChange={(e) => { setFilterDriverId(e.target.value); setFilterVehicleId(""); }}
-                 className="w-full rounded-lg px-2 py-1.5 text-xs outline-none"
-                 style={{ background: "#080a0f", border: `1px solid ${filterDriverId ? "rgba(245,166,35,.4)" : "#1e2330"}`, color: filterDriverId ? "#f5a623" : "#8b92a8" }}>
-                 <option value="">👥 Tous les chauffeurs</option>
-                 {allDrivers.map((d: any) => <option key={d.id} value={d.id}>{d.full_name || d.driver_id}</option>)}
-               </select>
-             )}
-             {allVehicles.length > 0 && (
-               <select value={filterVehicleId} onChange={(e) => { setFilterVehicleId(e.target.value); setFilterDriverId(""); }}
-                 className="w-full rounded-lg px-2 py-1.5 text-xs outline-none"
-                 style={{ background: "#080a0f", border: `1px solid ${filterVehicleId ? "rgba(245,166,35,.4)" : "#1e2330"}`, color: filterVehicleId ? "#f5a623" : "#8b92a8" }}>
-                 <option value="">🚗 Toutes les voitures</option>
-                 {allVehicles.map((v: any) => <option key={v.id} value={v.id}>{v.plate}</option>)}
-               </select>
-             )}
-             {(filterDriverId || filterVehicleId) && (
+           <div className="px-3 pb-3 flex-shrink-0 border-t pt-3" style={{ borderColor: "#1e2330" }}>
+             <div className="text-[9px] uppercase tracking-widest font-bold px-1 mb-2" style={{ color: "#3d4560" }}>VUE</div>
+             <div className="flex flex-col gap-1.5">
                <button onClick={() => { setFilterDriverId(""); setFilterVehicleId(""); }}
-                 className="w-full text-[10px] py-1 rounded-lg"
-                 style={{ background: "rgba(239,68,68,.08)", color: "#ef4444", border: "1px solid rgba(239,68,68,.2)" }}>
-                 ✕ Réinitialiser filtre
+                 className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold"
+                 style={{ background: (!filterDriverId && !filterVehicleId) ? "#f5a623" : "#1e2330", color: (!filterDriverId && !filterVehicleId) ? "#000" : "#555e75" }}>
+                 👥 Tous
                </button>
-             )}
+               {allDrivers.map((d: any) => (
+                 <button key={d.id} onClick={() => { setFilterDriverId(filterDriverId === d.id ? "" : d.id); setFilterVehicleId(""); }}
+                   className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold"
+                   style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "#1e2330", color: filterDriverId === d.id ? "#f5a623" : "#555e75", border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}` }}>
+                   👤 {d.full_name || d.driver_id}
+                   {allVehicles.find((v: any) => v.driver_id === d.id)?.plate && (
+                     <span className="ml-1 text-[10px]" style={{ color: "#3d4560" }}>🚗 {allVehicles.find((v: any) => v.driver_id === d.id)?.plate}</span>
+                   )}
+                 </button>
+               ))}
+             </div>
            </div>
          )}
          <div className="px-3 pb-3 flex-shrink-0">

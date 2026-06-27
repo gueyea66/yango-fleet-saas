@@ -2358,20 +2358,16 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
   const paymentTypes = ["salaire", "acompte", "bonus", "autre"];
 
-  useEffect(() => {
-    load();
-  }, [tenantId]);
+  useEffect(() => { load(); }, [tenantId, filterDriverId]);
 
   const load = async () => {
     setLoading(true);
-    const supabase = createClient() as any;
-    const [{ data: pays }, { data: drvs }] = await Promise.all([
-      supabase.from("payments").select("*, profiles(full_name, driver_id)").eq("tenant_id", tenantId).order("payment_date", { ascending: false }).limit(100),
-      supabase.from("profiles").select("id, full_name, driver_id").eq("role", "driver").eq("tenant_id", tenantId).order("full_name"),
-    ]);
-    setPayments(pays || []);
-    setDrivers(drvs || []);
-    if (drvs?.length && !form.driver_id) setForm((f) => ({ ...f, driver_id: drvs[0].id }));
+    const params = new URLSearchParams({ tenantId });
+    if (filterDriverId) params.set("driverId", filterDriverId);
+    const json = await fetch(`/api/admin/payments?${params}`).then((r) => r.json());
+    setPayments(json.payments || []);
+    setDrivers(json.profiles || []);
+    if (json.profiles?.length && !form.driver_id) setForm((f) => ({ ...f, driver_id: json.profiles[0].id }));
     setLoading(false);
   };
 
@@ -2656,23 +2652,16 @@ function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string
   const [form, setForm] = useState({ driver_id: "", amount: "", payment_date: today, notes: "" });
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
 
-  useEffect(() => { load(); }, [tenantId]);
+  useEffect(() => { load(); }, [tenantId, filterDriverId]);
 
   const load = async () => {
     setLoading(true);
-    const supabase = createClient() as any;
-    const [{ data: advs }, { data: drvs }] = await Promise.all([
-      supabase.from("payments")
-        .select("*, profiles(full_name, driver_id)")
-        .eq("type", "acompte")
-        .eq("tenant_id", tenantId)
-        .order("payment_date", { ascending: false })
-        .limit(200),
-      supabase.from("profiles").select("id, full_name, driver_id").eq("role", "driver").eq("tenant_id", tenantId).order("full_name"),
-    ]);
-    setAdvances(advs || []);
-    setDrivers(drvs || []);
-    if (drvs?.length && !form.driver_id) setForm((f) => ({ ...f, driver_id: drvs[0].id }));
+    const params = new URLSearchParams({ tenantId, type: "acompte" });
+    if (filterDriverId) params.set("driverId", filterDriverId);
+    const json = await fetch(`/api/admin/payments?${params}`).then((r) => r.json());
+    setAdvances(json.payments || []);
+    setDrivers(json.profiles || []);
+    if (json.profiles?.length && !form.driver_id) setForm((f) => ({ ...f, driver_id: json.profiles[0].id }));
     setLoading(false);
   };
 
