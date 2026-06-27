@@ -88,20 +88,11 @@ export default function AdminPage() {
     if (!adminTenantId) return;
     setLoadingReports(true);
     try {
-      const supabase = createClient() as any;
-      const [{ data: rData }, { data: eData }] = await Promise.all([
-        supabase.from("daily_reports").select("*").eq("tenant_id", adminTenantId).order("date", { ascending: false }).limit(200),
-        supabase.from("expenses").select("*").eq("tenant_id", adminTenantId).order("expense_date", { ascending: false, nullsFirst: false }).limit(200),
-      ]);
-      setReports(rData || []);
-      const expList = eData || [];
-      if (expList.length > 0) {
-        const { data: profiles } = await supabase.from("profiles").select("id, full_name, driver_id").eq("tenant_id", adminTenantId);
-        const profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.id, p]));
-        setExpenses(expList.map((e: any) => ({ ...e, _profile: profileMap[e.driver_id] })));
-      } else {
-        setExpenses([]);
-      }
+      const res = await fetch(`/api/admin/reports?tenantId=${adminTenantId}`);
+      if (!res.ok) throw new Error("Erreur chargement rapports");
+      const json = await res.json();
+      setReports(json.reports || []);
+      setExpenses(json.expenses || []);
     } catch (err) {
       console.error("Error loading:", err);
     } finally {
