@@ -13,11 +13,14 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const tenantId = searchParams.get("tenantId");
+    const driverId = searchParams.get("driverId") || null;
     if (!tenantId) return Response.json({ error: "tenantId requis" }, { status: 400 });
 
+    const dQ = (q: any) => driverId ? q.eq("driver_id", driverId) : q;
+
     const [{ data: reports }, { data: expenses }, { data: profiles }] = await Promise.all([
-      admin.from("daily_reports").select("*").eq("tenant_id", tenantId).order("date", { ascending: false }).limit(300),
-      admin.from("expenses").select("*").eq("tenant_id", tenantId).order("expense_date", { ascending: false, nullsFirst: false }).limit(300),
+      dQ(admin.from("daily_reports").select("*").eq("tenant_id", tenantId)).order("date", { ascending: false }).limit(300),
+      dQ(admin.from("expenses").select("*").eq("tenant_id", tenantId)).order("expense_date", { ascending: false, nullsFirst: false }).limit(300),
       admin.from("profiles").select("id,full_name,driver_id").eq("tenant_id", tenantId).eq("role", "driver"),
     ]);
 

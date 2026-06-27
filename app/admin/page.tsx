@@ -80,15 +80,17 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (user && adminTenantId && (tab === "history" || tab === "pending")) {
-      loadReports();
+      loadReports(filterDriverId || null);
     }
-  }, [user, tab, adminTenantId]);
+  }, [user, tab, adminTenantId, filterDriverId]);
 
-  const loadReports = async () => {
+  const loadReports = async (driverId: string | null = null) => {
     if (!adminTenantId) return;
     setLoadingReports(true);
     try {
-      const res = await fetch(`/api/admin/reports?tenantId=${adminTenantId}`);
+      const params = new URLSearchParams({ tenantId: adminTenantId });
+      if (driverId) params.set("driverId", driverId);
+      const res = await fetch(`/api/admin/reports?${params}`);
       if (!res.ok) throw new Error("Erreur chargement rapports");
       const json = await res.json();
       setReports(json.reports || []);
@@ -616,23 +618,23 @@ export default function AdminPage() {
 
         {tab === "pending" && (
           <ReportList
-            reports={reports.filter((r) => r.status === "submitted" && (!filterDriverId || r.driver_id === filterDriverId))}
-            expenses={expenses.filter((e) => (e.status || "submitted") === "submitted" && (!filterDriverId || e.driver_id === filterDriverId))}
+            reports={reports.filter((r) => r.status === "submitted")}
+            expenses={expenses.filter((e) => (e.status || "submitted") === "submitted")}
             loading={loadingReports}
             emptyMsg="Aucune soumission en attente"
             title="Soumissions en attente"
-            onRefresh={loadReports}
+            onRefresh={() => loadReports(filterDriverId || null)}
           />
         )}
 
         {tab === "history" && (
           <ReportList
-            reports={reports.filter((r) => !filterDriverId || r.driver_id === filterDriverId)}
-            expenses={expenses.filter((e) => !filterDriverId || e.driver_id === filterDriverId)}
+            reports={reports}
+            expenses={expenses}
             loading={loadingReports}
             emptyMsg="Aucun rapport"
             title="Tous les rapports"
-            onRefresh={loadReports}
+            onRefresh={() => loadReports(filterDriverId || null)}
           />
         )}
 
