@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
+import { requireAdminAuth } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
@@ -11,11 +12,10 @@ const admin = createClient(
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const tenantId = searchParams.get("tenantId");
-    const driverId = searchParams.get("driverId") || null; // optional filter
+    const { tenantId } = await requireAdminAuth();
 
-    if (!tenantId) return Response.json({ error: "tenantId requis" }, { status: 400 });
+    const { searchParams } = new URL(req.url);
+    const driverId = searchParams.get("driverId") || null;
 
     const today = new Date();
     const sixAgo = new Date(today.getFullYear(), today.getMonth() - 5, 1).toISOString().split("T")[0];
@@ -40,6 +40,7 @@ export async function GET(req: NextRequest) {
       vehicles: vehs || [],
     });
   } catch (err: any) {
-    return Response.json({ error: err.message }, { status: 500 });
+    const status = err.status ?? 500;
+    return Response.json({ error: err.message }, { status });
   }
 }

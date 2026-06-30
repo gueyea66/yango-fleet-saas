@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
+import { requireAdminAuth } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
@@ -11,12 +12,11 @@ const admin = createClient(
 
 export async function GET(req: NextRequest) {
   try {
-    const { searchParams } = new URL(req.url);
-    const tenantId = searchParams.get("tenantId");
-    const driverId = searchParams.get("driverId") || null;
-    const type = searchParams.get("type") || null; // "acompte" pour avances
+    const { tenantId } = await requireAdminAuth();
 
-    if (!tenantId) return Response.json({ error: "tenantId requis" }, { status: 400 });
+    const { searchParams } = new URL(req.url);
+    const driverId = searchParams.get("driverId") || null;
+    const type = searchParams.get("type") || null;
 
     let q = admin.from("payments").select("*").eq("tenant_id", tenantId).order("payment_date", { ascending: false }).limit(200);
     if (driverId) q = q.eq("driver_id", driverId) as any;
@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
 
     return Response.json({ payments: paymentsWithProfile, profiles: profiles || [] });
   } catch (err: any) {
-    return Response.json({ error: err.message }, { status: 500 });
+    const status = err.status ?? 500;
+    return Response.json({ error: err.message }, { status });
   }
 }

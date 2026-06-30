@@ -137,13 +137,14 @@ export async function getDriverByDriverId(driverId: string) {
   return data;
 }
 
-export async function listAllDrivers() {
+export async function listAllDrivers(tenantId: string) {
   const supabase = createClient() as any;
 
   const { data, error } = await supabase
     .from("profiles")
     .select("*")
     .eq("role", "driver")
+    .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
   if (error) {
