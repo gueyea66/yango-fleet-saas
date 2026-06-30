@@ -21,10 +21,17 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       .catch((err) => console.error("Tenant load failed:", err));
   }, []);
 
-  // Inject CSS variable for primary color
+  // Inject CSS variables + page title from tenant settings
   useEffect(() => {
-    document.documentElement.style.setProperty("--tenant-color", ctx.settings.primary_color);
-  }, [ctx.settings.primary_color]);
+    const color = ctx.settings.primary_color || "#f5a623";
+    document.documentElement.style.setProperty("--tenant-color", color);
+    // Derive a darker shade for hover states
+    document.documentElement.style.setProperty("--tenant-color-dark", color + "cc");
+    document.documentElement.style.setProperty("--tenant-color-light", color + "22");
+    if (ctx.settings.app_name) {
+      document.title = ctx.settings.app_name;
+    }
+  }, [ctx.settings.primary_color, ctx.settings.app_name]);
 
   return <Ctx.Provider value={ctx}>{children}</Ctx.Provider>;
 }
