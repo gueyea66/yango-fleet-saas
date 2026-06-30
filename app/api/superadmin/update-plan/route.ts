@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { checkSuperadminKey, getClientIp } from "@/lib/auth/server";
 
 const adminClient = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,14 +10,16 @@ const adminClient = createClient(
 
 async function getStoredKey(): Promise<string> {
   const { data } = await adminClient.from("superadmin_settings").select("value").eq("key", "access_key").single();
-  return data?.value ?? process.env.NEXT_PUBLIC_SUPERADMIN_KEY ?? "m3a-super-2026";
+  return data?.value ?? process.env.SUPERADMIN_KEY ?? "";
 }
 
 export async function POST(req: NextRequest) {
   const { superadminKey, tenantId, plan, active, plan_expires_at } = await req.json();
 
   const storedKey = await getStoredKey();
-  if (superadminKey !== storedKey) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (!checkSuperadminKey(superadminKey, storedKey, getClientIp(req))) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
   if (!tenantId) return NextResponse.json({ error: "tenantId requis" }, { status: 400 });
 
   const update: Record<string, unknown> = {};
