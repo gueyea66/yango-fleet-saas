@@ -12,6 +12,23 @@ const adminClient = createClient(
   { db: { schema: "fleet" } }
 );
 
+export async function GET() {
+  try {
+    const { tenantId } = await requireAdminAuth();
+    const { data, error } = await adminClient
+      .from("profiles")
+      .select("id, driver_id, full_name, email, created_at")
+      .eq("tenant_id", tenantId)
+      .eq("role", "driver")
+      .order("created_at", { ascending: false });
+
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    return Response.json({ drivers: data ?? [] });
+  } catch (error: any) {
+    return Response.json({ error: error.message }, { status: error.status ?? 500 });
+  }
+}
+
 export async function POST(request: Request) {
   try {
     // Vérifie la session serveur — tenantId vient de la DB, jamais du client

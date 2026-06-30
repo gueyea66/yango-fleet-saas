@@ -6,7 +6,6 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth/context";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { listAllDrivers } from "@/lib/services/auth";
 
 interface Driver {
   id: string;
@@ -45,7 +44,9 @@ export default function DriversPage() {
   const loadDrivers = async () => {
     try {
       setLoadingDrivers(true);
-      const driversList = await listAllDrivers();
+      const res = await fetch("/api/admin/drivers");
+      if (!res.ok) throw new Error((await res.json()).error ?? "Erreur chargement");
+      const { drivers: driversList } = await res.json();
       setDrivers(driversList);
     } catch (err: any) {
       setError(err.message);

@@ -17,7 +17,7 @@ export default withSentryConfig(nextConfig, {
 
   // Réduire la taille du bundle en production
   widenClientFileUpload: true,
-  hideSourceMaps: true,
+  sourcemaps: { disable: true },
   disableLogger: true,
 
   // Tunneling pour éviter les bloqueurs de publicités
