@@ -1,7 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { getVirtualEmailForDriver } from "@/lib/auth/utils";
-import { requireAdminAuth } from "@/lib/auth/server";
+import { requireAdminAuth, getClientIp } from "@/lib/auth/server";
 import { getPlanLimits } from "@/lib/plans";
+import { audit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,8 @@ const adminClient = createClient(
 export async function POST(request: Request) {
   try {
     // Vérifie la session serveur — tenantId vient de la DB, jamais du client
-    const { tenantId } = await requireAdminAuth();
+    const { tenantId, userId } = await requireAdminAuth();
+    const ip = getClientIp(request as any);
 
     const { action, driverId, fullName, password } = await request.json();
 
@@ -79,6 +81,7 @@ export async function POST(request: Request) {
         return Response.json({ error: `Erreur profil : ${profileError.message}` }, { status: 500 });
       }
 
+      audit({ tenantId, userId, action: "driver.create", resourceType: "driver", resourceId: driverId, ip });
       return Response.json({ success: true, profile });
     }
 
@@ -101,6 +104,7 @@ export async function POST(request: Request) {
       const profileId = profile?.id ?? driverId;
       await adminClient.from("profiles").delete().eq("id", profileId);
       await adminClient.auth.admin.deleteUser(profileId).catch(() => {});
+      audit({ tenantId, userId, action: "driver.delete", resourceType: "driver", resourceId: driverId, ip });
 
       return Response.json({ success: true });
     }
