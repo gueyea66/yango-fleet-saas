@@ -30,6 +30,7 @@ export default function AdminPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<DailyReport>>({});
   const [loadingReports, setLoadingReports] = useState(false);
+  const [sessionError, setSessionError] = useState<string | null>(null);
 
   // Driver / vehicle filter (global, shared across tabs)
   const [filterDriverId, setFilterDriverId] = useState("");
@@ -91,12 +92,17 @@ export default function AdminPage() {
       const params = new URLSearchParams({ tenantId: adminTenantId });
       if (driverId) params.set("driverId", driverId);
       const res = await fetch(`/api/admin/reports?${params}`);
-      if (!res.ok) throw new Error("Erreur chargement rapports");
+      if (res.status === 401) {
+        setSessionError("Session expirée — veuillez vous reconnecter.");
+        return;
+      }
+      if (!res.ok) throw new Error((await res.json()).error || "Erreur chargement rapports");
       const json = await res.json();
       setReports(json.reports || []);
       setExpenses(json.expenses || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error loading:", err);
+      setSessionError(err.message || "Erreur de chargement");
     } finally {
       setLoadingReports(false);
     }
@@ -264,6 +270,22 @@ export default function AdminPage() {
         <div className="lg:hidden" style={{ height: 88 }} /> {/* mobile header offset */}
         <div className="lg:pl-[220px]">
         <div className="p-6 lg:p-10 w-full max-w-none" style={{ background: "#080a0f", minHeight: "100vh" }}>
+
+        {/* Session error banner */}
+        {sessionError && (
+          <div style={{ background: "#2d1515", border: "1px solid #c53030", borderRadius: 12, padding: "14px 18px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 20 }}>⚠️</span>
+              <div>
+                <div style={{ color: "#fc8181", fontWeight: 700, fontSize: 14 }}>{sessionError}</div>
+                <div style={{ color: "#a0aab8", fontSize: 12 }}>Vos données sont intactes — reconnectez-vous pour y accéder.</div>
+              </div>
+            </div>
+            <button onClick={() => signOut()} style={{ background: "#c53030", color: "#fff", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+              Se reconnecter →
+            </button>
+          </div>
+        )}
 
         {/* ── DRIVER / VEHICLE FILTER BAR — visible on all data tabs ── */}
         {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage"].includes(tab) && allDrivers.length > 0 && (
