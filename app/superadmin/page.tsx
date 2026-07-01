@@ -62,7 +62,7 @@ export default function SuperAdminPage() {
 
   async function changeKey() {
     if (keyForm.newKey !== keyForm.confirm) return notify("Les clés ne correspondent pas", false);
-    if (keyForm.newKey.length < 8) return notify("Clé trop courte (8 caractères min)", false);
+    if (keyForm.newKey.length < 12) return notify("Clé trop courte (12 caractères min)", false);
     const res = await fetch("/api/superadmin/settings", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ currentKey: keyForm.current, newKey: keyForm.newKey }),
@@ -310,7 +310,7 @@ export default function SuperAdminPage() {
                     onChange={e => setKeyForm(f => ({ ...f, current: e.target.value }))} style={S.input} />
                 </div>
                 <div>
-                  <label style={S.label}>Nouvelle clé (8 caractères min)</label>
+                  <label style={S.label}>Nouvelle clé (12 caractères min)</label>
                   <input type="password" placeholder="Nouvelle clé sécurisée" value={keyForm.newKey}
                     onChange={e => setKeyForm(f => ({ ...f, newKey: e.target.value }))} style={S.input} />
                 </div>

@@ -21,7 +21,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const { currentKey, newKey } = await req.json();
   if (!currentKey || !newKey) return NextResponse.json({ error: "Champs manquants" }, { status: 400 });
-  if (newKey.length < 16) return NextResponse.json({ error: "Clé trop courte (16 caractères min)" }, { status: 400 });
+  if (newKey.length < 12) return NextResponse.json({ error: "Clé trop courte (12 caractères min)" }, { status: 400 });
 
   const storedKey = await getStoredKey();
   if (!checkSuperadminKey(currentKey, storedKey, getClientIp(req))) {
