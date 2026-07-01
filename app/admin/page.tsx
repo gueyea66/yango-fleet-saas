@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useDashboardKPIs } from "@/lib/hooks/useDashboardKPIs";
 import NotificationBell from "@/components/NotificationBell";
+import ImportHistoriqueModal from "@/components/ImportHistoriqueModal";
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -26,6 +27,7 @@ export default function AdminPage() {
   const { user, loading, signOut } = useAuth();
   const router = useRouter();
   const [tab, setTab] = useState("dashboard");
+  const [showImportModal, setShowImportModal] = useState(false);
   const [reports, setReports] = useState<DailyReport[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -175,6 +177,7 @@ export default function AdminPage() {
       items: [
         ["remuneration","💼", "Rémunération"],
         ["journal",     "📋", "Journal"],
+        ["import",      "📥", "Import historique"],
         ["settings",    "⚙️", "Paramètres"],
       ],
     },
@@ -795,6 +798,24 @@ export default function AdminPage() {
 
         {tab === "journal" && <ActionLogsTab />}
 
+        {tab === "import" && (
+          <div className="p-6 max-w-2xl">
+            <h2 className="text-xl font-bold text-white mb-2">Import d'historique</h2>
+            <p className="text-sm mb-6" style={{ color: "#555e75" }}>
+              Importez vos données historiques (rapports journaliers) depuis un fichier CSV.
+              Vous vérifiez les données — M3A procède à l'injection dans les 24h.
+            </p>
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="flex items-center gap-3 px-5 py-3 rounded-xl font-bold text-sm text-black mb-8"
+              style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}
+            >
+              <span>📥</span> Importer un fichier CSV
+            </button>
+            <ImportBatchList />
+          </div>
+        )}
+
         {tab === "remuneration" && adminTenantId && <RemunerationSettingsTab tenantId={adminTenantId} />}
         {tab === "remuneration" && !adminTenantId && (
           <div className="p-6 text-sm" style={{ color: "#555e75" }}>Chargement du tenant...</div>
@@ -816,6 +837,78 @@ export default function AdminPage() {
         </div>{/* end max-w-none */}
         </div>{/* end lg:pl-[220px] */}
       </main>
+
+      {showImportModal && <ImportHistoriqueModal onClose={() => setShowImportModal(false)} />}
+    </div>
+  );
+}
+
+/* ─── ImportBatchList — historique des imports du tenant ─── */
+function ImportBatchList() {
+  const [batches, setBatches] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    fetch("/api/admin/import")
+      .then((r) => r.json())
+      .then((d) => { setBatches(d.batches ?? []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const statusLabel: Record<string, { label: string; color: string; bg: string }> = {
+    pending_admin_review: { label: "En cours de saisie", color: "#92400e", bg: "#fef3c7" },
+    admin_confirmed:      { label: "En attente M3A",    color: "#1d4ed8", bg: "#dbeafe" },
+    injected:             { label: "Injecté",            color: "#15803d", bg: "#dcfce7" },
+    rejected:             { label: "Rejeté",             color: "#dc2626", bg: "#fee2e2" },
+  };
+
+  if (loading) return <div style={{ color: "#555e75", fontSize: 13 }}>Chargement…</div>;
+  if (batches.length === 0) return (
+    <div style={{ color: "#555e75", fontSize: 13 }}>
+      Aucun import pour l'instant. Cliquez sur "Importer un fichier CSV" pour commencer.
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "#8b92a8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>
+        Historique des imports
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {batches.map((b) => {
+          const s = statusLabel[b.status] ?? { label: b.status, color: "#555e75", bg: "#f5f4f0" };
+          return (
+            <div key={b.id} style={{ background: "#0d1117", border: "1px solid #1e2330", borderRadius: 12, padding: "14px 18px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 4 }}>
+                    {b.date_from} → {b.date_to}
+                    <span style={{ marginLeft: 8, fontSize: 11, color: "#555e75" }}>
+                      ({b.valid_count}/{b.row_count} lignes valides)
+                    </span>
+                  </div>
+                  <div style={{ fontSize: 11, color: "#555e75" }}>
+                    {b.drivers_found?.join(", ") || "—"}
+                    {b.duplicate_count > 0 && ` · ${b.duplicate_count} doublon(s)`}
+                    {b.error_count > 0 && ` · ${b.error_count} erreur(s)`}
+                  </div>
+                  {b.status === "injected" && (
+                    <div style={{ fontSize: 11, color: "#22c55e", marginTop: 4 }}>
+                      ✓ {b.injected_count} rapports injectés le {new Date(b.injected_at).toLocaleDateString("fr-FR")}
+                    </div>
+                  )}
+                  {b.status === "rejected" && b.reject_reason && (
+                    <div style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}>Motif : {b.reject_reason}</div>
+                  )}
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 100, color: s.color, background: s.bg, flexShrink: 0 }}>
+                  {s.label}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

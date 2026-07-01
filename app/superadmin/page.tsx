@@ -34,7 +34,7 @@ export default function SuperAdminPage() {
   const [authed, setAuthed] = useState(false);
   const [key, setKey] = useState("");
   const [authError, setAuthError] = useState("");
-  const [activeTab, setActiveTab] = useState<"dashboard" | "clients" | "payments" | "settings">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "clients" | "payments" | "imports" | "settings">("dashboard");
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -243,7 +243,7 @@ export default function SuperAdminPage() {
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: 4, marginBottom: 28, borderBottom: "0.5px solid #1e2330", paddingBottom: 0 }}>
-          {([["dashboard", "📊 Dashboard"], ["clients", "🏢 Clients"], ["payments", "💳 Paiements"], ["settings", "⚙ Paramètres"]] as const).map(([tab, label]) => (
+          {([["dashboard", "📊 Dashboard"], ["clients", "🏢 Clients"], ["payments", "💳 Paiements"], ["imports", "📥 Imports"], ["settings", "⚙ Paramètres"]] as const).map(([tab, label]) => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               style={{ background: "none", border: "none", padding: "8px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600,
                 color: activeTab === tab ? "#f5a623" : "#6b7280",
@@ -439,6 +439,10 @@ export default function SuperAdminPage() {
 
         {activeTab === "payments" && (
           <PaymentsTab tenants={tenants} superadminKey={key} notify={notify} />
+        )}
+
+        {activeTab === "imports" && (
+          <ImportsTab superadminKey={key} notify={notify} />
         )}
 
         {activeTab === "clients" && (<>
@@ -673,7 +677,182 @@ export default function SuperAdminPage() {
   );
 }
 
-// ── Payments Tab ──────────────────────────────────────────────────────────────
+// ── Imports Tab ───────────────────────────────────────────────────────────────
+function ImportsTab({ superadminKey, notify }: { superadminKey: string; notify: (msg: string, ok?: boolean) => void }) {
+  const [imports, setImports] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<"admin_confirmed" | "injected" | "rejected">("admin_confirmed");
+  const [detail, setDetail] = useState<Record<string, any>>({});
+  const [acting, setActing] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
+
+  async function load(status: string) {
+    setLoading(true);
+    const res = await fetch(`/api/superadmin/imports?status=${status}`, {
+      headers: { "x-superadmin-key": superadminKey },
+    });
+    const d = await res.json();
+    setImports(d.imports ?? []);
+    setLoading(false);
+  }
+
+  async function loadDetail(id: string) {
+    if (detail[id]) { setDetail(p => ({ ...p, [id]: null })); return; }
+    const res = await fetch(`/api/superadmin/imports/${id}`, {
+      headers: { "x-superadmin-key": superadminKey },
+    });
+    const d = await res.json();
+    setDetail(p => ({ ...p, [id]: d.batch }));
+  }
+
+  async function act(id: string, action: "inject" | "reject") {
+    setActing(id);
+    const res = await fetch(`/api/superadmin/imports/${id}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-superadmin-key": superadminKey },
+      body: JSON.stringify({ action, reason: rejectReason[id] ?? "" }),
+    });
+    const d = await res.json();
+    if (d.ok) {
+      notify(action === "inject"
+        ? `✓ ${d.injectedCount} rapports injectés (${d.skippedDuplicates ?? 0} doublons ignorés)`
+        : "Import rejeté — l'admin sera informé");
+      load(statusFilter);
+    } else {
+      notify(d.error || "Erreur", false);
+    }
+    setActing(null);
+  }
+
+  useEffect(() => { load(statusFilter); }, [statusFilter]);
+
+  const fmtDate = (s: string | null) => s ? new Date(s).toLocaleDateString("fr-FR") : "—";
+
+  return (
+    <div>
+      <div style={{ display: "flex", gap: 4, marginBottom: 20 }}>
+        {(["admin_confirmed", "injected", "rejected"] as const).map((s) => (
+          <button key={s} onClick={() => setStatusFilter(s)}
+            style={{ background: statusFilter === s ? "#f5a623" : "#1e2330", color: statusFilter === s ? "#080a0f" : "#9ca3af", border: "none", borderRadius: 8, padding: "6px 14px", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+            {s === "admin_confirmed" ? "En attente" : s === "injected" ? "Injectés" : "Rejetés"}
+          </button>
+        ))}
+        <button onClick={() => load(statusFilter)} style={{ marginLeft: "auto", background: "#1e2330", border: "none", borderRadius: 8, padding: "6px 14px", color: "#9ca3af", cursor: "pointer", fontSize: 12 }}>↻</button>
+      </div>
+
+      {loading && <div style={{ color: "#6b7280", fontSize: 13 }}>Chargement…</div>}
+
+      {!loading && imports.length === 0 && (
+        <div style={{ color: "#6b7280", fontSize: 13, padding: "32px", textAlign: "center" }}>
+          {statusFilter === "admin_confirmed" ? "Aucun import en attente d'injection." : "Aucun import dans ce statut."}
+        </div>
+      )}
+
+      {imports.map((imp) => {
+        const d = detail[imp.id];
+        const tenant = imp.tenants as { slug: string; name: string; plan: string } | null;
+        return (
+          <div key={imp.id} style={{ background: "#0d1117", border: "0.5px solid #1e2330", borderRadius: 12, marginBottom: 10 }}>
+            <div style={{ padding: "14px 18px", display: "flex", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ flex: 1, minWidth: 200 }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: "#f0f2f7", marginBottom: 3 }}>
+                  {tenant?.name || imp.tenant_id} — {tenant?.plan ?? ""}
+                </div>
+                <div style={{ fontSize: 12, color: "#6b7280" }}>
+                  Période : <strong style={{ color: "#9ca3af" }}>{imp.date_from} → {imp.date_to}</strong>
+                  &nbsp;·&nbsp; {imp.valid_count}/{imp.row_count} lignes valides
+                  {imp.duplicate_count > 0 && ` · ${imp.duplicate_count} doublons`}
+                  {imp.error_count > 0 && ` · ${imp.error_count} erreurs`}
+                </div>
+                {imp.drivers_found?.length > 0 && (
+                  <div style={{ fontSize: 11, color: "#6b7280", marginTop: 3 }}>
+                    Chauffeurs : {imp.drivers_found.join(", ")}
+                  </div>
+                )}
+                {imp.admin_notes && (
+                  <div style={{ fontSize: 11, color: "#f5a623", marginTop: 5, fontStyle: "italic" }}>
+                    Note admin : « {imp.admin_notes} »
+                  </div>
+                )}
+                {imp.status === "injected" && (
+                  <div style={{ fontSize: 11, color: "#22c55e", marginTop: 4 }}>
+                    ✓ {imp.injected_count} injectés le {fmtDate(imp.injected_at)}
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                <div style={{ fontSize: 10, color: "#374151" }}>Confirmé le {fmtDate(imp.admin_confirmed_at)}</div>
+
+                <button onClick={() => loadDetail(imp.id)}
+                  style={{ background: "#1e2330", border: "none", borderRadius: 6, padding: "5px 12px", color: "#9ca3af", fontSize: 11, cursor: "pointer" }}>
+                  {d ? "Masquer ▲" : "Voir données ▼"}
+                </button>
+
+                {statusFilter === "admin_confirmed" && (
+                  <div style={{ display: "flex", gap: 6, flexDirection: "column", alignItems: "flex-end" }}>
+                    <button onClick={() => act(imp.id, "inject")} disabled={acting === imp.id}
+                      style={{ background: "#22c55e", color: "#080a0f", border: "none", borderRadius: 8, padding: "8px 16px", fontWeight: 700, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}>
+                      {acting === imp.id ? "Injection…" : "⟳ Injecter"}
+                    </button>
+                    <div style={{ display: "flex", gap: 4 }}>
+                      <input placeholder="Motif rejet…" value={rejectReason[imp.id] ?? ""}
+                        onChange={e => setRejectReason(p => ({ ...p, [imp.id]: e.target.value }))}
+                        style={{ background: "#080a0f", border: "0.5px solid #1e2330", borderRadius: 6, padding: "5px 8px", color: "#f0f2f7", fontSize: 11, width: 140 }} />
+                      <button onClick={() => act(imp.id, "reject")} disabled={acting === imp.id}
+                        style={{ background: "#ef444420", color: "#ef4444", border: "0.5px solid #ef444430", borderRadius: 6, padding: "5px 10px", fontWeight: 700, fontSize: 11, cursor: "pointer" }}>
+                        Rejeter
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Detail rows */}
+            {d && (
+              <div style={{ borderTop: "0.5px solid #1e2330", padding: "12px 18px", overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                  <thead>
+                    <tr style={{ background: "#080a0f" }}>
+                      {["#", "Date", "Chauffeur", "CA Brut", "KM", "Courses", "Statut"].map(h => (
+                        <th key={h} style={{ padding: "6px 10px", color: "#6b7280", fontWeight: 600, textAlign: "left", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(d.parsed_rows ?? []).slice(0, 50).map((r: any) => (
+                      <tr key={r.row} style={{ background: r.has_error ? "#1a0808" : r.is_duplicate ? "#1a1400" : "transparent" }}>
+                        <td style={{ padding: "5px 10px", color: "#555e75" }}>{r.row}</td>
+                        <td style={{ padding: "5px 10px", color: "#f0f2f7" }}>{r.date}</td>
+                        <td style={{ padding: "5px 10px", color: "#f0f2f7" }}>{r.driver_name}</td>
+                        <td style={{ padding: "5px 10px", color: "#f5a623" }}>{r.ca_brut != null ? new Intl.NumberFormat("fr-FR").format(r.ca_brut) : "—"}</td>
+                        <td style={{ padding: "5px 10px", color: "#9ca3af" }}>{r.km_parcourus ?? "—"}</td>
+                        <td style={{ padding: "5px 10px", color: "#9ca3af" }}>{r.nombre_courses ?? "—"}</td>
+                        <td style={{ padding: "5px 10px" }}>
+                          {r.has_error && <span style={{ color: "#ef4444", fontWeight: 700 }}>Erreur</span>}
+                          {!r.has_error && r.is_duplicate && <span style={{ color: "#f5a623" }}>Doublon</span>}
+                          {!r.has_error && !r.is_duplicate && <span style={{ color: "#22c55e" }}>OK</span>}
+                        </td>
+                      </tr>
+                    ))}
+                    {(d.parsed_rows ?? []).length > 50 && (
+                      <tr><td colSpan={7} style={{ padding: "8px 10px", color: "#6b7280", textAlign: "center" }}>
+                        + {d.parsed_rows.length - 50} lignes supplémentaires
+                      </td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Payments Tab ───────────────────────────────────────────────────────────────
 function PaymentsTab({ tenants, superadminKey, notify }: {
   tenants: Array<{ id: string; slug: string; name: string; plan: string; active: boolean; trial_ends_at: string | null; settings?: { app_name: string } }>;
   superadminKey: string;
