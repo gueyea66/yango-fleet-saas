@@ -46,6 +46,20 @@ export async function submitDailyReport(
     .single();
 
   if (error) throw error;
+
+  // Notify admin (fire-and-forget)
+  if (typeof fetch !== "undefined") {
+    void fetch("/api/notifications/trigger", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        type: "report_submitted",
+        tenantId: report.tenant_id,
+        driverId: report.driver_id,
+        data: { date: report.date, driverName: report.driver_id },
+      }),
+    }).catch(() => {});
+  }
+
   return report;
 }
 

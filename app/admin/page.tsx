@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth/context";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useDashboardKPIs } from "@/lib/hooks/useDashboardKPIs";
+import NotificationBell from "@/components/NotificationBell";
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -243,9 +244,12 @@ export default function AdminPage() {
             style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>Y</div>
           <span className="font-bold text-white text-sm">Yango Fleet</span>
         </div>
-        <button onClick={() => signOut()} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "#1e2330", color: "#8b92a8" }}>
-          Déconnexion
-        </button>
+        <div className="flex items-center gap-2">
+          <NotificationBell />
+          <button onClick={() => signOut()} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "#1e2330", color: "#8b92a8" }}>
+            Déconnexion
+          </button>
+        </div>
       </div>
 
       {/* ── MOBILE NAV TABS ── */}
@@ -1885,6 +1889,11 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
         tenant_id: report.tenant_id, actor_role: "admin",
         entity_type: "daily_report", entity_id: report.id, action: status,
         metadata: { date: report.date, net: parseFloat(netEdit) || report.net_after_expenses },
+      });
+      // Notification push au chauffeur
+      void fetch("/api/notifications/trigger", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: `report_${status}`, tenantId: report.tenant_id, driverId: report.driver_id, data: { date: report.date } }),
       });
       onRefresh();
     } catch (err: any) { alert("Erreur : " + err.message); }

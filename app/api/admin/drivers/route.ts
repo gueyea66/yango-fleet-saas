@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     const { tenantId, userId } = await requireAdminAuth();
     const ip = getClientIp(request as any);
 
-    const { action, driverId, fullName, password } = await request.json();
+    const { action, driverId, fullName, password, paymentFrequency } = await request.json();
 
     if (action === "create") {
       if (!driverId || !fullName || !password) {
@@ -89,6 +89,7 @@ export async function POST(request: Request) {
           driver_id: driverId.toUpperCase(),
           full_name: fullName,
           role: "driver",
+          payment_frequency: paymentFrequency || "monthly",
           updated_at: new Date().toISOString(),
         }, { onConflict: "id" })
         .select()

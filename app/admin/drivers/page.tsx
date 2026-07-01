@@ -29,6 +29,7 @@ export default function DriversPage() {
     driverId: "",
     fullName: "",
     password: "",
+    paymentFrequency: "monthly",
   });
 
   useEffect(() => {
@@ -77,6 +78,7 @@ export default function DriversPage() {
           driverId: formData.driverId.toUpperCase(),
           fullName: formData.fullName,
           password: formData.password,
+          paymentFrequency: formData.paymentFrequency,
         }),
       });
 
@@ -89,7 +91,7 @@ export default function DriversPage() {
       setSuccess(
         `Conducteur ${formData.driverId.toUpperCase()} créé avec succès`
       );
-      setFormData({ driverId: "", fullName: "", password: "" });
+      setFormData({ driverId: "", fullName: "", password: "", paymentFrequency: "monthly" });
       setShowForm(false);
 
       // Reload drivers list
@@ -232,6 +234,21 @@ export default function DriversPage() {
                   className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-500"
                   required
                 />
+              </div>
+
+              <div>
+                <label className="text-xs uppercase font-semibold text-gray-400 block mb-2">
+                  Rythme de paiement
+                </label>
+                <select
+                  value={formData.paymentFrequency}
+                  onChange={(e) => setFormData({ ...formData, paymentFrequency: e.target.value })}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-500"
+                >
+                  <option value="weekly">Hebdomadaire (chaque semaine)</option>
+                  <option value="biweekly">Quinzaine (tous les 15 jours)</option>
+                  <option value="monthly">Mensuel (fin de mois)</option>
+                </select>
               </div>
 
               <button
