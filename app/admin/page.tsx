@@ -1816,6 +1816,9 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
   const [horsYangoEdit, setHorsYangoEdit] = useState(String(report.off_yango_revenue || ""));
   const [soldeEdit, setSoldeEdit] = useState(String(report.solde_yango || ""));
   const [dateEdit, setDateEdit] = useState(report.date || "");
+  const [kmEdit, setKmEdit] = useState(String(report.end_odometer || ""));
+  const [yangoTripsEdit, setYangoTripsEdit] = useState(String(report.yango_trip_count || ""));
+  const [offYangoTripsEdit, setOffYangoTripsEdit] = useState(String(report.off_yango_trip_count || ""));
   const [uploads, setUploads] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -1853,8 +1856,11 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
         date: dateEdit || report.date,
         yango_gross: yg, yango_bonus: yb, off_yango_revenue: hy,
         gross_earnings: base + hy, commission_amount: comm,
-        net_after_expenses: net,   // toujours calculé, jamais saisi manuellement
+        net_after_expenses: net,
         solde_yango: parseFloat(soldeEdit) || 0,
+        end_odometer: kmEdit ? parseInt(kmEdit) : null,
+        yango_trip_count: yangoTripsEdit ? parseInt(yangoTripsEdit) : null,
+        off_yango_trip_count: offYangoTripsEdit ? parseInt(offYangoTripsEdit) : null,
         comment: note || null,
       }).eq("id", report.id);
       if (error) throw error;
@@ -1992,6 +1998,27 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
                 <input type="number" value={soldeEdit} onChange={(e) => setSoldeEdit(e.target.value)}
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
                   style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#f5a623" }} />
+              </div>
+              <div>
+                <label className="block text-xs mb-1" style={{ color: "#555e75" }}>🚗 Km fin de journée</label>
+                <input type="number" value={kmEdit} onChange={(e) => setKmEdit(e.target.value)}
+                  placeholder="Ex: 145230"
+                  className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+                  style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#3b82f6" }} />
+              </div>
+              <div>
+                <label className="block text-xs mb-1" style={{ color: "#555e75" }}>Courses Yango</label>
+                <input type="number" value={yangoTripsEdit} onChange={(e) => setYangoTripsEdit(e.target.value)}
+                  placeholder="Nb de courses"
+                  className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+                  style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#f0f2f7" }} />
+              </div>
+              <div>
+                <label className="block text-xs mb-1" style={{ color: "#555e75" }}>Courses hors Yango</label>
+                <input type="number" value={offYangoTripsEdit} onChange={(e) => setOffYangoTripsEdit(e.target.value)}
+                  placeholder="Nb de courses"
+                  className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+                  style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#a855f7" }} />
               </div>
             </div>
             <div>
