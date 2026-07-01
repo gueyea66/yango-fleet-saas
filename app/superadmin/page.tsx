@@ -34,7 +34,7 @@ export default function SuperAdminPage() {
   const [authed, setAuthed] = useState(false);
   const [key, setKey] = useState("");
   const [authError, setAuthError] = useState("");
-  const [activeTab, setActiveTab] = useState<"dashboard" | "clients" | "settings">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "clients" | "payments" | "settings">("dashboard");
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
@@ -44,7 +44,7 @@ export default function SuperAdminPage() {
   const [extendDays, setExtendDays] = useState<Record<string, string>>({});
   const [editAdmin, setEditAdmin] = useState<Record<string, { email: string; password: string } | null>>({});
   const [keyForm, setKeyForm] = useState({ current: "", newKey: "", confirm: "" });
-  const [globalSettings, setGlobalSettings] = useState({ whatsapp: "", phone: "", companyName: "M3A Solutions", defaultTrialDays: "30", defaultPlan: "standard" });
+  const [globalSettings, setGlobalSettings] = useState({ whatsapp: "", phone: "", companyName: "M3A Solutions", defaultTrialDays: "30", defaultPlan: "standard", wavePhone: "", omPhone: "", priceStandard: "25000", pricePro: "50000", priceEnterprise: "100000" });
   const [settingsLoading, setSettingsLoading] = useState(false);
 
   const sb = createClient() as any;
@@ -112,6 +112,11 @@ export default function SuperAdminPage() {
       companyName: map["company_name"] || prev.companyName,
       defaultTrialDays: map["default_trial_days"] || prev.defaultTrialDays,
       defaultPlan: map["default_plan"] || prev.defaultPlan,
+      wavePhone: map["wave_phone"] || prev.wavePhone,
+      omPhone: map["om_phone"] || prev.omPhone,
+      priceStandard: map["price_standard"] || prev.priceStandard,
+      pricePro: map["price_pro"] || prev.pricePro,
+      priceEnterprise: map["price_enterprise"] || prev.priceEnterprise,
     }));
   }
 
@@ -238,7 +243,7 @@ export default function SuperAdminPage() {
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: 4, marginBottom: 28, borderBottom: "0.5px solid #1e2330", paddingBottom: 0 }}>
-          {([["dashboard", "📊 Dashboard"], ["clients", "🏢 Clients"], ["settings", "⚙ Paramètres"]] as const).map(([tab, label]) => (
+          {([["dashboard", "📊 Dashboard"], ["clients", "🏢 Clients"], ["payments", "💳 Paiements"], ["settings", "⚙ Paramètres"]] as const).map(([tab, label]) => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               style={{ background: "none", border: "none", padding: "8px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600,
                 color: activeTab === tab ? "#f5a623" : "#6b7280",
@@ -261,6 +266,39 @@ export default function SuperAdminPage() {
                 {msg.text}
               </div>
             )}
+
+            {/* Paiements mobile money */}
+            <div style={{ background: "#0d1117", border: "0.5px solid #1e2330", borderRadius: 12, padding: 24, gridColumn: "1/-1" }}>
+              <div style={{ fontSize: 11, color: "#f5a623", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 18 }}>💳 Paiements — Mobile Money</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
+                {[
+                  { label: "Numéro Wave (+221...)", key: "wave_phone", stateKey: "wavePhone" as const, placeholder: "+221 77 000 00 00" },
+                  { label: "Numéro Orange Money (+221...)", key: "om_phone", stateKey: "omPhone" as const, placeholder: "+221 77 000 00 00" },
+                  { label: "Prix Standard (XOF/mois)", key: "price_standard", stateKey: "priceStandard" as const, placeholder: "25000" },
+                  { label: "Prix Pro (XOF/mois)", key: "price_pro", stateKey: "pricePro" as const, placeholder: "50000" },
+                  { label: "Prix Enterprise (XOF/mois)", key: "price_enterprise", stateKey: "priceEnterprise" as const, placeholder: "100000" },
+                ].map(({ label, key: dbKey, stateKey, placeholder }) => (
+                  <div key={dbKey}>
+                    <label style={S.label}>{label}</label>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <input
+                        placeholder={placeholder}
+                        value={globalSettings[stateKey]}
+                        onChange={e => setGlobalSettings(p => ({ ...p, [stateKey]: e.target.value }))}
+                        style={{ ...S.input, flex: 1 }}
+                      />
+                      <button onClick={() => saveGlobalSetting(dbKey, globalSettings[stateKey])} disabled={settingsLoading}
+                        style={{ background: "#22c55e", color: "#080a0f", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}>
+                        ✓
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ marginTop: 12, fontSize: 11, color: "#6b7280" }}>
+                Ces valeurs sont affichées sur la page <code style={{ color: "#f5a623" }}>/paiement</code> — lien partageable avec les clients après inscription.
+              </div>
+            </div>
 
             {/* Sécurité — clé d'accès */}
             <div style={{ background: "#0d1117", border: "0.5px solid #1e2330", borderRadius: 12, padding: 24 }}>
@@ -397,6 +435,10 @@ export default function SuperAdminPage() {
             </div>
 
           </div>
+        )}
+
+        {activeTab === "payments" && (
+          <PaymentsTab tenants={tenants} superadminKey={key} notify={notify} />
         )}
 
         {activeTab === "clients" && (<>
@@ -627,6 +669,119 @@ export default function SuperAdminPage() {
           © 2026 M3A Solutions — Superadmin Panel
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Payments Tab ──────────────────────────────────────────────────────────────
+function PaymentsTab({ tenants, superadminKey, notify }: {
+  tenants: Array<{ id: string; slug: string; name: string; plan: string; active: boolean; trial_ends_at: string | null; settings?: { app_name: string } }>;
+  superadminKey: string;
+  notify: (msg: string, ok?: boolean) => void;
+}) {
+  const [validating, setValidating] = useState<string | null>(null);
+  const [planOverride, setPlanOverride] = useState<Record<string, string>>({});
+  const [months, setMonths] = useState<Record<string, string>>({});
+
+  const pending = tenants.filter(t =>
+    t.plan === "trial" || t.plan === "pending_payment" || !t.active
+  );
+  const active = tenants.filter(t => t.active && t.plan !== "trial" && t.plan !== "pending_payment");
+
+  async function confirmPayment(tenantId: string) {
+    setValidating(tenantId);
+    try {
+      const res = await fetch("/api/superadmin/validate-payment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          superadminKey,
+          tenantId,
+          plan: planOverride[tenantId] || "standard",
+          months: parseInt(months[tenantId] || "1"),
+        }),
+      });
+      const d = await res.json();
+      if (d.ok) {
+        notify(`✓ Paiement validé — plan ${d.plan} jusqu'au ${new Date(d.expiresAt).toLocaleDateString("fr-FR")}`);
+      } else {
+        notify(d.error || "Erreur validation", false);
+      }
+    } finally {
+      setValidating(null);
+    }
+  }
+
+  const rowStyle: React.CSSProperties = { background: "#0d1117", border: "0.5px solid #1e2330", borderRadius: 10, padding: "14px 18px", marginBottom: 8, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" };
+  const badgeStyle = (color: string): React.CSSProperties => ({ background: color + "20", color, border: `0.5px solid ${color}40`, borderRadius: 6, padding: "2px 8px", fontSize: 11, fontWeight: 700 });
+
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: "#f5a623", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 20 }}>
+        En attente de paiement ({pending.length})
+      </div>
+
+      {pending.length === 0 && (
+        <div style={{ color: "#6b7280", fontSize: 13, padding: "24px", textAlign: "center" }}>
+          Aucun client en attente de paiement.
+        </div>
+      )}
+
+      {pending.map(t => (
+        <div key={t.id} style={rowStyle}>
+          <div style={{ width: 32, height: 32, borderRadius: 6, background: "#f5a623", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700, color: "#080a0f", flexShrink: 0 }}>
+            {(t.settings?.app_name || t.name).slice(0, 2).toUpperCase()}
+          </div>
+          <div style={{ flex: 1, minWidth: 120 }}>
+            <div style={{ fontWeight: 600, fontSize: 13 }}>{t.settings?.app_name || t.name}</div>
+            <div style={{ fontSize: 11, color: "#6b7280" }}>{t.slug}</div>
+          </div>
+          <span style={badgeStyle(t.active ? "#f5a623" : "#ef4444")}>{t.plan}</span>
+          <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+            <select
+              value={planOverride[t.id] || "standard"}
+              onChange={e => setPlanOverride(p => ({ ...p, [t.id]: e.target.value }))}
+              style={{ background: "#1a1f2e", border: "0.5px solid #343b4f", color: "#f0f2f7", borderRadius: 6, padding: "6px 10px", fontSize: 12 }}
+            >
+              <option value="standard">Standard</option>
+              <option value="pro">Pro</option>
+            </select>
+            <input
+              type="number" min={1} max={12}
+              placeholder="mois"
+              value={months[t.id] || "1"}
+              onChange={e => setMonths(p => ({ ...p, [t.id]: e.target.value }))}
+              style={{ background: "#1a1f2e", border: "0.5px solid #343b4f", color: "#f0f2f7", borderRadius: 6, padding: "6px 10px", fontSize: 12, width: 60 }}
+            />
+            <button
+              onClick={() => confirmPayment(t.id)}
+              disabled={validating === t.id}
+              style={{ background: "#22c55e", color: "#080a0f", border: "none", borderRadius: 8, padding: "8px 14px", fontWeight: 700, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" }}
+            >
+              {validating === t.id ? "..." : "✓ Valider paiement"}
+            </button>
+            <a
+              href={`/paiement?slug=${t.slug}&plan=${planOverride[t.id] || "standard"}&ref=M3A-${t.slug.toUpperCase()}-2026`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: "#f5a623", fontSize: 11, textDecoration: "none" }}
+            >
+              Voir page →
+            </a>
+          </div>
+        </div>
+      ))}
+
+      <div style={{ fontSize: 11, color: "#22c55e", textTransform: "uppercase", letterSpacing: "0.08em", margin: "32px 0 16px" }}>
+        Abonnements actifs ({active.length})
+      </div>
+      {active.map(t => (
+        <div key={t.id} style={{ ...rowStyle, opacity: 0.6 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{t.settings?.app_name || t.name}</div>
+          <span style={badgeStyle("#22c55e")}>{t.plan}</span>
+          <span style={{ fontSize: 11, color: "#6b7280" }}>actif</span>
+        </div>
+      ))}
     </div>
   );
 }

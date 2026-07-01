@@ -46,6 +46,10 @@ export default function RegisterPage() {
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error || "Erreur inconnue"); return; }
+      // Redirect to payment page after 1 second
+      setTimeout(() => {
+        window.location.href = `/paiement?slug=${data.slug}&plan=${form.currency === "XOF" ? "standard" : "standard"}&ref=M3A-${data.slug.toUpperCase()}-${new Date().getFullYear()}`;
+      }, 1500);
       setSuccess({ loginUrl: data.loginUrl, trialEndsAt: data.trialEndsAt });
     } catch {
       setError("Erreur réseau — réessayez.");
