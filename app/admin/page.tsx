@@ -1677,12 +1677,16 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
   const uploadFile = async (file: File) => {
     setUploading(true);
     try {
+      const fd = new FormData();
+      const rawPath = `expense/${expense.driver_id}/${expense.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      fd.append("file", file);
+      fd.append("path", rawPath);
+      const res = await fetch("/api/kyc-upload", { method: "POST", body: fd });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Upload échoué");
       const supabase = createClient() as any;
-      const path = `expense/${expense.driver_id}/${expense.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-      await supabase.storage.from("kyc-documents").upload(path, file, { upsert: true });
-      const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(path);
-      await supabase.from("uploads").insert({ driver_id: expense.driver_id, file_name: file.name, file_path: path, file_type: "expense", file_size: file.size });
-      setUploads((p) => [...p, { file_name: file.name, publicUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(file.name) }]);
+      await supabase.from("uploads").insert({ driver_id: expense.driver_id, file_name: file.name, file_path: result.path, file_type: "expense", file_size: file.size });
+      setUploads((p) => [...p, { file_name: file.name, publicUrl: result.signedUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(file.name) }]);
     } catch (err: any) { alert("Erreur : " + err.message); }
     finally { setUploading(false); }
   };
@@ -1906,13 +1910,16 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
   const uploadFile = async (file: File) => {
     setUploading(true);
     try {
+      const fd = new FormData();
+      const rawPath = `admin/reports/${report.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      fd.append("file", file);
+      fd.append("path", rawPath);
+      const res = await fetch("/api/kyc-upload", { method: "POST", body: fd });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Upload échoué");
       const supabase = createClient() as any;
-      const path = `admin/reports/${report.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-      const { error } = await supabase.storage.from("kyc-documents").upload(path, file, { upsert: true });
-      if (error) throw error;
-      const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(path);
-      await supabase.from("uploads").insert({ driver_id: report.driver_id, file_name: file.name, file_path: path, file_type: "admin-report", file_size: file.size });
-      setUploads((p) => [...p, { file_name: file.name, file_path: path, file_type: "admin-report", created_at: new Date().toISOString() }]);
+      await supabase.from("uploads").insert({ driver_id: report.driver_id, file_name: file.name, file_path: result.path, file_type: "admin-report", file_size: file.size });
+      setUploads((p) => [...p, { file_name: file.name, file_path: result.path, file_type: "admin-report", created_at: new Date().toISOString() }]);
     } catch (err: any) { alert("Erreur : " + err.message); }
     finally { setUploading(false); }
   };

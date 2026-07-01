@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { requireAdminAuth } from "@/lib/auth/server";
+import { requireAnyAuth } from "@/lib/auth/server";
 
 const ALLOWED_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -31,8 +31,8 @@ function sanitizePath(rawPath: string, tenantId: string): string | null {
 
 export async function POST(req: NextRequest) {
   try {
-    // Vérifie que l'utilisateur est bien un admin authentifié
-    const { tenantId } = await requireAdminAuth();
+    // Vérifie que l'utilisateur est authentifié (admin ou driver)
+    const { tenantId } = await requireAnyAuth();
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;

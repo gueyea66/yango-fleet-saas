@@ -43,6 +43,35 @@ export async function requireAdminAuth(): Promise<AuthedAdmin> {
   return { userId: user.id, tenantId: profile.tenant_id, role: profile.role };
 }
 
+/**
+ * Vérifie que l'utilisateur est authentifié (admin OU driver).
+ * Utilisé pour les endpoints accessibles aux deux rôles (ex: upload fichier).
+ */
+export async function requireAnyAuth(): Promise<AuthedAdmin> {
+  const supabase = await createClient();
+  const { data: { user }, error } = await supabase.auth.getUser();
+
+  if (error || !user) {
+    const err = new Error("UNAUTHORIZED") as Error & { status: number };
+    err.status = 401;
+    throw err;
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("tenant_id, role")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.tenant_id) {
+    const err = new Error("FORBIDDEN") as Error & { status: number };
+    err.status = 403;
+    throw err;
+  }
+
+  return { userId: user.id, tenantId: profile.tenant_id, role: profile.role };
+}
+
 /** Helper pour retourner une réponse 401 */
 export function unauthorizedResponse(message = "Non autorisé") {
   return NextResponse.json({ error: message }, { status: 401 });
