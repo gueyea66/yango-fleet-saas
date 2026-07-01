@@ -223,9 +223,12 @@ export default function AdminPage() {
 
         {/* User + logout */}
         <div className="px-3 py-4 border-t" style={{ borderColor: "#1e2330" }}>
-          <div className="px-3 py-2 rounded-xl" style={{ background: "#1e2330" }}>
-            <div className="text-xs font-semibold text-white mb-0.5">Abdoulaye G.</div>
-            <div className="text-[10px]" style={{ color: "#3d4560" }}>Administrateur</div>
+          <div className="px-3 py-2 rounded-xl flex items-center justify-between" style={{ background: "#1e2330" }}>
+            <div>
+              <div className="text-xs font-semibold text-white mb-0.5">Abdoulaye G.</div>
+              <div className="text-[10px]" style={{ color: "#3d4560" }}>Administrateur</div>
+            </div>
+            <NotificationBell />
           </div>
           <button onClick={() => signOut()} className="w-full mt-2 text-xs px-3 py-2 rounded-xl text-left font-medium transition-all"
             style={{ color: "#ef4444", background: "transparent" }}
