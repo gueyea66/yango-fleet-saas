@@ -382,6 +382,43 @@ export default function AdminPage() {
                     <KPICard label="Total Dépenses" value={kpis.totalDepenses} color="#ef4444" negative sub={`Moy/jour: ${Math.round(kpis.avgDepensesPerDay).toLocaleString("fr-FR")} XOF`} />
                     <KPICard label="NET FINAL" value={kpis.netFinal} color={kpis.netFinal >= 0 ? "#22c55e" : "#ef4444"} big sub={`${kpis.monthMarginPercent.toFixed(1)}% de marge`} />
                   </div>
+                  <p className="text-xs mb-2" style={{ color: "#3d4560" }}>Vue commissions (taux %) — base de la rémunération.</p>
+                </div>
+
+                {/* ── RÉSULTAT OPÉRATIONNEL RÉEL ── */}
+                <div className="mt-8">
+                  <h3 className="text-sm uppercase text-gray-400 tracking-widest font-semibold mb-1">
+                    Résultat opérationnel réel
+                  </h3>
+                  <p className="text-xs mb-4" style={{ color: "#3d4560" }}>
+                    Consommations mesurées (solde &amp; carburant), hors provisions front-loadées.
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+                    <KPICard label="Recettes réelles" value={kpis.brutYango + kpis.horsYango} color="#22c55e" />
+                    <KPICard label="Solde consommé" value={kpis.soldeConsomme} color="#ef4444" negative sub="mesuré (wallet)" />
+                    <KPICard label="Carburant consommé" value={kpis.carburantConsomme} color="#ef4444" negative sub={`${Math.round(kpis.coutCarburantKm).toLocaleString("fr-FR")} XOF/km`} />
+                    <KPICard label="Autres dépenses" value={kpis.autresDepensesOpe} color="#ef4444" negative sub="hors solde & carburant" />
+                    <KPICard label="Salaires" value={kpis.totalDepenses - kpis.provisionsSolde - kpis.achatsCarburant - kpis.autresDepensesOpe} color="#ef4444" negative />
+                    <KPICard label="NET OPÉRATIONNEL" value={kpis.netOperationnel} color={kpis.netOperationnel >= 0 ? "#22c55e" : "#ef4444"} big sub="vrai résultat" />
+                  </div>
+                </div>
+
+                {/* ── TRÉSORERIE ── */}
+                <div className="mt-8">
+                  <h3 className="text-sm uppercase text-gray-400 tracking-widest font-semibold mb-1">
+                    Trésorerie (cash)
+                  </h3>
+                  <p className="text-xs mb-4" style={{ color: "#3d4560" }}>
+                    Décaissements réels — inclut les provisions front-loadées.
+                  </p>
+                  <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+                    <KPICard label="Encaissements" value={kpis.brutYango + kpis.horsYango} color="#22c55e" />
+                    <KPICard label="Provisions solde" value={kpis.provisionsSolde} color="#f5a623" negative sub="achats de solde" />
+                    <KPICard label="Achats carburant" value={kpis.achatsCarburant} color="#f5a623" negative sub="pleins payés" />
+                    <KPICard label="Décaissements" value={kpis.decaissements} color="#ef4444" negative />
+                    <KPICard label="TRÉSORERIE" value={kpis.tresorerie} color={kpis.tresorerie >= 0 ? "#22c55e" : "#ef4444"} big sub="cash net" />
+                    <KPICard label="Avance immobilisée" value={kpis.avanceSolde + kpis.avanceCarburant} color="#a855f7" sub="solde + carburant avancés" />
+                  </div>
                 </div>
 
                 {/* ── AUJOURD'HUI ── */}

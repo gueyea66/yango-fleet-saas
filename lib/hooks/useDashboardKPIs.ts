@@ -1,6 +1,14 @@
 import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getTenantId } from "@/lib/supabase/tenanted";
+import {
+  soldeConsomme as calcSoldeConsomme, coutCarburantParKm, carburantConsomme,
+  computeOperationnel, computeTresorerie,
+} from "@/lib/calc";
+
+// Catégories de dépenses au traitement spécial (front-load)
+const CAT_SOLDE = "Solde Yango";
+const CAT_CARBU = "Carburant";
 
 export interface DailyRow {
   date: string;
@@ -21,6 +29,20 @@ export interface DashboardKPIs {
   totalBrut: number;
   totalDepenses: number;
   netFinal: number;
+
+  // ── Reporting OPÉRATIONNEL réel ──
+  soldeConsomme: number;       // solde Yango réellement consommé (mesuré)
+  carburantConsomme: number;   // carburant consommé (km × coût/km)
+  coutCarburantKm: number;     // coût carburant par km (dérivé)
+  provisionsSolde: number;     // achats de solde (front-load)
+  achatsCarburant: number;     // achats de carburant (front-load)
+  autresDepensesOpe: number;   // dépenses hors solde & carburant
+  netOperationnel: number;     // résultat opérationnel réel
+  // ── Vue TRÉSORERIE ──
+  decaissements: number;
+  tresorerie: number;
+  avanceSolde: number;         // cash immobilisé en solde
+  avanceCarburant: number;     // cash immobilisé en carburant
   avgBrutPerDay: number;
   avgNetPerDay: number;
   avgDepensesPerDay: number;
@@ -77,6 +99,9 @@ export interface DashboardKPIs {
 
 const ZERO: DashboardKPIs = {
   brutYango: 0, netYango: 0, horsYango: 0, totalBrut: 0, totalDepenses: 0, netFinal: 0,
+  soldeConsomme: 0, carburantConsomme: 0, coutCarburantKm: 0, provisionsSolde: 0,
+  achatsCarburant: 0, autresDepensesOpe: 0, netOperationnel: 0,
+  decaissements: 0, tresorerie: 0, avanceSolde: 0, avanceCarburant: 0,
   avgBrutPerDay: 0, avgNetPerDay: 0, avgDepensesPerDay: 0, avgKmPerDay: 0, avgSoldePerDay: 0,
   todayRevenue: 0, todayExpenses: 0, todayNetMargin: 0, activeDriversToday: 0,
   weekRevenue: 0, weekExpenses: 0, weekNetMargin: 0, weekAvgDailyRevenue: 0,
@@ -125,8 +150,8 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
           saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).eq("date", today),
           saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).gte("date", weekAgo).lte("date", today),
           tid
-            ? supabase.from("profiles").select("id, full_name, driver_id").eq("tenant_id", tid).eq("role", "driver")
-            : supabase.from("profiles").select("id, full_name, driver_id").eq("role", "driver"),
+            ? supabase.from("profiles").select("id, full_name, driver_id, solde_initial").eq("tenant_id", tid).eq("role", "driver")
+            : supabase.from("profiles").select("id, full_name, driver_id, solde_initial").eq("role", "driver"),
         ]);
         allReps = r1.data || []; allExps = r2.data || []; allPayments = r3.data || [];
         todayRep = r4.data || []; weekRep = r5.data || []; driverProfiles = r6.data || [];
@@ -186,6 +211,50 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       const avgSoldePerDay = repWithSolde.length > 0
         ? repWithSolde.reduce((s, r) => s + (r.solde_yango || 0), 0) / repWithSolde.length
         : 0;
+
+      // ══ REPORTING OPÉRATIONNEL RÉEL (solde & carburant consommés) ══
+      const provisionsSolde = exps.filter((e: any) => e.category === CAT_SOLDE).reduce((s: number, e: any) => s + (e.amount || 0), 0);
+      const achatsCarburant = exps.filter((e: any) => e.category === CAT_CARBU).reduce((s: number, e: any) => s + (e.amount || 0), 0);
+      const autresDepensesOpe = exps.filter((e: any) => e.category !== CAT_SOLDE && e.category !== CAT_CARBU).reduce((s: number, e: any) => s + (e.amount || 0), 0);
+
+      // Solde consommé : jour par jour, par chauffeur (solde_veille dérivé du rapport précédent)
+      const provByDriverDate: Record<string, number> = {};
+      exps.filter((e: any) => e.category === CAT_SOLDE).forEach((e: any) => {
+        const k = `${e.driver_id}|${getED(e)}`;
+        provByDriverDate[k] = (provByDriverDate[k] || 0) + (e.amount || 0);
+      });
+      const soldeInitByDriver: Record<string, number | null> = {};
+      drivers.forEach((d: any) => { soldeInitByDriver[d.id] = d.solde_initial ?? null; });
+      const repsByDriver: Record<string, any[]> = {};
+      reps.forEach((r: any) => { (repsByDriver[r.driver_id] ||= []).push(r); });
+      let totalSoldeConsomme = 0;
+      Object.entries(repsByDriver).forEach(([drvId, list]) => {
+        const sorted = [...list].sort((a, b) => a.date.localeCompare(b.date));
+        let prevSolde: number | null = soldeInitByDriver[drvId] ?? null;
+        sorted.forEach((r) => {
+          const soldeFin = r.solde_yango ?? null;
+          const prov = provByDriverDate[`${drvId}|${r.date}`] || 0;
+          if (soldeFin != null && prevSolde != null) {
+            totalSoldeConsomme += calcSoldeConsomme({ soldeVeille: prevSolde, soldeFin, provisionsDuJour: prov });
+          }
+          if (soldeFin != null) prevSolde = soldeFin;
+        });
+      });
+
+      // Carburant consommé = km × coût/km (dérivé de l'historique de la période)
+      const coutCarburantKm = coutCarburantParKm(achatsCarburant, totalKm);
+      const carbuConsomme = carburantConsomme(totalKm, coutCarburantKm);
+
+      const recettesReelles = brutYango + horsYango;
+      const netOperationnel = computeOperationnel({
+        recettes: recettesReelles, soldeConsomme: totalSoldeConsomme, carburantConsomme: carbuConsomme,
+        depensesOperationnelles: autresDepensesOpe, salaires: totalSalaries,
+      });
+      const treso = computeTresorerie({
+        encaissements: recettesReelles, provisionsSolde, achatsCarburant,
+        autresDepenses: autresDepensesOpe, salaires: totalSalaries,
+        soldeConsomme: totalSoldeConsomme, carburantConsomme: carbuConsomme,
+      });
 
       // ── DAILY ROWS for table ──
       const dateSet = new Set<string>([
@@ -284,6 +353,10 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
 
       setKPIs({
         brutYango, netYango, horsYango, totalBrut, totalDepenses, netFinal,
+        soldeConsomme: totalSoldeConsomme, carburantConsomme: carbuConsomme, coutCarburantKm,
+        provisionsSolde, achatsCarburant, autresDepensesOpe, netOperationnel,
+        decaissements: treso.decaissements, tresorerie: treso.tresorerie,
+        avanceSolde: treso.avanceSolde, avanceCarburant: treso.avanceCarburant,
         avgBrutPerDay: Math.round(totalBrut / activeDays),
         avgNetPerDay: Math.round(netFinal / activeDays),
         avgDepensesPerDay: Math.round(totalDepenses / activeDays),
