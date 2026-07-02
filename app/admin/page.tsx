@@ -2401,7 +2401,10 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {allocations.map((d) => {
-          const salary = calcDriverSalary(d.netDeclared, cfg, d.prorataFactor);
+          // Config effective : modèle & base du chauffeur si définis, sinon tenant
+          const effCfg = { ...cfg, model: d.salary_model || cfg.model, base_amount: d.base_amount ?? cfg.base_amount };
+          const dModel: string = effCfg.model;
+          const salary = calcDriverSalary(d.netDeclared, effCfg, d.prorataFactor);
           const isProrated = d.prorataFactor != null && d.prorataFactor < 1;
           const hasPending = d.nbPending > 0;
           return (
@@ -2416,7 +2419,7 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
                     {d.nbReports === 0 && <span style={{ color: "#3d4560" }}>Aucun rapport</span>}
                   </div>
                 </div>
-                {model === "tiered" && (() => {
+                {dModel === "tiered" && (() => {
                   const tiers: any[] = Array.isArray(cfg.salary_tiers) ? cfg.salary_tiers : [];
                   const sorted = [...tiers].sort((a, b) => b.min_net - a.min_net);
                   const tier = sorted.find((t) => d.netDeclared >= t.min_net) ?? sorted[sorted.length - 1];
@@ -2424,6 +2427,9 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(59,130,246,.1)", color: "#3b82f6" }}>{tier.label}</span>
                   ) : null;
                 })()}
+                {d.salary_model && d.salary_model !== cfg.model && (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: "rgba(168,85,247,.12)", color: "#a855f7" }}>modèle perso</span>
+                )}
               </div>
               <div className="space-y-1.5 text-xs" style={{ color: "#555e75" }}>
                 {d.netApproved > 0 && (
@@ -2443,7 +2449,7 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
                   <span className="font-mono font-bold text-white">{xof(d.netDeclared)}</span>
                 </div>
               </div>
-              {model !== "location" && (
+              {dModel !== "location" && (
                 <div className="rounded-xl px-3 py-2.5" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
                   <div className="text-[10px] uppercase tracking-wider mb-1 flex items-center justify-between" style={{ color: "#3d4560" }}>
                     <span>Allocation estimée</span>

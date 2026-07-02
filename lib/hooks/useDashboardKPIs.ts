@@ -93,6 +93,8 @@ export interface DashboardKPIs {
     nbPending: number;
     hire_date: string | null;
     prorataFactor: number;   // 1 = plein mois ; < 1 si entré en cours de période
+    salary_model: string | null;  // modèle de rému du chauffeur (null → tenant)
+    base_amount: number | null;   // salaire de base du chauffeur (null → tenant)
   }>;
 
   loading: boolean;
@@ -152,8 +154,8 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
           saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).eq("date", today),
           saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).gte("date", weekAgo).lte("date", today),
           tid
-            ? supabase.from("profiles").select("id, full_name, driver_id, solde_initial, hire_date").eq("tenant_id", tid).eq("role", "driver")
-            : supabase.from("profiles").select("id, full_name, driver_id, solde_initial, hire_date").eq("role", "driver"),
+            ? supabase.from("profiles").select("id, full_name, driver_id, solde_initial, hire_date, salary_model, base_amount").eq("tenant_id", tid).eq("role", "driver")
+            : supabase.from("profiles").select("id, full_name, driver_id, solde_initial, hire_date, salary_model, base_amount").eq("role", "driver"),
         ]);
         allReps = r1.data || []; allExps = r2.data || []; allPayments = r3.data || [];
         todayRep = r4.data || []; weekRep = r5.data || []; driverProfiles = r6.data || [];
@@ -226,7 +228,13 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         provByDriverDate[k] = (provByDriverDate[k] || 0) + (e.amount || 0);
       });
       const soldeInitByDriver: Record<string, number | null> = {};
-      drivers.forEach((d: any) => { soldeInitByDriver[d.id] = d.solde_initial ?? null; });
+      const salaryModelByDriver: Record<string, string | null> = {};
+      const baseAmountByDriver: Record<string, number | null> = {};
+      drivers.forEach((d: any) => {
+        soldeInitByDriver[d.id] = d.solde_initial ?? null;
+        salaryModelByDriver[d.id] = d.salary_model ?? null;
+        baseAmountByDriver[d.id] = d.base_amount ?? null;
+      });
       const repsByDriver: Record<string, any[]> = {};
       reps.forEach((r: any) => { (repsByDriver[r.driver_id] ||= []).push(r); });
       let totalSoldeConsomme = 0;
@@ -359,6 +367,8 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         nbPending: d.nbPending,
         hire_date: hireByDriver[driver_id] ?? null,
         prorataFactor: prorataOf(hireByDriver[driver_id] ?? null),
+        salary_model: salaryModelByDriver[driver_id] ?? null,
+        base_amount: baseAmountByDriver[driver_id] ?? null,
       })).sort((a, b) => b.netDeclared - a.netDeclared);
 
       // ── TODAY / WEEK (approved only) ──

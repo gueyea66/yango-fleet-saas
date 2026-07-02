@@ -24,7 +24,7 @@ export async function GET() {
     const { tenantId } = await requireAdminAuth();
     const { data, error } = await adminClient
       .from("profiles")
-      .select("id, driver_id, full_name, email, created_at, comm_yango, comm_partner, hire_date, solde_initial")
+      .select("id, driver_id, full_name, email, created_at, comm_yango, comm_partner, hire_date, solde_initial, salary_model, base_amount")
       .eq("tenant_id", tenantId)
       .eq("role", "driver")
       .order("created_at", { ascending: false });
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
 
     if (action === "update") {
       // Mise à jour des paramètres de rému/commission d'un chauffeur
-      const { driverProfileId, comm_yango, comm_partner, hire_date, solde_initial } = body;
+      const { driverProfileId, comm_yango, comm_partner, hire_date, solde_initial, salary_model, base_amount } = body;
       if (!driverProfileId) return Response.json({ error: "driverProfileId manquant" }, { status: 400 });
 
       // Vérifier que le chauffeur appartient au tenant de l'admin
@@ -122,10 +122,13 @@ export async function POST(request: Request) {
         return Response.json({ error: "Chauffeur introuvable dans ce tenant" }, { status: 403 });
       }
 
+      const MODELS = ["fixed", "tiered", "percent", "hybrid", "location"];
       const patch: Record<string, number | string | null> = {
         comm_yango: numOrNull(comm_yango),
         comm_partner: numOrNull(comm_partner),
         solde_initial: numOrNull(solde_initial),
+        base_amount: numOrNull(base_amount),
+        salary_model: salary_model && MODELS.includes(salary_model) ? salary_model : null,
         hire_date: hire_date ? String(hire_date) : null,
         updated_at: new Date().toISOString(),
       };

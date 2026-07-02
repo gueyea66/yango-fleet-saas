@@ -17,9 +17,20 @@ interface Driver {
   comm_partner: number | null;
   hire_date: string | null;
   solde_initial: number | null;
+  salary_model: string | null;
+  base_amount: number | null;
 }
 
-type SettingsForm = { comm_yango: string; comm_partner: string; hire_date: string; solde_initial: string };
+type SettingsForm = { comm_yango: string; comm_partner: string; hire_date: string; solde_initial: string; salary_model: string; base_amount: string };
+
+const SALARY_MODELS: { value: string; label: string }[] = [
+  { value: "", label: "— (config tenant par défaut)" },
+  { value: "fixed", label: "Salaire fixe" },
+  { value: "tiered", label: "Paliers (CA net)" },
+  { value: "percent", label: "% du CA" },
+  { value: "hybrid", label: "Fixe + bonus + %" },
+  { value: "location", label: "Location (loyer journalier)" },
+];
 
 export default function DriversPage() {
   const { user, loading } = useAuth();
@@ -40,7 +51,7 @@ export default function DriversPage() {
 
   // Édition des paramètres commission/rému par chauffeur
   const [editId, setEditId] = useState<string | null>(null);
-  const [settingsForm, setSettingsForm] = useState<SettingsForm>({ comm_yango: "", comm_partner: "", hire_date: "", solde_initial: "" });
+  const [settingsForm, setSettingsForm] = useState<SettingsForm>({ comm_yango: "", comm_partner: "", hire_date: "", solde_initial: "", salary_model: "", base_amount: "" });
   const [savingSettings, setSavingSettings] = useState(false);
 
   const openSettings = (d: Driver) => {
@@ -50,6 +61,8 @@ export default function DriversPage() {
       comm_partner: d.comm_partner != null ? String(d.comm_partner) : "",
       hire_date: d.hire_date || "",
       solde_initial: d.solde_initial != null ? String(d.solde_initial) : "",
+      salary_model: d.salary_model || "",
+      base_amount: d.base_amount != null ? String(d.base_amount) : "",
     });
   };
 
@@ -321,6 +334,7 @@ export default function DriversPage() {
                     <div className="text-sm text-gray-400">{driver.full_name}</div>
                     <div className="text-xs text-gray-500 mt-1">
                       Créé: {new Date(driver.created_at).toLocaleDateString("fr-FR")}
+                      {driver.salary_model && <span className="ml-2 text-blue-400">· {SALARY_MODELS.find((m) => m.value === driver.salary_model)?.label}</span>}
                       {driver.comm_yango != null && <span className="ml-2 text-yellow-600">· Yango {driver.comm_yango}%</span>}
                       {driver.hire_date && <span className="ml-2 text-gray-400">· Entré {new Date(driver.hire_date).toLocaleDateString("fr-FR")}</span>}
                     </div>
@@ -344,9 +358,24 @@ export default function DriversPage() {
                 {editId === driver.id && (
                   <div className="mt-4 pt-4 border-t border-gray-700">
                     <p className="text-xs text-gray-500 mb-3">
-                      Taux vides → repli automatique sur le véhicule puis la config tenant.
+                      Champs vides → repli automatique sur le véhicule puis la config tenant.
                     </p>
                     <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-gray-400 block mb-1">Modèle de rémunération</label>
+                        <select value={settingsForm.salary_model}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, salary_model: e.target.value })}
+                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500">
+                          {SALARY_MODELS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-400 block mb-1">Salaire de base (XOF)</label>
+                        <input type="number" value={settingsForm.base_amount}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, base_amount: e.target.value })}
+                          placeholder="ex: 200000"
+                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500" />
+                      </div>
                       <div>
                         <label className="text-xs text-gray-400 block mb-1">Commission Yango (%)</label>
                         <input type="number" step="0.01" value={settingsForm.comm_yango}
