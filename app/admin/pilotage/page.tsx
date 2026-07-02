@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
 import { usePilotage, DEFAULT_PARAMS, xofFmt, type PilotageParams } from "@/lib/hooks/usePilotage";
+import { useTenant } from "@/lib/tenant/context";
+import { BrandLogo } from "@/components/brand/BrandShell";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, Cell, PieChart, Pie,
@@ -52,6 +54,7 @@ const ChartTooltip = ({ active, payload, label }: any) => {
 
 export default function PilotagePage() {
   const { user, loading } = useAuth();
+  const { settings } = useTenant();
   const router = useRouter();
   const [params, setParams] = useState<PilotageParams>(DEFAULT_PARAMS);
   const [showParams, setShowParams] = useState(false);
@@ -157,11 +160,10 @@ export default function PilotagePage() {
              className="flex items-center gap-2 text-xs mb-3 px-2 py-1.5 rounded-lg w-full text-left"
              style={{ background: "#1e2330", color: "#8b92a8" }}>← Retour Admin</button>
            <div className="flex items-center gap-2.5">
-             <div className="w-7 h-7 rounded-lg flex items-center justify-center font-black text-black text-xs flex-shrink-0"
-               style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>Y</div>
+             <BrandLogo size={28} />
              <div>
                <div className="font-bold text-white text-sm">Pilotage</div>
-               <div className="text-[9px]" style={{ color: "#3d4560" }}>M3A Solution</div>
+               <div className="text-[9px]" style={{ color: "#3d4560" }}>{settings.operator_name || settings.app_name}</div>
              </div>
              {data.fetching && !data.loading && (
                <div className="ml-auto w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#f5a623" }} />
@@ -250,8 +252,7 @@ export default function PilotagePage() {
          <div className="p-6 lg:p-8 w-full">
            {data.loading ? (
              <div className="flex flex-col items-center justify-center" style={{ minHeight: "60vh" }}>
-               <div className="w-16 h-16 rounded-3xl flex items-center justify-center text-3xl font-black text-black mb-4 animate-pulse"
-                 style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>Y</div>
+               <div className="mb-4 animate-pulse"><BrandLogo size={64} /></div>
                <div className="text-sm font-semibold text-white mb-1">Calcul en cours...</div>
                <div className="text-xs" style={{ color: "#555e75" }}>Analyse des données historiques</div>
              </div>

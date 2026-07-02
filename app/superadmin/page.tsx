@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { PLAN_LIMITS, getTrialStatus, type Plan } from "@/lib/plans";
 import Dashboard from "./Dashboard";
+import BrandingEditor from "./BrandingEditor";
 
 // Key is verified server-side via /api/superadmin/verify
 
@@ -18,7 +19,7 @@ interface AdminUser { id: string; email: string; full_name: string; }
 interface Tenant {
   id: string; slug: string; name: string; plan: string; active: boolean; created_at: string;
   trial_ends_at: string | null; plan_expires_at: string | null; notifications_sent: Record<string, string>;
-  settings?: { app_name: string; primary_color: string; operator_name?: string };
+  settings?: { app_name: string; primary_color: string; operator_name?: string; logo_url?: string | null };
   remuneration?: { model: string; base_amount: number; commission_rate: number };
   admins?: AdminUser[];
 }
@@ -39,12 +40,12 @@ export default function SuperAdminPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [form, setForm] = useState({ slug: "", name: "", app_name: "", plan: "standard", primary_color: "#f5a623", model: "fixed", base_amount: "0", commission_rate: "0", trial_days: "30" });
+  const [form, setForm] = useState({ slug: "", name: "", app_name: "", plan: "standard", primary_color: "#f5a623", model: "fixed", base_amount: "0", commission_rate: "0", trial_days: "14" });
   const [adminForm, setAdminForm] = useState<Record<string, { email: string; password: string }>>({});
   const [extendDays, setExtendDays] = useState<Record<string, string>>({});
   const [editAdmin, setEditAdmin] = useState<Record<string, { email: string; password: string } | null>>({});
   const [keyForm, setKeyForm] = useState({ current: "", newKey: "", confirm: "" });
-  const [globalSettings, setGlobalSettings] = useState({ whatsapp: "", phone: "", companyName: "M3A Solutions", defaultTrialDays: "30", defaultPlan: "standard", wavePhone: "", omPhone: "", priceStandard: "25000", pricePro: "50000", priceEnterprise: "100000" });
+  const [globalSettings, setGlobalSettings] = useState({ whatsapp: "", phone: "", companyName: "M3A Solutions", defaultTrialDays: "14", defaultPlan: "standard", wavePhone: "", omPhone: "", priceStandard: "35000", pricePro: "75000", priceEnterprise: "100000" });
   const [settingsLoading, setSettingsLoading] = useState(false);
 
   const sb = createClient() as any;
@@ -622,6 +623,19 @@ export default function SuperAdminPage() {
                         </div>
                       </div>
                     </div>
+
+                    <BrandingEditor
+                      tenantId={t.id}
+                      superadminKey={key}
+                      initial={{
+                        app_name: t.settings?.app_name,
+                        primary_color: t.settings?.primary_color,
+                        operator_name: t.settings?.operator_name,
+                        logo_url: t.settings?.logo_url,
+                      }}
+                      notify={notify}
+                      onSaved={load}
+                    />
                   </div>
                 )}
               </div>

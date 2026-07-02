@@ -6,6 +6,9 @@ import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
 import { createClient } from "@/lib/supabase/client";
+import { useTenant } from "@/lib/tenant/context";
+import { BrandLogo } from "@/components/brand/BrandShell";
+import NotificationBell from "@/components/NotificationBell";
 
 import type { RemunerationConfig } from "@/lib/tenant/types";
 
@@ -59,6 +62,7 @@ interface Profile {
 
 export default function DriverApp() {
   const { user, loading, signOut } = useAuth();
+  const { settings } = useTenant();
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("home");
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -113,8 +117,7 @@ export default function DriverApp() {
     return (
       <div className="flex min-h-screen items-center justify-center" style={{ background: "#080a0f" }}>
         <div className="text-center">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center font-black text-xl text-black mx-auto mb-4"
-            style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>Y</div>
+          <div className="mx-auto mb-4 flex justify-center"><BrandLogo size={40} /></div>
           <p className="text-sm" style={{ color: "#555e75" }}>Chargement...</p>
         </div>
       </div>
@@ -157,10 +160,9 @@ export default function DriverApp() {
         {/* Logo / user */}
         <div className="px-5 py-6 border-b" style={{ borderColor: "#1e2330" }}>
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center text-base font-black text-black shrink-0"
-              style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>Y</div>
+            <BrandLogo size={36} />
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#3d4560" }}>Yango Fleet</div>
+              <div className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#3d4560" }}>{settings.app_name}</div>
               <div className="font-semibold text-sm text-white truncate max-w-[120px]">{profile.full_name}</div>
             </div>
           </div>
@@ -183,8 +185,9 @@ export default function DriverApp() {
             </button>
           ))}
         </nav>
-        {/* Sign out */}
+        {/* Notifications + sign out */}
         <div className="p-4 border-t" style={{ borderColor: "#1e2330" }}>
+          <div className="flex justify-center mb-2"><NotificationBell /></div>
           <button onClick={() => signOut()}
             className="w-full text-xs py-2 rounded-lg transition-all"
             style={{ background: "#1e2330", color: "#8b92a8", border: "1px solid #2a2f3d" }}>
@@ -199,14 +202,20 @@ export default function DriverApp() {
         {/* Mobile header (hidden on desktop) */}
         <div className="md:hidden px-5 py-4 flex items-center justify-between sticky top-0 z-50"
           style={{ background: "#0d1117", borderBottom: "1px solid #1e2330" }}>
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#3d4560" }}>Yango Fleet</div>
-            <div className="font-semibold text-sm text-white">{profile.full_name}</div>
+          <div className="flex items-center gap-2.5">
+            <BrandLogo size={28} />
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#3d4560" }}>{settings.app_name}</div>
+              <div className="font-semibold text-sm text-white">{profile.full_name}</div>
+            </div>
           </div>
-          <button onClick={() => signOut()} className="text-xs px-3 py-1.5 rounded-lg"
-            style={{ background: "#1e2330", color: "#8b92a8", border: "1px solid #2a2f3d" }}>
-            Déco
-          </button>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <button onClick={() => signOut()} className="text-xs px-3 py-1.5 rounded-lg"
+              style={{ background: "#1e2330", color: "#8b92a8", border: "1px solid #2a2f3d" }}>
+              Déco
+            </button>
+          </div>
         </div>
 
         {/* Desktop page title bar */}

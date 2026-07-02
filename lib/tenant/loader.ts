@@ -16,48 +16,55 @@ function detectSlug(): string {
   return DEFAULT_SLUG;
 }
 
+const DEFAULT_SETTINGS = {
+  app_name: "Fleet Manager",
+  logo_url: null,
+  primary_color: "#f5a623",
+  currency: "XOF",
+  timezone: "Africa/Dakar",
+  operator_name: null,
+};
+
+const DEFAULT_REMUNERATION = {
+  model: "fixed",
+  base_amount: 0,
+  commission_rate: 0,
+  bonus_threshold: 0,
+  bonus_amount: 0,
+};
+
 export async function loadTenantContext(): Promise<TenantContext> {
   if (cache) return cache;
 
   const slug = detectSlug();
-  const supabase = createClient() as any;
 
-  const { data: tenant, error: tErr } = await supabase
-    .from("tenants")
-    .select("*")
-    .eq("slug", slug)
-    .single();
-
-  if (tErr || !tenant) throw new Error(`Tenant '${slug}' not found`);
+  // Branding via l'API publique (service role côté serveur) : fonctionne AVANT
+  // connexion — la lecture directe de `tenants` est bloquée par RLS pour les anonymes.
+  const res = await fetch(`/api/public/tenant-branding?slug=${encodeURIComponent(slug)}`);
+  if (!res.ok) throw new Error(`Tenant '${slug}' not found`);
+  const { tenant, settings } = await res.json();
   if (!tenant.active) throw new Error(`Tenant '${slug}' is suspended`);
 
-  const [{ data: settings }, { data: remuneration }] = await Promise.all([
-    supabase.from("tenant_settings").select("*").eq("tenant_id", tenant.id).single(),
-    supabase.from("remuneration_config").select("*").eq("tenant_id", tenant.id).single(),
-  ]);
-
-  const defaults = {
-    settings: {
-      app_name: "Fleet Manager",
-      logo_url: null,
-      primary_color: "#f5a623",
-      currency: "XOF",
-      timezone: "Africa/Dakar",
-      operator_name: null,
-    },
-    remuneration: {
-      model: "fixed",
-      base_amount: 0,
-      commission_rate: 0,
-      bonus_threshold: 0,
-      bonus_amount: 0,
-    },
-  };
+  // Config de rémunération : donnée privée, via session Supabase (RLS).
+  // Échoue silencieusement pour un visiteur non connecté — les pages qui en ont
+  // besoin (driver/pilotage) sont derrière l'authentification.
+  let remuneration = null;
+  try {
+    const supabase = createClient() as any;
+    const { data } = await supabase
+      .from("remuneration_config")
+      .select("*")
+      .eq("tenant_id", tenant.id)
+      .single();
+    remuneration = data;
+  } catch {
+    // non connecté — defaults
+  }
 
   cache = {
     tenant,
-    settings: settings || { ...defaults.settings, tenant_id: tenant.id },
-    remuneration: remuneration || { ...defaults.remuneration, tenant_id: tenant.id },
+    settings: settings || { ...DEFAULT_SETTINGS, tenant_id: tenant.id },
+    remuneration: remuneration || { ...DEFAULT_REMUNERATION, tenant_id: tenant.id },
   };
 
   return cache;

@@ -16,9 +16,10 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Titre neutre — remplacé côté client par le nom d'app du tenant (TenantProvider)
 export const metadata: Metadata = {
-  title: "Yango Fleet Manager",
-  description: "Manage your Yango fleet in Dakar, Senegal",
+  title: "Fleet Manager",
+  description: "Plateforme de gestion de flotte — by M3A Solutions",
 };
 
 export default function RootLayout({
@@ -28,7 +29,7 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="fr"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">

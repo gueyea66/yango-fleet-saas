@@ -5,10 +5,14 @@ export const dynamic = "force-dynamic";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getVirtualEmailForDriver } from "@/lib/auth/utils";
+import { useTenant } from "@/lib/tenant/context";
+import { BrandLogo, PoweredBy } from "@/components/brand/BrandShell";
 
 type UserRole = "admin" | "driver";
 
 export default function LoginPage() {
+  const { settings } = useTenant();
+  const brand = settings.primary_color || "#f5a623";
   const [role, setRole] = useState<UserRole>("admin");
   const [email, setEmail] = useState("");
   const [driverId, setDriverId] = useState("");
@@ -48,15 +52,14 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4"
       style={{ background: "linear-gradient(135deg, #080a0f 0%, #0d1117 50%, #0a0c12 100%)" }}>
-      <div className="fixed inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 60% 40% at 50% 0%, rgba(245,166,35,0.06) 0%, transparent 70%)" }} />
+      <div className="fixed inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse 60% 40% at 50% 0%, ${brand}10 0%, transparent 70%)` }} />
       <div className="w-full max-w-[400px] relative">
         <div className="flex flex-col items-center mb-10">
           <div className="relative mb-5">
-            <div className="absolute inset-0 rounded-2xl blur-xl opacity-40" style={{ background: "#f5a623", transform: "scale(1.3)" }} />
-            <div className="relative w-14 h-14 rounded-2xl flex items-center justify-center font-black text-2xl text-black"
-              style={{ background: "linear-gradient(135deg, #f5a623, #e8951a)" }}>Y</div>
+            <div className="absolute inset-0 rounded-2xl blur-xl opacity-40" style={{ background: brand, transform: "scale(1.3)" }} />
+            <div className="relative"><BrandLogo size={56} /></div>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "#f0f2f7" }}>Yango Fleet</h1>
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "#f0f2f7" }}>{settings.app_name}</h1>
           <p className="text-sm mt-1" style={{ color: "#555e75" }}>Plateforme de gestion de flotte</p>
         </div>
 
@@ -66,7 +69,7 @@ export default function LoginPage() {
             {(["admin", "driver"] as UserRole[]).map((r) => (
               <button key={r} type="button" onClick={() => { setRole(r); setError(null); }}
                 className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-200"
-                style={{ background: role === r ? "linear-gradient(135deg, #f5a623, #e8951a)" : "transparent", color: role === r ? "#000" : "#555e75" }}>
+                style={{ background: role === r ? brand : "transparent", color: role === r ? "#000" : "#555e75" }}>
                 {r === "admin" ? "Admin" : "Conducteur"}
               </button>
             ))}
@@ -114,19 +117,25 @@ export default function LoginPage() {
             <button type="submit" disabled={loading}
               className="w-full py-3.5 rounded-xl text-sm font-bold tracking-wide transition-all duration-200 mt-2"
               style={{
-                background: loading ? "#1e2330" : "linear-gradient(135deg, #f5a623, #e8951a)",
+                background: loading ? "#1e2330" : brand,
                 color: loading ? "#555e75" : "#000",
-                boxShadow: loading ? "none" : "0 4px 20px rgba(245,166,35,0.25)",
+                boxShadow: loading ? "none" : `0 4px 20px ${brand}40`,
               }}>
               {loading ? "Connexion..." : "Se connecter →"}
             </button>
           </form>
+          {role === "admin" && (
+            <p className="text-center mt-5">
+              <a href="/auth/forgot" className="text-xs" style={{ color: "#555e75" }}>Mot de passe oublié ?</a>
+            </p>
+          )}
         </div>
 
         <div className="text-center mt-8">
-          <p className="text-xs" style={{ color: "#2a2f3d" }}>
-            Powered by <span className="font-semibold" style={{ color: "#3d4560" }}>M3A Solution</span>
-          </p>
+          {settings.operator_name && (
+            <p className="text-xs mb-1" style={{ color: "#3d4560" }}>{settings.operator_name}</p>
+          )}
+          <PoweredBy />
         </div>
       </div>
     </div>

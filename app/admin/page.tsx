@@ -9,6 +9,9 @@ import { createClient } from "@/lib/supabase/client";
 import { useDashboardKPIs } from "@/lib/hooks/useDashboardKPIs";
 import NotificationBell from "@/components/NotificationBell";
 import ImportHistoriqueModal from "@/components/ImportHistoriqueModal";
+import { useTenant } from "@/lib/tenant/context";
+import { BrandLogo } from "@/components/brand/BrandShell";
+import TrialBanner from "@/components/TrialBanner";
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -25,6 +28,7 @@ interface DailyReport {
 
 export default function AdminPage() {
   const { user, loading, signOut } = useAuth();
+  const { settings } = useTenant();
   const router = useRouter();
   const [tab, setTab] = useState("dashboard");
   const [showImportModal, setShowImportModal] = useState(false);
@@ -193,11 +197,10 @@ export default function AdminPage() {
         {/* Logo */}
         <div className="px-5 py-5 border-b" style={{ borderColor: "#1e2330" }}>
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center font-black text-black text-sm"
-              style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>Y</div>
+            <BrandLogo size={32} />
             <div>
-              <div className="font-bold text-white text-sm">Yango Fleet</div>
-              <div className="text-[10px]" style={{ color: "#3d4560" }}>Powered by M3A Solution</div>
+              <div className="font-bold text-white text-sm">{settings.app_name}</div>
+              <div className="text-[10px]" style={{ color: "#3d4560" }}>{settings.operator_name || "Powered by M3A Solution"}</div>
             </div>
           </div>
         </div>
@@ -227,8 +230,10 @@ export default function AdminPage() {
         {/* User + logout */}
         <div className="px-3 py-4 border-t" style={{ borderColor: "#1e2330" }}>
           <div className="px-3 py-2 rounded-xl flex items-center justify-between" style={{ background: "#1e2330" }}>
-            <div>
-              <div className="text-xs font-semibold text-white mb-0.5">Abdoulaye G.</div>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-white mb-0.5 truncate">
+                {user?.user_metadata?.full_name || user?.email || "Admin"}
+              </div>
               <div className="text-[10px]" style={{ color: "#3d4560" }}>Administrateur</div>
             </div>
             <NotificationBell />
@@ -246,9 +251,8 @@ export default function AdminPage() {
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between"
         style={{ background: "rgba(13,17,23,.97)", borderBottom: "1px solid #1e2330", backdropFilter: "blur(12px)" }}>
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg flex items-center justify-center font-black text-black text-xs"
-            style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>Y</div>
-          <span className="font-bold text-white text-sm">Yango Fleet</span>
+          <BrandLogo size={28} />
+          <span className="font-bold text-white text-sm">{settings.app_name}</span>
         </div>
         <div className="flex items-center gap-2">
           <NotificationBell />
@@ -280,6 +284,9 @@ export default function AdminPage() {
         <div className="lg:hidden" style={{ height: 88 }} /> {/* mobile header offset */}
         <div className="lg:pl-[220px]">
         <div className="p-6 lg:p-10 w-full max-w-none" style={{ background: "#080a0f", minHeight: "100vh" }}>
+
+        {/* Expiration essai / abonnement */}
+        <TrialBanner />
 
         {/* Session error banner */}
         {sessionError && (

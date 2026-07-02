@@ -3,7 +3,7 @@ export interface Tenant {
   slug: string;
   name: string;
   domain: string | null;
-  plan: "starter" | "pro" | "enterprise";
+  plan: "trial" | "standard" | "pro" | "starter" | "enterprise"; // starter/enterprise = legacy
   active: boolean;
   created_at: string;
 }
