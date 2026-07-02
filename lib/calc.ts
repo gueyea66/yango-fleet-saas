@@ -12,13 +12,16 @@ export interface CommissionRates {
   partnerPct: number; // % partenaire
 }
 
+/** Taux potentiellement absents (null/undefined) tels que lus en base. */
+export type NullableRates = { yangoPct?: number | null; partnerPct?: number | null };
+
 /**
  * Résolution des taux : chauffeur → véhicule → tenant (1re valeur définie).
  * Chaque niveau fournit yango/partner potentiellement null.
  */
 export function resolveRates(
-  driver: Partial<CommissionRates> | null | undefined,
-  vehicle: Partial<CommissionRates> | null | undefined,
+  driver: NullableRates | null | undefined,
+  vehicle: NullableRates | null | undefined,
   tenant: CommissionRates,
 ): CommissionRates {
   const pick = (k: keyof CommissionRates): number => {

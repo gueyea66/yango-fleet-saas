@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/tenant/context";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import NotificationBell from "@/components/NotificationBell";
+import { resolveRates, computeCommissions } from "@/lib/calc";
 
 import type { RemunerationConfig } from "@/lib/tenant/types";
 
@@ -410,7 +411,7 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
 // ─── REPORT ──────────────────────────────────────────
 function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => void; cfg: Cfg }) {
   const today = new Date().toISOString().split("T")[0];
-  const [form, setForm] = useState({ date: today, end_odometer: "", yango_gross: "", yango_bonus: "", off_yango_revenue: "", solde_yango: "", yango_trip_count: "", off_yango_trip_count: "", comment: "" });
+  const [form, setForm] = useState({ date: today, end_odometer: "", yango_gross: "", yango_bonus: "", off_yango_revenue: "", solde_yango: "", yango_trip_count: "", off_yango_trip_count: "", service_supplementaire: "", comment: "" });
   const [todayReport, setTodayReport] = useState<any>(null);
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -426,7 +427,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
       const supabase = createClient() as any;
       const [{ data: rep }, { data: veh }] = await Promise.all([
         supabase.from("daily_reports").select("*").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("date", today).maybeSingle(),
-        supabase.from("vehicles").select("id,plate,partner_rate").eq("driver_id", profile.id).maybeSingle(),
+        supabase.from("vehicles").select("id,plate,partner_rate,yango_rate").eq("driver_id", profile.id).maybeSingle(),
       ]);
       if (rep) {
         setTodayReport(rep);
@@ -441,6 +442,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
             solde_yango: rep.solde_yango ? String(rep.solde_yango) : "",
             yango_trip_count: rep.yango_trip_count ? String(rep.yango_trip_count) : "",
             off_yango_trip_count: rep.off_yango_trip_count ? String(rep.off_yango_trip_count) : "",
+            service_supplementaire: rep.service_supplementaire ? String(rep.service_supplementaire) : "",
             comment: rep.comment || "",
           });
         }
@@ -449,9 +451,18 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
     })();
   }, [profile.id, today]);
 
-  // Use vehicle partner_rate if available, else fall back to cfg
-  const effectiveCfg = { ...cfg, comm_partner: vehicle?.partner_rate != null ? vehicle.partner_rate * 100 : cfg.comm_partner };
-  const calc = calcReport(n(form.yango_gross), n(form.yango_bonus), n(form.off_yango_revenue), effectiveCfg);
+  // Taux résolus : chauffeur → véhicule → tenant (tous en %)
+  const rates = resolveRates(
+    { yangoPct: (profile as any).comm_yango, partnerPct: (profile as any).comm_partner },
+    { yangoPct: vehicle?.yango_rate != null ? vehicle.yango_rate * 100 : null,
+      partnerPct: vehicle?.partner_rate != null ? vehicle.partner_rate * 100 : null },
+    { yangoPct: cfg.comm_yango, partnerPct: cfg.comm_partner },
+  );
+  const calc = computeCommissions({
+    brutYango: n(form.yango_gross), bonusYango: n(form.yango_bonus),
+    horsYango: n(form.off_yango_revenue), rates,
+    serviceSupplementaire: n(form.service_supplementaire),
+  });
   const canEdit = !todayReport || todayReport.status === "rejected";
 
   const submit = async () => {
@@ -468,10 +479,11 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         solde_yango: form.solde_yango ? n(form.solde_yango) : null,
         yango_trip_count: form.yango_trip_count ? n(form.yango_trip_count) : null,
         off_yango_trip_count: form.off_yango_trip_count ? n(form.off_yango_trip_count) : null,
-        commission_rate: effectiveCfg.comm_yango / 100,
-        commission_amount: calc.commY + calc.commP,
-        partner_rate: effectiveCfg.comm_partner / 100,
-        net_after_expenses: calc.total,
+        commission_rate: rates.yangoPct / 100,
+        commission_amount: calc.commYango + calc.commPartner,
+        partner_rate: rates.partnerPct / 100,
+        service_supplementaire: n(form.service_supplementaire),
+        net_after_expenses: calc.netTotal,
         vehicle_id: vehicle?.id ?? null,
         expense_count: 0,
         status: "submitted",
@@ -503,7 +515,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         void supabase.from("action_logs").insert({
           tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
           entity_type: "daily_report", entity_id: newReport.id, action: "submitted",
-          metadata: { date: form.date, net: calc.total },
+          metadata: { date: form.date, net: calc.netTotal },
         });
       }
       setSubmitted(true);
@@ -557,11 +569,12 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
           <Field label="Courses Yango"><InpText type="number" placeholder="0" value={form.yango_trip_count} onChange={(v) => set("yango_trip_count", v)} disabled={!canEdit} /></Field>
           <Field label="Courses hors"><InpText type="number" placeholder="0" value={form.off_yango_trip_count} onChange={(v) => set("off_yango_trip_count", v)} disabled={!canEdit} /></Field>
         </div>
+        <Field label="➕ Service supplémentaire Yango (optionnel)"><InpText type="number" placeholder="0" value={form.service_supplementaire} onChange={(v) => set("service_supplementaire", v)} disabled={!canEdit} /></Field>
 
         {(n(form.yango_gross) > 0 || n(form.yango_bonus) > 0 || n(form.off_yango_revenue) > 0) && (
           <div className="rounded-2xl p-4" style={{ background: "rgba(245,166,35,.04)", border: "1px solid rgba(245,166,35,.15)" }}>
             <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "#f5a623" }}>Aperçu calcul</div>
-            {[["Base Yango", calc.base, false], [`Commission Yango (${effectiveCfg.comm_yango}%)`, calc.commY, true], [`Comm. partenaire (${effectiveCfg.comm_partner.toFixed(2)}%)`, calc.commP, true], ["Net Yango", calc.netY, false], ["Hors Yango", calc.offYango, false], ...(n(form.solde_yango) > 0 ? [["💳 Solde wallet", n(form.solde_yango), false]] : [])].map(([l, v, neg]) => (
+            {[["Base Yango", calc.base, false], [`Commission Yango (${rates.yangoPct}%)`, calc.commYango, true], [`Comm. partenaire (${rates.partnerPct.toFixed(2)}%)`, calc.commPartner, true], ...(calc.serviceSupp > 0 ? [["Service supplémentaire", calc.serviceSupp, true]] : []), ["Net Yango", calc.netYango, false], ["Hors Yango", n(form.off_yango_revenue), false], ...(n(form.solde_yango) > 0 ? [["💳 Solde wallet", n(form.solde_yango), false]] : [])].map(([l, v, neg]) => (
               <div key={String(l)} className="flex justify-between text-xs py-1.5" style={{ borderBottom: "1px solid rgba(245,166,35,.07)" }}>
                 <span style={{ color: "#555e75" }}>{l}</span>
                 <span className="font-mono font-semibold" style={{ color: neg ? "#ef4444" : "#8b92a8" }}>{neg ? "- " : ""}{xof(Math.abs(Number(v)))}</span>
@@ -569,7 +582,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
             ))}
             <div className="flex justify-between text-sm font-bold pt-2">
               <span className="text-white">NET TOTAL</span>
-              <span className="font-mono" style={{ color: "#22c55e" }}>{xof(calc.total)}</span>
+              <span className="font-mono" style={{ color: "#22c55e" }}>{xof(calc.netTotal)}</span>
             </div>
           </div>
         )}

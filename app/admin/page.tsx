@@ -12,6 +12,7 @@ import ImportHistoriqueModal from "@/components/ImportHistoriqueModal";
 import { useTenant } from "@/lib/tenant/context";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import TrialBanner from "@/components/TrialBanner";
+import { computeCommissions } from "@/lib/calc";
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -1930,6 +1931,7 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
   const [kmEdit, setKmEdit] = useState(String(report.end_odometer || ""));
   const [yangoTripsEdit, setYangoTripsEdit] = useState(String(report.yango_trip_count || ""));
   const [offYangoTripsEdit, setOffYangoTripsEdit] = useState(String(report.off_yango_trip_count || ""));
+  const [serviceSuppEdit, setServiceSuppEdit] = useState(String(report.service_supplementaire || ""));
   const [uploads, setUploads] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -1958,16 +1960,19 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
       const yg = parseFloat(yangoGrossEdit) || 0;
       const yb = parseFloat(yangoBonus) || 0;
       const hy = parseFloat(horsYangoEdit) || 0;
-      const commYango = report.commission_rate || 0.15;    // 15% Yango
-      const commPartner = 0.0075;                           // 0.75% partenaire
-      const base = yg + yb;
-      const comm = base * (commYango + commPartner);       // total commissions
-      const net = (base - comm) + hy;                      // net après TOUTES commissions
+      const serviceSupp = parseFloat(serviceSuppEdit) || 0;
+      // On garde les taux figés du rapport (fractions → %) et on recalcule via le moteur
+      const calc = computeCommissions({
+        brutYango: yg, bonusYango: yb, horsYango: hy,
+        rates: { yangoPct: (report.commission_rate ?? 0.15) * 100, partnerPct: (report.partner_rate ?? 0.0075) * 100 },
+        serviceSupplementaire: serviceSupp,
+      });
       const { error } = await supabase.from("daily_reports").update({
         date: dateEdit || report.date,
         yango_gross: yg, yango_bonus: yb, off_yango_revenue: hy,
-        gross_earnings: base + hy, commission_amount: comm,
-        net_after_expenses: net,
+        gross_earnings: calc.base + hy, commission_amount: calc.commYango + calc.commPartner,
+        service_supplementaire: serviceSupp,
+        net_after_expenses: calc.netTotal,
         solde_yango: parseFloat(soldeEdit) || 0,
         end_odometer: kmEdit ? parseInt(kmEdit) : null,
         yango_trip_count: yangoTripsEdit ? parseInt(yangoTripsEdit) : null,
@@ -2030,6 +2035,7 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
     ["Hors Yango", xof(report.off_yango_revenue)],
     ["💳 Solde wallet", xof(report.solde_yango)],
     ["Commission", `- ${xof(report.commission_amount)}`],
+    ...(report.service_supplementaire > 0 ? [["Service supp.", `- ${xof(report.service_supplementaire)}`]] : []),
     ["Courses Yango", report.yango_trip_count ?? "—"],
     ["Courses hors", report.off_yango_trip_count ?? "—"],
     ["Km fin", report.end_odometer ? `${report.end_odometer} km` : "—"],
@@ -2139,6 +2145,13 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
                   style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#a855f7" }} />
               </div>
+            </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: "#555e75" }}>➕ Service supplémentaire Yango</label>
+              <input type="number" value={serviceSuppEdit} onChange={(e) => setServiceSuppEdit(e.target.value)}
+                placeholder="Charge Yango add. (optionnel)"
+                className="w-full rounded-xl px-3 py-2 text-sm outline-none"
+                style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#ef4444" }} />
             </div>
             <div>
               <label className="block text-xs mb-1" style={{ color: "#555e75" }}>Note / commentaire</label>
