@@ -49,6 +49,7 @@ Restent 3 actions manuelles côté infra (section 5) et de la dette qualité non
 | Q4 | `npm audit` : 3 vulnérabilités modérées (postcss transitif via next — faux positif d'advisory, non actionnable) |
 | Q5 | Dossiers vides `api/admin/diagnose` et `api/admin/fix-driver-ids` |
 | Q6 | Middleware Next.js déprécié (convention `proxy` recommandée en Next 16) — warning build |
+| Q7 | Prix incohérents : `lib/plans.ts` = 35 000/75 000 XOF vs défauts `payment-settings` = 25 000/50 000 XOF. Renseigner `price_standard`/`price_pro` dans `superadmin_settings` pour trancher |
 
 ## 4. Points positifs confirmés
 
