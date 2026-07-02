@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getTenantId } from "@/lib/supabase/tenanted";
 import {
   soldeConsomme as calcSoldeConsomme, coutCarburantParKm, carburantConsomme,
-  computeOperationnel, computeTresorerie,
+  computeOperationnel, computeTresorerie, joursOuvresProjetes,
 } from "@/lib/calc";
 
 // Catégories de dépenses au traitement spécial (front-load)
@@ -91,6 +91,8 @@ export interface DashboardKPIs {
     nbReports: number;
     nbApproved: number;
     nbPending: number;
+    hire_date: string | null;
+    prorataFactor: number;   // 1 = plein mois ; < 1 si entré en cours de période
   }>;
 
   loading: boolean;
@@ -150,8 +152,8 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
           saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).eq("date", today),
           saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).gte("date", weekAgo).lte("date", today),
           tid
-            ? supabase.from("profiles").select("id, full_name, driver_id, solde_initial").eq("tenant_id", tid).eq("role", "driver")
-            : supabase.from("profiles").select("id, full_name, driver_id, solde_initial").eq("role", "driver"),
+            ? supabase.from("profiles").select("id, full_name, driver_id, solde_initial, hire_date").eq("tenant_id", tid).eq("role", "driver")
+            : supabase.from("profiles").select("id, full_name, driver_id, solde_initial, hire_date").eq("role", "driver"),
         ]);
         allReps = r1.data || []; allExps = r2.data || []; allPayments = r3.data || [];
         todayRep = r4.data || []; weekRep = r5.data || []; driverProfiles = r6.data || [];
@@ -335,6 +337,17 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         if (r.status === "approved") { entry.netApproved += r.net_after_expenses || 0; entry.nbApproved++; }
         else { entry.netPending += r.net_after_expenses || 0; entry.nbPending++; }
       });
+      // Prorata salaire : jours ouvrés du mois (6j/7 sur le calendrier réel de la période)
+      const joursOuvresPeriode = joursOuvresProjetes(periodStart, periodEnd);
+      const hireByDriver: Record<string, string | null> = {};
+      drivers.forEach((d: any) => { hireByDriver[d.id] = d.hire_date ?? null; });
+      const prorataOf = (hire: string | null): number => {
+        if (!hire || hire <= periodStart || joursOuvresPeriode <= 0) return 1;
+        if (hire > periodEnd) return 0;
+        const travailles = joursOuvresProjetes(hire, periodEnd);
+        return Math.min(1, travailles / joursOuvresPeriode);
+      };
+
       const driverAllocations = Array.from(driverAllocationMap.entries()).map(([driver_id, d]) => ({
         driver_id,
         name: d.name,
@@ -344,6 +357,8 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         nbReports: d.nbApproved + d.nbPending,
         nbApproved: d.nbApproved,
         nbPending: d.nbPending,
+        hire_date: hireByDriver[driver_id] ?? null,
+        prorataFactor: prorataOf(hireByDriver[driver_id] ?? null),
       })).sort((a, b) => b.netDeclared - a.netDeclared);
 
       // ── TODAY / WEEK (approved only) ──

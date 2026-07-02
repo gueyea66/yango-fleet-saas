@@ -841,7 +841,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {tab === "journal" && <ActionLogsTab />}
+        {tab === "journal" && <ActionLogsTab filterDriverId={filterDriverId} />}
 
         {tab === "import" && (
           <div className="p-6 max-w-2xl">
@@ -866,7 +866,7 @@ export default function AdminPage() {
           <div className="p-6 text-sm" style={{ color: "#555e75" }}>Chargement du tenant...</div>
         )}
 
-        {tab === "kyc" && adminTenantId && <KycAdminTab tenantId={adminTenantId} />}
+        {tab === "kyc" && adminTenantId && <KycAdminTab tenantId={adminTenantId} filterDriverId={filterDriverId} />}
         {tab === "kyc" && !adminTenantId && <div className="p-6 text-sm" style={{ color: "#555e75" }}>Chargement...</div>}
 
         {tab === "settings" && (
@@ -1335,7 +1335,7 @@ const LEVEL_OPTS = [
   { value: "confirme",      label: "Confirmé" },
 ];
 
-function KycAdminTab({ tenantId }: { tenantId: string }) {
+function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filterDriverId?: string }) {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [driverDocs, setDriverDocs] = useState<any[]>([]);
@@ -1424,6 +1424,13 @@ function KycAdminTab({ tenantId }: { tenantId: string }) {
   };
 
   useEffect(() => { loadDrivers(); }, [tenantId]);
+
+  // Filtre chauffeur global → auto-sélection du chauffeur
+  useEffect(() => {
+    if (filterDriverId) { setSelected(filterDriverId); loadDriver(filterDriverId); }
+    else { setSelected(null); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterDriverId]);
 
   const selectDriver = async (id: string) => {
     setSelected(id);
@@ -2352,18 +2359,21 @@ function DailyTable({ data, periodFrom, periodTo }: { data: any[]; periodFrom: s
 
 // ─── REMUNERATION DASHBOARD BLOCK ─────────────────────
 // ─── DRIVER ALLOCATIONS BLOCK ─────────────────────────
-function calcDriverSalary(netDeclared: number, cfg: any): number {
+// prorataFactor (0–1) : proratise la BASE FIXE pour un chauffeur entré en cours de mois.
+// Les modèles proportionnels (percent/location) et la commission ne sont pas proratisés.
+function calcDriverSalary(netDeclared: number, cfg: any, prorataFactor: number = 1): number {
   const model: string = cfg.model || "tiered";
-  if (model === "fixed") return cfg.base_amount || 0;
+  const pf = prorataFactor > 0 && prorataFactor <= 1 ? prorataFactor : 1;
+  if (model === "fixed") return (cfg.base_amount || 0) * pf;
   if (model === "tiered") {
     const tiers: any[] = Array.isArray(cfg.salary_tiers) ? cfg.salary_tiers : [];
     const sorted = [...tiers].sort((a, b) => b.min_net - a.min_net);
     const tier = sorted.find((t) => netDeclared >= t.min_net) ?? sorted[sorted.length - 1];
-    return tier?.total_salary ?? cfg.base_amount ?? 0;
+    return (tier?.total_salary ?? cfg.base_amount ?? 0) * pf;
   }
   if (model === "percent") return netDeclared * (cfg.commission_rate || 0);
   if (model === "hybrid") {
-    const base = cfg.base_amount || 0;
+    const base = (cfg.base_amount || 0) * pf;
     const bonus = cfg.bonus_threshold > 0 && netDeclared >= cfg.bonus_threshold ? (cfg.bonus_amount || 0) : 0;
     return base + bonus + netDeclared * (cfg.commission_rate || 0);
   }
@@ -2391,7 +2401,8 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {allocations.map((d) => {
-          const salary = calcDriverSalary(d.netDeclared, cfg);
+          const salary = calcDriverSalary(d.netDeclared, cfg, d.prorataFactor);
+          const isProrated = d.prorataFactor != null && d.prorataFactor < 1;
           const hasPending = d.nbPending > 0;
           return (
             <div key={d.driver_id} className="rounded-2xl p-4 space-y-3"
@@ -2434,8 +2445,20 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
               </div>
               {model !== "location" && (
                 <div className="rounded-xl px-3 py-2.5" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
-                  <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "#3d4560" }}>Allocation estimée</div>
+                  <div className="text-[10px] uppercase tracking-wider mb-1 flex items-center justify-between" style={{ color: "#3d4560" }}>
+                    <span>Allocation estimée</span>
+                    {isProrated && (
+                      <span className="px-1.5 py-0.5 rounded" style={{ background: "rgba(168,85,247,.12)", color: "#a855f7" }}>
+                        prorata {Math.round(d.prorataFactor * 100)}%
+                      </span>
+                    )}
+                  </div>
                   <div className="font-mono font-bold text-base" style={{ color: "#f5a623" }}>{xof(salary)}</div>
+                  {isProrated && d.hire_date && (
+                    <div className="text-[10px] mt-0.5" style={{ color: "#3d4560" }}>
+                      Entré le {new Date(d.hire_date).toLocaleDateString("fr-FR")}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -3304,8 +3327,8 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
 
 // ─── KPI CARD ─────────────────────────────────────────
 // ─── ACTION LOGS TAB ──────────────────────────────────
-function ActionLogsTab() {
-  const [logs, setLogs] = useState<any[]>([]);
+function ActionLogsTab({ filterDriverId = "" }: { filterDriverId?: string }) {
+  const [allLogs, setAllLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState<Record<string, string>>({});
 
@@ -3319,10 +3342,14 @@ function ActionLogsTab() {
       const pm: Record<string, string> = {};
       (profs || []).forEach((p: any) => { pm[p.id] = p.full_name; });
       setProfiles(pm);
-      setLogs(logsData || []);
+      setAllLogs(logsData || []);
       setLoading(false);
     })();
   }, []);
+
+  const logs = filterDriverId
+    ? allLogs.filter((l) => l.actor_id === filterDriverId || l.driver_id === filterDriverId)
+    : allLogs;
 
   const actionLabel: Record<string, [string, string]> = {
     submitted: ["⏳", "#f5a623"],
