@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { PRIVACY_EMAIL } from "@/lib/config";
 
 export const metadata = { title: "Politique de Confidentialité — Fleet Manager" };
 
@@ -26,7 +27,7 @@ export default function ConfidentialitePage() {
         <p style={S.p}>
           Le responsable du traitement des données à caractère personnel collectées via le Service est :<br />
           <strong style={{ color: "#f0f2f7" }}>M3A Solutions</strong>, Dakar, Sénégal.<br />
-          Contact DPO : <a href="mailto:privacy@m3asolutions.com" style={{ color: "#f5a623" }}>privacy@m3asolutions.com</a>
+          Contact DPO : <a href={`mailto:${PRIVACY_EMAIL}`} style={{ color: "#f5a623" }}>{PRIVACY_EMAIL}</a>
         </p>
 
         <h2 style={S.h2}>2. Données collectées</h2>
@@ -114,7 +115,7 @@ export default function ConfidentialitePage() {
           <li style={S.li}><strong style={{ color: "#f0f2f7" }}>Droit à la limitation</strong> : demander la suspension d&apos;un traitement.</li>
         </ul>
         <p style={S.p}>
-          Pour exercer ces droits : <a href="mailto:privacy@m3asolutions.com" style={{ color: "#f5a623" }}>privacy@m3asolutions.com</a>.
+          Pour exercer ces droits : <a href={`mailto:${PRIVACY_EMAIL}`} style={{ color: "#f5a623" }}>{PRIVACY_EMAIL}</a>.
           Nous répondrons dans un délai de 30 jours.
         </p>
 

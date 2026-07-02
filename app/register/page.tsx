@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { tenantDomainPreview } from "@/lib/config";
 
 interface FormState {
   companyName: string;
@@ -106,7 +107,7 @@ export default function RegisterPage() {
             />
             {slugPreview && (
               <p style={{ color: "#8892a4", fontSize: "12px", marginTop: "4px" }}>
-                URL : <code style={{ color: "#f5a623" }}>{slugPreview}.fleet.m3asolutions.com</code>
+                URL : <code style={{ color: "#f5a623" }}>{tenantDomainPreview(slugPreview)}</code>
               </p>
             )}
           </div>

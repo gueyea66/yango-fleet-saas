@@ -62,7 +62,7 @@ Après exécution, récupérer dans **Settings → API** :
 
 - Pour un nouveau client → superadmin → "Nouveau client" → slug `alpha` → subdomain `alpha.votre-app.vercel.app`
 
-- Pour configurer un vrai domaine : Vercel → Settings → Domains → `alpha.fleet.m3asolutions.com`
+- Pour configurer un vrai domaine : Vercel → Settings → Domains → `alpha.fleet.VOTRE-DOMAINE.com`
 
 ---
 

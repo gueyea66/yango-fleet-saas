@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import Link from "next/link";
+import { SUPPORT_EMAIL } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Statut du Service — Fleet Manager by M3A" };
@@ -136,7 +137,7 @@ export default async function StatusPage() {
         <div style={{ textAlign: "center" as const, fontSize: 12, color: "#6b7280", borderTop: "1px solid #2a3147", paddingTop: 24 }}>
           <p style={{ margin: "0 0 8px" }}>
             Signaler un incident :{" "}
-            <a href="mailto:support@m3asolutions.com" style={{ color: "#f5a623" }}>support@m3asolutions.com</a>
+            <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: "#f5a623" }}>{SUPPORT_EMAIL}</a>
           </p>
           <div style={{ display: "flex", gap: 16, justifyContent: "center", flexWrap: "wrap" as const }}>
             <Link href="/legal/cgu" style={{ color: "#6b7280" }}>CGU</Link>

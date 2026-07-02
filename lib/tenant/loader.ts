@@ -8,7 +8,7 @@ let cache: TenantContext | null = null;
 function detectSlug(): string {
   if (typeof window === "undefined") return DEFAULT_SLUG;
   const hostname = window.location.hostname;
-  // abdou.fleet.m3asolutions.com → 'abdou'
+  // abdou.fleet.mondomaine.com → 'abdou' (voir NEXT_PUBLIC_ROOT_DOMAIN)
   // localhost → default
   if (hostname === "localhost" || hostname === "127.0.0.1") return DEFAULT_SLUG;
   const parts = hostname.split(".");

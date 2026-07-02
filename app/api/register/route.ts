@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getClientIp } from "@/lib/auth/server";
 import { TRIAL_DAYS } from "@/lib/plans";
+import { tenantLoginUrl } from "@/lib/config";
 
 export const dynamic = "force-dynamic";
 
@@ -115,7 +116,7 @@ export async function POST(req: NextRequest) {
     timezone: "Africa/Dakar",
   });
 
-  const loginUrl = `https://${slug}.fleet.m3asolutions.com/auth/login`;
+  const loginUrl = tenantLoginUrl(slug);
 
   return NextResponse.json({
     ok: true,

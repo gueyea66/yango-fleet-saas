@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SUPPORT_EMAIL } from "@/lib/config";
 
 export const metadata = { title: "Conditions Générales d'Utilisation — Fleet Manager" };
 
@@ -155,7 +156,7 @@ export default function CGUPage() {
         <p style={S.p}>
           Pour toute question relative aux présentes CGU :<br />
           <strong style={{ color: "#f0f2f7" }}>M3A Solutions</strong> — Dakar, Sénégal<br />
-          Email : <a href="mailto:contact@m3asolutions.com" style={{ color: "#f5a623" }}>contact@m3asolutions.com</a>
+          Email : <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: "#f5a623" }}>{SUPPORT_EMAIL}</a>
         </p>
 
         <div style={{ borderTop: "1px solid #2a3147", marginTop: 40, paddingTop: 20, display: "flex", gap: 16, flexWrap: "wrap" }}>

@@ -28,8 +28,8 @@ Pattern chassé : fonctionnalités « construites mais jamais branchées » et l
 |---|-----|-----------------|
 | G1 | **Notifications d'expiration jamais envoyées automatiquement** | `plan_expiring`/`payment_due` existent dans `NOTIF_META` mais aucun scheduler ne les déclenche. La bannière in-app couvre le besoin à la connexion ; pour le push il faut un Vercel Cron (`vercel.json` → route `/api/cron/expiry-check`) |
 | G2 | **SMTP** : le reset password s'appuie sur l'email Supabase par défaut (~3 emails/h, expéditeur `noreply@mail.app.supabase.io`) | Configurer un SMTP custom (Resend/Brevo) dans Supabase Auth → emails fiables + expéditeur brandé |
-| G3 | **Wildcard DNS/Vercel non vérifié** : `{slug}.fleet.m3asolutions.com` codé mais domaine/wildcard à confirmer | Vérifier : possession du domaine, DNS `*.fleet` → Vercel, domaine wildcard ajouté au projet (action manuelle Abdou) |
-| G4 | **Bucket `branding` et migration 024 à créer en prod** | Le bucket se crée au premier upload ; migration 024 à exécuter dans le SQL Editor |
+| G3 | **Domaine dédié à acquérir (Vercel) + wildcard** | `m3asolutions.com` n'appartient pas à M3A (site Wix tiers). Domaine désormais configurable via `NEXT_PUBLIC_ROOT_DOMAIN` (plus aucun hardcode). Action Abdou : acheter un domaine neutre dans Vercel → Domains, ajouter `*.fleet.<domaine>`, renseigner la variable. Voir [SETUP-DOMAINE.md](SETUP-DOMAINE.md) |
+| G4 | ✅ Fait le 02/07 : bucket `branding` créé, migrations 024/025 appliquées en prod (lockdown superadmin_settings + rotation clé) |
 
 ## 🟡 P2 — dans les 30 jours
 
