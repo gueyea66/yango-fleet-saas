@@ -509,8 +509,10 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
           const ext = file.name.split(".").pop();
           const path = `${profile.id}/report_${newReport.id}_${Date.now()}.${ext}`;
           const fd = new FormData(); fd.append("file", file); fd.append("path", path);
-          await fetch("/api/kyc-upload", { method: "POST", body: fd });
-          await supabase.from("uploads").insert({ driver_id: profile.id, tenant_id: profile.tenant_id, file_name: file.name, file_path: path, file_type: "report", file_size: file.size, ref_id: newReport.id });
+          const up = await fetch("/api/kyc-upload", { method: "POST", body: fd });
+          const upRes = await up.json().catch(() => ({}));
+          // L'API force le préfixe tenantId : on stocke le chemin réel retourné
+          await supabase.from("uploads").insert({ driver_id: profile.id, tenant_id: profile.tenant_id, file_name: file.name, file_path: upRes.path || path, file_type: "report", file_size: file.size, ref_id: newReport.id });
         }
         void supabase.from("action_logs").insert({
           tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
@@ -672,7 +674,7 @@ function UploadBlock({ driverId, refId, refType, label = "📎 Photos / Reçus" 
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Upload échoué");
 
-      await supabase.from("uploads").insert({ driver_id: driverId, file_name: file.name, file_path: path, file_type: refType, file_size: file.size, ...(refId ? { ref_id: refId } : {}) });
+      await supabase.from("uploads").insert({ driver_id: driverId, file_name: file.name, file_path: result.path || path, file_type: refType, file_size: file.size, ...(refId ? { ref_id: refId } : {}) });
       const isImg = /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(file.name);
       setFiles((p) => [...p, { name: file.name, url: result.signedUrl || result.publicUrl, isImg }]);
     } catch (err: any) { alert("Upload échoué : " + err.message); }
@@ -766,8 +768,9 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
           const ext = file.name.split(".").pop();
           const path = `${profile.id}/expense_${expId}_${Date.now()}.${ext}`;
           const fd = new FormData(); fd.append("file", file); fd.append("path", path);
-          await fetch("/api/kyc-upload", { method: "POST", body: fd });
-          await supabase.from("uploads").insert({ driver_id: profile.id, tenant_id: profile.tenant_id, file_name: file.name, file_path: path, file_type: "expense", file_size: file.size, ref_id: expId });
+          const up = await fetch("/api/kyc-upload", { method: "POST", body: fd });
+          const upRes = await up.json().catch(() => ({}));
+          await supabase.from("uploads").insert({ driver_id: profile.id, tenant_id: profile.tenant_id, file_name: file.name, file_path: upRes.path || path, file_type: "expense", file_size: file.size, ref_id: expId });
         }
       }
       if (expId) {
