@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "jest",
     "test:watch": "jest --watch",
-    "test:ci": "jest --ci --runInBand"
+    "test:ci": "jest --ci --runInBand",
+    "demo": "node scripts/demo-orchestration.js"
   },
   "dependencies": {
     "@sentry/nextjs": "^10.62.0",
