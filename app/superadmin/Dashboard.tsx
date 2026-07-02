@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { PLAN_LIMITS } from "@/lib/plans";
 
 /* ─── Types ─────────────────────────────────────────────── */
@@ -152,28 +151,21 @@ function Card({ icon,label,value,sub,color="#f5a623",border }:{icon:string;label
 }
 
 /* ─── Main Component ─────────────────────────────────────── */
-export default function Dashboard() {
+export default function Dashboard({ superadminKey }: { superadminKey: string }) {
   const [kpi,setKpi]=useState<KPI|null>(null);
   const [rows,setRows]=useState<TenantRow[]>([]);
   const [daily,setDaily]=useState<DailyPoint[]>([]);
   const [loading,setLoading]=useState(true);
   const [sortBy,setSortBy]=useState<keyof TenantRow>("grossMonth");
-  const sb=createClient() as any;
 
   const load=useCallback(async()=>{
     setLoading(true);
-    const monthStart=new Date(new Date().getFullYear(),new Date().getMonth(),1).toISOString().slice(0,10);
-    const [
-      {data:tenants},{data:profiles},{data:rMonth},{data:rAll},
-      {data:rDaily},{data:settings},
-    ]=await Promise.all([
-      sb.from("tenants").select("id,slug,name,plan,active,trial_ends_at,plan_expires_at,created_at"),
-      sb.from("profiles").select("id,tenant_id,role"),
-      sb.from("daily_reports").select("tenant_id,driver_id,gross_earnings,net_after_expenses").gte("date",monthStart),
-      sb.from("daily_reports").select("gross_earnings,net_after_expenses"),
-      sb.from("daily_reports").select("date,gross_earnings,net_after_expenses").gte("date",new Date(Date.now()-30*864e5).toISOString().slice(0,10)).order("date"),
-      sb.from("tenant_settings").select("tenant_id,app_name,primary_color"),
-    ]);
+    const res=await fetch("/api/superadmin/console",{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({superadminKey,op:"dashboard"}),
+    });
+    const { tenants, profiles, rMonth, rAll, rDaily, settings, error }=await res.json();
+    if(error){setLoading(false);return;}
 
     const sMap:Record<string,any>={};
     (settings||[]).forEach((s:any)=>{sMap[s.tenant_id]=s;});
@@ -241,7 +233,7 @@ export default function Dashboard() {
       grossAllTime:gAll,netAllTime:nAll,conversionRate:conv,
     });
     setLoading(false);
-  },[]);
+  },[superadminKey]);
 
   useEffect(()=>{load();},[load]);
 

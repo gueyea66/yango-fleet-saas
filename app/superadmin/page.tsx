@@ -2,7 +2,6 @@
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { PLAN_LIMITS, getTrialStatus, type Plan } from "@/lib/plans";
 import Dashboard from "./Dashboard";
 import BrandingEditor from "./BrandingEditor";
@@ -48,7 +47,6 @@ export default function SuperAdminPage() {
   const [globalSettings, setGlobalSettings] = useState({ whatsapp: "", phone: "", companyName: "M3A Solutions", defaultTrialDays: "14", defaultPlan: "standard", wavePhone: "", omPhone: "", priceStandard: "35000", pricePro: "75000", priceEnterprise: "100000" });
   const [settingsLoading, setSettingsLoading] = useState(false);
 
-  const sb = createClient() as any;
   const notify = (text: string, ok = true) => { setMsg({ text, ok }); setTimeout(() => setMsg(null), 4000); };
 
   async function verifyAndLogin() {
@@ -77,21 +75,9 @@ export default function SuperAdminPage() {
 
   async function load() {
     setLoading(true);
-    const { data: ts } = await sb.from("tenants")
-      .select("*, settings:tenant_settings(*), remuneration:remuneration_config(*)")
-      .order("created_at", { ascending: false });
-    const list: Tenant[] = (ts || []).map((t: any) => ({
-      ...t,
-      settings: Array.isArray(t.settings) ? t.settings[0] : t.settings,
-      remuneration: Array.isArray(t.remuneration) ? t.remuneration[0] : t.remuneration,
-    }));
-    const { data: profiles } = await sb.from("profiles").select("id, email, full_name, tenant_id").eq("role", "admin");
-    const byTenant: Record<string, AdminUser[]> = {};
-    (profiles || []).forEach((p: any) => {
-      if (!byTenant[p.tenant_id]) byTenant[p.tenant_id] = [];
-      byTenant[p.tenant_id].push({ id: p.id, email: p.email, full_name: p.full_name });
-    });
-    setTenants(list.map(t => ({ ...t, admins: byTenant[t.id] || [] })));
+    const d = await apiPost("/api/superadmin/console", { op: "tenants-full" });
+    if (d.error) { notify(d.error, false); setLoading(false); return; }
+    setTenants(d.tenants || []);
     setLoading(false);
   }
 
@@ -103,10 +89,10 @@ export default function SuperAdminPage() {
   }, [authed]);
 
   async function loadGlobalSettings() {
-    const { data } = await sb.from("superadmin_settings").select("key,value");
-    if (!data) return;
+    const d = await apiPost("/api/superadmin/console", { op: "global-settings" });
+    if (d.error || !d.settings) return;
     const map: Record<string,string> = {};
-    data.forEach((r: any) => { map[r.key] = r.value; });
+    d.settings.forEach((r: any) => { map[r.key] = r.value; });
     setGlobalSettings(prev => ({
       whatsapp: map["whatsapp"] || prev.whatsapp,
       phone: map["phone"] || prev.phone,
@@ -123,8 +109,9 @@ export default function SuperAdminPage() {
 
   async function saveGlobalSetting(key: string, value: string) {
     setSettingsLoading(true);
-    await sb.from("superadmin_settings").upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: "key" });
+    const d = await apiPost("/api/superadmin/console", { op: "save-setting", key, value });
     setSettingsLoading(false);
+    if (d.error) return notify(d.error, false);
     notify("✓ Paramètre sauvegardé");
   }
 
@@ -139,17 +126,10 @@ export default function SuperAdminPage() {
 
   async function createTenant() {
     if (!form.slug || !form.name) return notify("Slug et nom requis", false);
-    const trialDays = parseInt(form.trial_days) || 30;
-    const trialEnd = new Date(Date.now() + trialDays * 86400000).toISOString();
-    const { data: t, error } = await sb.from("tenants").insert({
-      slug: form.slug, name: form.name, plan: form.plan, active: true,
-      trial_ends_at: trialEnd, notifications_sent: {},
-    }).select().single();
-    if (error) return notify(error.message, false);
-    await sb.from("tenant_settings").insert({ tenant_id: t.id, app_name: form.app_name || form.name, primary_color: form.primary_color, currency: "XOF", timezone: "Africa/Dakar" });
-    await sb.from("remuneration_config").insert({ tenant_id: t.id, model: form.model, base_amount: parseFloat(form.base_amount) || 0, commission_rate: parseFloat(form.commission_rate) || 0 });
-    notify(`✓ Client créé — essai de ${trialDays}j jusqu'au ${new Date(trialEnd).toLocaleDateString("fr-FR")}`);
-    setForm({ slug: "", name: "", app_name: "", plan: "standard", primary_color: "#f5a623", model: "fixed", base_amount: "0", commission_rate: "0", trial_days: "30" });
+    const d = await apiPost("/api/superadmin/console", { op: "create-tenant", form });
+    if (d.error) return notify(d.error, false);
+    notify(`✓ Client créé — essai de ${d.trialDays}j jusqu'au ${new Date(d.trialEnd).toLocaleDateString("fr-FR")}`);
+    setForm({ slug: "", name: "", app_name: "", plan: "standard", primary_color: "#f5a623", model: "fixed", base_amount: "0", commission_rate: "0", trial_days: "14" });
     load();
   }
 
@@ -256,7 +236,7 @@ export default function SuperAdminPage() {
         </div>
 
         {/* Dashboard tab */}
-        {activeTab === "dashboard" && <Dashboard />}
+        {activeTab === "dashboard" && <Dashboard superadminKey={key} />}
 
         {/* Settings tab */}
         {activeTab === "settings" && (
