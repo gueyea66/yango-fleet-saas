@@ -13,7 +13,13 @@ interface Driver {
   full_name: string;
   email: string;
   created_at: string;
+  comm_yango: number | null;
+  comm_partner: number | null;
+  hire_date: string | null;
+  solde_initial: number | null;
 }
+
+type SettingsForm = { comm_yango: string; comm_partner: string; hire_date: string; solde_initial: string };
 
 export default function DriversPage() {
   const { user, loading } = useAuth();
@@ -31,6 +37,42 @@ export default function DriversPage() {
     password: "",
     paymentFrequency: "monthly",
   });
+
+  // Édition des paramètres commission/rému par chauffeur
+  const [editId, setEditId] = useState<string | null>(null);
+  const [settingsForm, setSettingsForm] = useState<SettingsForm>({ comm_yango: "", comm_partner: "", hire_date: "", solde_initial: "" });
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  const openSettings = (d: Driver) => {
+    setEditId(editId === d.id ? null : d.id);
+    setSettingsForm({
+      comm_yango: d.comm_yango != null ? String(d.comm_yango) : "",
+      comm_partner: d.comm_partner != null ? String(d.comm_partner) : "",
+      hire_date: d.hire_date || "",
+      solde_initial: d.solde_initial != null ? String(d.solde_initial) : "",
+    });
+  };
+
+  const saveSettings = async (driverProfileId: string) => {
+    setSavingSettings(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/drivers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "update", driverProfileId, ...settingsForm }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Erreur");
+      setSuccess("Paramètres du chauffeur enregistrés");
+      setEditId(null);
+      await loadDrivers();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setSavingSettings(false);
+    }
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -272,26 +314,77 @@ export default function DriversPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4">
             {drivers.map((driver) => (
-              <div
-                key={driver.id}
-                className="bg-gray-800 border border-gray-700 rounded-lg p-4 flex items-center justify-between"
-              >
-                <div className="flex-1">
-                  <div className="font-bold text-white">{driver.driver_id}</div>
-                  <div className="text-sm text-gray-400">{driver.full_name}</div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    Créé: {new Date(driver.created_at).toLocaleDateString("fr-FR")}
+              <div key={driver.id} className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="font-bold text-white">{driver.driver_id}</div>
+                    <div className="text-sm text-gray-400">{driver.full_name}</div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      Créé: {new Date(driver.created_at).toLocaleDateString("fr-FR")}
+                      {driver.comm_yango != null && <span className="ml-2 text-yellow-600">· Yango {driver.comm_yango}%</span>}
+                      {driver.hire_date && <span className="ml-2 text-gray-400">· Entré {new Date(driver.hire_date).toLocaleDateString("fr-FR")}</span>}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openSettings(driver)}
+                      className="bg-gray-700 hover:bg-gray-600 text-yellow-400 font-semibold px-4 py-2 rounded text-sm"
+                    >
+                      {editId === driver.id ? "Fermer" : "⚙️ Paramètres"}
+                    </button>
+                    <button
+                      onClick={() => handleDeleteDriver(driver.driver_id || driver.id)}
+                      className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded text-sm"
+                    >
+                      Supprimer
+                    </button>
                   </div>
                 </div>
 
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleDeleteDriver(driver.driver_id || driver.id)}
-                    className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded text-sm"
-                  >
-                    Supprimer
-                  </button>
-                </div>
+                {editId === driver.id && (
+                  <div className="mt-4 pt-4 border-t border-gray-700">
+                    <p className="text-xs text-gray-500 mb-3">
+                      Taux vides → repli automatique sur le véhicule puis la config tenant.
+                    </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-xs text-gray-400 block mb-1">Commission Yango (%)</label>
+                        <input type="number" step="0.01" value={settingsForm.comm_yango}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, comm_yango: e.target.value })}
+                          placeholder="ex: 15"
+                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-400 block mb-1">Commission partenaire (%)</label>
+                        <input type="number" step="0.01" value={settingsForm.comm_partner}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, comm_partner: e.target.value })}
+                          placeholder="ex: 0.75"
+                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-400 block mb-1">Date d&apos;entrée (prorata salaire)</label>
+                        <input type="date" value={settingsForm.hire_date}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, hire_date: e.target.value })}
+                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500"
+                          style={{ colorScheme: "dark" }} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-400 block mb-1">Solde wallet initial (XOF)</label>
+                        <input type="number" value={settingsForm.solde_initial}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, solde_initial: e.target.value })}
+                          placeholder="solde de départ"
+                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500" />
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => saveSettings(driver.id)}
+                      disabled={savingSettings}
+                      className="mt-3 bg-yellow-500 hover:bg-yellow-600 disabled:opacity-50 text-black font-semibold px-4 py-2 rounded text-sm"
+                    >
+                      {savingSettings ? "Enregistrement..." : "Enregistrer"}
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

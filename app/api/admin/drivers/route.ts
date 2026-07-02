@@ -12,12 +12,19 @@ const adminClient = createClient(
   { db: { schema: "fleet" } }
 );
 
+/** Parse en nombre, ou null si vide/invalide (colonne nullable). */
+function numOrNull(v: unknown): number | null {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = parseFloat(String(v));
+  return Number.isFinite(n) ? n : null;
+}
+
 export async function GET() {
   try {
     const { tenantId } = await requireAdminAuth();
     const { data, error } = await adminClient
       .from("profiles")
-      .select("id, driver_id, full_name, email, created_at")
+      .select("id, driver_id, full_name, email, created_at, comm_yango, comm_partner, hire_date, solde_initial")
       .eq("tenant_id", tenantId)
       .eq("role", "driver")
       .order("created_at", { ascending: false });
@@ -35,7 +42,8 @@ export async function POST(request: Request) {
     const { tenantId, userId } = await requireAdminAuth();
     const ip = getClientIp(request as any);
 
-    const { action, driverId, fullName, password, paymentFrequency } = await request.json();
+    const body = await request.json();
+    const { action, driverId, fullName, password, paymentFrequency } = body;
 
     if (action === "create") {
       if (!driverId || !fullName || !password) {
@@ -101,6 +109,31 @@ export async function POST(request: Request) {
 
       audit({ tenantId, userId, action: "driver.create", resourceType: "driver", resourceId: driverId, ip });
       return Response.json({ success: true, profile });
+    }
+
+    if (action === "update") {
+      // Mise à jour des paramètres de rému/commission d'un chauffeur
+      const { driverProfileId, comm_yango, comm_partner, hire_date, solde_initial } = body;
+      if (!driverProfileId) return Response.json({ error: "driverProfileId manquant" }, { status: 400 });
+
+      // Vérifier que le chauffeur appartient au tenant de l'admin
+      const { data: prof } = await adminClient.from("profiles").select("id, tenant_id").eq("id", driverProfileId).single();
+      if (!prof || prof.tenant_id !== tenantId) {
+        return Response.json({ error: "Chauffeur introuvable dans ce tenant" }, { status: 403 });
+      }
+
+      const patch: Record<string, number | string | null> = {
+        comm_yango: numOrNull(comm_yango),
+        comm_partner: numOrNull(comm_partner),
+        solde_initial: numOrNull(solde_initial),
+        hire_date: hire_date ? String(hire_date) : null,
+        updated_at: new Date().toISOString(),
+      };
+      const { error: updErr } = await adminClient.from("profiles").update(patch).eq("id", driverProfileId);
+      if (updErr) return Response.json({ error: updErr.message }, { status: 500 });
+
+      audit({ tenantId, userId, action: "driver.update_settings", resourceType: "driver", resourceId: driverProfileId, ip });
+      return Response.json({ success: true });
     }
 
     if (action === "delete") {
