@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { requireAdminAuth } from "@/lib/auth/server";
+import { requireAnyAuth } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +10,10 @@ const admin = createClient(
   { db: { schema: "fleet" } }
 );
 
-// GET — list notifications for current user
+// GET â€” list notifications for current user
 export async function GET(req: NextRequest) {
   try {
-    const { userId } = await requireAdminAuth();
+    const { userId } = await requireAnyAuth();
     const { searchParams } = new URL(req.url);
     const limit = Math.min(50, parseInt(searchParams.get("limit") || "20"));
     const unreadOnly = searchParams.get("unread") === "1";
@@ -42,10 +42,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// PATCH — mark one notification as read
+// PATCH â€” mark one notification as read
 export async function PATCH(req: NextRequest) {
   try {
-    const { userId } = await requireAdminAuth();
+    const { userId } = await requireAnyAuth();
     const { id, markAll } = await req.json();
 
     if (markAll) {

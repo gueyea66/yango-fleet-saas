@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+﻿import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { requireAdminAuth } from "@/lib/auth/server";
+import { requireAnyAuth } from "@/lib/auth/server";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,7 @@ const admin = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, tenantId } = await requireAdminAuth();
+    const { userId, tenantId } = await requireAnyAuth();
     const { endpoint, keys } = await req.json();
 
     if (!endpoint || !keys?.p256dh || !keys?.auth) {
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { userId } = await requireAdminAuth();
+    const { userId } = await requireAnyAuth();
     const { endpoint } = await req.json();
     await admin.from("push_subscriptions").delete().eq("user_id", userId).eq("endpoint", endpoint);
     return NextResponse.json({ ok: true });

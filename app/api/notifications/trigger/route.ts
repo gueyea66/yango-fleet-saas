@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireAnyAuth } from "@/lib/auth/server";
 import { sendNotification, getTenantAdminId, NotifType } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
@@ -22,8 +23,11 @@ const NOTIF_META: Record<string, { title: string; body: (d: any) => string; url:
 
 export async function POST(req: NextRequest) {
   try {
-    const { type, tenantId, driverId, data } = await req.json();
-    if (!type || !tenantId) return NextResponse.json({ error: "type et tenantId requis" }, { status: 400 });
+    // Auth requise — le tenantId vient de la session, jamais du client
+    const { tenantId } = await requireAnyAuth();
+
+    const { type, driverId, data } = await req.json();
+    if (!type) return NextResponse.json({ error: "type requis" }, { status: 400 });
 
     const meta = NOTIF_META[type as string];
     if (!meta) return NextResponse.json({ error: "type inconnu" }, { status: 400 });
@@ -51,6 +55,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: err.status ?? 500 });
   }
 }

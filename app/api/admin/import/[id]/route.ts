@@ -46,17 +46,8 @@ export async function PATCH(
 
     if (updateErr) throw updateErr;
 
-    // Notifier le superadmin (best-effort)
-    void fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(".supabase.co", "") ?? ""}/api/notifications/trigger`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "import_ready_for_injection",
-        tenantId,
-        data: { batchId: id },
-      }),
-    }).catch(() => {});
-
+    // Le superadmin voit les imports "admin_confirmed" dans son dashboard (pas de
+    // notification push : le superadmin n'a pas de profil destinataire)
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: err.status ?? 500 });

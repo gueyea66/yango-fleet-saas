@@ -14,6 +14,9 @@ build/
 # Production
 dist/
 
+# Build artifacts
+*.tsbuildinfo
+
 # Misc
 .DS_Store
 .env.local

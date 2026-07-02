@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { requireAdminAuth } from "@/lib/auth/server";
 
 // Service role client — pas de schema fleet pour le storage
 const storageAdmin = createClient(
@@ -9,6 +10,8 @@ const storageAdmin = createClient(
 
 export async function POST(req: NextRequest) {
   try {
+    await requireAdminAuth();
+
     // Créer le bucket s'il n'existe pas
     const { data: existing } = await storageAdmin.storage.getBucket("kyc-documents");
 
@@ -25,6 +28,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, bucket: "kyc-documents", existed: !!existing });
   } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    return NextResponse.json({ error: err.message }, { status: err.status ?? 500 });
   }
 }

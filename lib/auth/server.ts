@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
 
 export interface AuthedAdmin {
   userId: string;
@@ -111,7 +112,10 @@ export function checkSuperadminKey(providedKey: string, storedKey: string, ip: s
     return false;
   }
 
-  const valid = providedKey === storedKey;
+  // Comparaison constant-time (évite les timing attacks)
+  const a = Buffer.from(String(providedKey ?? ""));
+  const b = Buffer.from(storedKey);
+  const valid = a.length === b.length && timingSafeEqual(a, b);
 
   if (!valid) {
     const current = rateLimitMap.get(ip);

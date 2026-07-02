@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getClientIp } from "@/lib/auth/server";
+import { TRIAL_DAYS } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ export async function POST(req: NextRequest) {
   // 1. Create tenant
   const { data: tenant, error: tenantError } = await adminClient
     .from("tenants")
-    .insert({ slug, name: companyName, plan: "trial", active: true, trial_ends_at: new Date(Date.now() + 14 * 86_400_000).toISOString() })
+    .insert({ slug, name: companyName, plan: "trial", active: true, trial_ends_at: new Date(Date.now() + TRIAL_DAYS * 86_400_000).toISOString() })
     .select()
     .single();
 

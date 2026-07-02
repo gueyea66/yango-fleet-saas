@@ -48,8 +48,8 @@ export function canDo(plan: string, feature: keyof PlanLimits): boolean {
   return false;
 }
 
-// Trial / expiry helpers
-export const TRIAL_DAYS = 30;
+// Trial / expiry helpers — 14 jours, aligné sur les CGU et la page register
+export const TRIAL_DAYS = 14;
 
 export type TrialStatus =
   | { state: "active"; daysLeft: number }
