@@ -113,14 +113,23 @@ const tier = (net: number, rules: PilotageParams["salaryRules"]) =>
 export const xofFmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
 
 // ── COMPUTE (pure, no DB) ─────────────────────────────
-function computeFromRaw(raw: RawData, params: PilotageParams): Omit<PilotageData, "loading" | "fetching" | "error" | "refresh"> {
+// Dépenses PONCTUELLES : non extrapolées dans les projections (one-shot).
+const PONCTUELLES = new Set(["Amende", "Contrôle routier"]);
+// Une dépense "autre récurrente" = ni carburant, ni solde, ni ponctuelle.
+const isRecurrentOther = (cat: string) => cat !== "Carburant" && cat !== "Solde Yango" && !PONCTUELLES.has(cat);
+
+function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: string | null): Omit<PilotageData, "loading" | "fetching" | "error" | "refresh"> {
   // Exclure les jours de repos des calculs financiers
   const { expenses, payments, profiles } = raw;
   const reports = raw.reports.filter((r: any) => !String(r.comment || "").startsWith("[REPOS]"));
   const today = new Date();
   const todayStr = today.toISOString().split("T")[0];
   const sixAgo = new Date(today.getFullYear(), today.getMonth() - 5, 1).toISOString().split("T")[0];
-  const nVehicles = Math.max(profiles.length, 1);
+  const nVehicles = Math.max(profiles.length, 1);           // total flotte (profiles non filtré)
+  const filtered = !!driverFilter;                          // vue sur 1 seul chauffeur ?
+  const nScope = filtered ? 1 : nVehicles;                  // périmètre affiché
+  // Maintenance = provision mensuelle GLOBALE de la flotte, répartie au périmètre.
+  const provMaintenance = params.maintenanceCostPerMonth * (nVehicles > 0 ? nScope / nVehicles : 1);
 
   const getED = (e: any) => e.expense_date || e.created_at?.slice(0, 10) || "";
   const getSM = (p: any) => p.salary_month?.slice(0, 7) || p.payment_date?.slice(0, 7) || "";
@@ -152,7 +161,7 @@ function computeFromRaw(raw: RawData, params: PilotageParams): Omit<PilotageData
     const eb = breakdownForPeriod(start, end);
     const totalExp = eb.reduce((s, e) => s + e.amount, 0);
     const salaries = payments.filter((p) => getSM(p) === m).reduce((s, p) => s + (p.amount || 0), 0);
-    const maintenance = params.maintenanceCostPerMonth * nVehicles;
+    const maintenance = provMaintenance;
     const ebitda = revenue - totalExp - salaries - maintenance;
     const rDays = new Set(mr.map((r) => r.date)).size || 1;
     return { month: m, label: ml(m), revenue, expensesByCategory: eb, totalExpenses: totalExp, salaries, maintenance, ebitda, margin: revenue > 0 ? (ebitda / revenue) * 100 : 0, workingDays: rDays, dailyAvg: revenue / rDays, isProjection: false };
@@ -191,13 +200,20 @@ function computeFromRaw(raw: RawData, params: PilotageParams): Omit<PilotageData
   const totalSoldeCostHist = soldeExps.reduce((s, e) => s + (e.amount || 0), 0);
   const avgDailySoldeCost = totalSoldeCostHist / activeDaysAll;
 
+  // Autres dépenses RÉCURRENTES (hors carburant, solde, ponctuelles) — taux journalier réel.
+  // Les ponctuelles (amende, contrôle routier) sont exclues → plus de projection fantôme.
+  const otherRecurrentHist = expenses
+    .filter((e) => isRecurrentOther(e.category || "Autre"))
+    .reduce((s, e) => s + (e.amount || 0), 0);
+  const avgDailyOtherRecurrent = otherRecurrentHist / activeDaysAll;
+
   const effectiveFuelPerDay = params.fuelDailyOverride > 0 ? params.fuelDailyOverride : avgDailyFuelCost;
   const effectiveSoldePerDay = params.soldeDailyOverride > 0 ? params.soldeDailyOverride : avgDailySoldeCost;
 
-  // Projected salary
-  const projNetPerDriver = profiles.length > 0 ? projRevenue / profiles.length : projRevenue;
-  const projectedTotalSalary = tier(projNetPerDriver, params.salaryRules).total_salary * profiles.length;
-  const projMaintenance = params.maintenanceCostPerMonth * nVehicles;
+  // Projected salary (au périmètre : nScope chauffeurs)
+  const projNetPerDriver = nScope > 0 ? projRevenue / nScope : projRevenue;
+  const projectedTotalSalary = tier(projNetPerDriver, params.salaryRules).total_salary * nScope;
+  const projMaintenance = provMaintenance;
 
   // Projection dépenses : taux journalier MTD × jours ouvrés restants (pas de scaling proportionnel)
   // Fuel et solde utilisent l'override ou la moyenne réelle par jour ouvré
@@ -209,6 +225,8 @@ function computeFromRaw(raw: RawData, params: PilotageParams): Omit<PilotageData
   const projExpByCategory = curPnL.expensesByCategory.map((e) => {
     if (e.category === "Carburant") return { ...e, amount: projFuelTotal };
     if (e.category === "Solde Yango") return { ...e, amount: projSoldeTotal };
+    // Dépenses ponctuelles (amende, contrôle routier) : gardées au réalisé, jamais extrapolées
+    if (PONCTUELLES.has(e.category)) return { ...e };
     const dailyRate = e.amount / mtdWorkingDays;
     return { ...e, amount: e.amount + dailyRate * workingDaysRemaining };
   });
@@ -236,7 +254,7 @@ function computeFromRaw(raw: RawData, params: PilotageParams): Omit<PilotageData
   const futureMonthRev = dailyAvgCur * workingDaysTotal;
   const futureMonthExpPerDay = projTotalExp / (workingDaysTotal || 1);
   const futureMonthExp = futureMonthExpPerDay * workingDaysTotal;
-  const futureMonthSalary = tier(futureMonthRev / nVehicles, params.salaryRules).total_salary * nVehicles;
+  const futureMonthSalary = tier(futureMonthRev / nScope, params.salaryRules).total_salary * nScope;
   const futureMonthEbitda = futureMonthRev - futureMonthExp - futureMonthSalary - projMaintenance;
   const quarterRevenue = projRevenue + futureMonthRev * 2;
   const quarterEbitda = projEbitda + futureMonthEbitda * 2;
@@ -394,23 +412,25 @@ function computeFromRaw(raw: RawData, params: PilotageParams): Omit<PilotageData
     const projDays = offset === 0 ? workingDaysTotal : (params.workingDaysPerMonth > 0 ? params.workingDaysPerMonth : mWorkDays);
     const fuel = effectiveFuelPerDay > 0 ? effectiveFuelPerDay * projDays : rev * (params.fuelPctOfRevenue / 100);
     const solde = effectiveSoldePerDay > 0 ? effectiveSoldePerDay * projDays : rev * (params.soldePctOfRevenue / 100);
-    const other = Math.max(0, rev * avgExpRatio - fuel - solde);
-    const maint = params.maintenanceCostPerMonth * nVehicles;
-    const sal = tier(rev / nVehicles, params.salaryRules).total_salary * nVehicles;
+    // Autres = taux journalier RÉEL des dépenses récurrentes (hors ponctuelles), pas le ratio global gonflé
+    const other = avgDailyOtherRecurrent * projDays;
+    const maint = provMaintenance;
+    const sal = tier(rev / nScope, params.salaryRules).total_salary * nScope;
     return { month: m, label: ml(m), revenue: rev, fuel, solde, other, maintenance: maint, salaries: sal, net: rev - fuel - solde - other - maint - sal, isProjection: isProj };
   });
 
   // ── VEHICLE SIMULATION ────────────────────────────
   const revPerVehicle = nVehicles > 0 ? avgMonthRev / nVehicles : avgMonthRev;
   const expPerVehicle = revPerVehicle * avgExpRatio;
+  const maintPerVehicle = params.maintenanceCostPerMonth / nVehicles; // provision globale ramenée au véhicule
   const vehicleSimulations: SimulationResult[] = [0, 1, 2, 3].map((extra) => {
     const n = nVehicles + extra;
     const rev = revPerVehicle * n;
     const exp = expPerVehicle * n;
-    const maint = params.maintenanceCostPerMonth * n;
+    const maint = maintPerVehicle * n;
     const sal = tier(rev / n, params.salaryRules).total_salary * n;
     const ebitda = rev - exp - maint - sal;
-    const base = revPerVehicle * nVehicles - expPerVehicle * nVehicles - params.maintenanceCostPerMonth * nVehicles - tier(revPerVehicle, params.salaryRules).total_salary * nVehicles;
+    const base = revPerVehicle * nVehicles - expPerVehicle * nVehicles - params.maintenanceCostPerMonth - tier(revPerVehicle, params.salaryRules).total_salary * nVehicles;
     return { nVehicles: n, revenue: rev, expenses: exp, maintenance: maint, salaries: sal, ebitda, marginPct: rev > 0 ? (ebitda / rev) * 100 : 0, deltaEbitda: extra === 0 ? 0 : ebitda - base };
   });
 
@@ -427,7 +447,7 @@ function computeFromRaw(raw: RawData, params: PilotageParams): Omit<PilotageData
   if (vehicleSimulations.length > 1) insights.push({ type: "opportunity", title: "Simulation +1 véhicule", body: `+${xofFmt(vehicleSimulations[1].deltaEbitda)} XOF d'EBITDA/mois.`, value: `+${xofFmt(vehicleSimulations[1].deltaEbitda)} XOF` });
   const bestWd = [...weekdayStats].sort((a, b) => b.avgNet - a.avgNet)[0];
   if (bestWd && bestWd.count >= 2) insights.push({ type: "tip", title: `${bestWd.day} = meilleur jour`, body: `Moyenne de ${xofFmt(bestWd.avgNet)} XOF sur ${bestWd.count} ${bestWd.day.toLowerCase()}s — priorisez ce jour.`, value: xofFmt(bestWd.avgNet) });
-  insights.push({ type: "tip", title: "Maintenance planifiée", body: `Provision de ${xofFmt(params.maintenanceCostPerMonth)}/véhicule/mois intégrée dans les projections.` });
+  insights.push({ type: "tip", title: "Maintenance planifiée", body: `Provision globale de ${xofFmt(params.maintenanceCostPerMonth)} XOF/mois pour la flotte, intégrée dans les projections.` });
 
   return { historicalPnL, currentProjection, quarterProjection, yearProjection, drivers, cashFlow, vehicleSimulations, globalExpBreakdown, avgDailyMetrics, dailyOps, weekdayStats, insights, params };
 }
@@ -472,12 +492,12 @@ export function usePilotage(params: PilotageParams = DEFAULT_PARAMS, tenantId?: 
   useEffect(() => {
     if (!raw) return;
     try {
-      const result = computeFromRaw(raw, params);
+      const result = computeFromRaw(raw, params, driverId);
       setComputed(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur de calcul");
     }
-  }, [raw, params]);
+  }, [raw, params, driverId]);
 
   const refresh = useCallback(() => { fetchRaw(); }, [fetchRaw]);
 
