@@ -14,7 +14,7 @@ import { BrandLogo } from "@/components/brand/BrandShell";
 import TrialBanner from "@/components/TrialBanner";
 import { computeCommissions } from "@/lib/calc";
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+  BarChart, Bar, Treemap,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
 
@@ -25,6 +25,39 @@ interface DailyReport {
   net_after_expenses: number;
   expense_count: number;
   status: string;
+}
+
+const EXPENSE_COLORS = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#a855f7"];
+
+// Cellule treemap style Power BI : nom + montant + % selon la place disponible
+function TreemapCell(props: any) {
+  const { x, y, width, height, index, name, value, percent, depth } = props;
+  if (depth === 0 || width <= 0 || height <= 0) return null;
+  const fill = EXPENSE_COLORS[index % EXPENSE_COLORS.length];
+  const showName = width > 60 && height > 28;
+  const showValue = width > 110 && height > 58;
+  const showPercent = width > 110 && height > 78;
+  return (
+    <g>
+      <rect x={x} y={y} width={width} height={height} rx={4}
+        style={{ fill, stroke: "#0d1117", strokeWidth: 3 }} />
+      {showName && (
+        <text x={x + 10} y={y + 22} fill="#fff" fontSize={13} fontWeight={700}>
+          {name}
+        </text>
+      )}
+      {showValue && (
+        <text x={x + 10} y={y + 42} fill="rgba(255,255,255,0.92)" fontSize={12} fontFamily="ui-monospace, monospace">
+          {Math.round(value).toLocaleString("fr-FR")} XOF
+        </text>
+      )}
+      {showPercent && (
+        <text x={x + 10} y={y + 62} fill="rgba(255,255,255,0.75)" fontSize={12} fontFamily="ui-monospace, monospace">
+          {typeof percent === "number" ? percent.toFixed(1) : "—"}%
+        </text>
+      )}
+    </g>
+  );
 }
 
 export default function AdminPage() {
@@ -600,25 +633,39 @@ export default function AdminPage() {
                     </div>
                   )}
 
-                  {/* Chart 2 : Dépenses par jour par type */}
-                  {kpis.dailyExpByCategory.length > 0 && kpis.expenseBreakdown.length > 0 && (
+                  {/* Chart 2 : Treemap dépenses par catégorie (style Power BI) */}
+                  {kpis.expenseBreakdown.length > 0 && (
                     <div className="rounded-xl p-5" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-                      <h3 className="text-sm font-bold text-white mb-4">⛽ Dépenses par jour — par catégorie</h3>
-                      <ResponsiveContainer width="100%" height={220}>
-                        <BarChart data={kpis.dailyExpByCategory}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#1e2330" vertical={false} />
-                          <XAxis dataKey="date" stroke="#555e75" tick={{ fontSize: 10, fill: "#555e75" }} tickFormatter={(d) => d.slice(5)} />
-                          <YAxis stroke="#555e75" tick={{ fontSize: 10, fill: "#555e75" }} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
+                      <h3 className="text-sm font-bold text-white mb-1">⛽ Dépenses par catégorie</h3>
+                      <p className="text-xs mb-4" style={{ color: "#555e75" }}>
+                        Taille des blocs proportionnelle au montant sur la période
+                      </p>
+                      <ResponsiveContainer width="100%" height={280}>
+                        <Treemap
+                          data={kpis.expenseBreakdown.map((cat) => ({
+                            name: cat.type, size: cat.amount, percent: cat.percent,
+                          }))}
+                          dataKey="size"
+                          aspectRatio={16 / 9}
+                          isAnimationActive={false}
+                          content={<TreemapCell />}
+                        >
                           <Tooltip contentStyle={{ backgroundColor: "#0d1117", border: "1px solid #1e2330", borderRadius: 8, fontSize: 12 }}
-                            formatter={(v: any) => [Number(v).toLocaleString("fr-FR") + " XOF"]} />
-                          <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                          {kpis.expenseBreakdown.map((cat, i) => (
-                            <Bar key={cat.type} dataKey={cat.type} stackId="a"
-                              fill={["#ef4444","#f97316","#eab308","#22c55e","#3b82f6","#a855f7"][i % 6]}
-                              name={cat.type} radius={i === kpis.expenseBreakdown.length - 1 ? [3,3,0,0] : [0,0,0,0]} />
-                          ))}
-                        </BarChart>
+                            formatter={(v: any, _n: any, entry: any) => [
+                              Number(v).toLocaleString("fr-FR") + " XOF (" +
+                                (typeof entry?.payload?.percent === "number" ? entry.payload.percent.toFixed(1) : "—") + "%)",
+                              entry?.payload?.name,
+                            ]} />
+                        </Treemap>
                       </ResponsiveContainer>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
+                        {kpis.expenseBreakdown.map((cat, i) => (
+                          <div key={cat.type} className="flex items-center gap-1.5 text-xs">
+                            <div className="w-2.5 h-2.5 rounded-sm" style={{ background: EXPENSE_COLORS[i % EXPENSE_COLORS.length] }} />
+                            <span style={{ color: "#8b92a8" }}>{cat.type}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
 
@@ -641,33 +688,24 @@ export default function AdminPage() {
                       </div>
                     )}
 
-                    {/* Chart 4 : Répartition dépenses (pie) */}
-                    {kpis.expenseBreakdown.length > 0 && (
+                    {/* Chart 4 : Dépenses par jour (empilé par catégorie) */}
+                    {kpis.dailyExpByCategory.length > 0 && kpis.expenseBreakdown.length > 0 && (
                       <div className="rounded-xl p-5" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-                        <h3 className="text-sm font-bold text-white mb-4">🥧 Répartition dépenses</h3>
-                        <div className="flex items-center gap-4">
-                          <ResponsiveContainer width="50%" height={160}>
-                            <PieChart>
-                              <Pie data={kpis.expenseBreakdown} dataKey="amount" cx="50%" cy="50%" outerRadius={70} innerRadius={35}>
-                                {kpis.expenseBreakdown.map((_, i) => (
-                                  <Cell key={i} fill={["#ef4444","#f97316","#eab308","#22c55e","#3b82f6","#a855f7"][i % 6]} />
-                                ))}
-                              </Pie>
-                              <Tooltip contentStyle={{ backgroundColor: "#0d1117", border: "1px solid #1e2330", borderRadius: 8, fontSize: 12 }}
-                                formatter={(v: any) => [Number(v).toLocaleString("fr-FR") + " XOF"]} />
-                            </PieChart>
-                          </ResponsiveContainer>
-                          <div className="flex-1 space-y-2">
+                        <h3 className="text-sm font-bold text-white mb-4">📅 Dépenses par jour</h3>
+                        <ResponsiveContainer width="100%" height={180}>
+                          <BarChart data={kpis.dailyExpByCategory}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1e2330" vertical={false} />
+                            <XAxis dataKey="date" stroke="#555e75" tick={{ fontSize: 10, fill: "#555e75" }} tickFormatter={(d) => d.slice(5)} />
+                            <YAxis stroke="#555e75" tick={{ fontSize: 10, fill: "#555e75" }} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
+                            <Tooltip contentStyle={{ backgroundColor: "#0d1117", border: "1px solid #1e2330", borderRadius: 8, fontSize: 12 }}
+                              formatter={(v: any) => [Number(v).toLocaleString("fr-FR") + " XOF"]} />
                             {kpis.expenseBreakdown.map((cat, i) => (
-                              <div key={cat.type} className="flex items-center gap-2 text-xs">
-                                <div className="w-3 h-3 rounded-sm flex-shrink-0"
-                                  style={{ background: ["#ef4444","#f97316","#eab308","#22c55e","#3b82f6","#a855f7"][i % 6] }} />
-                                <span className="flex-1" style={{ color: "#8b92a8" }}>{cat.type}</span>
-                                <span className="font-mono font-bold text-white">{cat.percent.toFixed(0)}%</span>
-                              </div>
+                              <Bar key={cat.type} dataKey={cat.type} stackId="a"
+                                fill={EXPENSE_COLORS[i % EXPENSE_COLORS.length]}
+                                name={cat.type} radius={i === kpis.expenseBreakdown.length - 1 ? [3,3,0,0] : [0,0,0,0]} />
                             ))}
-                          </div>
-                        </div>
+                          </BarChart>
+                        </ResponsiveContainer>
                       </div>
                     )}
                   </div>
