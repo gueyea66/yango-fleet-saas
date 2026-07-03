@@ -7,11 +7,17 @@ const admin = createClient(
   { db: { schema: "fleet" } }
 );
 
-webpush.setVapidDetails(
-  process.env.VAPID_SUBJECT!,
-  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
-  process.env.VAPID_PRIVATE_KEY!
+// VAPID optionnel : sans les 3 variables (ex: build CI), on insère en DB mais on saute le web push
+const vapidConfigured = Boolean(
+  process.env.VAPID_SUBJECT && process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY
 );
+if (vapidConfigured) {
+  webpush.setVapidDetails(
+    process.env.VAPID_SUBJECT!,
+    process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY!,
+    process.env.VAPID_PRIVATE_KEY!
+  );
+}
 
 export type NotifType =
   | "report_submitted"
@@ -35,6 +41,7 @@ export async function sendNotification(
   await admin.from("notifications").insert({ tenant_id: tenantId, recipient_id: recipientId, type, title, body, data });
 
   // Send web push (best-effort)
+  if (!vapidConfigured) return;
   const { data: subs } = await admin
     .from("push_subscriptions")
     .select("endpoint,p256dh,auth")
