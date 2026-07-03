@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>M3A Fleet — Présentation</title>
+<style>
+  :root {
+    --navy: #152A3D; --navy-2: #1E3A52; --gold: #F5A623; --gold-dark: #D48F15;
+    --ink: #1c2733; --muted: #5d6b7a; --line: #e3e8ee; --bg: #ffffff; --bg-soft: #f6f8fa;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: var(--bg); }
+  body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; color: var(--ink); line-height: 1.6; font-size: 14.5px; }
+  .sheet { width: 210mm; min-height: 285mm; max-height: 295mm; overflow: hidden; margin: 0 auto; padding: 13mm 18mm 10mm; position: relative; page-break-after: always; display: flex; flex-direction: column; }
+  .sheet:last-child { page-break-after: auto; }
+
+  /* ---------- shared ---------- */
+  h2 { color: var(--navy); font-size: 22px; margin: 0 0 14px; }
+  h2 .bar { display: inline-block; width: 26px; height: 5px; background: var(--gold); border-radius: 3px; margin-right: 10px; vertical-align: middle; }
+  p.lead { font-size: 15.5px; color: var(--ink); }
+  .muted { color: var(--muted); }
+  .shot { border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 28px rgba(21,42,61,.14); overflow: hidden; background: #0c1420; }
+  .shot img { display: block; width: 100%; }
+  .caption { font-size: 12px; color: var(--muted); margin-top: 7px; text-align: center; }
+  footer.mini { margin-top: auto; padding-top: 12px; border-top: 2px solid var(--line); display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); }
+  footer.mini b { color: var(--navy); }
+
+  /* ---------- page 1 : cover ---------- */
+  .cover { justify-content: flex-start; }
+  .cover-head { display: flex; align-items: center; justify-content: space-between; padding-bottom: 16px; border-bottom: 4px solid var(--gold); }
+  .cover-head img { height: 72px; }
+  .cover-head .tag { background: var(--navy); color: #fff; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; padding: 6px 14px; border-radius: 4px; }
+  .hero { margin: 34px 0 8px; }
+  .hero h1 { color: var(--navy); font-size: 40px; line-height: 1.15; letter-spacing: -.5px; }
+  .hero h1 em { font-style: normal; color: var(--gold-dark); }
+  .hero .sub { font-size: 17px; color: var(--muted); margin-top: 14px; max-width: 620px; }
+  .hero-shot { margin-top: 26px; }
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 22px; }
+  .kpi { background: var(--bg-soft); border-left: 4px solid var(--gold); border-radius: 0 8px 8px 0; padding: 13px 16px; }
+  .kpi b { display: block; color: var(--navy); font-size: 16.5px; }
+  .kpi span { font-size: 12.5px; color: var(--muted); }
+
+  /* ---------- problème / solution ---------- */
+  .pain { background: var(--bg-soft); border-radius: 10px; padding: 14px 20px; margin-bottom: 18px; }
+  .pain ul { list-style: none; margin-top: 10px; }
+  .pain li { padding: 5px 0 5px 28px; position: relative; }
+  .pain li::before { content: "✕"; position: absolute; left: 2px; color: #c0392b; font-weight: 700; }
+  .promise { background: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%); color: #fff; border-radius: 12px; padding: 18px 24px; }
+  .promise h3 { color: var(--gold); font-size: 19px; margin-bottom: 8px; }
+  .promise p { color: #dbe3ea; font-size: 15px; }
+
+  .steps { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; align-items: start; margin-top: 8px; }
+  .step-text .n { display: inline-flex; width: 30px; height: 30px; border-radius: 50%; background: var(--gold); color: var(--navy); font-weight: 800; align-items: center; justify-content: center; margin-right: 10px; font-size: 15px; }
+  .step-text h3 { color: var(--navy); font-size: 17px; display: flex; align-items: center; margin-bottom: 8px; }
+  .step-text p { font-size: 13.8px; color: var(--ink); }
+  .step-text .hl { background: rgba(245,166,35,.18); padding: 0 3px; border-radius: 3px; }
+  .phone-shot { width: 62%; margin: 0 auto; }
+
+  .benefits { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-top: 4px; }
+  .benefit { border: 1px solid var(--line); border-top: 3px solid var(--gold); border-radius: 8px; padding: 10px 14px; }
+  .benefit h4 { color: var(--navy); font-size: 14px; margin-bottom: 3px; }
+  .benefit p { font-size: 12.3px; color: var(--muted); }
+
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13.5px; }
+  th { background: var(--navy); color: #fff; text-align: left; padding: 6px 12px; }
+  td { padding: 6px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  tr:nth-child(even) td { background: var(--bg-soft); }
+
+  .trust { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px 16px; margin-top: 4px; }
+  .trust div { padding-left: 24px; position: relative; font-size: 12.7px; }
+  .trust div::before { content: "✓"; position: absolute; left: 0; color: var(--gold-dark); font-weight: 800; }
+
+  .cta { background: linear-gradient(135deg, var(--navy) 0%, var(--navy-2) 100%); color: #fff; border-radius: 12px; padding: 16px 24px; margin-top: 14px; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+  .cta h3 { color: var(--gold); font-size: 18px; margin-bottom: 5px; }
+  .cta p { color: #dbe3ea; font-size: 13.5px; }
+  .cta .btn { background: var(--gold); color: var(--navy); font-weight: 800; padding: 12px 22px; border-radius: 8px; white-space: nowrap; font-size: 14.5px; }
+
+  @media print {
+    body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .sheet { margin: 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= PAGE 1 — COUVERTURE ================= -->
+<div class="sheet cover">
+  <div class="cover-head">
+    <img src="assets/logo-m3a-480.jpg" alt="M3A Group">
+    <span class="tag">Présentation de la solution</span>
+  </div>
+
+  <div class="hero">
+    <h1>M3A Fleet<br>Pilotez votre flotte de véhicules <em>au franc près</em>.</h1>
+    <p class="sub">La plateforme de gestion pour flottes VTC et taxis avec chauffeurs (Yango, Heetch, indépendants) :
+    recettes, commissions, salaires et rentabilité — en temps réel, depuis n'importe quel téléphone.</p>
+  </div>
+
+  <div class="hero-shot">
+    <div class="shot"><img src="demo/20-admin-dashboard-final.png" alt="Dashboard M3A Fleet"></div>
+    <div class="caption">Le tableau de bord du gestionnaire : recettes, dépenses et marge nette de la flotte, en direct.</div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi"><b>60 secondes</b><span>pour qu'un chauffeur déclare sa journée depuis son téléphone</span></div>
+    <div class="kpi"><b>0 calcul manuel</b><span>commissions et salaires calculés automatiquement</span></div>
+    <div class="kpi"><b>100 % traçable</b><span>chaque franc déclaré, validé et archivé</span></div>
+  </div>
+
+  <footer class="mini">
+    <div><b>M3A Group — M3A Solutions</b> · Dakar, Sénégal</div>
+    <div>gueye.a66@gmail.com</div>
+  </footer>
+</div>
+
+<!-- ================= PAGE 2 — PROBLÈME & PROMESSE ================= -->
+<div class="sheet">
+  <h2><span class="bar"></span>Le quotidien des gestionnaires de flotte aujourd'hui</h2>
+  <p class="lead">Qu'il gère 3 ou 100 véhicules, un propriétaire de flotte pilote encore son activité
+  avec des cahiers, des groupes WhatsApp et des fichiers Excel. Résultat :</p>
+
+  <div class="pain">
+    <ul>
+      <li><strong>Recettes invérifiables</strong> — les montants déclarés par les chauffeurs ne peuvent pas être contrôlés, les écarts de caisse sont fréquents.</li>
+      <li><strong>Litiges permanents sur les salaires</strong> — commissions et payes calculées à la main, chacun a sa version des chiffres.</li>
+      <li><strong>Aucune visibilité sur la rentabilité</strong> — impossible de savoir quel véhicule ou quel chauffeur gagne (ou perd) de l'argent.</li>
+      <li><strong>Documents éparpillés</strong> — permis, assurances, contrats et reçus dispersés entre téléphones et classeurs.</li>
+    </ul>
+  </div>
+
+  <div class="promise">
+    <h3>M3A Fleet remplace tout ça par une seule plateforme.</h3>
+    <p>Chaque soir, chaque chauffeur déclare sa journée depuis son téléphone. Le gestionnaire valide en un clic,
+    les commissions et salaires se calculent tout seuls, et le tableau de bord affiche la marge réelle de la flotte —
+    jour après jour, véhicule par véhicule, chauffeur par chauffeur. Rien à installer : tout fonctionne dans le
+    navigateur, sur mobile comme sur ordinateur.</p>
+  </div>
+
+  <h2 style="margin-top: 22px;"><span class="bar"></span>Ce que ça change concrètement</h2>
+  <div class="benefits">
+    <div class="benefit"><h4>💰 Fini les pertes silencieuses</h4><p>Chaque recette Yango et hors-Yango est déclarée, horodatée et validée. Les écarts se voient immédiatement.</p></div>
+    <div class="benefit"><h4>🤝 Fini les litiges chauffeurs</h4><p>Le calcul des commissions est le même pour tous, visible par le chauffeur au moment de sa déclaration. Transparence totale.</p></div>
+    <div class="benefit"><h4>📊 Des décisions basées sur les chiffres</h4><p>Rentabilité par chauffeur et par véhicule, projections et simulations : vous savez où investir et où couper.</p></div>
+    <div class="benefit"><h4>⏱️ Des heures gagnées chaque semaine</h4><p>Plus de saisie Excel, plus de rapprochements manuels. La comptabilité de la flotte se fait toute seule.</p></div>
+    <div class="benefit"><h4>📎 Tout au même endroit</h4><p>Permis, assurances, reçus de carburant, justificatifs de paiement : stockés et retrouvables en 2 clics.</p></div>
+    <div class="benefit"><h4>🔔 Rien ne passe entre les mailles</h4><p>Notifications instantanées : rapport soumis, dépense à valider, avance demandée, document à renouveler.</p></div>
+  </div>
+
+  <footer class="mini">
+    <div><b>M3A Fleet</b> · Présentation de la solution</div>
+    <div>2 / 4</div>
+  </footer>
+</div>
+
+<!-- ================= PAGE 3 — COMMENT ÇA MARCHE ================= -->
+<div class="sheet">
+  <h2><span class="bar"></span>Comment ça marche — en 2 gestes par jour</h2>
+
+  <div class="steps">
+    <div class="step-text">
+      <h3><span class="n">1</span>Le chauffeur déclare sa journée</h3>
+      <p>Depuis son téléphone, en fin de journée : recettes Yango et hors-Yango, kilométrage, nombre de courses,
+      dépenses de carburant avec photo du reçu. <span class="hl">Le calcul de sa part s'affiche instantanément</span> —
+      il sait ce qu'il va toucher avant même de soumettre. Moins d'une minute, aussi simple qu'un message WhatsApp.</p>
+      <p style="margin-top:12px;" class="muted">Interface pensée pour tous les profils de chauffeurs : simple identifiant + mot de passe, gros boutons, tout en français.</p>
+    </div>
+    <div>
+      <div class="shot phone-shot"><img src="demo/06-driver-rapport-rempli.png" alt="Rapport chauffeur sur mobile"></div>
+      <div class="caption">Le rapport journalier côté chauffeur, avec le calcul automatique.</div>
+    </div>
+  </div>
+
+  <div class="steps" style="margin-top: 26px;">
+    <div>
+      <div class="shot"><img src="demo/12-admin-rapport-detail.png" alt="Validation d'un rapport côté gestionnaire"></div>
+      <div class="caption">Côté gestionnaire : le détail du rapport, commission déjà calculée, validation en un clic.</div>
+    </div>
+    <div class="step-text">
+      <h3><span class="n">2</span>Le gestionnaire valide en un clic</h3>
+      <p>Notification à chaque soumission. Le gestionnaire ouvre le rapport : <span class="hl">commissions et
+      retenues déjà calculées</span> selon les règles de sa flotte (taux Yango, part partenaire, paliers de salaire…).
+      Il approuve ou rejette — et le tableau de bord se met à jour immédiatement.</p>
+      <p style="margin-top:12px;" class="muted">Avances sur salaire, paiements chauffeurs, suivi des véhicules et de l'entretien suivent le même principe : demande → validation → traçabilité.</p>
+    </div>
+  </div>
+
+  <footer class="mini">
+    <div><b>M3A Fleet</b> · Présentation de la solution</div>
+    <div>3 / 4</div>
+  </footer>
+</div>
+
+<!-- ================= PAGE 4 — POUR QUI & CONTACT ================= -->
+<div class="sheet">
+  <h2><span class="bar"></span>À qui s'adresse M3A Fleet</h2>
+  <table>
+    <tr><th>Profil</th><th>Ce que la plateforme lui apporte</th></tr>
+    <tr><td><strong>Propriétaires de flottes</strong> (2 à 200+ véhicules)</td><td>Contrôle des recettes, salaires automatisés, rentabilité de bout en bout</td></tr>
+    <tr><td><strong>Gestionnaires délégués</strong></td><td>Reporting transparent vers le propriétaire, validation des déclarations en mobilité</td></tr>
+    <tr><td><strong>Chauffeurs</strong></td><td>Déclaration simple, visibilité sur leur salaire et leurs avances — plus de contestation</td></tr>
+    <tr><td><strong>Partenaires &amp; revendeurs</strong></td><td>La plateforme en marque blanche : votre logo, vos couleurs, votre nom de domaine</td></tr>
+  </table>
+
+  <div class="steps" style="margin-top: 10px; grid-template-columns: 1.1fr 1fr;">
+    <div class="step-text">
+      <h3 style="display:block;">Une plateforme, votre marque</h3>
+      <p>M3A Fleet est <span class="hl">multi-entreprises et personnalisable en marque blanche</span> : chaque client dispose de
+      son espace totalement cloisonné, à ses couleurs et avec son logo. Idéal pour un opérateur qui veut proposer
+      la solution à son propre réseau de flottes — ses clients ne voient que sa marque.</p>
+      <h3 style="display:block; margin-top:12px;">Conçu pour le marché ouest-africain</h3>
+      <p>Développé à Dakar, éprouvé sur des flottes Yango réelles : montants en FCFA, réalités du terrain
+      (recettes hors plateforme, avances, solde wallet), sur n'importe quel smartphone.</p>
+    </div>
+    <div>
+      <div class="shot"><img src="demo/01-login-brande.png" alt="Écran de connexion en marque blanche"></div>
+      <div class="caption">L'espace de chaque client, à sa marque.</div>
+    </div>
+  </div>
+
+  <h2 style="margin-top: 16px;"><span class="bar"></span>Une solution solide et sécurisée</h2>
+  <div class="trust">
+    <div><strong>Données cloisonnées</strong> — chaque entreprise est isolée des autres, jusqu'au niveau de la base de données</div>
+    <div><strong>Documents privés</strong> — pièces et justificatifs stockés de façon sécurisée, accès à durée limitée</div>
+    <div><strong>Accès par rôles</strong> — le chauffeur ne voit que ses données, le gestionnaire voit sa flotte</div>
+    <div><strong>Surveillance continue</strong> — plateforme monitorée en permanence, cadre contractuel (CGU) intégré</div>
+    <div><strong>Reprise de l'existant</strong> — votre historique Excel est importé, rien n'est perdu</div>
+    <div><strong>Vos données vous appartiennent</strong> — export complet possible à tout moment</div>
+  </div>
+
+  <div class="cta">
+    <div>
+      <h3>Voyez-la en action — 15 minutes suffisent.</h3>
+      <p>Démonstration en ligne sur un compte réel : le parcours complet, du rapport du chauffeur au tableau de bord.
+      Sur rendez-vous, à distance ou à Dakar.</p>
+    </div>
+    <div class="btn">gueye.a66@gmail.com</div>
+  </div>
+
+  <footer class="mini">
+    <div><b>M3A Group — M3A Solutions</b> · Dakar, Sénégal · gueye.a66@gmail.com</div>
+    <div>4 / 4</div>
+  </footer>
+</div>
+
+</body>
+</html>
