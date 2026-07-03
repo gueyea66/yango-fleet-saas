@@ -38,7 +38,13 @@ export async function sendNotification(
   data: Record<string, unknown> = {}
 ) {
   // Insert in DB
-  await admin.from("notifications").insert({ tenant_id: tenantId, recipient_id: recipientId, type, title, body, data });
+  const { error: insertError } = await admin
+    .from("notifications")
+    .insert({ tenant_id: tenantId, recipient_id: recipientId, type, title, body, data });
+  if (insertError) {
+    console.error("[notifications] insert failed:", insertError.message);
+    throw new Error(`notification insert failed: ${insertError.message}`);
+  }
 
   // Send web push (best-effort)
   if (!vapidConfigured) return;

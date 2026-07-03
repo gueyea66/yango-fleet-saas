@@ -19,10 +19,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Subscription invalide" }, { status: 400 });
     }
 
-    await admin.from("push_subscriptions").upsert(
+    const { error } = await admin.from("push_subscriptions").upsert(
       { tenant_id: tenantId, user_id: userId, endpoint, p256dh: keys.p256dh, auth: keys.auth },
       { onConflict: "user_id,endpoint" }
     );
+    if (error) {
+      console.error("[push/subscribe] upsert failed:", error.message);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {

@@ -64,11 +64,16 @@ export default function NotificationBell() {
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
     });
 
-    await fetch("/api/push/subscribe", {
+    const res = await fetch("/api/push/subscribe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(sub.toJSON()),
     });
+    if (!res.ok) {
+      const { error } = await res.json().catch(() => ({ error: res.statusText }));
+      alert(`Échec de l'activation des notifications push : ${error}`);
+      return;
+    }
 
     setPushEnabled(true);
     alert("Notifications push activées ✅");
