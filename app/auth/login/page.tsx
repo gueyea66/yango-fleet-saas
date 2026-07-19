@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getVirtualEmailForDriver } from "@/lib/auth/utils";
 import { useTenant } from "@/lib/tenant/context";
@@ -19,6 +19,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Redirigé par le middleware quand un chauffeur désactivé tente d'accéder à l'app
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has("disabled")) {
+      setError("Ce compte chauffeur a été désactivé par le gestionnaire de la flotte.");
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

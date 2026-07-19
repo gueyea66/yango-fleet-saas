@@ -31,11 +31,20 @@ export const updateSession = async (request: NextRequest) => {
 
   // Logged in on protected route → check tenant expiry
   if (isProtected && user) {
+    // select("*") : tolère l'absence de colonnes récentes (ex: active avant migration 029)
     const { data: profile } = await supabase
       .from("profiles")
-      .select("tenant_id, role")
+      .select("*")
       .eq("id", user.id)
       .single();
+
+    // Chauffeur désactivé → déconnexion + retour login (son historique reste en base)
+    if (profile?.role === "driver" && (profile as any).active === false) {
+      await supabase.auth.signOut();
+      const redirect = NextResponse.redirect(new URL("/auth/login?disabled=1", request.url));
+      response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+      return redirect;
+    }
 
     if (profile?.tenant_id) {
       const { data: tenant } = await supabase
