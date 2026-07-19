@@ -19,6 +19,7 @@ interface Driver {
   solde_initial: number | null;
   salary_model: string | null;
   base_amount: number | null;
+  active?: boolean | null; // false = désactivé (plus de connexion, historique conservé)
 }
 
 type SettingsForm = { comm_yango: string; comm_partner: string; hire_date: string; solde_initial: string; salary_model: string; base_amount: string };
@@ -96,6 +97,24 @@ export default function DriversPage() {
   useEffect(() => {
     loadDrivers();
   }, []);
+
+  const toggleActive = async (d: Driver) => {
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await fetch("/api/admin/drivers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_active", driverProfileId: d.id, active: d.active === false }),
+      });
+      const j = await res.json();
+      if (!res.ok) throw new Error(j.error || "Erreur");
+      setSuccess(d.active === false ? "Chauffeur réactivé" : "Chauffeur désactivé — son historique reste visible");
+      await loadDrivers();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  };
 
   const loadDrivers = async () => {
     try {
@@ -327,10 +346,15 @@ export default function DriversPage() {
         ) : (
           <div className="grid grid-cols-1 gap-4">
             {drivers.map((driver) => (
-              <div key={driver.id} className="bg-gray-800 border border-gray-700 rounded-lg p-4">
+              <div key={driver.id} className="bg-gray-800 border border-gray-700 rounded-lg p-4" style={{ opacity: driver.active === false ? 0.6 : 1 }}>
                 <div className="flex items-center justify-between">
                   <div className="flex-1">
-                    <div className="font-bold text-white">{driver.driver_id}</div>
+                    <div className="font-bold text-white">
+                      {driver.driver_id}
+                      {driver.active === false && (
+                        <span className="ml-2 text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-gray-700 text-gray-400">Inactif</span>
+                      )}
+                    </div>
                     <div className="text-sm text-gray-400">{driver.full_name}</div>
                     <div className="text-xs text-gray-500 mt-1">
                       Créé: {new Date(driver.created_at).toLocaleDateString("fr-FR")}
@@ -345,6 +369,13 @@ export default function DriversPage() {
                       className="bg-gray-700 hover:bg-gray-600 text-yellow-400 font-semibold px-4 py-2 rounded text-sm"
                     >
                       {editId === driver.id ? "Fermer" : "⚙️ Paramètres"}
+                    </button>
+                    <button
+                      onClick={() => toggleActive(driver)}
+                      className={`font-semibold px-4 py-2 rounded text-sm ${driver.active === false ? "bg-green-700 hover:bg-green-600 text-white" : "bg-gray-700 hover:bg-gray-600 text-gray-300"}`}
+                      title={driver.active === false ? "Réautoriser la connexion" : "Bloquer la connexion — l'historique reste visible"}
+                    >
+                      {driver.active === false ? "Réactiver" : "Désactiver"}
                     </button>
                     <button
                       onClick={() => handleDeleteDriver(driver.driver_id || driver.id)}

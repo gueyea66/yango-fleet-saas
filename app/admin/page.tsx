@@ -94,7 +94,7 @@ export default function AdminPage() {
       if (!tenantId) return;
       setAdminTenantId(tenantId);
       const [{ data: profs }, { data: vehs }, { data: rc }] = await Promise.all([
-        supabase.from("profiles").select("id, full_name, driver_id, tenant_id").eq("role", "driver").eq("tenant_id", tenantId).order("full_name"),
+        supabase.from("profiles").select("*").eq("role", "driver").eq("tenant_id", tenantId).order("full_name"),
         supabase.from("vehicles").select("driver_id, plate").eq("tenant_id", tenantId),
         supabase.from("remuneration_config").select("*").eq("tenant_id", tenantId).maybeSingle(),
       ]);
@@ -353,9 +353,11 @@ export default function AdminPage() {
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5"
                 style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "#1e2330",
                   color: filterDriverId === d.id ? "#f5a623" : "#555e75",
-                  border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}` }}>
+                  border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}`,
+                  opacity: d.active === false ? 0.55 : 1 }}>
                 👤 {d.full_name || d.driver_id}
                 {d.plate && <span className="font-mono px-1.5 py-0.5 rounded" style={{ background: "#080a0f", color: "#8b92a8", fontSize: 10 }}>🚗 {d.plate}</span>}
+                {d.active === false && <span className="text-[9px] uppercase" style={{ color: "#3d4560" }}>inactif</span>}
               </button>
             ))}
           </div>

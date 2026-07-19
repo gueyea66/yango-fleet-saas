@@ -22,9 +22,10 @@ function numOrNull(v: unknown): number | null {
 export async function GET() {
   try {
     const { tenantId } = await requireAdminAuth();
+    // select("*") : tolère l'absence de colonnes récentes (ex: active avant la migration 029)
     const { data, error } = await adminClient
       .from("profiles")
-      .select("id, driver_id, full_name, email, created_at, comm_yango, comm_partner, hire_date, solde_initial, salary_model, base_amount")
+      .select("*")
       .eq("tenant_id", tenantId)
       .eq("role", "driver")
       .order("created_at", { ascending: false });
@@ -136,6 +137,28 @@ export async function POST(request: Request) {
       if (updErr) return Response.json({ error: updErr.message }, { status: 500 });
 
       audit({ tenantId, userId, action: "driver.update_settings", resourceType: "driver", resourceId: driverProfileId, ip });
+      return Response.json({ success: true });
+    }
+
+    if (action === "set_active") {
+      // Désactiver = plus de connexion possible ; l'historique reste intact.
+      const { driverProfileId, active } = body;
+      if (!driverProfileId || typeof active !== "boolean") {
+        return Response.json({ error: "driverProfileId et active (booléen) requis" }, { status: 400 });
+      }
+
+      const { data: prof } = await adminClient.from("profiles").select("id, tenant_id").eq("id", driverProfileId).single();
+      if (!prof || prof.tenant_id !== tenantId) {
+        return Response.json({ error: "Chauffeur introuvable dans ce tenant" }, { status: 403 });
+      }
+
+      const { error: updErr } = await adminClient
+        .from("profiles")
+        .update({ active, updated_at: new Date().toISOString() })
+        .eq("id", driverProfileId);
+      if (updErr) return Response.json({ error: updErr.message }, { status: 500 });
+
+      audit({ tenantId, userId, action: active ? "driver.activate" : "driver.deactivate", resourceType: "driver", resourceId: driverProfileId, ip });
       return Response.json({ success: true });
     }
 

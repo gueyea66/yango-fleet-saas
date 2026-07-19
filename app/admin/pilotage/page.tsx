@@ -77,7 +77,7 @@ export default function PilotagePage() {
       setTenantId(tid);
       if (!tid) return;
       const [{ data: drvs }, { data: vehs }] = await Promise.all([
-        sb.from("profiles").select("id,full_name,driver_id").eq("role", "driver").eq("tenant_id", tid).order("full_name"),
+        sb.from("profiles").select("*").eq("role", "driver").eq("tenant_id", tid).order("full_name"),
         sb.from("vehicles").select("id,plate,driver_id").eq("tenant_id", tid),
       ]);
       setAllDrivers(drvs || []);
@@ -193,11 +193,12 @@ export default function PilotagePage() {
                {allDrivers.map((d: any) => (
                  <button key={d.id} onClick={() => { setFilterDriverId(filterDriverId === d.id ? "" : d.id); setFilterVehicleId(""); }}
                    className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold"
-                   style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "#1e2330", color: filterDriverId === d.id ? "#f5a623" : "#555e75", border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}` }}>
+                   style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "#1e2330", color: filterDriverId === d.id ? "#f5a623" : "#555e75", border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}`, opacity: d.active === false ? 0.55 : 1 }}>
                    👤 {d.full_name || d.driver_id}
                    {allVehicles.find((v: any) => v.driver_id === d.id)?.plate && (
                      <span className="ml-1 text-[10px]" style={{ color: "#3d4560" }}>🚗 {allVehicles.find((v: any) => v.driver_id === d.id)?.plate}</span>
                    )}
+                   {d.active === false && <span className="ml-1 text-[9px] uppercase" style={{ color: "#3d4560" }}>inactif</span>}
                  </button>
                ))}
              </div>
@@ -250,11 +251,12 @@ export default function PilotagePage() {
              {allDrivers.map((d: any) => (
                <button key={d.id} onClick={() => { setFilterDriverId(filterDriverId === d.id ? "" : d.id); setFilterVehicleId(""); }}
                  className="flex-shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-semibold whitespace-nowrap"
-                 style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "#1e2330", color: filterDriverId === d.id ? "#f5a623" : "#8b92a8", border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}` }}>
+                 style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "#1e2330", color: filterDriverId === d.id ? "#f5a623" : "#8b92a8", border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}`, opacity: d.active === false ? 0.55 : 1 }}>
                  👤 {d.full_name || d.driver_id}
                  {allVehicles.find((v: any) => v.driver_id === d.id)?.plate && (
                    <span className="ml-1 text-[10px]" style={{ color: "#555e75" }}>🚗 {allVehicles.find((v: any) => v.driver_id === d.id)?.plate}</span>
                  )}
+                 {d.active === false && <span className="ml-1 text-[9px] uppercase" style={{ color: "#555e75" }}>inactif</span>}
                </button>
              ))}
            </div>
@@ -416,7 +418,8 @@ function PnLDetailed({ data }: { data: ReturnType<typeof usePilotage> }) {
           <table className="w-full" style={{ fontSize: 11 }}>
             <thead>
               <tr style={{ borderBottom: "2px solid #2a2f3d" }}>
-                <th className="py-2 pr-4 text-left font-semibold" style={{ color: "#555e75", minWidth: 180 }}>Ligne</th>
+                {/* Colonne figée : les libellés restent visibles pendant le scroll des mois */}
+                <th className="py-2 pr-3 text-left font-semibold sticky left-0 z-10" style={{ color: "#555e75", minWidth: 130, maxWidth: 160, background: "#0d1117" }}>Ligne</th>
                 {all.map((m) => (
                   <th key={m.month} className="py-2 px-3 text-right font-semibold whitespace-nowrap"
                     style={{ color: m.isProjection ? "#f5a623" : "#f0f2f7" }}>
@@ -513,8 +516,8 @@ function PnLRow({ label, values, color, bold, sub, small, isPct, isNeg }: { labe
   const all = usePilotage.length; // unused, just for context
   return (
     <tr style={{ borderBottom: "1px solid #0d1117" }}>
-      <td className={`py-1.5 pr-4 ${bold ? "font-bold text-white" : sub ? "font-semibold" : ""}`}
-        style={{ color: bold ? "#f0f2f7" : sub ? "#ef4444" : small ? "#555e75" : color, paddingLeft: label.startsWith("  ") ? 16 : 0, fontSize: small ? 10 : 11 }}>
+      <td className={`py-1.5 pr-3 sticky left-0 z-10 ${bold ? "font-bold text-white" : sub ? "font-semibold" : ""}`}
+        style={{ color: bold ? "#f0f2f7" : sub ? "#ef4444" : small ? "#555e75" : color, paddingLeft: label.startsWith("  ") ? 16 : 0, fontSize: small ? 10 : 11, background: "#0d1117", maxWidth: 160 }}>
         {label.trim()}
       </td>
       {values.map((v, i) => (
