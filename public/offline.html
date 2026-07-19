@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hors connexion — M3A Fleet</title>
+  <style>
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      background: #f4f4f2; color: #16283c;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif; text-align: center;
+    }
+    .box { padding: 32px 24px; max-width: 340px; }
+    img { width: 72px; height: 72px; margin-bottom: 18px; }
+    h1 { font-size: 20px; margin: 0 0 10px; }
+    p { font-size: 15px; color: #5a6572; margin: 0 0 24px; line-height: 1.5; }
+    button {
+      font: inherit; font-size: 16px; font-weight: 600; color: #fff; background: #16283c;
+      border: none; border-radius: 10px; padding: 14px 32px; cursor: pointer; min-height: 48px;
+    }
+    button:active { opacity: .85; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <img src="/icons/icon-192.png" alt="M3A Fleet" />
+    <h1>Pas de connexion</h1>
+    <p>Impossible de joindre M3A Fleet. Vérifie tes données mobiles ou le Wi-Fi, puis réessaie.</p>
+    <button onclick="location.reload()">Réessayer</button>
+  </div>
+</body>
+</html>
