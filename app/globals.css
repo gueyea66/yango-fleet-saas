@@ -19,6 +19,13 @@
   }
 }
 
+/* Jamais de scroll horizontal de page : l'app ne doit pas exiger de dézoom sur mobile.
+   Le scroll reste possible DANS les conteneurs overflow-x-auto (tableaux, barres d'onglets). */
+html,
+body {
+  overflow-x: clip;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

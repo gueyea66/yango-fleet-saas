@@ -314,7 +314,8 @@ export default function AdminPage() {
       </div>
 
       {/* ── MAIN CONTENT ── */}
-      <main className="flex-1 min-h-screen" style={{ marginLeft: 0 }}>
+      {/* min-w-0 : sans lui, un tableau large (nowrap) élargit toute la page sur mobile */}
+      <main className="flex-1 min-w-0 min-h-screen" style={{ marginLeft: 0 }}>
         <div className="lg:hidden" style={{ height: 88 }} /> {/* mobile header offset */}
         <div className="lg:pl-[220px]">
         <div className="p-6 lg:p-10 w-full max-w-none" style={{ background: "#080a0f", minHeight: "100vh" }}>

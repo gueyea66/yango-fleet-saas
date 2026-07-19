@@ -239,11 +239,32 @@ export default function PilotagePage() {
              </button>
            ))}
          </div>
+         {/* Filtre VUE (chauffeur/véhicule) — présent sur desktop (sidebar), manquait sur mobile */}
+         {allDrivers.length > 0 && (
+           <div className="flex gap-1.5 px-3 pb-2 overflow-x-auto">
+             <button onClick={() => { setFilterDriverId(""); setFilterVehicleId(""); }}
+               className="flex-shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-semibold whitespace-nowrap"
+               style={{ background: (!filterDriverId && !filterVehicleId) ? "#f5a623" : "#1e2330", color: (!filterDriverId && !filterVehicleId) ? "#000" : "#8b92a8" }}>
+               👥 Tous
+             </button>
+             {allDrivers.map((d: any) => (
+               <button key={d.id} onClick={() => { setFilterDriverId(filterDriverId === d.id ? "" : d.id); setFilterVehicleId(""); }}
+                 className="flex-shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-semibold whitespace-nowrap"
+                 style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "#1e2330", color: filterDriverId === d.id ? "#f5a623" : "#8b92a8", border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}` }}>
+                 👤 {d.full_name || d.driver_id}
+                 {allVehicles.find((v: any) => v.driver_id === d.id)?.plate && (
+                   <span className="ml-1 text-[10px]" style={{ color: "#555e75" }}>🚗 {allVehicles.find((v: any) => v.driver_id === d.id)?.plate}</span>
+                 )}
+               </button>
+             ))}
+           </div>
+         )}
        </div>
 
        {/* MAIN CONTENT */}
-       <main className="flex-1 min-h-screen lg:pl-[240px]">
-         <div className="lg:hidden" style={{ height: 88 }} />
+       {/* min-w-0 : sans lui, un tableau large (nowrap) élargit toute la page sur mobile */}
+       <main className="flex-1 min-w-0 min-h-screen lg:pl-[240px]">
+         <div className="lg:hidden" style={{ height: allDrivers.length > 0 ? 126 : 88 }} />
          {showParams && (
            <div className="lg:hidden px-4 py-4 border-b" style={{ background: "#0d1117", borderColor: "#1e2330" }}>
              <ParamsPanel />
