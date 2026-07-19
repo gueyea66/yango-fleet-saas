@@ -143,6 +143,10 @@ export default function LoginPage() {
             <p className="text-xs mb-1" style={{ color: "#3d4560" }}>{settings.operator_name}</p>
           )}
           <PoweredBy />
+          {/* Accès opérateur plateforme (protégé par clé superadmin côté serveur) */}
+          <p className="mt-3">
+            <a href="/superadmin" className="text-[10px]" style={{ color: "#2a3040" }}>Espace opérateur</a>
+          </p>
         </div>
       </div>
     </div>
