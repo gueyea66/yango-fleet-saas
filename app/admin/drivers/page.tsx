@@ -347,8 +347,8 @@ export default function DriversPage() {
           <div className="grid grid-cols-1 gap-4">
             {drivers.map((driver) => (
               <div key={driver.id} className="bg-gray-800 border border-gray-700 rounded-lg p-4" style={{ opacity: driver.active === false ? 0.6 : 1 }}>
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div className="flex-1 min-w-0">
                     <div className="font-bold text-white">
                       {driver.driver_id}
                       {driver.active === false && (
@@ -363,19 +363,12 @@ export default function DriversPage() {
                       {driver.hire_date && <span className="ml-2 text-gray-400">· Entré {new Date(driver.hire_date).toLocaleDateString("fr-FR")}</span>}
                     </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2 shrink-0">
                     <button
                       onClick={() => openSettings(driver)}
                       className="bg-gray-700 hover:bg-gray-600 text-yellow-400 font-semibold px-4 py-2 rounded text-sm"
                     >
                       {editId === driver.id ? "Fermer" : "⚙️ Paramètres"}
-                    </button>
-                    <button
-                      onClick={() => toggleActive(driver)}
-                      className={`font-semibold px-4 py-2 rounded text-sm ${driver.active === false ? "bg-green-700 hover:bg-green-600 text-white" : "bg-gray-700 hover:bg-gray-600 text-gray-300"}`}
-                      title={driver.active === false ? "Réautoriser la connexion" : "Bloquer la connexion — l'historique reste visible"}
-                    >
-                      {driver.active === false ? "Réactiver" : "Désactiver"}
                     </button>
                     <button
                       onClick={() => handleDeleteDriver(driver.driver_id || driver.id)}
@@ -443,6 +436,21 @@ export default function DriversPage() {
                     >
                       {savingSettings ? "Enregistrement..." : "Enregistrer"}
                     </button>
+
+                    {/* Statut du compte — dans Paramètres (demande Abdou : pas de bouton isolé) */}
+                    <div className="mt-4 pt-4 border-t border-gray-700 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div className="text-xs text-gray-400">
+                        {driver.active === false
+                          ? "Compte désactivé — connexion bloquée, tout l'historique reste visible."
+                          : "Compte actif — le chauffeur peut se connecter et soumettre ses rapports."}
+                      </div>
+                      <button
+                        onClick={() => toggleActive(driver)}
+                        className={`font-semibold px-4 py-2 rounded text-sm shrink-0 ${driver.active === false ? "bg-green-700 hover:bg-green-600 text-white" : "bg-gray-700 hover:bg-gray-600 text-gray-300"}`}
+                      >
+                        {driver.active === false ? "▶ Réactiver le compte" : "⏸ Désactiver le compte"}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
