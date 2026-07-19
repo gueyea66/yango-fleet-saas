@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.m3agroup.fleet",
+    "sha256_cert_fingerprints": ["7B:11:84:04:CF:68:A6:C0:96:21:84:0F:4C:9B:8D:B5:10:CA:3E:CF:DA:D0:FF:CA:7E:CE:F4:1B:56:EF:E4:A5"]
+  }
+}]
