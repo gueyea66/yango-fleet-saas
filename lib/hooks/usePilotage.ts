@@ -125,7 +125,32 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   const today = new Date();
   const todayStr = today.toISOString().split("T")[0];
   const sixAgo = new Date(today.getFullYear(), today.getMonth() - 5, 1).toISOString().split("T")[0];
-  const nVehicles = Math.max(profiles.length, 1);           // total flotte (profiles non filtré)
+
+  // ── CHAUFFEURS ACTIFS ─────────────────────────────
+  // Un chauffeur compte dans la masse salariale s'il est actif aujourd'hui
+  // (active ≠ false et pas de fin de contrat passée).
+  const isCurrentlyActive = (p: any) =>
+    p.active !== false && (!p.contract_end_date || p.contract_end_date >= todayStr);
+  const activeProfiles = profiles.filter(isCurrentlyActive);
+
+  // Prorata des jours actifs d'un chauffeur sur un mois donné :
+  // chevauchement de [hire_date → contract_end_date] avec le mois / jours du mois.
+  // Désactivé sans date de fin → 0 pour le mois courant et les suivants.
+  const activeRatioForMonth = (p: any, m: string): number => {
+    const [y, mo] = m.split("-").map(Number);
+    const daysIn = dim(y, mo);
+    const mStart = `${m}-01`;
+    const mEnd = `${m}-${String(daysIn).padStart(2, "0")}`;
+    if (p.active === false && !p.contract_end_date) return 0;
+    let from = mStart, to = mEnd;
+    if (p.hire_date && p.hire_date > from) from = p.hire_date;
+    if (p.contract_end_date && p.contract_end_date < to) to = p.contract_end_date;
+    if (to < from) return 0;
+    const days = Math.floor((new Date(to).getTime() - new Date(from).getTime()) / 864e5) + 1;
+    return Math.min(1, days / daysIn);
+  };
+
+  const nVehicles = Math.max(activeProfiles.length, 1);     // flotte EN ACTIVITÉ (hors inactifs)
   const filtered = !!driverFilter;                          // vue sur 1 seul chauffeur ?
   const nScope = filtered ? 1 : nVehicles;                  // périmètre affiché
   // Maintenance = provision mensuelle GLOBALE de la flotte, répartie au périmètre.
@@ -210,9 +235,25 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   const effectiveFuelPerDay = params.fuelDailyOverride > 0 ? params.fuelDailyOverride : avgDailyFuelCost;
   const effectiveSoldePerDay = params.soldeDailyOverride > 0 ? params.soldeDailyOverride : avgDailySoldeCost;
 
-  // Projected salary (au périmètre : nScope chauffeurs)
-  const projNetPerDriver = nScope > 0 ? projRevenue / nScope : projRevenue;
-  const projectedTotalSalary = tier(projNetPerDriver, params.salaryRules).total_salary * nScope;
+  // ── MASSE SALARIALE DU MOIS COURANT ───────────────
+  // Règle (Abdou) : salaire DÉJÀ VERSÉ ce mois → on s'en tient au réel ;
+  // sinon estimation par palier × prorata des jours actifs du chauffeur.
+  const scopeProfiles = filtered ? profiles.filter((p) => p.id === driverFilter) : profiles;
+  const paidThisMonthByDriver = new Map<string, number>();   // total versé (salaire + acomptes)
+  const salarySettledDrivers = new Set<string>();            // salaire (type "salaire") déjà versé
+  payments.filter((p) => getSM(p) === curMonthStr).forEach((p) => {
+    paidThisMonthByDriver.set(p.driver_id, (paidThisMonthByDriver.get(p.driver_id) || 0) + (p.amount || 0));
+    if ((p.type || "salaire") !== "acompte") salarySettledDrivers.add(p.driver_id);
+  });
+  const nSalScope = Math.max(scopeProfiles.filter((p) => activeRatioForMonth(p, curMonthStr) > 0).length, 1);
+  const projNetPerDriver = projRevenue / nSalScope;
+  const projectedTotalSalary = scopeProfiles.reduce((sum, p) => {
+    // Salaire du mois réglé (un acompte seul ne compte pas) → coût réel total versé
+    if (salarySettledDrivers.has(p.id)) return sum + (paidThisMonthByDriver.get(p.id) || 0);
+    const ratio = activeRatioForMonth(p, curMonthStr);
+    if (ratio === 0) return sum;                            // inactif : pas de salaire estimé
+    return sum + tier(projNetPerDriver, params.salaryRules).total_salary * ratio;
+  }, 0);
   const projMaintenance = provMaintenance;
 
   // Projection dépenses : taux journalier MTD × jours ouvrés restants (pas de scaling proportionnel)
@@ -254,7 +295,11 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   const futureMonthRev = dailyAvgCur * workingDaysTotal;
   const futureMonthExpPerDay = projTotalExp / (workingDaysTotal || 1);
   const futureMonthExp = futureMonthExpPerDay * workingDaysTotal;
-  const futureMonthSalary = tier(futureMonthRev / nScope, params.salaryRules).total_salary * nScope;
+  // Mois futurs : seuls les chauffeurs encore sous contrat le mois prochain comptent
+  const nextMonthDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  const nextMonthStr = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, "0")}`;
+  const nFuture = (filtered ? scopeProfiles : profiles).filter((p) => activeRatioForMonth(p, nextMonthStr) > 0).length;
+  const futureMonthSalary = nFuture === 0 ? 0 : tier(futureMonthRev / nFuture, params.salaryRules).total_salary * nFuture;
   const futureMonthEbitda = futureMonthRev - futureMonthExp - futureMonthSalary - projMaintenance;
   const quarterRevenue = projRevenue + futureMonthRev * 2;
   const quarterEbitda = projEbitda + futureMonthEbitda * 2;
@@ -378,7 +423,8 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
 
   // ── DRIVER PILOTAGE ───────────────────────────────
   const curStart = `${curMonthStr}-01`;
-  const drivers: DriverPilotage[] = profiles.map((prof) => {
+  // Coaching salaire : chauffeurs actifs uniquement (l'historique des inactifs reste dans le P&L)
+  const drivers: DriverPilotage[] = (filtered ? scopeProfiles : activeProfiles).map((prof) => {
     const dr = reports.filter((r) => r.driver_id === prof.id && r.date >= curStart && r.date <= todayStr);
     const mtdNet = dr.reduce((s, r) => s + (r.net_after_expenses || 0), 0);
     const mtdDays = new Set(dr.map((r) => r.date)).size || 1;
@@ -415,7 +461,8 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
     // Autres = taux journalier RÉEL des dépenses récurrentes (hors ponctuelles), pas le ratio global gonflé
     const other = avgDailyOtherRecurrent * projDays;
     const maint = provMaintenance;
-    const sal = tier(rev / nScope, params.salaryRules).total_salary * nScope;
+    // Mois courant : masse salariale précise (réel versé sinon prorata actifs) ; futurs : actifs du mois prochain
+    const sal = offset === 0 ? projectedTotalSalary : futureMonthSalary;
     return { month: m, label: ml(m), revenue: rev, fuel, solde, other, maintenance: maint, salaries: sal, net: rev - fuel - solde - other - maint - sal, isProjection: isProj };
   });
 

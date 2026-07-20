@@ -66,6 +66,10 @@ export default function PilotagePage() {
   const [allVehicles, setAllVehicles] = useState<any[]>([]);
   const [filterDriverId, setFilterDriverId] = useState<string>("");
   const [filterVehicleId, setFilterVehicleId] = useState<string>("");
+  // Filtres masquables (préférence par appareil, partagée avec le dashboard admin)
+  const [showFilters, setShowFilters] = useState(true);
+  useEffect(() => { setShowFilters(localStorage.getItem("m3a_filters_on") !== "0"); }, []);
+  const toggleFilters = (v: boolean) => { setShowFilters(v); localStorage.setItem("m3a_filters_on", v ? "1" : "0"); };
 
   // Resolve tenantId + load driver/vehicle lists once on mount
   useEffect(() => {
@@ -180,10 +184,16 @@ export default function PilotagePage() {
              </button>
            ))}
          </nav>
-         {/* Filter: driver / vehicle — style VUE bar */}
+         {/* Filter: driver / vehicle — style VUE bar, masquable */}
          {(allDrivers.length > 0 || allVehicles.length > 0) && (
            <div className="px-3 pb-3 flex-shrink-0 border-t pt-3" style={{ borderColor: "#1e2330" }}>
-             <div className="text-[9px] uppercase tracking-widest font-bold px-1 mb-2" style={{ color: "#3d4560" }}>VUE</div>
+             <div className="flex items-center justify-between px-1 mb-2">
+               <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: "#3d4560" }}>VUE</span>
+               <button onClick={() => toggleFilters(!showFilters)} className="text-[10px]" style={{ color: "#3d4560" }}>
+                 {showFilters ? "✕ Masquer" : "🔍 Afficher"}
+               </button>
+             </div>
+             {showFilters && (
              <div className="flex flex-col gap-1.5">
                <button onClick={() => { setFilterDriverId(""); setFilterVehicleId(""); }}
                  className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold"
@@ -202,6 +212,7 @@ export default function PilotagePage() {
                  </button>
                ))}
              </div>
+             )}
            </div>
          )}
          <div className="px-3 pb-3 flex-shrink-0">
@@ -225,6 +236,10 @@ export default function PilotagePage() {
            </div>
            <div className="flex items-center gap-2">
              <button onClick={data.refresh} className="text-xs px-2.5 py-1.5 rounded-lg" style={{ background: "#1e2330", color: "#8b92a8" }}>↻</button>
+             <button onClick={() => toggleFilters(!showFilters)} className="text-xs px-2.5 py-1.5 rounded-lg" title="Afficher/masquer les filtres"
+               style={{ background: showFilters ? "rgba(245,166,35,.15)" : "#1e2330", color: filterDriverId ? "#f5a623" : showFilters ? "#f5a623" : "#8b92a8" }}>
+               🔍
+             </button>
              <button onClick={() => setShowParams(!showParams)} className="text-xs px-2.5 py-1.5 rounded-lg"
                style={{ background: showParams ? "rgba(245,166,35,.15)" : "#1e2330", color: showParams ? "#f5a623" : "#8b92a8" }}>
                Params
@@ -240,8 +255,8 @@ export default function PilotagePage() {
              </button>
            ))}
          </div>
-         {/* Filtre VUE (chauffeur/véhicule) — présent sur desktop (sidebar), manquait sur mobile */}
-         {allDrivers.length > 0 && (
+         {/* Filtre VUE (chauffeur/véhicule) — masquable via le bouton 🔍 */}
+         {allDrivers.length > 0 && showFilters && (
            <div className="flex gap-1.5 px-3 pb-2 overflow-x-auto">
              <button onClick={() => { setFilterDriverId(""); setFilterVehicleId(""); }}
                className="flex-shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-semibold whitespace-nowrap"
@@ -266,7 +281,7 @@ export default function PilotagePage() {
        {/* MAIN CONTENT */}
        {/* min-w-0 : sans lui, un tableau large (nowrap) élargit toute la page sur mobile */}
        <main className="flex-1 min-w-0 min-h-screen lg:pl-[240px]">
-         <div className="lg:hidden" style={{ height: allDrivers.length > 0 ? 126 : 88 }} />
+         <div className="lg:hidden" style={{ height: allDrivers.length > 0 && showFilters ? 126 : 88 }} />
          {showParams && (
            <div className="lg:hidden px-4 py-4 border-b" style={{ background: "#0d1117", borderColor: "#1e2330" }}>
              <ParamsPanel />

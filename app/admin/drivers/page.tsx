@@ -20,9 +20,10 @@ interface Driver {
   salary_model: string | null;
   base_amount: number | null;
   active?: boolean | null; // false = désactivé (plus de connexion, historique conservé)
+  contract_end_date?: string | null; // fin de contrat → prorata masse salariale
 }
 
-type SettingsForm = { comm_yango: string; comm_partner: string; hire_date: string; solde_initial: string; salary_model: string; base_amount: string };
+type SettingsForm = { comm_yango: string; comm_partner: string; hire_date: string; contract_end_date: string; solde_initial: string; salary_model: string; base_amount: string };
 
 const SALARY_MODELS: { value: string; label: string }[] = [
   { value: "", label: "— (config tenant par défaut)" },
@@ -52,7 +53,7 @@ export default function DriversPage() {
 
   // Édition des paramètres commission/rému par chauffeur
   const [editId, setEditId] = useState<string | null>(null);
-  const [settingsForm, setSettingsForm] = useState<SettingsForm>({ comm_yango: "", comm_partner: "", hire_date: "", solde_initial: "", salary_model: "", base_amount: "" });
+  const [settingsForm, setSettingsForm] = useState<SettingsForm>({ comm_yango: "", comm_partner: "", hire_date: "", contract_end_date: "", solde_initial: "", salary_model: "", base_amount: "" });
   const [savingSettings, setSavingSettings] = useState(false);
 
   const openSettings = (d: Driver) => {
@@ -61,6 +62,7 @@ export default function DriversPage() {
       comm_yango: d.comm_yango != null ? String(d.comm_yango) : "",
       comm_partner: d.comm_partner != null ? String(d.comm_partner) : "",
       hire_date: d.hire_date || "",
+      contract_end_date: d.contract_end_date || "",
       solde_initial: d.solde_initial != null ? String(d.solde_initial) : "",
       salary_model: d.salary_model || "",
       base_amount: d.base_amount != null ? String(d.base_amount) : "",
@@ -361,6 +363,7 @@ export default function DriversPage() {
                       {driver.salary_model && <span className="ml-2 text-blue-400">· {SALARY_MODELS.find((m) => m.value === driver.salary_model)?.label}</span>}
                       {driver.comm_yango != null && <span className="ml-2 text-yellow-600">· Yango {driver.comm_yango}%</span>}
                       {driver.hire_date && <span className="ml-2 text-gray-400">· Entré {new Date(driver.hire_date).toLocaleDateString("fr-FR")}</span>}
+                      {driver.contract_end_date && <span className="ml-2 text-orange-400">· Fin {new Date(driver.contract_end_date).toLocaleDateString("fr-FR")}</span>}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2 shrink-0">
@@ -418,6 +421,13 @@ export default function DriversPage() {
                         <label className="text-xs text-gray-400 block mb-1">Date d&apos;entrée (prorata salaire)</label>
                         <input type="date" value={settingsForm.hire_date}
                           onChange={(e) => setSettingsForm({ ...settingsForm, hire_date: e.target.value })}
+                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500"
+                          style={{ colorScheme: "dark" }} />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-400 block mb-1">Date fin de contrat (prorata salaire)</label>
+                        <input type="date" value={settingsForm.contract_end_date}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, contract_end_date: e.target.value })}
                           className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500"
                           style={{ colorScheme: "dark" }} />
                       </div>
