@@ -49,6 +49,29 @@ export default function SuperAdminPage() {
 
   const notify = (text: string, ok = true) => { setMsg({ text, ok }); setTimeout(() => setMsg(null), 4000); };
 
+  // Clé mémorisable sur l'appareil (opt-in) — toujours re-vérifiée côté serveur
+  const KEY_STORE = "m3a_sa_key";
+  const [remember, setRemember] = useState(true);
+  const [autoChecking, setAutoChecking] = useState(true);
+
+  useEffect(() => {
+    const saved = localStorage.getItem(KEY_STORE);
+    if (!saved) { setAutoChecking(false); return; }
+    setKey(saved);
+    (async () => {
+      try {
+        const res = await fetch("/api/superadmin/verify", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key: saved }),
+        });
+        const d = await res.json();
+        if (d.ok) setAuthed(true);
+        else localStorage.removeItem(KEY_STORE);
+      } catch { /* réseau : on laisse l'écran de saisie */ }
+      setAutoChecking(false);
+    })();
+  }, []);
+
   async function verifyAndLogin() {
     setAuthError("");
     const res = await fetch("/api/superadmin/verify", {
@@ -56,7 +79,16 @@ export default function SuperAdminPage() {
       body: JSON.stringify({ key }),
     });
     const d = await res.json();
-    if (d.ok) { setAuthed(true); } else { setAuthError("Clé incorrecte"); }
+    if (d.ok) {
+      if (remember) localStorage.setItem(KEY_STORE, key);
+      setAuthed(true);
+    } else { setAuthError("Clé incorrecte"); }
+  }
+
+  function lockConsole() {
+    localStorage.removeItem(KEY_STORE);
+    setKey("");
+    setAuthed(false);
   }
 
   async function changeKey() {
@@ -71,6 +103,7 @@ export default function SuperAdminPage() {
     notify("✓ Clé d'accès mise à jour — utilisez la nouvelle clé à la prochaine connexion");
     setKeyForm({ current: "", newKey: "", confirm: "" });
     setKey(keyForm.newKey);
+    if (localStorage.getItem(KEY_STORE)) localStorage.setItem(KEY_STORE, keyForm.newKey);
   }
 
   async function load() {
@@ -195,17 +228,27 @@ export default function SuperAdminPage() {
 
   if (!authed) return (
     <div style={{ minHeight: "100vh", background: "#080a0f", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "#0d1117", border: "0.5px solid #1e2330", borderRadius: 16, padding: 40, width: 340 }}>
+      {/* <form> + autocomplete : le gestionnaire de mots de passe propose d'enregistrer la clé */}
+      <form onSubmit={(e) => { e.preventDefault(); verifyAndLogin(); }}
+        style={{ background: "#0d1117", border: "0.5px solid #1e2330", borderRadius: 16, padding: 40, width: 340, maxWidth: "92vw" }}>
         <div style={{ color: "#f5a623", fontWeight: 700, fontSize: 18, marginBottom: 4 }}>M3A · Superadmin</div>
-        <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 24 }}>Accès réservé — M3A Solutions</div>
-        <input type="password" placeholder="Clé d'accès" value={key} onChange={e => { setKey(e.target.value); setAuthError(""); }}
-          style={{ ...S.input, marginBottom: 12 }} onKeyDown={e => e.key === "Enter" && verifyAndLogin()} />
-        <button onClick={verifyAndLogin}
+        <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 24 }}>
+          {autoChecking ? "Vérification de la clé enregistrée..." : "Accès réservé — M3A Solutions"}
+        </div>
+        <input type="text" name="username" value="superadmin" readOnly autoComplete="username" style={{ display: "none" }} />
+        <input type="password" name="password" placeholder="Clé d'accès" value={key} autoComplete="current-password"
+          onChange={e => { setKey(e.target.value); setAuthError(""); }}
+          style={{ ...S.input, marginBottom: 12 }} />
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#8b92a8", marginBottom: 14, cursor: "pointer" }}>
+          <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} />
+          Rester connecté sur cet appareil
+        </label>
+        <button type="submit"
           style={{ width: "100%", background: "#f5a623", color: "#080a0f", border: "none", borderRadius: 8, padding: 10, fontWeight: 700, cursor: "pointer" }}>
           Accéder →
         </button>
         {authError && <p style={{ color: "#ef4444", fontSize: 12, marginTop: 8 }}>{authError}</p>}
-      </div>
+      </form>
     </div>
   );
 
@@ -220,6 +263,8 @@ export default function SuperAdminPage() {
             <div style={{ fontSize: 12, color: "#6b7280" }}>Gestion des clients Fleet SaaS</div>
           </div>
           <button onClick={load} style={{ marginLeft: "auto", background: "#1e2330", border: "none", borderRadius: 8, padding: "8px 16px", color: "#9ca3af", cursor: "pointer", fontSize: 13 }}>↻ Rafraîchir</button>
+          <button onClick={lockConsole} title="Oublier la clé sur cet appareil"
+            style={{ background: "#1e2330", border: "none", borderRadius: 8, padding: "8px 16px", color: "#9ca3af", cursor: "pointer", fontSize: 13 }}>🔒 Verrouiller</button>
         </div>
 
         {/* Tabs */}
