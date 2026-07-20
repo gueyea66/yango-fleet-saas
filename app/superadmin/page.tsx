@@ -240,7 +240,7 @@ export default function SuperAdminPage() {
 
         {/* Settings tab */}
         {activeTab === "settings" && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
 
             {msg && (
               <div style={{ gridColumn: "1/-1", background: msg.ok ? "#f5a62312" : "#ef444412", border: `0.5px solid ${msg.ok ? "#f5a62340" : "#ef444440"}`, borderRadius: 8, padding: "10px 16px", color: msg.ok ? "#f5a623" : "#f87171", fontSize: 13 }}>
@@ -503,7 +503,7 @@ export default function SuperAdminPage() {
 
                 {isExpanded && (
                   <div style={{ borderTop: "0.5px solid #1e2330", padding: 20 }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 20 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 20 }}>
 
                       {/* Admin accounts */}
                       <div>
@@ -626,7 +626,7 @@ export default function SuperAdminPage() {
         {/* Create tenant */}
         <div style={{ background: "#0d1117", border: "0.5px solid #1e2330", borderRadius: 12, padding: 24 }}>
           <div style={{ fontSize: 11, color: "#f5a623", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 20 }}>Nouveau client</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12, marginBottom: 12 }}>
             {([["Slug", "slug", "alpha"], ["Nom client", "name", "Alpha Transport"], ["Nom app", "app_name", "Alpha Fleet"]] as const).map(([label, field, ph]) => (
               <div key={field}>
                 <label style={S.label}>{label}</label>

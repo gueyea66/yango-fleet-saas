@@ -277,7 +277,7 @@ export default function Dashboard({ superadminKey }: { superadminKey: string }) 
       </div>
 
       {/* ── ROW 2 : FINANCIAL KPIs ── */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:20}}>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))",gap:8,marginBottom:20}}>
         {[
           {label:"CA géré ce mois",value:fmtXOF(kpi!.grossThisMonth)+" XOF",color:"#34d399"},
           {label:"Net ce mois",value:fmtXOF(kpi!.netThisMonth)+" XOF",color:"#60a5fa"},
@@ -313,7 +313,8 @@ export default function Dashboard({ superadminKey }: { superadminKey: string }) 
       )}
 
       {/* ── ROW 4 : CHARTS ── */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
+      {/* auto-fit : 2 colonnes sur desktop, 1 colonne sur mobile (pas de coupure) */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:16,marginBottom:20}}>
 
         {/* CA journalier — line chart */}
         <div style={{background:"#0d1117",border:"0.5px solid #1e2330",borderRadius:12,padding:"18px 20px"}}>
