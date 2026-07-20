@@ -354,12 +354,19 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
               <div className="text-xs mb-2" style={{ color: "#3d4560" }}>Net déclaré · {level.label} → {xof(level.total_salary)}</div>
               {nextLevel ? (
                 <>
-                  <div className="h-1.5 rounded-full overflow-hidden mb-2" style={{ background: "#1e2330" }}>
-                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progress}%`, background: "#f5a623" }} />
+                  {/* Audit UI : hiérarchie « Il vous manque » — plus de soustraction mentale */}
+                  <div style={{ color: "#94a3b8", fontSize: 11, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".04em" }}>Il vous manque</div>
+                  <div className="font-mono font-bold" style={{ color: "#facc15", fontSize: "1.5rem", lineHeight: 1.2, margin: "1px 0 2px" }}>
+                    {xof(nextLevel.min_net - monthNet)}
                   </div>
-                  <div className="text-xs" style={{ color: "#555e75" }}>
-                    {xof(nextLevel.min_net - monthNet)} pour <span style={{ color: "#f5a623" }}>{nextLevel.label}</span> → {xof(nextLevel.total_salary)}
+                  <div style={{ color: "#6b7280", fontSize: 12 }}>
+                    pour atteindre <span style={{ color: "#f5a623", fontWeight: 600 }}>{nextLevel.label}</span>
                   </div>
+                  <div style={{ color: "#22c55e", fontSize: 12, marginBottom: 8 }}>salaire : {xof(nextLevel.total_salary)}/mois</div>
+                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "#1e2330" }}>
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progress}%`, background: "#4ade80" }} />
+                  </div>
+                  <div className="text-xs mt-1" style={{ color: "#555e75" }}>{Math.round(progress)}% atteint</div>
                 </>
               ) : (
                 <div className="text-xs font-semibold" style={{ color: "#22c55e" }}>🎉 Palier max atteint · Salaire : {xof(level.total_salary)}</div>
