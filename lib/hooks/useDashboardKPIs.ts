@@ -154,8 +154,8 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
           saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).eq("date", today),
           saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).gte("date", weekAgo).lte("date", today),
           tid
-            ? supabase.from("profiles").select("id, full_name, driver_id, solde_initial, hire_date, salary_model, base_amount").eq("tenant_id", tid).eq("role", "driver")
-            : supabase.from("profiles").select("id, full_name, driver_id, solde_initial, hire_date, salary_model, base_amount").eq("role", "driver"),
+            ? supabase.from("profiles").select("*").eq("tenant_id", tid).eq("role", "driver")
+            : supabase.from("profiles").select("*").eq("role", "driver"),
         ]);
         allReps = r1.data || []; allExps = r2.data || []; allPayments = r3.data || [];
         todayRep = r4.data || []; weekRep = r5.data || []; driverProfiles = r6.data || [];
@@ -167,6 +167,9 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       const todayReps: any[] = (todayRep || []).filter((r: any) => r.status === "approved");
       const weekReps: any[] = (weekRep || []).filter((r: any) => r.status === "approved");
       const drivers: any[] = driverProfiles || [];
+      // Chauffeurs ACTIFS aujourd'hui (masse salariale, effectif) — l'historique garde tout le monde
+      const activeDrivers: any[] = drivers.filter((d: any) =>
+        d.active !== false && (!d.contract_end_date || d.contract_end_date >= today));
 
       // Filter expenses by user-entered date (expense_date) or created_at fallback
       // Only approved expenses count in real figures
@@ -399,8 +402,9 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         monthMarginPercent: totalBrut > 0 ? (netFinal / totalBrut) * 100 : 0,
         avgFuelConsumption: 0,
         totalFuelCost: totalExpenses > 0 ? exps.filter((e: any) => e.category === "Carburant").reduce((s: number, e: any) => s + e.amount, 0) : 0,
-        totalDrivers: drivers.length,
-        avgRevenuePerDriver: drivers.length ? Math.round(totalBrut / drivers.length) : 0,
+        totalDrivers: activeDrivers.length,
+        // Moyenne par chauffeur AYANT PRODUIT sur la période (pas l'effectif actuel)
+        avgRevenuePerDriver: (() => { const n = new Set(reps.map((r: any) => r.driver_id)).size; return n ? Math.round(totalBrut / n) : 0; })(),
         dailyRows, expenseBreakdown, dailyExpByCategory, dailyTrendData, topDrivers, driverAllocations,
         loading: false, error: null,
       });
