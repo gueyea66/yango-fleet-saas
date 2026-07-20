@@ -15,12 +15,12 @@ import {
 
 const xof = (n: number) => xofFmt(n);
 const pct = (n: number) => (n || 0).toFixed(1) + "%";
-const CAT_COLORS = ["#ef4444","#f97316","#eab308","#22c55e","#3b82f6","#a855f7","#f5a623","#8b92a8"];
+const CAT_COLORS = ["#ef4444","#f97316","#eab308","#22c55e","#3b82f6","#a855f7","#f5a623","var(--sk-t2)"];
 
 // ── CARD ──────────────────────────────────────────────
 function Card({ children, glow }: { children: React.ReactNode; glow?: string }) {
   return (
-    <div className="rounded-2xl p-5" style={{ background: "#0d1117", border: `1px solid ${glow ? glow + "40" : "#1e2330"}`, boxShadow: glow ? `0 0 24px ${glow}10` : "none" }}>
+    <div className="rounded-2xl p-5" style={{ background: "var(--sk-bg)", border: `1px solid ${glow ? glow + "40" : "var(--sk-surface)"}`, boxShadow: glow ? `0 0 24px ${glow}10` : "none" }}>
       {children}
     </div>
   );
@@ -31,7 +31,7 @@ function SH({ title, sub }: { title: string; sub?: string }) {
   return (
     <div className="mb-5">
       <h2 className="text-base font-bold text-white">{title}</h2>
-      {sub && <p className="text-xs mt-0.5" style={{ color: "#555e75" }}>{sub}</p>}
+      {sub && <p className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>{sub}</p>}
     </div>
   );
 }
@@ -40,7 +40,7 @@ function SH({ title, sub }: { title: string; sub?: string }) {
 const ChartTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-xl p-3 text-xs" style={{ background: "#0d1117", border: "1px solid #1e2330", minWidth: 160 }}>
+    <div className="rounded-xl p-3 text-xs" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", minWidth: 160 }}>
       <div className="font-semibold text-white mb-2">{label}</div>
       {payload.map((p: any) => (
         <div key={p.name} className="flex justify-between gap-3 py-0.5">
@@ -121,33 +121,33 @@ export default function PilotagePage() {
          ["soldeDailyOverride",      "Override solde/j",  "XOF"] as const,
        ] as [keyof PilotageParams, string, string][]).map(([k, label, unit]) => (
          <div key={String(k)}>
-           <label className="block text-[10px] mb-1 font-semibold" style={{ color: "#555e75" }}>{label}</label>
+           <label className="block text-[10px] mb-1 font-semibold" style={{ color: "var(--sk-t3)" }}>{label}</label>
            <div className="flex items-center gap-1">
              <input type="number" value={(params as any)[k]}
                onChange={(e) => setParams((p) => ({ ...p, [k]: parseFloat(e.target.value) || 0 }))}
                className="flex-1 rounded-lg px-2 py-1.5 text-xs outline-none font-mono"
-               style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#f0f2f7" }} />
-             <span className="text-[9px] flex-shrink-0" style={{ color: "#3d4560" }}>{unit}</span>
+               style={{ background: "var(--sk-deep)", border: "1px solid #2a2f3d", color: "var(--sk-t1)" }} />
+             <span className="text-[9px] flex-shrink-0" style={{ color: "var(--sk-t4)" }}>{unit}</span>
            </div>
          </div>
        ))}
-       <div className="pt-3 border-t" style={{ borderColor: "#1e2330" }}>
+       <div className="pt-3 border-t" style={{ borderColor: "var(--sk-surface)" }}>
          <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#f5a623" }}>Paliers salaire</div>
          {params.salaryRules.map((rule, i) => (
-           <div key={i} className="mb-2 rounded-lg p-2.5" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
+           <div key={i} className="mb-2 rounded-lg p-2.5" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
              <div className="text-[9px] font-bold mb-1.5" style={{ color: "#f5a623" }}>Palier {i + 1}</div>
              <input type="text" value={rule.label} placeholder="Label"
                onChange={(e) => setParams((p) => ({ ...p, salaryRules: p.salaryRules.map((r, j) => j === i ? { ...r, label: e.target.value } : r) }))}
                className="w-full rounded px-1.5 py-1 text-[10px] outline-none mb-1"
-               style={{ background: "#1e2330", border: "none", color: "#f0f2f7" }} />
+               style={{ background: "var(--sk-surface)", border: "none", color: "var(--sk-t1)" }} />
              <input type="number" value={rule.min_net} placeholder="Net min"
                onChange={(e) => setParams((p) => ({ ...p, salaryRules: p.salaryRules.map((r, j) => j === i ? { ...r, min_net: parseFloat(e.target.value) || 0 } : r) }))}
                className="w-full rounded px-1.5 py-1 text-[10px] outline-none font-mono mb-1"
-               style={{ background: "#1e2330", border: "none", color: "#8b92a8" }} />
+               style={{ background: "var(--sk-surface)", border: "none", color: "var(--sk-t2)" }} />
              <input type="number" value={rule.total_salary} placeholder="Salaire"
                onChange={(e) => setParams((p) => ({ ...p, salaryRules: p.salaryRules.map((r, j) => j === i ? { ...r, total_salary: parseFloat(e.target.value) || 0 } : r) }))}
                className="w-full rounded px-1.5 py-1 text-[10px] outline-none font-mono font-bold"
-               style={{ background: "#1e2330", border: "none", color: "#22c55e" }} />
+               style={{ background: "var(--sk-surface)", border: "none", color: "#22c55e" }} />
            </div>
          ))}
        </div>
@@ -155,19 +155,19 @@ export default function PilotagePage() {
    );
 
    return (
-     <div className="min-h-screen flex" style={{ background: "#080a0f" }}>
+     <div className="min-h-screen flex" style={{ background: "var(--sk-deep)" }}>
        {/* SIDEBAR DESKTOP */}
        <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-full z-50 overflow-y-auto"
-         style={{ width: 240, background: "#0d1117", borderRight: "1px solid #1e2330" }}>
-         <div className="px-4 py-4 border-b flex-shrink-0" style={{ borderColor: "#1e2330" }}>
+         style={{ width: 240, background: "var(--sk-bg)", borderRight: "1px solid var(--sk-surface)" }}>
+         <div className="px-4 py-4 border-b flex-shrink-0" style={{ borderColor: "var(--sk-surface)" }}>
            <button onClick={() => router.push("/admin")}
              className="flex items-center gap-2 text-xs mb-3 px-2 py-1.5 rounded-lg w-full text-left"
-             style={{ background: "#1e2330", color: "#8b92a8" }}>← Retour Admin</button>
+             style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>← Retour Admin</button>
            <div className="flex items-center gap-2.5">
              <BrandLogo size={28} />
              <div>
                <div className="font-bold text-white text-sm">Pilotage</div>
-               <div className="text-[9px]" style={{ color: "#3d4560" }}>{settings.operator_name || settings.app_name}</div>
+               <div className="text-[9px]" style={{ color: "var(--sk-t4)" }}>{settings.operator_name || settings.app_name}</div>
              </div>
              {data.fetching && !data.loading && (
                <div className="ml-auto w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#f5a623" }} />
@@ -175,21 +175,21 @@ export default function PilotagePage() {
            </div>
          </div>
          <nav className="px-3 py-3 space-y-0.5 flex-shrink-0">
-           <div className="text-[9px] uppercase tracking-widest font-bold px-2 mb-2" style={{ color: "#3d4560" }}>Navigation</div>
+           <div className="text-[9px] uppercase tracking-widest font-bold px-2 mb-2" style={{ color: "var(--sk-t4)" }}>Navigation</div>
            {sections.map(([id, label]) => (
              <button key={id} onClick={() => setSection(id)}
                className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2"
-               style={{ background: section === id ? "rgba(245,166,35,.12)" : "transparent", color: section === id ? "#f5a623" : "#555e75", border: `1px solid ${section === id ? "rgba(245,166,35,.2)" : "transparent"}` }}>
+               style={{ background: section === id ? "rgba(245,166,35,.12)" : "transparent", color: section === id ? "#f5a623" : "var(--sk-t3)", border: `1px solid ${section === id ? "rgba(245,166,35,.2)" : "transparent"}` }}>
                <span>{label.split(" ")[0]}</span><span>{label.split(" ").slice(1).join(" ")}</span>
              </button>
            ))}
          </nav>
          {/* Filter: driver / vehicle — style VUE bar, masquable */}
          {(allDrivers.length > 0 || allVehicles.length > 0) && (
-           <div className="px-3 pb-3 flex-shrink-0 border-t pt-3" style={{ borderColor: "#1e2330" }}>
+           <div className="px-3 pb-3 flex-shrink-0 border-t pt-3" style={{ borderColor: "var(--sk-surface)" }}>
              <div className="flex items-center justify-between px-1 mb-2">
-               <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: "#3d4560" }}>VUE</span>
-               <button onClick={() => toggleFilters(!showFilters)} className="text-[10px]" style={{ color: "#3d4560" }}>
+               <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: "var(--sk-t4)" }}>VUE</span>
+               <button onClick={() => toggleFilters(!showFilters)} className="text-[10px]" style={{ color: "var(--sk-t4)" }}>
                  {showFilters ? "✕ Masquer" : "🔍 Afficher"}
                </button>
              </div>
@@ -197,18 +197,18 @@ export default function PilotagePage() {
              <div className="flex flex-col gap-1.5">
                <button onClick={() => { setFilterDriverId(""); setFilterVehicleId(""); }}
                  className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold"
-                 style={{ background: (!filterDriverId && !filterVehicleId) ? "#f5a623" : "#1e2330", color: (!filterDriverId && !filterVehicleId) ? "#000" : "#555e75" }}>
+                 style={{ background: (!filterDriverId && !filterVehicleId) ? "#f5a623" : "var(--sk-surface)", color: (!filterDriverId && !filterVehicleId) ? "#000" : "var(--sk-t3)" }}>
                  👥 Tous
                </button>
                {allDrivers.map((d: any) => (
                  <button key={d.id} onClick={() => { setFilterDriverId(filterDriverId === d.id ? "" : d.id); setFilterVehicleId(""); }}
                    className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold"
-                   style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "#1e2330", color: filterDriverId === d.id ? "#f5a623" : "#555e75", border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}`, opacity: d.active === false ? 0.55 : 1 }}>
+                   style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "var(--sk-surface)", color: filterDriverId === d.id ? "#f5a623" : "var(--sk-t3)", border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}`, opacity: d.active === false ? 0.55 : 1 }}>
                    👤 {d.full_name || d.driver_id}
                    {allVehicles.find((v: any) => v.driver_id === d.id)?.plate && (
-                     <span className="ml-1 text-[10px]" style={{ color: "#3d4560" }}>🚗 {allVehicles.find((v: any) => v.driver_id === d.id)?.plate}</span>
+                     <span className="ml-1 text-[10px]" style={{ color: "var(--sk-t4)" }}>🚗 {allVehicles.find((v: any) => v.driver_id === d.id)?.plate}</span>
                    )}
-                   {d.active === false && <span className="ml-1 text-[9px] uppercase" style={{ color: "#3d4560" }}>inactif</span>}
+                   {d.active === false && <span className="ml-1 text-[9px] uppercase" style={{ color: "var(--sk-t4)" }}>inactif</span>}
                  </button>
                ))}
              </div>
@@ -217,31 +217,31 @@ export default function PilotagePage() {
          )}
          <div className="px-3 pb-3 flex-shrink-0">
            <button onClick={data.refresh} className="w-full text-xs px-3 py-2 rounded-xl"
-             style={{ background: "#1e2330", color: "#8b92a8", border: "1px solid #2a2f3d" }}>
+             style={{ background: "var(--sk-surface)", color: "var(--sk-t2)", border: "1px solid #2a2f3d" }}>
              ↻ Actualiser les données
            </button>
          </div>
-         <div className="border-t px-4 py-4 flex-1 overflow-y-auto" style={{ borderColor: "#1e2330" }}>
+         <div className="border-t px-4 py-4 flex-1 overflow-y-auto" style={{ borderColor: "var(--sk-surface)" }}>
            <ParamsPanel />
          </div>
        </aside>
 
        {/* MOBILE TOP BAR */}
        <div className="lg:hidden fixed top-0 left-0 right-0 z-50"
-         style={{ background: "rgba(13,17,23,.97)", borderBottom: "1px solid #1e2330", backdropFilter: "blur(12px)" }}>
+         style={{ background: "rgba(13,17,23,.97)", borderBottom: "1px solid var(--sk-surface)", backdropFilter: "blur(12px)" }}>
          <div className="px-4 py-2.5 flex items-center justify-between">
            <div className="flex items-center gap-3">
-             <button onClick={() => router.push("/admin")} className="text-xs px-2.5 py-1.5 rounded-lg" style={{ background: "#1e2330", color: "#8b92a8" }}>← Admin</button>
+             <button onClick={() => router.push("/admin")} className="text-xs px-2.5 py-1.5 rounded-lg" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>← Admin</button>
              <span className="font-bold text-white text-sm">Pilotage</span>
            </div>
            <div className="flex items-center gap-2">
-             <button onClick={data.refresh} className="text-xs px-2.5 py-1.5 rounded-lg" style={{ background: "#1e2330", color: "#8b92a8" }}>↻</button>
+             <button onClick={data.refresh} className="text-xs px-2.5 py-1.5 rounded-lg" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>↻</button>
              <button onClick={() => toggleFilters(!showFilters)} className="text-xs px-2.5 py-1.5 rounded-lg" title="Afficher/masquer les filtres"
-               style={{ background: showFilters ? "rgba(245,166,35,.15)" : "#1e2330", color: filterDriverId ? "#f5a623" : showFilters ? "#f5a623" : "#8b92a8" }}>
+               style={{ background: showFilters ? "rgba(245,166,35,.15)" : "var(--sk-surface)", color: filterDriverId ? "#f5a623" : showFilters ? "#f5a623" : "var(--sk-t2)" }}>
                🔍
              </button>
              <button onClick={() => setShowParams(!showParams)} className="text-xs px-2.5 py-1.5 rounded-lg"
-               style={{ background: showParams ? "rgba(245,166,35,.15)" : "#1e2330", color: showParams ? "#f5a623" : "#8b92a8" }}>
+               style={{ background: showParams ? "rgba(245,166,35,.15)" : "var(--sk-surface)", color: showParams ? "#f5a623" : "var(--sk-t2)" }}>
                Params
              </button>
            </div>
@@ -250,7 +250,7 @@ export default function PilotagePage() {
            {sections.map(([id, label]) => (
              <button key={id} onClick={() => setSection(id)}
                className="flex-shrink-0 text-xs px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap"
-               style={{ background: section === id ? "rgba(245,166,35,.12)" : "transparent", color: section === id ? "#f5a623" : "#555e75" }}>
+               style={{ background: section === id ? "rgba(245,166,35,.12)" : "transparent", color: section === id ? "#f5a623" : "var(--sk-t3)" }}>
                {label}
              </button>
            ))}
@@ -260,18 +260,18 @@ export default function PilotagePage() {
            <div className="flex gap-1.5 px-3 pb-2 overflow-x-auto">
              <button onClick={() => { setFilterDriverId(""); setFilterVehicleId(""); }}
                className="flex-shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-semibold whitespace-nowrap"
-               style={{ background: (!filterDriverId && !filterVehicleId) ? "#f5a623" : "#1e2330", color: (!filterDriverId && !filterVehicleId) ? "#000" : "#8b92a8" }}>
+               style={{ background: (!filterDriverId && !filterVehicleId) ? "#f5a623" : "var(--sk-surface)", color: (!filterDriverId && !filterVehicleId) ? "#000" : "var(--sk-t2)" }}>
                👥 Tous
              </button>
              {allDrivers.map((d: any) => (
                <button key={d.id} onClick={() => { setFilterDriverId(filterDriverId === d.id ? "" : d.id); setFilterVehicleId(""); }}
                  className="flex-shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-semibold whitespace-nowrap"
-                 style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "#1e2330", color: filterDriverId === d.id ? "#f5a623" : "#8b92a8", border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}`, opacity: d.active === false ? 0.55 : 1 }}>
+                 style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "var(--sk-surface)", color: filterDriverId === d.id ? "#f5a623" : "var(--sk-t2)", border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}`, opacity: d.active === false ? 0.55 : 1 }}>
                  👤 {d.full_name || d.driver_id}
                  {allVehicles.find((v: any) => v.driver_id === d.id)?.plate && (
-                   <span className="ml-1 text-[10px]" style={{ color: "#555e75" }}>🚗 {allVehicles.find((v: any) => v.driver_id === d.id)?.plate}</span>
+                   <span className="ml-1 text-[10px]" style={{ color: "var(--sk-t3)" }}>🚗 {allVehicles.find((v: any) => v.driver_id === d.id)?.plate}</span>
                  )}
-                 {d.active === false && <span className="ml-1 text-[9px] uppercase" style={{ color: "#555e75" }}>inactif</span>}
+                 {d.active === false && <span className="ml-1 text-[9px] uppercase" style={{ color: "var(--sk-t3)" }}>inactif</span>}
                </button>
              ))}
            </div>
@@ -283,7 +283,7 @@ export default function PilotagePage() {
        <main className="flex-1 min-w-0 min-h-screen lg:pl-[240px]">
          <div className="lg:hidden" style={{ height: allDrivers.length > 0 && showFilters ? 126 : 88 }} />
          {showParams && (
-           <div className="lg:hidden px-4 py-4 border-b" style={{ background: "#0d1117", borderColor: "#1e2330" }}>
+           <div className="lg:hidden px-4 py-4 border-b" style={{ background: "var(--sk-bg)", borderColor: "var(--sk-surface)" }}>
              <ParamsPanel />
            </div>
          )}
@@ -292,7 +292,7 @@ export default function PilotagePage() {
              <div className="flex flex-col items-center justify-center" style={{ minHeight: "60vh" }}>
                <div className="mb-4 animate-pulse"><BrandLogo size={64} /></div>
                <div className="text-sm font-semibold text-white mb-1">Calcul en cours...</div>
-               <div className="text-xs" style={{ color: "#555e75" }}>Analyse des données historiques</div>
+               <div className="text-xs" style={{ color: "var(--sk-t3)" }}>Analyse des données historiques</div>
              </div>
            ) : (
              <>
@@ -335,11 +335,11 @@ function Overview({ data, params }: { data: ReturnType<typeof usePilotage>; para
         {bigCards.map((c, i) => (
           <Card key={i} glow={c.color}>
             <div className="text-2xl mb-2">{c.icon}</div>
-            <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "#555e75" }}>{c.label}</div>
+            <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "var(--sk-t3)" }}>{c.label}</div>
             <div className="text-2xl font-mono font-bold" style={{ color: c.color }}>{c.value}
-              {c.unit && <span className="text-xs font-normal ml-1" style={{ color: "#3d4560" }}>{c.unit}</span>}
+              {c.unit && <span className="text-xs font-normal ml-1" style={{ color: "var(--sk-t4)" }}>{c.unit}</span>}
             </div>
-            <div className="text-[10px] mt-1" style={{ color: "#3d4560" }}>{c.sub}</div>
+            <div className="text-[10px] mt-1" style={{ color: "var(--sk-t4)" }}>{c.sub}</div>
           </Card>
         ))}
       </div>
@@ -350,20 +350,20 @@ function Overview({ data, params }: { data: ReturnType<typeof usePilotage>; para
           <div className="flex items-center justify-between mb-4">
             <div>
               <div className="text-sm font-bold text-white">Tendance 6 mois — CA · Charges · EBITDA</div>
-              <div className="text-xs" style={{ color: "#555e75" }}>Historique réel + projection mois en cours (★)</div>
+              <div className="text-xs" style={{ color: "var(--sk-t3)" }}>Historique réel + projection mois en cours (★)</div>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={chartData} barGap={3}>
-              <CartesianGrid strokeDasharray="2 4" stroke="#1e2330" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#555e75" }} />
-              <YAxis tick={{ fontSize: 10, fill: "#555e75" }} tickFormatter={(v) => (v / 1000000).toFixed(1) + "M"} />
+              <CartesianGrid strokeDasharray="2 4" stroke="var(--sk-surface)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: "var(--sk-t3)" }} />
+              <YAxis tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(v) => (v / 1000000).toFixed(1) + "M"} />
               <Tooltip content={<ChartTooltip />} />
               <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
               <Bar dataKey="revenue" name="CA net" fill="#f5a623" radius={[3,3,0,0]} opacity={0.9} />
               <Bar dataKey="totalExpenses" name="Dépenses" fill="#ef4444" radius={[3,3,0,0]} opacity={0.8} />
               <Bar dataKey="salaries" name="Salaires" fill="#f97316" radius={[3,3,0,0]} opacity={0.8} />
-              <Bar dataKey="maintenance" name="Maintenance" fill="#8b92a8" radius={[3,3,0,0]} opacity={0.8} />
+              <Bar dataKey="maintenance" name="Maintenance" fill="var(--sk-t2)" radius={[3,3,0,0]} opacity={0.8} />
               <Bar dataKey="ebitda" name="EBITDA" fill="#22c55e" radius={[3,3,0,0]} opacity={0.9} />
             </BarChart>
           </ResponsiveContainer>
@@ -381,8 +381,8 @@ function Overview({ data, params }: { data: ReturnType<typeof usePilotage>; para
             { label: "Moy calculée/j", value: `${xof(data.avgDailyMetrics.fuelRawDailyAvg)} XOF/j`, warn: data.avgDailyMetrics.fuelNbDeclarations < 5 },
           ].map((r, i) => (
             <div key={i}>
-              <div style={{ color: "#555e75" }}>{r.label}</div>
-              <div className="font-mono font-bold" style={{ color: (r as any).warn ? "#f5a623" : "#f0f2f7" }}>{r.value}</div>
+              <div style={{ color: "var(--sk-t3)" }}>{r.label}</div>
+              <div className="font-mono font-bold" style={{ color: (r as any).warn ? "#f5a623" : "var(--sk-t1)" }}>{r.value}</div>
             </div>
           ))}
         </div>
@@ -397,8 +397,8 @@ function Overview({ data, params }: { data: ReturnType<typeof usePilotage>; para
           </div>
         )}
         {data.avgDailyMetrics.fuelPricePerLiter > 0 && (
-          <div className="mt-1" style={{ color: "#555e75" }}>
-            Prix/litre moyen déclaré : <strong style={{ color: "#f0f2f7" }}>{xof(data.avgDailyMetrics.fuelPricePerLiter)} XOF/L</strong> · {data.avgDailyMetrics.totalLiters.toFixed(1)}L total déclarés
+          <div className="mt-1" style={{ color: "var(--sk-t3)" }}>
+            Prix/litre moyen déclaré : <strong style={{ color: "var(--sk-t1)" }}>{xof(data.avgDailyMetrics.fuelPricePerLiter)} XOF/L</strong> · {data.avgDailyMetrics.totalLiters.toFixed(1)}L total déclarés
           </div>
         )}
       </div>
@@ -410,7 +410,7 @@ function Overview({ data, params }: { data: ReturnType<typeof usePilotage>; para
           <span>🚨</span>
           <div className="flex-1">
             <div className="text-sm font-semibold" style={{ color: "#f87171" }}>{ins.title}</div>
-            <div className="text-xs mt-0.5" style={{ color: "#8b92a8" }}>{ins.body}</div>
+            <div className="text-xs mt-0.5" style={{ color: "var(--sk-t2)" }}>{ins.body}</div>
           </div>
           {ins.value && <div className="font-mono font-bold text-sm" style={{ color: "#ef4444" }}>{ins.value}</div>}
         </div>
@@ -434,10 +434,10 @@ function PnLDetailed({ data }: { data: ReturnType<typeof usePilotage> }) {
             <thead>
               <tr style={{ borderBottom: "2px solid #2a2f3d" }}>
                 {/* Colonne figée : les libellés restent visibles pendant le scroll des mois */}
-                <th className="py-2 pr-3 text-left font-semibold sticky left-0 z-10" style={{ color: "#555e75", minWidth: 130, maxWidth: 160, background: "#0d1117" }}>Ligne</th>
+                <th className="py-2 pr-3 text-left font-semibold sticky left-0 z-10" style={{ color: "var(--sk-t3)", minWidth: 130, maxWidth: 160, background: "var(--sk-bg)" }}>Ligne</th>
                 {all.map((m) => (
                   <th key={m.month} className="py-2 px-3 text-right font-semibold whitespace-nowrap"
-                    style={{ color: m.isProjection ? "#f5a623" : "#f0f2f7" }}>
+                    style={{ color: m.isProjection ? "#f5a623" : "var(--sk-t1)" }}>
                     {m.label}
                   </th>
                 ))}
@@ -453,9 +453,9 @@ function PnLDetailed({ data }: { data: ReturnType<typeof usePilotage> }) {
               ))}
               <PnLRow label="Sous-total dépenses" values={all.map((m) => -m.totalExpenses)} color="#ef4444" sub />
               <PnLRow label="💵 Salaires chauffeurs" values={all.map((m) => -m.salaries)} color="#f97316" />
-              <PnLRow label="🔧 Maintenance véhicules" values={all.map((m) => -m.maintenance)} color="#8b92a8" />
+              <PnLRow label="🔧 Maintenance véhicules" values={all.map((m) => -m.maintenance)} color="var(--sk-t2)" />
               {/* EBITDA */}
-              <tr style={{ borderTop: "2px solid #2a2f3d", background: "#1e2330" }}>
+              <tr style={{ borderTop: "2px solid #2a2f3d", background: "var(--sk-surface)" }}>
                 <td className="py-2.5 pr-4 font-bold text-white">💰 EBITDA</td>
                 {all.map((m) => (
                   <td key={m.month} className="py-2.5 px-3 text-right font-mono font-bold"
@@ -465,7 +465,7 @@ function PnLDetailed({ data }: { data: ReturnType<typeof usePilotage> }) {
                 ))}
               </tr>
               <PnLRow label="Marge EBITDA %" values={all.map((m) => m.margin)} color="#22c55e" isPct />
-              <PnLRow label="Moy/jour" values={all.map((m) => m.dailyAvg)} color="#8b92a8" small />
+              <PnLRow label="Moy/jour" values={all.map((m) => m.dailyAvg)} color="var(--sk-t2)" small />
             </tbody>
           </table>
         </div>
@@ -482,16 +482,16 @@ function PnLDetailed({ data }: { data: ReturnType<typeof usePilotage> }) {
                   <Pie data={data.globalExpBreakdown} dataKey="amount" cx="50%" cy="50%" outerRadius={75} innerRadius={40}>
                     {data.globalExpBreakdown.map((_, i) => <Cell key={i} fill={CAT_COLORS[i % CAT_COLORS.length]} />)}
                   </Pie>
-                  <Tooltip formatter={(v: any) => [xof(Number(v)) + " XOF"]} contentStyle={{ background: "#0d1117", border: "1px solid #1e2330", borderRadius: 8, fontSize: 11 }} />
+                  <Tooltip formatter={(v: any) => [xof(Number(v)) + " XOF"]} contentStyle={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderRadius: 8, fontSize: 11 }} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="flex-1 space-y-2">
                 {data.globalExpBreakdown.map((e, i) => (
                   <div key={e.category} className="flex items-center gap-2 text-xs">
                     <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: CAT_COLORS[i % CAT_COLORS.length] }} />
-                    <span className="flex-1 truncate" style={{ color: "#8b92a8" }}>{e.category}</span>
+                    <span className="flex-1 truncate" style={{ color: "var(--sk-t2)" }}>{e.category}</span>
                     <span className="font-mono font-bold text-white">{pct(e.pct)}</span>
-                    <span className="font-mono text-xs" style={{ color: "#3d4560" }}>{xof(e.amount)}</span>
+                    <span className="font-mono text-xs" style={{ color: "var(--sk-t4)" }}>{xof(e.amount)}</span>
                   </div>
                 ))}
               </div>
@@ -507,15 +507,15 @@ function PnLDetailed({ data }: { data: ReturnType<typeof usePilotage> }) {
                 { label: "Fin de trimestre", rev: data.quarterProjection.revenue, ebitda: data.quarterProjection.ebitda, margin: data.quarterProjection.marginPct, color: "#3b82f6" },
                 { label: "Fin d'année", rev: data.yearProjection.revenue, ebitda: data.yearProjection.ebitda, margin: data.yearProjection.marginPct, color: "#a855f7" },
               ].map((p) => (
-                <div key={p.label} className="rounded-xl p-3 flex items-center justify-between" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
+                <div key={p.label} className="rounded-xl p-3 flex items-center justify-between" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
                   <div>
                     <div className="text-xs font-semibold" style={{ color: p.color }}>{p.label}</div>
-                    <div className="text-sm font-mono font-bold text-white">{xof(p.rev)} <span className="text-xs font-normal" style={{ color: "#3d4560" }}>XOF</span></div>
+                    <div className="text-sm font-mono font-bold text-white">{xof(p.rev)} <span className="text-xs font-normal" style={{ color: "var(--sk-t4)" }}>XOF</span></div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs" style={{ color: "#3d4560" }}>EBITDA</div>
+                    <div className="text-xs" style={{ color: "var(--sk-t4)" }}>EBITDA</div>
                     <div className="text-sm font-mono font-bold" style={{ color: p.ebitda >= 0 ? "#22c55e" : "#ef4444" }}>{xof(p.ebitda)}</div>
-                    <div className="text-[10px]" style={{ color: "#3d4560" }}>Marge: {pct(p.margin)}</div>
+                    <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Marge: {pct(p.margin)}</div>
                   </div>
                 </div>
               ))}
@@ -530,9 +530,9 @@ function PnLDetailed({ data }: { data: ReturnType<typeof usePilotage> }) {
 function PnLRow({ label, values, color, bold, sub, small, isPct, isNeg }: { label: string; values: number[]; color: string; bold?: boolean; sub?: boolean; small?: boolean; isPct?: boolean; isNeg?: boolean }) {
   const all = usePilotage.length; // unused, just for context
   return (
-    <tr style={{ borderBottom: "1px solid #0d1117" }}>
+    <tr style={{ borderBottom: "1px solid var(--sk-bg)" }}>
       <td className={`py-1.5 pr-3 sticky left-0 z-10 ${bold ? "font-bold text-white" : sub ? "font-semibold" : ""}`}
-        style={{ color: bold ? "#f0f2f7" : sub ? "#ef4444" : small ? "#555e75" : color, paddingLeft: label.startsWith("  ") ? 16 : 0, fontSize: small ? 10 : 11, background: "#0d1117", maxWidth: 160 }}>
+        style={{ color: bold ? "var(--sk-t1)" : sub ? "#ef4444" : small ? "var(--sk-t3)" : color, paddingLeft: label.startsWith("  ") ? 16 : 0, fontSize: small ? 10 : 11, background: "var(--sk-bg)", maxWidth: 160 }}>
         {label.trim()}
       </td>
       {values.map((v, i) => (
@@ -557,18 +557,18 @@ function CashFlowSection({ data, params }: { data: ReturnType<typeof usePilotage
             { label: "CA net", value: cf.revenue, color: "#f5a623", positive: true },
             { label: `⛽ Carburant (~${params.fuelPctOfRevenue}%)`, value: cf.fuel, color: "#ef4444" },
             { label: `💳 Solde Yango (~${params.soldePctOfRevenue}%)`, value: cf.solde, color: "#f97316" },
-            { label: "📦 Autres dépenses", value: cf.other, color: "#8b92a8" },
-            { label: "🔧 Maintenance", value: cf.maintenance, color: "#555e75" },
+            { label: "📦 Autres dépenses", value: cf.other, color: "var(--sk-t2)" },
+            { label: "🔧 Maintenance", value: cf.maintenance, color: "var(--sk-t3)" },
             { label: "💵 Salaires", value: cf.salaries, color: "#f97316" },
           ];
           return (
             <Card key={i} glow={i === 0 ? "#f5a623" : undefined}>
-              <div className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: i === 0 ? "#f5a623" : "#555e75" }}>
+              <div className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: i === 0 ? "#f5a623" : "var(--sk-t3)" }}>
                 {i === 0 ? "🎯 " : ""}{cf.label} {cf.isProjection && "(proj.)"}
               </div>
               {rows.map((r) => (
-                <div key={r.label} className="flex justify-between py-1.5 text-xs" style={{ borderBottom: "1px solid #080a0f" }}>
-                  <span style={{ color: "#555e75" }}>{r.label}</span>
+                <div key={r.label} className="flex justify-between py-1.5 text-xs" style={{ borderBottom: "1px solid var(--sk-deep)" }}>
+                  <span style={{ color: "var(--sk-t3)" }}>{r.label}</span>
                   <span className="font-mono font-semibold" style={{ color: r.positive ? r.color : "#ef4444" }}>
                     {r.positive ? "" : "- "}{xof(r.value)}
                   </span>
@@ -578,10 +578,10 @@ function CashFlowSection({ data, params }: { data: ReturnType<typeof usePilotage
                 <span className="text-white">Net Cash Flow</span>
                 <span className="font-mono" style={{ color: cf.net >= 0 ? "#22c55e" : "#ef4444" }}>{xof(cf.net)} XOF</span>
               </div>
-              <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: "#1e2330" }}>
+              <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ background: "var(--sk-surface)" }}>
                 <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, (cf.net / cf.revenue) * 100))}%`, background: cf.net >= 0 ? "linear-gradient(90deg,#22c55e,#16a34a)" : "#ef4444" }} />
               </div>
-              <div className="text-[10px] mt-1 text-right" style={{ color: "#3d4560" }}>
+              <div className="text-[10px] mt-1 text-right" style={{ color: "var(--sk-t4)" }}>
                 {cf.revenue > 0 ? pct((cf.net / cf.revenue) * 100) : "—"} marge nette
               </div>
             </Card>
@@ -594,15 +594,15 @@ function CashFlowSection({ data, params }: { data: ReturnType<typeof usePilotage
         <div className="text-sm font-bold text-white mb-4">Comparaison Cash Flow — 3 mois</div>
         <ResponsiveContainer width="100%" height={240}>
           <BarChart data={data.cashFlow.map((cf) => ({ name: cf.label, Carburant: cf.fuel, Solde: cf.solde, Maintenance: cf.maintenance, Salaires: cf.salaries, Autres: cf.other, "Net Cash": cf.net, CA: cf.revenue }))}>
-            <CartesianGrid strokeDasharray="2 4" stroke="#1e2330" vertical={false} />
-            <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#555e75" }} />
-            <YAxis tick={{ fontSize: 10, fill: "#555e75" }} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
+            <CartesianGrid strokeDasharray="2 4" stroke="var(--sk-surface)" vertical={false} />
+            <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--sk-t3)" }} />
+            <YAxis tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
             <Tooltip content={<ChartTooltip />} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             <Bar dataKey="CA" fill="#f5a623" name="CA net" radius={[3,3,0,0]} />
             <Bar dataKey="Carburant" fill="#ef4444" radius={[3,3,0,0]} />
             <Bar dataKey="Salaires" fill="#f97316" radius={[3,3,0,0]} />
-            <Bar dataKey="Maintenance" fill="#8b92a8" radius={[3,3,0,0]} />
+            <Bar dataKey="Maintenance" fill="var(--sk-t2)" radius={[3,3,0,0]} />
             <Bar dataKey="Net Cash" fill="#22c55e" radius={[3,3,0,0]} />
           </BarChart>
         </ResponsiveContainer>
@@ -613,7 +613,7 @@ function CashFlowSection({ data, params }: { data: ReturnType<typeof usePilotage
 
 // ── DRIVERS ───────────────────────────────────────────
 function DriversSection({ data, params }: { data: ReturnType<typeof usePilotage>; params: PilotageParams }) {
-  if (!data.drivers.length) return <div className="text-center py-20" style={{ color: "#3d4560" }}>Aucune donnée conducteur ce mois.</div>;
+  if (!data.drivers.length) return <div className="text-center py-20" style={{ color: "var(--sk-t4)" }}>Aucune donnée conducteur ce mois.</div>;
 
   return (
     <div className="space-y-6">
@@ -633,11 +633,11 @@ function DriversSection({ data, params }: { data: ReturnType<typeof usePilotage>
                   style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>{d.name[0]}</div>
                 <div>
                   <div className="font-bold text-white">{d.name}</div>
-                  <div className="text-xs" style={{ color: "#3d4560" }}>ID: {d.driverId} · J{d.daysElapsed}/{d.daysInMonth} · {d.daysRemaining}j restants</div>
+                  <div className="text-xs" style={{ color: "var(--sk-t4)" }}>ID: {d.driverId} · J{d.daysElapsed}/{d.daysInMonth} · {d.daysRemaining}j restants</div>
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-xs" style={{ color: "#555e75" }}>Palier projeté</div>
+                <div className="text-xs" style={{ color: "var(--sk-t3)" }}>Palier projeté</div>
                 <div className="font-bold" style={{ color: "#f5a623" }}>{d.projectedTier}</div>
                 <div className="font-mono font-bold text-sm" style={{ color: "#22c55e" }}>{xof(d.projectedSalary)} XOF</div>
               </div>
@@ -647,22 +647,22 @@ function DriversSection({ data, params }: { data: ReturnType<typeof usePilotage>
             <div className="space-y-2 mb-5">
               <div>
                 <div className="flex justify-between text-xs mb-1">
-                  <span style={{ color: "#555e75" }}>MTD net: <span className="font-mono font-bold text-white">{xof(d.mtdNet)}</span></span>
-                  <span style={{ color: "#3d4560" }}>Objectif net: {xof(params.targetMonthlyNet)}</span>
+                  <span style={{ color: "var(--sk-t3)" }}>MTD net: <span className="font-mono font-bold text-white">{xof(d.mtdNet)}</span></span>
+                  <span style={{ color: "var(--sk-t4)" }}>Objectif net: {xof(params.targetMonthlyNet)}</span>
                 </div>
-                <div className="h-3 rounded-full overflow-hidden relative" style={{ background: "#1e2330" }}>
+                <div className="h-3 rounded-full overflow-hidden relative" style={{ background: "var(--sk-surface)" }}>
                   <div className="h-full rounded-full" style={{ width: `${mtdPct}%`, background: "linear-gradient(90deg,#f5a623,#fbbf24)" }} />
                 </div>
-                <div className="text-[10px] mt-0.5" style={{ color: "#555e75" }}>Réalisé: {mtdPct.toFixed(0)}% · <span style={{ color: "#3d4560" }}>net après comm. Yango+partenaire</span></div>
+                <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t3)" }}>Réalisé: {mtdPct.toFixed(0)}% · <span style={{ color: "var(--sk-t4)" }}>net après comm. Yango+partenaire</span></div>
               </div>
               <div>
                 <div className="flex justify-between text-xs mb-1">
-                  <span style={{ color: "#555e75" }}>Projection nette: <span className="font-mono font-bold" style={{ color: "#f5a623" }}>{xof(d.projectedMonthNet)}</span></span>
+                  <span style={{ color: "var(--sk-t3)" }}>Projection nette: <span className="font-mono font-bold" style={{ color: "#f5a623" }}>{xof(d.projectedMonthNet)}</span></span>
                 </div>
-                <div className="h-3 rounded-full overflow-hidden" style={{ background: "#1e2330" }}>
+                <div className="h-3 rounded-full overflow-hidden" style={{ background: "var(--sk-surface)" }}>
                   <div className="h-full rounded-full" style={{ width: `${projPct}%`, background: projPct >= 100 ? "linear-gradient(90deg,#22c55e,#16a34a)" : "linear-gradient(90deg,#f5a623aa,#f5a623)" }} />
                 </div>
-                <div className="text-[10px] mt-0.5" style={{ color: "#555e75" }}>Landing: {projPct.toFixed(0)}% de l'objectif</div>
+                <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t3)" }}>Landing: {projPct.toFixed(0)}% de l'objectif</div>
               </div>
             </div>
 
@@ -670,21 +670,21 @@ function DriversSection({ data, params }: { data: ReturnType<typeof usePilotage>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
               {[
                 { label: "Moy/jour réelle", value: xof(d.dailyAvg) + " XOF", sub: prevDelta !== 0 ? `${prevDelta >= 0 ? "+" : ""}${prevDelta.toFixed(0)}% vs mois préc.` : "", color: paceOk ? "#22c55e" : "#ef4444" },
-                { label: "Moy/jour nécessaire", value: xof(d.neededDailyAvg) + " XOF", sub: "pour atteindre objectif", color: "#555e75" },
-                { label: "Reste à faire", value: xof(Math.max(0, params.targetMonthlyNet - d.mtdNet)) + " XOF", sub: `en ${d.daysRemaining}j (${xof(d.neededDailyAvg)}/j)`, color: "#8b92a8" },
+                { label: "Moy/jour nécessaire", value: xof(d.neededDailyAvg) + " XOF", sub: "pour atteindre objectif", color: "var(--sk-t3)" },
+                { label: "Reste à faire", value: xof(Math.max(0, params.targetMonthlyNet - d.mtdNet)) + " XOF", sub: `en ${d.daysRemaining}j (${xof(d.neededDailyAvg)}/j)`, color: "var(--sk-t2)" },
                 { label: "Salaire projeté", value: xof(d.projectedSalary) + " XOF", sub: d.projectedTier, color: "#f5a623" },
               ].map((k) => (
-                <div key={k.label} className="rounded-xl p-3" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
-                  <div className="text-[10px] mb-1" style={{ color: "#3d4560" }}>{k.label}</div>
+                <div key={k.label} className="rounded-xl p-3" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
+                  <div className="text-[10px] mb-1" style={{ color: "var(--sk-t4)" }}>{k.label}</div>
                   <div className="text-xs font-mono font-bold" style={{ color: k.color }}>{k.value}</div>
-                  {k.sub && <div className="text-[10px] mt-0.5" style={{ color: "#3d4560" }}>{k.sub}</div>}
+                  {k.sub && <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>{k.sub}</div>}
                 </div>
               ))}
             </div>
 
             {/* Salary tiers ladder */}
-            <div className="rounded-xl p-4" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
-              <div className="text-[10px] uppercase tracking-wider font-bold mb-3" style={{ color: "#3d4560" }}>Grille paliers — Position & Projection</div>
+            <div className="rounded-xl p-4" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
+              <div className="text-[10px] uppercase tracking-wider font-bold mb-3" style={{ color: "var(--sk-t4)" }}>Grille paliers — Position & Projection</div>
               <div className="space-y-2">
                 {params.salaryRules.map((r, i) => {
                   const isReached = d.mtdNet >= r.min_net;
@@ -694,19 +694,19 @@ function DriversSection({ data, params }: { data: ReturnType<typeof usePilotage>
                   return (
                     <div key={i} className="flex items-center gap-3">
                       <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
-                        style={{ background: isReached ? "#22c55e" : isProjected ? "#f5a623" : "#1e2330", color: isReached || isProjected ? "#000" : "#555e75" }}>
+                        style={{ background: isReached ? "#22c55e" : isProjected ? "#f5a623" : "var(--sk-surface)", color: isReached || isProjected ? "#000" : "var(--sk-t3)" }}>
                         {isReached ? "✓" : isProjected ? "★" : i + 1}
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between text-xs mb-0.5">
-                          <span style={{ color: isReached ? "#22c55e" : isProjected ? "#f5a623" : "#555e75" }}>{r.label} — {xof(r.total_salary)} XOF</span>
-                          <span style={{ color: "#3d4560" }}>≥ {xof(r.min_net)}</span>
+                          <span style={{ color: isReached ? "#22c55e" : isProjected ? "#f5a623" : "var(--sk-t3)" }}>{r.label} — {xof(r.total_salary)} XOF</span>
+                          <span style={{ color: "var(--sk-t4)" }}>≥ {xof(r.min_net)}</span>
                         </div>
-                        <div className="h-1 rounded-full overflow-hidden" style={{ background: "#1e2330" }}>
-                          <div className="h-full rounded-full" style={{ width: `${tierPct}%`, background: isReached ? "#22c55e" : isProjected ? "#f5a623" : "#3d4560" }} />
+                        <div className="h-1 rounded-full overflow-hidden" style={{ background: "var(--sk-surface)" }}>
+                          <div className="h-full rounded-full" style={{ width: `${tierPct}%`, background: isReached ? "#22c55e" : isProjected ? "#f5a623" : "var(--sk-t4)" }} />
                         </div>
                         {notReachable && r.min_net > 0 && (
-                          <div className="text-[10px] mt-0.5" style={{ color: "#3d4560" }}>
+                          <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>
                             Manque: {xof(r.min_net - d.projectedMonthNet)} XOF (+{xof((r.min_net - d.projectedMonthNet) / Math.max(d.daysRemaining, 1))}/j)
                           </div>
                         )}
@@ -741,29 +741,29 @@ function SimulationSection({ data, params }: { data: ReturnType<typeof usePilota
       <SH title="🔮 Simulation Flotte" sub={`Impact de l'ajout de véhicules · Maintenance ${xofFmt(params.maintenanceCostPerMonth)} XOF/véhicule/mois incluse · Salaires ajustés par palier`} />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {data.vehicleSimulations.map((sim, i) => (
-          <Card key={i} glow={i === 0 ? "#1e2330" : i === 1 ? "#f5a623" : "#22c55e"}>
+          <Card key={i} glow={i === 0 ? "var(--sk-surface)" : i === 1 ? "#f5a623" : "#22c55e"}>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <div className="text-[10px] uppercase tracking-wider" style={{ color: "#555e75" }}>{i === 0 ? "Situation actuelle" : `Scénario +${i} véhicule${i > 1 ? "s" : ""}`}</div>
-                <div className="text-2xl font-bold text-white">{sim.nVehicles} <span className="text-sm font-normal" style={{ color: "#555e75" }}>véh.</span></div>
+                <div className="text-[10px] uppercase tracking-wider" style={{ color: "var(--sk-t3)" }}>{i === 0 ? "Situation actuelle" : `Scénario +${i} véhicule${i > 1 ? "s" : ""}`}</div>
+                <div className="text-2xl font-bold text-white">{sim.nVehicles} <span className="text-sm font-normal" style={{ color: "var(--sk-t3)" }}>véh.</span></div>
               </div>
               <div className="text-right">
                 {i > 0 && <div className="text-xs font-semibold mb-0.5" style={{ color: sim.deltaEbitda > 0 ? "#22c55e" : "#ef4444" }}>
                   {sim.deltaEbitda > 0 ? "+" : ""}{xof(sim.deltaEbitda)} XOF EBITDA
                 </div>}
                 <div className="text-lg font-bold" style={{ color: sim.marginPct >= 0 ? "#22c55e" : "#ef4444" }}>{pct(sim.marginPct)}</div>
-                <div className="text-[10px]" style={{ color: "#3d4560" }}>marge</div>
+                <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>marge</div>
               </div>
             </div>
             {[
               { l: "CA mensuel projeté", v: sim.revenue, c: "#f5a623" },
               { l: "Dépenses opé.", v: -sim.expenses, c: "#ef4444" },
-              { l: "Maintenance", v: -sim.maintenance, c: "#8b92a8" },
+              { l: "Maintenance", v: -sim.maintenance, c: "var(--sk-t2)" },
               { l: "Salaires", v: -sim.salaries, c: "#f97316" },
               { l: "EBITDA mensuel", v: sim.ebitda, c: sim.ebitda >= 0 ? "#22c55e" : "#ef4444" },
             ].map((r) => (
-              <div key={r.l} className="flex justify-between py-1.5 text-xs" style={{ borderBottom: "1px solid #0d1117" }}>
-                <span style={{ color: "#555e75" }}>{r.l}</span>
+              <div key={r.l} className="flex justify-between py-1.5 text-xs" style={{ borderBottom: "1px solid var(--sk-bg)" }}>
+                <span style={{ color: "var(--sk-t3)" }}>{r.l}</span>
                 <span className="font-mono font-bold" style={{ color: r.v >= 0 ? r.c : "#ef4444" }}>
                   {r.v < 0 ? `- ${xof(Math.abs(r.v))}` : xof(r.v)} XOF
                 </span>
@@ -778,15 +778,15 @@ function SimulationSection({ data, params }: { data: ReturnType<typeof usePilota
         <div className="text-sm font-bold text-white mb-4">Courbes de projection — CA · EBITDA en fonction de la flotte</div>
         <ResponsiveContainer width="100%" height={240}>
           <LineChart data={data.vehicleSimulations.map((s) => ({ véhicules: s.nVehicles, CA: s.revenue, EBITDA: s.ebitda, Salaires: s.salaries, Maintenance: s.maintenance }))}>
-            <CartesianGrid strokeDasharray="2 4" stroke="#1e2330" />
-            <XAxis dataKey="véhicules" tick={{ fontSize: 11, fill: "#555e75" }} />
-            <YAxis tick={{ fontSize: 10, fill: "#555e75" }} tickFormatter={(v) => (v / 1000000).toFixed(1) + "M"} />
+            <CartesianGrid strokeDasharray="2 4" stroke="var(--sk-surface)" />
+            <XAxis dataKey="véhicules" tick={{ fontSize: 11, fill: "var(--sk-t3)" }} />
+            <YAxis tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(v) => (v / 1000000).toFixed(1) + "M"} />
             <Tooltip content={<ChartTooltip />} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             <Line type="monotone" dataKey="CA" stroke="#f5a623" strokeWidth={2} dot={{ fill: "#f5a623", r: 4 }} />
             <Line type="monotone" dataKey="EBITDA" stroke="#22c55e" strokeWidth={2} dot={{ fill: "#22c55e", r: 4 }} />
             <Line type="monotone" dataKey="Salaires" stroke="#f97316" strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
-            <Line type="monotone" dataKey="Maintenance" stroke="#8b92a8" strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
+            <Line type="monotone" dataKey="Maintenance" stroke="var(--sk-t2)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
           </LineChart>
         </ResponsiveContainer>
       </Card>
@@ -868,20 +868,20 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
         {[
           { icon: "💰", label: "Net moyen / jour", value: xof(data.avgDailyMetrics.revenue), sub: `${ops.length} jours enregistrés`, color: "#f5a623" },
           { icon: "🚗", label: "Courses / jour", value: hasCourses ? data.avgDailyMetrics.avgCourses.toFixed(1) : "—", sub: hasFare ? `Prix moy: ${xof(data.avgDailyMetrics.avgFare)} XOF` : "Déclarez via rapport", color: "#22c55e" },
-          { icon: "📍", label: "KM / jour", value: hasKm ? data.avgDailyMetrics.avgKm.toFixed(0) + " km" : "—", sub: hasKm && revenuePerKm > 0 ? `${xof(revenuePerKm)} XOF/km` : "Renseignez l'odomètre", color: "#8b92a8" },
+          { icon: "📍", label: "KM / jour", value: hasKm ? data.avgDailyMetrics.avgKm.toFixed(0) + " km" : "—", sub: hasKm && revenuePerKm > 0 ? `${xof(revenuePerKm)} XOF/km` : "Renseignez l'odomètre", color: "var(--sk-t2)" },
           { icon: "⛽", label: "Carburant / jour", value: xof(data.avgDailyMetrics.fuelRawDailyAvg), sub: data.avgDailyMetrics.fuelPricePerLiter > 0 ? `${xof(data.avgDailyMetrics.fuelPricePerLiter)} XOF/L · ${data.avgDailyMetrics.totalLiters.toFixed(0)}L` : "Ajoutez les litres en description", color: "#f97316" },
           { icon: "💳", label: "Solde Yango / jour", value: xof(data.avgDailyMetrics.solde), sub: "Wallet moyen déclaré", color: "#3b82f6" },
           { icon: "🎯", label: "Prix moyen course", value: hasFare ? xof(data.avgDailyMetrics.avgFare) + " XOF" : "—", sub: "Brut Yango ÷ nb courses", color: "#a855f7" },
           { icon: "🔧", label: "Coût / km", value: hasKm && costPerKm > 0 ? xof(costPerKm) + " XOF" : "—", sub: "(Fuel + Solde) ÷ KM", color: "#ef4444" },
           { icon: "📊", label: "Taux net / brut", value: data.avgDailyMetrics.revenue > 0 ? ((data.avgDailyMetrics.net / data.avgDailyMetrics.revenue) * 100).toFixed(0) + "%" : "—", sub: "Net après dépenses ÷ brut", color: "#22c55e" },
         ].map((k, i) => (
-          <div key={i} className="rounded-xl p-4" style={{ background: "#0d1117", border: `1px solid ${k.value !== "—" ? k.color + "25" : "#1e2330"}` }}>
+          <div key={i} className="rounded-xl p-4" style={{ background: "var(--sk-bg)", border: `1px solid ${k.value !== "—" ? k.color + "25" : "var(--sk-surface)"}` }}>
             <div className="flex items-center gap-2 mb-2">
               <span>{k.icon}</span>
-              <span className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: "#555e75" }}>{k.label}</span>
+              <span className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: "var(--sk-t3)" }}>{k.label}</span>
             </div>
-            <div className="text-lg font-mono font-bold" style={{ color: k.value !== "—" ? k.color : "#3d4560" }}>{k.value}</div>
-            <div className="text-[10px] mt-1" style={{ color: "#3d4560" }}>{k.sub}</div>
+            <div className="text-lg font-mono font-bold" style={{ color: k.value !== "—" ? k.color : "var(--sk-t4)" }}>{k.value}</div>
+            <div className="text-[10px] mt-1" style={{ color: "var(--sk-t4)" }}>{k.sub}</div>
           </div>
         ))}
       </div>
@@ -891,7 +891,7 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
         <div className="flex items-center justify-between mb-4">
           <div>
             <div className="text-sm font-bold text-white">🗓️ Heatmap performance · Jour de la semaine</div>
-            <div className="text-xs mt-0.5" style={{ color: "#555e75" }}>Moyenne sur les 3 derniers mois — meilleurs jours en orange</div>
+            <div className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>Moyenne sur les 3 derniers mois — meilleurs jours en orange</div>
           </div>
         </div>
         <div className="grid grid-cols-7 gap-1.5">
@@ -906,34 +906,34 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
               <button key={wdNum} onClick={() => setFilter(filter === wdNum ? "all" : wdNum)}
                 className="rounded-xl p-2 text-center transition-all"
                 style={{
-                  background: isActive ? "rgba(245,166,35,.2)" : intensity > 0.7 ? "rgba(245,166,35,.15)" : intensity > 0.4 ? "rgba(245,166,35,.07)" : "#0d1117",
-                  border: `1px solid ${isActive ? "#f5a623" : intensity > 0.5 ? "rgba(245,166,35,.2)" : "#1e2330"}`,
+                  background: isActive ? "rgba(245,166,35,.2)" : intensity > 0.7 ? "rgba(245,166,35,.15)" : intensity > 0.4 ? "rgba(245,166,35,.07)" : "var(--sk-bg)",
+                  border: `1px solid ${isActive ? "#f5a623" : intensity > 0.5 ? "rgba(245,166,35,.2)" : "var(--sk-surface)"}`,
                   cursor: "pointer",
                 }}>
-                <div className="text-[10px] font-bold mb-1" style={{ color: isActive ? "#f5a623" : isWeekend ? "#f5a623aa" : "#555e75" }}>{wdLabels[i]}</div>
-                <div className="text-xs font-mono font-bold" style={{ color: isActive ? "#f5a623" : intensity > 0.5 ? "#f0f2f7" : "#3d4560" }}>
+                <div className="text-[10px] font-bold mb-1" style={{ color: isActive ? "#f5a623" : isWeekend ? "#f5a623aa" : "var(--sk-t3)" }}>{wdLabels[i]}</div>
+                <div className="text-xs font-mono font-bold" style={{ color: isActive ? "#f5a623" : intensity > 0.5 ? "var(--sk-t1)" : "var(--sk-t4)" }}>
                   {stat && stat.count > 0 ? (stat.avgNet / 1000).toFixed(0) + "k" : "—"}
                 </div>
                 {stat && stat.count > 0 && (
-                  <div className="mt-1.5 h-1 rounded-full" style={{ background: "#1e2330" }}>
+                  <div className="mt-1.5 h-1 rounded-full" style={{ background: "var(--sk-surface)" }}>
                     <div className="h-full rounded-full" style={{ width: `${Math.round(intensity * 100)}%`, background: `rgba(245,166,35,${0.3 + intensity * 0.7})` }} />
                   </div>
                 )}
                 {stat && stat.avgCourses > 0 && (
-                  <div className="text-[9px] mt-1" style={{ color: "#3d4560" }}>{stat.avgCourses.toFixed(0)} crs</div>
+                  <div className="text-[9px] mt-1" style={{ color: "var(--sk-t4)" }}>{stat.avgCourses.toFixed(0)} crs</div>
                 )}
               </button>
             );
           })}
         </div>
-        <div className="mt-3 flex gap-3 text-[10px]" style={{ color: "#3d4560" }}>
+        <div className="mt-3 flex gap-3 text-[10px]" style={{ color: "var(--sk-t4)" }}>
           <span>Cliquez sur un jour pour filtrer</span>
           <span>·</span>
-          <button onClick={() => setFilter("weekday")} className="hover:text-white" style={{ color: filter === "weekday" ? "#f5a623" : "#3d4560" }}>Semaine</button>
+          <button onClick={() => setFilter("weekday")} className="hover:text-white" style={{ color: filter === "weekday" ? "#f5a623" : "var(--sk-t4)" }}>Semaine</button>
           <span>·</span>
-          <button onClick={() => setFilter("weekend")} className="hover:text-white" style={{ color: filter === "weekend" ? "#f5a623" : "#3d4560" }}>Week-end</button>
+          <button onClick={() => setFilter("weekend")} className="hover:text-white" style={{ color: filter === "weekend" ? "#f5a623" : "var(--sk-t4)" }}>Week-end</button>
           <span>·</span>
-          <button onClick={() => setFilter("all")} className="hover:text-white" style={{ color: filter === "all" ? "#f5a623" : "#3d4560" }}>Tous</button>
+          <button onClick={() => setFilter("all")} className="hover:text-white" style={{ color: filter === "all" ? "#f5a623" : "var(--sk-t4)" }}>Tous</button>
         </div>
       </Card>
 
@@ -946,14 +946,14 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
                 {filter === "all" ? "Tous les jours" : filter === "weekday" ? "Semaine uniquement" : filter === "weekend" ? "Week-end uniquement" : `${wdLabels[wdOrder.indexOf(filter as number)]} uniquement`}
                 {" — "}{filtered.length} jours · moy: <span style={{ color: "#f5a623" }}>{xof(fNetAvg)}</span>
               </div>
-              <div className="text-xs mt-0.5" style={{ color: "#555e75" }}>30 derniers jours filtrés · barre verte = au-dessus de la moyenne globale</div>
+              <div className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>30 derniers jours filtrés · barre verte = au-dessus de la moyenne globale</div>
             </div>
             {/* Metric selector */}
             <div className="flex gap-1">
               {[["net","CA net"],["courses","Courses"],["km","KM"],["fare","Prix moy."]].map(([k, l]) => (
                 <button key={k} onClick={() => setChartMetric(k as any)}
                   className="text-[10px] px-2 py-1 rounded-lg"
-                  style={{ background: chartMetric === k ? "rgba(245,166,35,.15)" : "#1e2330", color: chartMetric === k ? "#f5a623" : "#555e75", border: `1px solid ${chartMetric === k ? "rgba(245,166,35,.3)" : "transparent"}` }}>
+                  style={{ background: chartMetric === k ? "rgba(245,166,35,.15)" : "var(--sk-surface)", color: chartMetric === k ? "#f5a623" : "var(--sk-t3)", border: `1px solid ${chartMetric === k ? "rgba(245,166,35,.3)" : "transparent"}` }}>
                   {l}
                 </button>
               ))}
@@ -961,23 +961,23 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
           </div>
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={chartData} barSize={chartData.length > 20 ? 8 : 14} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="2 4" stroke="#1e2330" vertical={false} />
-              <XAxis dataKey="label" tick={{ fontSize: 9, fill: "#555e75" }} />
-              <YAxis tick={{ fontSize: 9, fill: "#555e75" }} tickFormatter={(v) => chartMetric === "net" || chartMetric === "fare" ? (v / 1000).toFixed(0) + "k" : String(Math.round(v))} width={36} />
+              <CartesianGrid strokeDasharray="2 4" stroke="var(--sk-surface)" vertical={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 9, fill: "var(--sk-t3)" }} />
+              <YAxis tick={{ fontSize: 9, fill: "var(--sk-t3)" }} tickFormatter={(v) => chartMetric === "net" || chartMetric === "fare" ? (v / 1000).toFixed(0) + "k" : String(Math.round(v))} width={36} />
               <Tooltip content={({ active, payload, label }) => {
                 if (!active || !payload?.length) return null;
                 const d = chartData.find((r) => r.label === label);
                 const val = d ? (chartMetric === "fare" ? d.avgFare : (d as any)[chartMetric]) : 0;
                 return (
-                  <div className="rounded-xl p-3 text-xs" style={{ background: "#0d1117", border: "1px solid #1e2330", minWidth: 170 }}>
-                    <div className="font-bold text-white mb-2">{d?.date} <span style={{ color: d?.weekdayNum === 0 || d?.weekdayNum === 6 ? "#f5a623" : "#555e75" }}>({d?.weekday})</span></div>
+                  <div className="rounded-xl p-3 text-xs" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", minWidth: 170 }}>
+                    <div className="font-bold text-white mb-2">{d?.date} <span style={{ color: d?.weekdayNum === 0 || d?.weekdayNum === 6 ? "#f5a623" : "var(--sk-t3)" }}>({d?.weekday})</span></div>
                     <div className="flex justify-between gap-3 py-0.5">
                       <span style={{ color: "#f5a623" }}>{chartMetric === "net" ? "CA net" : chartMetric === "courses" ? "Courses" : chartMetric === "km" ? "KM" : "Prix moy."}</span>
                       <span className="font-mono font-bold text-white">{chartMetric === "net" || chartMetric === "fare" ? xof(val) + " XOF" : String(Math.round(val))}</span>
                     </div>
-                    {d && d.courses > 0 && <div className="mt-1.5 pt-1.5 border-t text-[10px]" style={{ borderColor: "#1e2330", color: "#555e75" }}>🚗 {d.courses} courses · {d.avgFare > 0 ? xof(d.avgFare) + " moy." : ""}</div>}
-                    {d && d.km > 0 && <div className="text-[10px]" style={{ color: "#555e75" }}>📍 {d.km} km · {d.fuel > 0 && d.km > 0 ? xof(d.fuel / d.km) + " XOF/km" : ""}</div>}
-                    {d && (d.solde > 0 || d.fuel > 0) && <div className="text-[10px]" style={{ color: "#555e75" }}>💳 {xof(d.solde)} · ⛽ {xof(d.fuel)}</div>}
+                    {d && d.courses > 0 && <div className="mt-1.5 pt-1.5 border-t text-[10px]" style={{ borderColor: "var(--sk-surface)", color: "var(--sk-t3)" }}>🚗 {d.courses} courses · {d.avgFare > 0 ? xof(d.avgFare) + " moy." : ""}</div>}
+                    {d && d.km > 0 && <div className="text-[10px]" style={{ color: "var(--sk-t3)" }}>📍 {d.km} km · {d.fuel > 0 && d.km > 0 ? xof(d.fuel / d.km) + " XOF/km" : ""}</div>}
+                    {d && (d.solde > 0 || d.fuel > 0) && <div className="text-[10px]" style={{ color: "var(--sk-t3)" }}>💳 {xof(d.solde)} · ⛽ {xof(d.fuel)}</div>}
                     <div className="text-[10px] mt-1" style={{ color: val >= globalNetAvg ? "#22c55e" : "#ef4444" }}>
                       {chartMetric === "net" && (val >= globalNetAvg ? `▲ +${xof(val - globalNetAvg)} vs moy.` : `▼ -${xof(globalNetAvg - val)} vs moy.`)}
                     </div>
@@ -1002,7 +1002,7 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
           <div className="flex items-center justify-between mb-4">
             <div>
               <div className="text-sm font-bold text-white">📋 Journal quotidien</div>
-              <div className="text-xs mt-0.5" style={{ color: "#555e75" }}>{sorted.length} jours · cliquer entête = trier</div>
+              <div className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>{sorted.length} jours · cliquer entête = trier</div>
             </div>
             {filter !== "all" && (
               <button onClick={() => setFilter("all")} className="text-[10px] px-3 py-1.5 rounded-lg" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623", border: "1px solid rgba(245,166,35,.2)" }}>
@@ -1013,7 +1013,7 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
           <div className="overflow-x-auto">
             <table className="w-full" style={{ fontSize: 11 }}>
               <thead>
-                <tr style={{ borderBottom: "2px solid #1e2330" }}>
+                <tr style={{ borderBottom: "2px solid var(--sk-surface)" }}>
                   {[
                     ["date","Date",true],["date","Jour",false],["net","CA net",true],
                     ...(hasCourses ? [["courses","Courses",true]] : []),
@@ -1023,7 +1023,7 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
                   ].map(([k, h, sortable]) => (
                     <th key={String(h)} onClick={() => sortable && toggleSort(k as SortKey)}
                       className={`py-2 px-3 text-left font-semibold whitespace-nowrap select-none ${sortable ? "cursor-pointer hover:text-white" : ""}`}
-                      style={{ color: sortKey === k ? "#f5a623" : "#555e75" }}>
+                      style={{ color: sortKey === k ? "#f5a623" : "var(--sk-t3)" }}>
                       {h}{sortable ? sortArrow(k as SortKey) : ""}
                     </th>
                   ))}
@@ -1033,9 +1033,9 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
                 {sorted.slice(0, 50).map((d, i) => {
                   const aboveAvg = d.net >= globalNetAvg;
                   return (
-                    <tr key={d.date} style={{ borderBottom: "1px solid #0d1117", background: i % 2 === 0 ? "transparent" : "rgba(30,35,48,.25)" }}>
+                    <tr key={d.date} style={{ borderBottom: "1px solid var(--sk-bg)", background: i % 2 === 0 ? "transparent" : "rgba(30,35,48,.25)" }}>
                       <td className="py-2 px-3 font-mono text-white">{d.date}</td>
-                      <td className="py-2 px-3 font-semibold" style={{ color: d.weekdayNum === 0 || d.weekdayNum === 6 ? "#f5a623" : "#555e75" }}>
+                      <td className="py-2 px-3 font-semibold" style={{ color: d.weekdayNum === 0 || d.weekdayNum === 6 ? "#f5a623" : "var(--sk-t3)" }}>
                         {d.weekday}
                         {(d.weekdayNum === 0 || d.weekdayNum === 6) && <span className="ml-1 text-[9px]">WE</span>}
                       </td>
@@ -1045,22 +1045,22 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
                           <span className="text-[9px]" style={{ color: aboveAvg ? "#22c55e55" : "#ef444455" }}>{aboveAvg ? "▲" : "▼"}</span>
                         </div>
                       </td>
-                      {hasCourses && <td className="py-2 px-3 text-center font-mono" style={{ color: d.courses > 0 ? "#22c55e" : "#3d4560" }}>{d.courses > 0 ? d.courses : "—"}</td>}
-                      {hasFare && <td className="py-2 px-3 font-mono" style={{ color: d.avgFare > 0 ? "#a855f7" : "#3d4560" }}>{d.avgFare > 0 ? xof(d.avgFare) : "—"}</td>}
-                      {hasKm && <td className="py-2 px-3 font-mono" style={{ color: d.km > 0 ? "#8b92a8" : "#3d4560" }}>{d.km > 0 ? d.km + " km" : "—"}</td>}
-                      <td className="py-2 px-3 font-mono" style={{ color: d.solde > 0 ? "#3b82f6" : "#3d4560" }}>{d.solde > 0 ? xof(d.solde) : "—"}</td>
-                      <td className="py-2 px-3 font-mono" style={{ color: d.fuel > 0 ? "#f97316" : "#3d4560" }}>{d.fuel > 0 ? xof(d.fuel) : "—"}</td>
+                      {hasCourses && <td className="py-2 px-3 text-center font-mono" style={{ color: d.courses > 0 ? "#22c55e" : "var(--sk-t4)" }}>{d.courses > 0 ? d.courses : "—"}</td>}
+                      {hasFare && <td className="py-2 px-3 font-mono" style={{ color: d.avgFare > 0 ? "#a855f7" : "var(--sk-t4)" }}>{d.avgFare > 0 ? xof(d.avgFare) : "—"}</td>}
+                      {hasKm && <td className="py-2 px-3 font-mono" style={{ color: d.km > 0 ? "var(--sk-t2)" : "var(--sk-t4)" }}>{d.km > 0 ? d.km + " km" : "—"}</td>}
+                      <td className="py-2 px-3 font-mono" style={{ color: d.solde > 0 ? "#3b82f6" : "var(--sk-t4)" }}>{d.solde > 0 ? xof(d.solde) : "—"}</td>
+                      <td className="py-2 px-3 font-mono" style={{ color: d.fuel > 0 ? "#f97316" : "var(--sk-t4)" }}>{d.fuel > 0 ? xof(d.fuel) : "—"}</td>
                     </tr>
                   );
                 })}
               </tbody>
               <tfoot>
-                <tr style={{ borderTop: "2px solid #1e2330", background: "rgba(245,166,35,.04)" }}>
+                <tr style={{ borderTop: "2px solid var(--sk-surface)", background: "rgba(245,166,35,.04)" }}>
                   <td colSpan={2} className="py-2.5 px-3 font-bold text-white text-xs">Moy. ({filter === "all" ? "tous" : filter === "weekday" ? "semaine" : filter === "weekend" ? "WE" : wdLabels[wdOrder.indexOf(filter as number)]})</td>
                   <td className="py-2.5 px-3 font-mono font-bold" style={{ color: "#f5a623" }}>{xof(fNetAvg)}</td>
                   {hasCourses && <td className="py-2.5 px-3 text-center font-mono font-bold" style={{ color: "#22c55e" }}>{fCoursesAvg.toFixed(1)}</td>}
                   {hasFare && <td className="py-2.5 px-3 font-mono font-bold" style={{ color: "#a855f7" }}>{fFareAvg > 0 ? xof(fFareAvg) : "—"}</td>}
-                  {hasKm && <td className="py-2.5 px-3 font-mono font-bold" style={{ color: "#8b92a8" }}>{fKmAvg > 0 ? fKmAvg.toFixed(0) + " km" : "—"}</td>}
+                  {hasKm && <td className="py-2.5 px-3 font-mono font-bold" style={{ color: "var(--sk-t2)" }}>{fKmAvg > 0 ? fKmAvg.toFixed(0) + " km" : "—"}</td>}
                   <td className="py-2.5 px-3 font-mono font-bold" style={{ color: "#3b82f6" }}>{xof(fSoldeAvg)}</td>
                   <td className="py-2.5 px-3 font-mono font-bold" style={{ color: "#f97316" }}>{xof(fFuelAvg)}</td>
                 </tr>
@@ -1069,7 +1069,7 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
           </div>
         </Card>
       ) : (
-        <div className="text-center py-20" style={{ color: "#3d4560" }}>
+        <div className="text-center py-20" style={{ color: "var(--sk-t4)" }}>
           <div className="text-4xl mb-3">📅</div>
           <div className="text-sm text-white">Aucune donnée pour ce filtre.</div>
           <button onClick={() => setFilter("all")} className="mt-3 text-xs px-4 py-2 rounded-xl" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623" }}>Voir tous les jours</button>
@@ -1100,7 +1100,7 @@ function InsightsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
                 <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full" style={{ background: c.color + "20", color: c.color }}>{c.label}</span>
                 <span className="text-sm font-bold text-white">{ins.title}</span>
               </div>
-              <p className="text-xs leading-relaxed" style={{ color: "#8b92a8" }}>{ins.body}</p>
+              <p className="text-xs leading-relaxed" style={{ color: "var(--sk-t2)" }}>{ins.body}</p>
             </div>
             {ins.value && <div className="font-mono font-bold text-sm flex-shrink-0" style={{ color: c.color }}>{ins.value}</div>}
           </div>

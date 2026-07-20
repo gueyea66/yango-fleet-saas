@@ -5,7 +5,7 @@ export const metadata = { title: "Politique de Confidentialité — Fleet Manage
 
 export default function ConfidentialitePage() {
   const S = {
-    h2: { fontSize: 16, fontWeight: 700, color: "#f0f2f7", margin: "32px 0 12px", borderBottom: "1px solid #2a3147", paddingBottom: 8 } as React.CSSProperties,
+    h2: { fontSize: 16, fontWeight: 700, color: "var(--sk-t1)", margin: "32px 0 12px", borderBottom: "1px solid #2a3147", paddingBottom: 8 } as React.CSSProperties,
     p: { color: "#a0aab8", fontSize: 14, lineHeight: 1.7, margin: "0 0 12px" } as React.CSSProperties,
     li: { color: "#a0aab8", fontSize: 14, lineHeight: 1.7, margin: "0 0 6px" } as React.CSSProperties,
     table: { width: "100%", borderCollapse: "collapse" as const, marginBottom: 16 },
@@ -14,7 +14,7 @@ export default function ConfidentialitePage() {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0f1117", color: "#f0f2f7", padding: "40px 16px" }}>
+    <div style={{ minHeight: "100vh", background: "#0f1117", color: "var(--sk-t1)", padding: "40px 16px" }}>
       <div style={{ maxWidth: 720, margin: "0 auto" }}>
 
         <div style={{ marginBottom: 32 }}>
@@ -26,7 +26,7 @@ export default function ConfidentialitePage() {
         <h2 style={S.h2}>1. Responsable du traitement</h2>
         <p style={S.p}>
           Le responsable du traitement des données à caractère personnel collectées via le Service est :<br />
-          <strong style={{ color: "#f0f2f7" }}>M3A Solutions</strong>, Dakar, Sénégal.<br />
+          <strong style={{ color: "var(--sk-t1)" }}>M3A Solutions</strong>, Dakar, Sénégal.<br />
           Contact DPO : <a href={`mailto:${PRIVACY_EMAIL}`} style={{ color: "#f5a623" }}>{PRIVACY_EMAIL}</a>
         </p>
 
@@ -74,12 +74,12 @@ export default function ConfidentialitePage() {
 
         <h2 style={S.h2}>4. Hébergement et transferts de données</h2>
         <p style={S.p}>
-          Les données sont hébergées par <strong style={{ color: "#f0f2f7" }}>Supabase</strong> (serveurs en Allemagne, Union Européenne)
-          et <strong style={{ color: "#f0f2f7" }}>Vercel</strong> (CDN global, données de traitement en UE). Ces prestataires
+          Les données sont hébergées par <strong style={{ color: "var(--sk-t1)" }}>Supabase</strong> (serveurs en Allemagne, Union Européenne)
+          et <strong style={{ color: "var(--sk-t1)" }}>Vercel</strong> (CDN global, données de traitement en UE). Ces prestataires
           sont liés à M3A Solutions par des Accords de Traitement des Données (DPA) conformes au RGPD.
         </p>
         <p style={S.p}>
-          Les données de monitoring des erreurs sont traitées par <strong style={{ color: "#f0f2f7" }}>Sentry</strong>
+          Les données de monitoring des erreurs sont traitées par <strong style={{ color: "var(--sk-t1)" }}>Sentry</strong>
           (serveur EU — Allemagne). Aucune donnée personnelle identifiable n&apos;est transmise à Sentry au-delà des logs
           d&apos;erreurs techniques.
         </p>
@@ -107,12 +107,12 @@ export default function ConfidentialitePage() {
           au Sénégal et au RGPD (applicable aux données traitées en UE), vous disposez des droits suivants :
         </p>
         <ul style={{ paddingLeft: 20, margin: "0 0 12px" }}>
-          <li style={S.li}><strong style={{ color: "#f0f2f7" }}>Droit d&apos;accès</strong> : obtenir une copie de vos données.</li>
-          <li style={S.li}><strong style={{ color: "#f0f2f7" }}>Droit de rectification</strong> : corriger des données inexactes.</li>
-          <li style={S.li}><strong style={{ color: "#f0f2f7" }}>Droit à l&apos;effacement</strong> : demander la suppression de vos données.</li>
-          <li style={S.li}><strong style={{ color: "#f0f2f7" }}>Droit à la portabilité</strong> : recevoir vos données dans un format standard.</li>
-          <li style={S.li}><strong style={{ color: "#f0f2f7" }}>Droit d&apos;opposition</strong> : vous opposer à certains traitements.</li>
-          <li style={S.li}><strong style={{ color: "#f0f2f7" }}>Droit à la limitation</strong> : demander la suspension d&apos;un traitement.</li>
+          <li style={S.li}><strong style={{ color: "var(--sk-t1)" }}>Droit d&apos;accès</strong> : obtenir une copie de vos données.</li>
+          <li style={S.li}><strong style={{ color: "var(--sk-t1)" }}>Droit de rectification</strong> : corriger des données inexactes.</li>
+          <li style={S.li}><strong style={{ color: "var(--sk-t1)" }}>Droit à l&apos;effacement</strong> : demander la suppression de vos données.</li>
+          <li style={S.li}><strong style={{ color: "var(--sk-t1)" }}>Droit à la portabilité</strong> : recevoir vos données dans un format standard.</li>
+          <li style={S.li}><strong style={{ color: "var(--sk-t1)" }}>Droit d&apos;opposition</strong> : vous opposer à certains traitements.</li>
+          <li style={S.li}><strong style={{ color: "var(--sk-t1)" }}>Droit à la limitation</strong> : demander la suspension d&apos;un traitement.</li>
         </ul>
         <p style={S.p}>
           Pour exercer ces droits : <a href={`mailto:${PRIVACY_EMAIL}`} style={{ color: "#f5a623" }}>{PRIVACY_EMAIL}</a>.

@@ -58,7 +58,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4"
-      style={{ background: "linear-gradient(135deg, #080a0f 0%, #0d1117 50%, #0a0c12 100%)" }}>
+      style={{ background: "linear-gradient(135deg, var(--sk-deep) 0%, var(--sk-bg) 50%, #0a0c12 100%)" }}>
       <div className="fixed inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse 60% 40% at 50% 0%, ${brand}10 0%, transparent 70%)` }} />
       <div className="w-full max-w-[400px] relative">
         <div className="flex flex-col items-center mb-10">
@@ -66,17 +66,17 @@ export default function LoginPage() {
             <div className="absolute inset-0 rounded-2xl blur-xl opacity-40" style={{ background: brand, transform: "scale(1.3)" }} />
             <div className="relative"><BrandLogo size={56} /></div>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "#f0f2f7" }}>{settings.app_name}</h1>
-          <p className="text-sm mt-1" style={{ color: "#555e75" }}>Plateforme de gestion de flotte</p>
+          <h1 className="text-2xl font-bold tracking-tight" style={{ color: "var(--sk-t1)" }}>{settings.app_name}</h1>
+          <p className="text-sm mt-1" style={{ color: "var(--sk-t3)" }}>Plateforme de gestion de flotte</p>
         </div>
 
         <div className="rounded-2xl border p-8"
-          style={{ background: "#0d1117", borderColor: "#1e2330", boxShadow: "0 0 0 1px rgba(245,166,35,0.04), 0 24px 48px rgba(0,0,0,0.4)" }}>
-          <div className="flex p-1 rounded-xl mb-7" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
+          style={{ background: "var(--sk-bg)", borderColor: "var(--sk-surface)", boxShadow: "0 0 0 1px rgba(245,166,35,0.04), 0 24px 48px rgba(0,0,0,0.4)" }}>
+          <div className="flex p-1 rounded-xl mb-7" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
             {(["admin", "driver"] as UserRole[]).map((r) => (
               <button key={r} type="button" onClick={() => { setRole(r); setError(null); }}
                 className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all duration-200"
-                style={{ background: role === r ? brand : "transparent", color: role === r ? "#000" : "#555e75" }}>
+                style={{ background: role === r ? brand : "transparent", color: role === r ? "#000" : "var(--sk-t3)" }}>
                 {r === "admin" ? "Admin" : "Conducteur"}
               </button>
             ))}
@@ -91,41 +91,41 @@ export default function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#555e75" }}>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>
                 {role === "admin" ? "Email" : "ID Conducteur"}
               </label>
               {role === "admin" ? (
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@m3a.sn" required autoComplete="email"
                   className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all"
-                  style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }}
+                  style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }}
                   onFocus={(e) => e.currentTarget.style.borderColor = "#f5a623"}
-                  onBlur={(e) => e.currentTarget.style.borderColor = "#1e2330"} />
+                  onBlur={(e) => e.currentTarget.style.borderColor = "var(--sk-surface)"} />
               ) : (
                 <input type="text" value={driverId} onChange={(e) => setDriverId(e.target.value.toUpperCase())}
                   placeholder="DRV001" required autoComplete="username"
                   className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all font-mono tracking-widest"
-                  style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }}
+                  style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }}
                   onFocus={(e) => e.currentTarget.style.borderColor = "#f5a623"}
-                  onBlur={(e) => e.currentTarget.style.borderColor = "#1e2330"} />
+                  onBlur={(e) => e.currentTarget.style.borderColor = "var(--sk-surface)"} />
               )}
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#555e75" }}>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>
                 Mot de passe
               </label>
               <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••" required autoComplete="current-password"
                 className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all"
-                style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }}
+                style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }}
                 onFocus={(e) => e.currentTarget.style.borderColor = "#f5a623"}
-                onBlur={(e) => e.currentTarget.style.borderColor = "#1e2330"} />
+                onBlur={(e) => e.currentTarget.style.borderColor = "var(--sk-surface)"} />
             </div>
             <button type="submit" disabled={loading}
               className="w-full py-3.5 rounded-xl text-sm font-bold tracking-wide transition-all duration-200 mt-2"
               style={{
-                background: loading ? "#1e2330" : brand,
-                color: loading ? "#555e75" : "#000",
+                background: loading ? "var(--sk-surface)" : brand,
+                color: loading ? "var(--sk-t3)" : "#000",
                 boxShadow: loading ? "none" : `0 4px 20px ${brand}40`,
               }}>
               {loading ? "Connexion..." : "Se connecter →"}
@@ -133,14 +133,14 @@ export default function LoginPage() {
           </form>
           {role === "admin" && (
             <p className="text-center mt-5">
-              <a href="/auth/forgot" className="text-xs" style={{ color: "#555e75" }}>Mot de passe oublié ?</a>
+              <a href="/auth/forgot" className="text-xs" style={{ color: "var(--sk-t3)" }}>Mot de passe oublié ?</a>
             </p>
           )}
         </div>
 
         <div className="text-center mt-8">
           {settings.operator_name && (
-            <p className="text-xs mb-1" style={{ color: "#3d4560" }}>{settings.operator_name}</p>
+            <p className="text-xs mb-1" style={{ color: "var(--sk-t4)" }}>{settings.operator_name}</p>
           )}
           <PoweredBy />
           {/* Accès opérateur plateforme (protégé par clé superadmin côté serveur) */}

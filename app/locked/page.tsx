@@ -13,12 +13,12 @@ function LockedContent() {
   return (
     <div style={{
       minHeight: "100vh",
-      background: "linear-gradient(135deg, #080a0f 0%, #0d1117 100%)",
+      background: "linear-gradient(135deg, var(--sk-deep) 0%, var(--sk-bg) 100%)",
       display: "flex", alignItems: "center", justifyContent: "center",
       fontFamily: "system-ui, sans-serif",
     }}>
       <div style={{
-        background: "#0d1117",
+        background: "var(--sk-bg)",
         border: "1px solid #ef444430",
         borderRadius: 20,
         padding: 48,
@@ -26,7 +26,7 @@ function LockedContent() {
         textAlign: "center",
       }}>
         <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
-        <h1 style={{ color: "#f0f2f7", fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
+        <h1 style={{ color: "var(--sk-t1)", fontSize: 22, fontWeight: 700, marginBottom: 8 }}>
           {isInactive ? "Compte suspendu" : "Accès expiré"}
         </h1>
         <p style={{ color: "#6b7280", fontSize: 14, lineHeight: 1.6, marginBottom: 8 }}>
@@ -59,7 +59,7 @@ function LockedContent() {
         <a href="tel:+221770000000"
           style={{
             display: "block",
-            background: "#1e2330",
+            background: "var(--sk-surface)",
             color: "#9ca3af",
             borderRadius: 12,
             padding: "12px 24px",

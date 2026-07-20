@@ -30,7 +30,7 @@ function QRCode({ url, size = 180 }: { url: string; size?: number }) {
   const src = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encoded}&margin=2&bgcolor=1a1f2e&color=f0f2f7`;
   return (
     <img src={src} width={size} height={size} alt="QR Code paiement"
-      style={{ borderRadius: 12, border: "1px solid #343b4f", display: "block" }} />
+      style={{ borderRadius: 12, border: "1px solid var(--sk-border)", display: "block" }} />
   );
 }
 
@@ -70,11 +70,11 @@ function PaymentPageInner() {
     card: { background: "#1a1f2e", border: "1px solid #2a3147", borderRadius: 16, padding: 24 } as React.CSSProperties,
     label: { color: "#8892a4", fontSize: 12, fontWeight: 600, marginBottom: 4, display: "block" } as React.CSSProperties,
     btn: (color: string): React.CSSProperties => ({ background: color, color: "#000", border: "none", borderRadius: 10, padding: "14px 20px", fontWeight: 700, fontSize: 15, cursor: "pointer", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }),
-    ghost: { background: "#252b3b", color: "#f0f2f7", border: "1px solid #343b4f", borderRadius: 8, padding: "10px 14px", fontSize: 13, cursor: "pointer", width: "100%" } as React.CSSProperties,
+    ghost: { background: "#252b3b", color: "var(--sk-t1)", border: "1px solid var(--sk-border)", borderRadius: 8, padding: "10px 14px", fontSize: 13, cursor: "pointer", width: "100%" } as React.CSSProperties,
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0f1117", color: "#f0f2f7", padding: "32px 16px" }}>
+    <div style={{ minHeight: "100vh", background: "#0f1117", color: "var(--sk-t1)", padding: "32px 16px" }}>
       <div style={{ maxWidth: 520, margin: "0 auto" }}>
 
         {/* Header */}
@@ -104,7 +104,7 @@ function PaymentPageInner() {
             Indiquez cette référence dans la <strong>note/objet</strong> de votre paiement pour faciliter la validation.
           </p>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <code style={{ background: "#0f1117", border: "1px solid #343b4f", borderRadius: 8, padding: "10px 14px", fontSize: 14, color: "#f5a623", flex: 1, fontFamily: "monospace" }}>
+            <code style={{ background: "#0f1117", border: "1px solid var(--sk-border)", borderRadius: 8, padding: "10px 14px", fontSize: 14, color: "#f5a623", flex: 1, fontFamily: "monospace" }}>
               {ref}
             </code>
             <button onClick={() => copy(ref, "ref")} style={S.ghost}>
@@ -135,7 +135,7 @@ function PaymentPageInner() {
                   Ou copiez le numéro Wave :
                 </p>
                 <div style={{ display: "flex", gap: 8, width: "100%" }}>
-                  <code style={{ background: "#0f1117", border: "1px solid #343b4f", borderRadius: 8, padding: "10px 14px", fontSize: 14, color: "#22d3ee", flex: 1, fontFamily: "monospace" }}>
+                  <code style={{ background: "#0f1117", border: "1px solid var(--sk-border)", borderRadius: 8, padding: "10px 14px", fontSize: 14, color: "#22d3ee", flex: 1, fontFamily: "monospace" }}>
                     {settings.wavePhone}
                   </code>
                   <button onClick={() => copy(settings!.wavePhone, "wave")} style={S.ghost}>
@@ -172,7 +172,7 @@ function PaymentPageInner() {
                 </p>
                 <QRCode url={`*144*1*${settings.omPhone.replace(/\D/g, "")}*${amount}#`} size={180} />
                 <div style={{ display: "flex", gap: 8, width: "100%" }}>
-                  <code style={{ background: "#0f1117", border: "1px solid #343b4f", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#f97316", flex: 1, fontFamily: "monospace" }}>
+                  <code style={{ background: "#0f1117", border: "1px solid var(--sk-border)", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#f97316", flex: 1, fontFamily: "monospace" }}>
                     {settings.omPhone}
                   </code>
                   <button onClick={() => copy(settings!.omPhone, "om")} style={S.ghost}>
@@ -187,7 +187,7 @@ function PaymentPageInner() {
         {/* Notice */}
         <div style={{ background: "#1a1f2e", border: "1px solid #2a3147", borderRadius: 12, padding: 16, marginBottom: 24, textAlign: "center" }}>
           <p style={{ color: "#8892a4", fontSize: 13, margin: "0 0 8px" }}>
-            Après votre paiement, notre équipe valide votre compte sous <strong style={{ color: "#f0f2f7" }}>24h ouvrées</strong>.
+            Après votre paiement, notre équipe valide votre compte sous <strong style={{ color: "var(--sk-t1)" }}>24h ouvrées</strong>.
           </p>
           <p style={{ color: "#6b7280", fontSize: 12, margin: 0 }}>
             Votre essai gratuit continue pendant ce délai.

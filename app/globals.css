@@ -47,6 +47,42 @@
   }
 }
 
+/* ── SKINS par tenant (white-label) ─────────────────────────────────────────
+   Les couleurs de SURFACE et de TEXTE sont pilotées par variables ; l'ACCENT
+   reste la couleur de marque du tenant (--tenant-color, inchangé).
+   Skin par défaut « Midnight » = valeurs historiques EXACTES → aucun changement
+   visuel sur l'existant. Un tenant peut choisir un autre skin (data-skin). */
+:root, [data-skin="midnight"] {
+  --sk-deep: #080a0f;
+  --sk-bg: #0d1117;
+  --sk-surface: #1e2330;
+  --sk-border: #343b4f;
+  --sk-t1: #f0f2f7;   /* texte principal */
+  --sk-t2: #8b92a8;   /* texte secondaire */
+  --sk-t3: #555e75;   /* texte discret */
+  --sk-t4: #3d4560;   /* texte fantôme */
+}
+[data-skin="slate"] {
+  --sk-deep: #0b1120;
+  --sk-bg: #0f172a;
+  --sk-surface: #1e293b;
+  --sk-border: #334155;
+  --sk-t1: #f8fafc;
+  --sk-t2: #cbd5e1;
+  --sk-t3: #94a3b8;   /* WCAG AA */
+  --sk-t4: #64748b;
+}
+[data-skin="graphite"] {
+  --sk-deep: #0a0a0b;
+  --sk-bg: #141416;
+  --sk-surface: #232327;
+  --sk-border: #3a3a40;
+  --sk-t1: #fafafa;
+  --sk-t2: #a1a1aa;
+  --sk-t3: #71717a;
+  --sk-t4: #52525b;
+}
+
 /* Jamais de scroll horizontal de page : l'app ne doit pas exiger de dézoom sur mobile.
    Le scroll reste possible DANS les conteneurs overflow-x-auto (tableaux, barres d'onglets). */
 html,
