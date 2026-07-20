@@ -245,14 +245,25 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
     paidThisMonthByDriver.set(p.driver_id, (paidThisMonthByDriver.get(p.driver_id) || 0) + (p.amount || 0));
     if ((p.type || "salaire") !== "acompte") salarySettledDrivers.add(p.driver_id);
   });
-  const nSalScope = Math.max(scopeProfiles.filter((p) => activeRatioForMonth(p, curMonthStr) > 0).length, 1);
-  const projNetPerDriver = projRevenue / nSalScope;
+  // Production PROPRE du chauffeur sur le mois courant (net MTD, jours, rythme)
+  const driverMtd = (p: any): { net: number; days: number; dailyAvg: number } => {
+    const dr = reports.filter((r) => r.driver_id === p.id && r.date >= `${curMonthStr}-01` && r.date <= todayStr);
+    const net = dr.reduce((s, r) => s + (r.net_after_expenses || 0), 0);
+    const days = new Set(dr.map((r) => r.date)).size;
+    return { net, days, dailyAvg: days > 0 ? net / days : 0 };
+  };
+  // Net projeté fin de mois du chauffeur (base du palier de salaire)
+  const driverProjNet = (p: any): number => {
+    const m = driverMtd(p);
+    if (m.days === 0) return 0;
+    return m.net + m.dailyAvg * Math.max(0, workingDaysTotal - m.days);
+  };
   const projectedTotalSalary = scopeProfiles.reduce((sum, p) => {
     // Salaire du mois réglé (un acompte seul ne compte pas) → coût réel total versé
     if (salarySettledDrivers.has(p.id)) return sum + (paidThisMonthByDriver.get(p.id) || 0);
     const ratio = activeRatioForMonth(p, curMonthStr);
     if (ratio === 0) return sum;                            // inactif : pas de salaire estimé
-    return sum + tier(projNetPerDriver, params.salaryRules).total_salary * ratio;
+    return sum + tier(driverProjNet(p), params.salaryRules).total_salary * ratio;
   }, 0);
   const projMaintenance = provMaintenance;
 
@@ -291,15 +302,15 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   // ── QUARTER & YEAR ────────────────────────────────
   // Projection mois futur = moy journalière actuelle × jours ouvrés + charges/salaires projetés
   const avgMonthRev = past.length > 0 ? past.reduce((s, p) => s + p.revenue, 0) / past.length : projRevenue;
-  // Mois normalisé basé sur le rythme actuel (dailyAvgCur × workingDaysTotal)
-  const futureMonthRev = dailyAvgCur * workingDaysTotal;
-  const futureMonthExpPerDay = projTotalExp / (workingDaysTotal || 1);
-  const futureMonthExp = futureMonthExpPerDay * workingDaysTotal;
-  // Mois futurs : seuls les chauffeurs encore sous contrat le mois prochain comptent
+  // Mois futurs : SEULS les chauffeurs encore sous contrat le mois prochain comptent,
+  // au rythme de leur PROPRE production (pas celui des chauffeurs partis).
   const nextMonthDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
   const nextMonthStr = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, "0")}`;
-  const nFuture = (filtered ? scopeProfiles : profiles).filter((p) => activeRatioForMonth(p, nextMonthStr) > 0).length;
-  const futureMonthSalary = nFuture === 0 ? 0 : tier(futureMonthRev / nFuture, params.salaryRules).total_salary * nFuture;
+  const futureProfiles = (filtered ? scopeProfiles : profiles).filter((p) => activeRatioForMonth(p, nextMonthStr) > 0);
+  const futureMonthRev = futureProfiles.reduce((s, p) => s + driverMtd(p).dailyAvg, 0) * workingDaysTotal;
+  // Charges futures proportionnelles à l'activité future (carburant/solde suivent le CA)
+  const futureMonthExp = projRevenue > 0 ? projTotalExp * (futureMonthRev / projRevenue) : 0;
+  const futureMonthSalary = futureProfiles.reduce((s, p) => s + tier(driverProjNet(p), params.salaryRules).total_salary, 0);
   const futureMonthEbitda = futureMonthRev - futureMonthExp - futureMonthSalary - projMaintenance;
   const quarterRevenue = projRevenue + futureMonthRev * 2;
   const quarterEbitda = projEbitda + futureMonthEbitda * 2;
@@ -467,7 +478,10 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   });
 
   // ── VEHICLE SIMULATION ────────────────────────────
-  const revPerVehicle = nVehicles > 0 ? avgMonthRev / nVehicles : avgMonthRev;
+  // Moyennes HISTORIQUES par véhicule : diviser par les chauffeurs AYANT PRODUIT
+  // sur la fenêtre (pas l'effectif actif actuel — sinon moyennes ≈ totaux après désactivations).
+  const contributorsCount = Math.max(new Set(reports.map((r: any) => r.driver_id)).size, 1);
+  const revPerVehicle = avgMonthRev / (filtered ? 1 : contributorsCount);
   const expPerVehicle = revPerVehicle * avgExpRatio;
   const maintPerVehicle = params.maintenanceCostPerMonth / nVehicles; // provision globale ramenée au véhicule
   const vehicleSimulations: SimulationResult[] = [0, 1, 2, 3].map((extra) => {
