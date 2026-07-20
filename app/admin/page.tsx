@@ -2,7 +2,20 @@
 
 export const dynamic = "force-dynamic";
 
+// Audit UI : icônes vectorielles monochromes (remplacent les émojis en nav → premium).
+// L'accent couleur reste la couleur de marque du tenant (white-label) — inchangé.
+const NAV_ICONS: Record<string, LucideIcon> = {
+  dashboard: LayoutDashboard, pending: Inbox, history: History, calendrier: Calendar,
+  payments: Banknote, avances: HandCoins, pilotage: Gauge,
+  vehicles: Car, drivers: Users, kyc: BadgeCheck,
+  remuneration: Briefcase, journal: BookText, import: Upload, settings: Settings,
+};
+
 import React, { useState, useEffect, useRef } from "react";
+import {
+  LayoutDashboard, Inbox, History, Calendar, Banknote, HandCoins, Gauge,
+  Car, Users, BadgeCheck, Briefcase, BookText, Upload, Settings, type LucideIcon,
+} from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -257,7 +270,9 @@ export default function AdminPage() {
                       color: tab === id ? "#f5a623" : "#8b92a8",
                       border: `1px solid ${tab === id ? "rgba(245,166,35,.2)" : "transparent"}`,
                     }}>
-                    <span className="text-sm leading-none w-4 text-center flex-shrink-0">{icon}</span>
+                    {(() => { const I = NAV_ICONS[id]; return I
+                      ? <I size={16} strokeWidth={1.75} className="flex-shrink-0" />
+                      : <span className="text-sm leading-none w-4 text-center flex-shrink-0">{icon}</span>; })()}
                     <span className="truncate">{label}</span>
                   </button>
                 ))}
@@ -311,7 +326,9 @@ export default function AdminPage() {
               <button key={id} onClick={() => id === "drivers" ? router.push("/admin/drivers") : setTab(id)}
                 className="flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium"
                 style={{ color: tab === id ? "#f5a623" : "#555e75", borderBottom: tab === id ? "2px solid #f5a623" : "2px solid transparent" }}>
-                <span className="text-base leading-none">{icon}</span>
+                {(() => { const I = NAV_ICONS[id]; return I
+                  ? <I size={18} strokeWidth={1.75} />
+                  : <span className="text-base leading-none">{icon}</span>; })()}
               </button>
             ))}
           </React.Fragment>
