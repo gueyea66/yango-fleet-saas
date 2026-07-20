@@ -250,7 +250,7 @@ export default function AdminPage() {
               <div className="px-3 mb-1 text-[9px] uppercase tracking-[0.12em] font-bold" style={{ color: "#3d4560" }}>{group.label}</div>
               <div className="space-y-0.5">
                 {group.items.map(([id, icon, label]) => (
-                  <button key={id} onClick={() => setTab(id)} className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5"
+                  <button key={id} onClick={() => id === "drivers" ? router.push("/admin/drivers") : setTab(id)} className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5"
                     style={{
                       background: tab === id ? "rgba(245,166,35,.12)" : "transparent",
                       color: tab === id ? "#f5a623" : "#8b92a8",
@@ -307,7 +307,7 @@ export default function AdminPage() {
           <React.Fragment key={group.label}>
             {gi > 0 && <div className="flex-shrink-0 w-px h-6 mx-1" style={{ background: "#1e2330" }} />}
             {group.items.map(([id, icon]) => (
-              <button key={id} onClick={() => setTab(id)}
+              <button key={id} onClick={() => id === "drivers" ? router.push("/admin/drivers") : setTab(id)}
                 className="flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium"
                 style={{ color: tab === id ? "#f5a623" : "#555e75", borderBottom: tab === id ? "2px solid #f5a623" : "2px solid transparent" }}>
                 <span className="text-base leading-none">{icon}</span>
