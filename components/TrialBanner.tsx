@@ -21,6 +21,7 @@ export default function TrialBanner() {
   const { user } = useAuth();
   const [status, setStatus] = useState<TrialStatus | null>(null);
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -42,24 +43,28 @@ export default function TrialBanner() {
 
   const cfg = HORIZON_CONFIG[status.horizon];
   const dayWord = status.daysLeft <= 1 ? "jour" : "jours";
+  // Audit UI : bandeau réductible, SAUF quand l'échéance est proche (≤ 3 j) —
+  // là il reste toujours visible pour ne pas rater le renouvellement.
+  const canDismiss = status.daysLeft > 3;
+  if (canDismiss && dismissed) return null;
 
   return (
     <div style={{
       background: cfg.bg,
       border: `1px solid ${cfg.border}`,
-      borderRadius: 10,
-      padding: "12px 18px",
+      borderRadius: 8,
+      padding: "7px 14px",   // ~36px de haut (audit : 52 → 36)
       display: "flex",
       alignItems: "center",
-      gap: 12,
-      marginBottom: 20,
+      gap: 10,
+      marginBottom: 12,
     }}>
-      <span style={{ fontSize: 18 }}>{cfg.icon}</span>
-      <div style={{ flex: 1 }}>
-        <span style={{ color: cfg.color, fontWeight: 600, fontSize: 13 }}>
+      <span style={{ fontSize: 14 }}>{cfg.icon}</span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ color: cfg.color, fontWeight: 600, fontSize: 12.5 }}>
           {cfg.urgency} — {status.daysLeft} {dayWord} restant{status.daysLeft > 1 ? "s" : ""}
         </span>
-        <span style={{ color: "#9ca3af", fontSize: 12, marginLeft: 8 }}>
+        <span style={{ color: "#9ca3af", fontSize: 11.5, marginLeft: 8 }}>
           Votre accès expire le {expiresAt ? new Date(expiresAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long" }) : "—"}.
         </span>
       </div>
@@ -67,15 +72,34 @@ export default function TrialBanner() {
         style={{
           background: cfg.color,
           color: "#000",
-          borderRadius: 8,
-          padding: "6px 14px",
-          fontSize: 12,
+          borderRadius: 7,
+          padding: "5px 12px",
+          fontSize: 11.5,
           fontWeight: 700,
           textDecoration: "none",
           whiteSpace: "nowrap",
         }}>
         Renouveler →
       </a>
+      {canDismiss && (
+        <button
+          type="button"
+          onClick={() => setDismissed(true)}
+          aria-label="Masquer l'alerte"
+          title="Masquer"
+          style={{
+            background: "none",
+            border: "none",
+            color: "#9ca3af",
+            fontSize: 16,
+            lineHeight: 1,
+            cursor: "pointer",
+            padding: "0 2px",
+            flexShrink: 0,
+          }}>
+          ×
+        </button>
+      )}
     </div>
   );
 }
