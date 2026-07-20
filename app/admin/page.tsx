@@ -423,11 +423,15 @@ export default function AdminPage() {
               <div className="text-center text-gray-400 py-12">Chargement des données...</div>
             ) : (
               <>
+                {/* ── Audit UI — HERO BAR : 3 KPIs décisionnels, toujours en tête ── */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2">
+                  <HeroCard label="Net Final" value={kpis.netFinal} color={kpis.netFinal >= 0 ? "#22c55e" : "#ef4444"} sub={`${kpis.monthMarginPercent.toFixed(1)}% de marge · période`} primary />
+                  <HeroCard label="Total Recettes" value={kpis.totalBrut} color="#f5a623" sub="net · période sélectionnée" />
+                  <HeroCard label="Trésorerie Nette" value={kpis.tresorerie} color={kpis.tresorerie >= 0 ? "#22c55e" : "#ef4444"} sub="cash net" />
+                </div>
+
                 {/* ── PÉRIODE SÉLECTIONNÉE ── */}
-                <div>
-                  <h3 className="text-sm uppercase text-gray-400 tracking-widest font-semibold mb-4">
-                    Période — Recettes vs Charges
-                  </h3>
+                <AccordionSection title="Période — Recettes vs Charges" subtitle="Détail des recettes et charges de la période" defaultOpen>
                   <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-4">
                     <KPICard label="Brut Yango" value={kpis.brutYango} color="#f5a623" sub={`Moy/jour: ${Math.round(kpis.avgBrutPerDay).toLocaleString("fr-FR")} XOF`} />
                     <KPICard label="Net Yango" value={kpis.netYango} color="#3b82f6" sub="Après commission" />
@@ -437,16 +441,10 @@ export default function AdminPage() {
                     <KPICard label="NET FINAL" value={kpis.netFinal} color={kpis.netFinal >= 0 ? "#22c55e" : "#ef4444"} big sub={`${kpis.monthMarginPercent.toFixed(1)}% de marge`} />
                   </div>
                   <p className="text-xs mb-2" style={{ color: "#3d4560" }}>Vue commissions (taux %) — base de la rémunération.</p>
-                </div>
+                </AccordionSection>
 
                 {/* ── RÉSULTAT OPÉRATIONNEL RÉEL ── */}
-                <div className="mt-8">
-                  <h3 className="text-sm uppercase text-gray-400 tracking-widest font-semibold mb-1">
-                    Résultat opérationnel réel
-                  </h3>
-                  <p className="text-xs mb-4" style={{ color: "#3d4560" }}>
-                    Consommations mesurées (solde &amp; carburant), hors provisions front-loadées.
-                  </p>
+                <AccordionSection title="Résultat opérationnel réel" subtitle="Consommations mesurées (solde & carburant), hors provisions front-loadées">
                   <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                     <KPICard label="Recettes réelles" value={kpis.brutYango + kpis.horsYango} color="#22c55e" />
                     <KPICard label="Solde consommé" value={kpis.soldeConsomme} color="#ef4444" negative sub="mesuré (wallet)" hideWhenZero showZeros={showAllZeros} />
@@ -469,16 +467,10 @@ export default function AdminPage() {
                       </button>
                     );
                   })()}
-                </div>
+                </AccordionSection>
 
                 {/* ── TRÉSORERIE ── */}
-                <div className="mt-8">
-                  <h3 className="text-sm uppercase text-gray-400 tracking-widest font-semibold mb-1">
-                    Trésorerie (cash)
-                  </h3>
-                  <p className="text-xs mb-4" style={{ color: "#3d4560" }}>
-                    Décaissements réels — inclut les provisions front-loadées.
-                  </p>
+                <AccordionSection title="Trésorerie (cash)" subtitle="Décaissements réels — inclut les provisions front-loadées">
                   <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                     <KPICard label="Encaissements" value={kpis.brutYango + kpis.horsYango} color="#22c55e" />
                     <KPICard label="Provisions solde" value={kpis.provisionsSolde} color="#f5a623" negative sub="achats de solde" />
@@ -487,7 +479,7 @@ export default function AdminPage() {
                     <KPICard label="TRÉSORERIE" value={kpis.tresorerie} color={kpis.tresorerie >= 0 ? "#22c55e" : "#ef4444"} big sub="cash net" />
                     <KPICard label="Avance immobilisée" value={kpis.avanceSolde + kpis.avanceCarburant} color="#a855f7" sub="solde + carburant avancés" />
                   </div>
-                </div>
+                </AccordionSection>
 
                 {/* ── AUJOURD'HUI ── */}
                 <div>
@@ -3769,6 +3761,51 @@ function KPICard({ label, value, color, sub, negative, big, hideWhenZero, showZe
         <span className="text-xs ml-1" style={{ color: "#3d4560" }}>XOF</span>
       </div>
       {sub && <div className="text-xs mt-1" style={{ color: "#3d4560" }}>{sub}</div>}
+    </div>
+  );
+}
+
+// ── Audit UI — Hero bar : les 3 KPIs décisionnels, toujours visibles en tête
+// de dashboard (lisibilité en 5 s). Affichage seul, données inchangées.
+function HeroCard({ label, value, color, sub, primary }: {
+  label: string; value: number; color: string; sub?: string; primary?: boolean;
+}) {
+  const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(Math.abs(n)));
+  return (
+    <div className="rounded-2xl p-5" style={{
+      background: primary ? "linear-gradient(135deg, rgba(34,197,94,.06), #0d1117 60%)" : "#0d1117",
+      border: `1px solid ${primary ? "rgba(34,197,94,.25)" : "#1e2330"}`,
+      borderLeft: `3px solid ${color}`,
+    }}>
+      <div className="text-[11px] uppercase tracking-wider font-semibold mb-2" style={{ color: "#8b92a8" }}>{label}</div>
+      <div className="font-mono font-bold" style={{ color, fontSize: "1.9rem", lineHeight: 1.15 }}>
+        {value < 0 ? "- " : ""}{xof(value)}
+        <span className="text-xs font-normal ml-1.5" style={{ color: "#555e75" }}>XOF</span>
+      </div>
+      {sub && <div className="text-xs mt-1.5" style={{ color: "#555e75" }}>{sub}</div>}
+    </div>
+  );
+}
+
+// ── Audit UI — Section repliable : allège le dashboard en repliant les détails
+// par défaut, sans rien supprimer. État purement visuel (aucune donnée touchée).
+function AccordionSection({ title, subtitle, defaultOpen, right, children }: {
+  title: string; subtitle?: string; defaultOpen?: boolean; right?: React.ReactNode; children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(!!defaultOpen);
+  return (
+    <div className="rounded-xl overflow-hidden" style={{ background: "#0b0e14", border: "1px solid #1e2330" }}>
+      <button type="button" onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-3 px-5 py-3.5 text-left transition-colors"
+        style={{ background: "transparent" }}>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm uppercase tracking-widest font-semibold" style={{ color: "#9ca3af" }}>{title}</div>
+          {subtitle && <div className="text-xs mt-0.5" style={{ color: "#3d4560" }}>{subtitle}</div>}
+        </div>
+        {right}
+        <span className="text-xs flex-shrink-0 transition-transform" style={{ color: "#555e75", transform: open ? "rotate(180deg)" : "none" }}>▾</span>
+      </button>
+      {open && <div className="px-5 pb-5 pt-1 border-t" style={{ borderColor: "#1e2330" }}>{children}</div>}
     </div>
   );
 }

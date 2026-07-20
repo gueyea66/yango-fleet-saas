@@ -12,6 +12,34 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* ── Design tokens — Audit UI M3A Fleet ─────────────────────────────────────
+   Palette et échelle typographique verrouillées par l'audit. Fondation
+   (utilisables en var(--token)). Migration progressive des hex inline à faire
+   côté composants — ne change RIEN au rendu actuel. */
+:root {
+  --fleet-bg-base: #0f172a;
+  --fleet-bg-surface: #1e293b;
+  --fleet-bg-elevated: #334155;
+  --fleet-text-primary: #f8fafc;
+  --fleet-text-secondary: #e2e8f0;
+  --fleet-text-muted: #94a3b8;    /* WCAG AA — remplace #555e75 pour les sous-labels */
+  --fleet-text-ghost: #4b5563;
+  --fleet-positive: #4ade80;
+  --fleet-negative: #ef4444;
+  --fleet-warning: #f97316;
+  --fleet-accent: #facc15;         /* progression palier chauffeur */
+  --fleet-info: #38bdf8;
+  --fleet-brand: #f5a623;          /* accent historique conservé */
+  --fleet-border: #334155;
+  --fleet-border-subtle: #1e293b;
+  --fleet-text-display: 2rem;      /* 32 — KPI hero */
+  --fleet-text-value: 1.5rem;      /* 24 — chiffres secondaires */
+  --fleet-text-body: 1rem;         /* 16 */
+  --fleet-text-label: 0.875rem;    /* 14 — nav, formulaires */
+  --fleet-text-caption: 0.8125rem; /* 13 — sous-labels, unités */
+  --fleet-text-hint: 0.6875rem;    /* 11 */
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --background: #0a0a0a;
