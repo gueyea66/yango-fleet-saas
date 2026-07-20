@@ -5,13 +5,13 @@ export const metadata = { title: "Conditions Générales d'Utilisation — Fleet
 
 export default function CGUPage() {
   const S = {
-    h2: { fontSize: 16, fontWeight: 700, color: "#f0f2f7", margin: "32px 0 12px", borderBottom: "1px solid #2a3147", paddingBottom: 8 } as React.CSSProperties,
+    h2: { fontSize: 16, fontWeight: 700, color: "var(--sk-t1)", margin: "32px 0 12px", borderBottom: "1px solid #2a3147", paddingBottom: 8 } as React.CSSProperties,
     p: { color: "#a0aab8", fontSize: 14, lineHeight: 1.7, margin: "0 0 12px" } as React.CSSProperties,
     li: { color: "#a0aab8", fontSize: 14, lineHeight: 1.7, margin: "0 0 6px" } as React.CSSProperties,
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0f1117", color: "#f0f2f7", padding: "40px 16px" }}>
+    <div style={{ minHeight: "100vh", background: "#0f1117", color: "var(--sk-t1)", padding: "40px 16px" }}>
       <div style={{ maxWidth: 720, margin: "0 auto" }}>
 
         <div style={{ marginBottom: 32 }}>
@@ -53,10 +53,10 @@ export default function CGUPage() {
         <h2 style={S.h2}>Article 3 — Plans et abonnements</h2>
         <p style={S.p}>Le Service est proposé selon les formules suivantes :</p>
         <ul style={{ paddingLeft: 20, margin: "0 0 12px" }}>
-          <li style={S.li}><strong style={{ color: "#f0f2f7" }}>Essai gratuit</strong> : 14 jours d&apos;accès complet sans engagement ni carte bancaire.</li>
-          <li style={S.li}><strong style={{ color: "#f0f2f7" }}>Plan Standard</strong> : jusqu&apos;à 20 chauffeurs, facturation mensuelle.</li>
-          <li style={S.li}><strong style={{ color: "#f0f2f7" }}>Plan Pro</strong> : chauffeurs illimités, fonctionnalités avancées, facturation mensuelle.</li>
-          <li style={S.li}><strong style={{ color: "#f0f2f7" }}>Plan Enterprise</strong> : sur devis, contrat annuel, support prioritaire.</li>
+          <li style={S.li}><strong style={{ color: "var(--sk-t1)" }}>Essai gratuit</strong> : 14 jours d&apos;accès complet sans engagement ni carte bancaire.</li>
+          <li style={S.li}><strong style={{ color: "var(--sk-t1)" }}>Plan Standard</strong> : jusqu&apos;à 20 chauffeurs, facturation mensuelle.</li>
+          <li style={S.li}><strong style={{ color: "var(--sk-t1)" }}>Plan Pro</strong> : chauffeurs illimités, fonctionnalités avancées, facturation mensuelle.</li>
+          <li style={S.li}><strong style={{ color: "var(--sk-t1)" }}>Plan Enterprise</strong> : sur devis, contrat annuel, support prioritaire.</li>
         </ul>
         <p style={S.p}>
           Les tarifs en vigueur sont affichés sur la page de paiement du Service et peuvent être modifiés par M3A Solutions
@@ -155,7 +155,7 @@ export default function CGUPage() {
         <h2 style={S.h2}>Contact</h2>
         <p style={S.p}>
           Pour toute question relative aux présentes CGU :<br />
-          <strong style={{ color: "#f0f2f7" }}>M3A Solutions</strong> — Dakar, Sénégal<br />
+          <strong style={{ color: "var(--sk-t1)" }}>M3A Solutions</strong> — Dakar, Sénégal<br />
           Email : <a href={`mailto:${SUPPORT_EMAIL}`} style={{ color: "#f5a623" }}>{SUPPORT_EMAIL}</a>
         </p>
 

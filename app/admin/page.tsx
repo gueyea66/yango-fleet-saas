@@ -53,7 +53,7 @@ function TreemapCell(props: any) {
   return (
     <g>
       <rect x={x} y={y} width={width} height={height} rx={4}
-        style={{ fill, stroke: "#0d1117", strokeWidth: 3 }} />
+        style={{ fill, stroke: "var(--sk-bg)", strokeWidth: 3 }} />
       {showName && (
         <text x={x + 10} y={y + 22} fill="#fff" fontSize={13} fontWeight={700}>
           {name}
@@ -241,18 +241,18 @@ export default function AdminPage() {
   const tabs = tabGroups.flatMap((g) => g.items.map(([id, , label]) => [id, label]));
 
   return (
-    <div className="min-h-screen flex" style={{ background: "#080a0f" }}>
+    <div className="min-h-screen flex" style={{ background: "var(--sk-deep)" }}>
 
       {/* ── SIDEBAR DESKTOP (lg+) ── */}
       <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-full z-50"
-        style={{ width: 220, background: "#0d1117", borderRight: "1px solid #1e2330" }}>
+        style={{ width: 220, background: "var(--sk-bg)", borderRight: "1px solid var(--sk-surface)" }}>
         {/* Logo */}
-        <div className="px-5 py-5 border-b" style={{ borderColor: "#1e2330" }}>
+        <div className="px-5 py-5 border-b" style={{ borderColor: "var(--sk-surface)" }}>
           <div className="flex items-center gap-2.5">
             <BrandLogo size={32} />
             <div>
               <div className="font-bold text-white text-sm">{settings.app_name}</div>
-              <div className="text-[10px]" style={{ color: "#3d4560" }}>{settings.operator_name || "Powered by M3A Solution"}</div>
+              <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>{settings.operator_name || "Powered by M3A Solution"}</div>
             </div>
           </div>
         </div>
@@ -261,13 +261,13 @@ export default function AdminPage() {
         <nav className="flex-1 px-3 py-4 overflow-y-auto">
           {tabGroups.map((group) => (
             <div key={group.label} className="mb-4">
-              <div className="px-3 mb-1 text-[9px] uppercase tracking-[0.12em] font-bold" style={{ color: "#3d4560" }}>{group.label}</div>
+              <div className="px-3 mb-1 text-[9px] uppercase tracking-[0.12em] font-bold" style={{ color: "var(--sk-t4)" }}>{group.label}</div>
               <div className="space-y-0.5">
                 {group.items.map(([id, icon, label]) => (
                   <button key={id} onClick={() => id === "drivers" ? router.push("/admin/drivers") : setTab(id)} className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5"
                     style={{
                       background: tab === id ? "rgba(245,166,35,.12)" : "transparent",
-                      color: tab === id ? "#f5a623" : "#8b92a8",
+                      color: tab === id ? "#f5a623" : "var(--sk-t2)",
                       border: `1px solid ${tab === id ? "rgba(245,166,35,.2)" : "transparent"}`,
                     }}>
                     {(() => { const I = NAV_ICONS[id]; return I
@@ -282,13 +282,13 @@ export default function AdminPage() {
         </nav>
 
         {/* User + logout */}
-        <div className="px-3 py-4 border-t" style={{ borderColor: "#1e2330" }}>
-          <div className="px-3 py-2 rounded-xl flex items-center justify-between" style={{ background: "#1e2330" }}>
+        <div className="px-3 py-4 border-t" style={{ borderColor: "var(--sk-surface)" }}>
+          <div className="px-3 py-2 rounded-xl flex items-center justify-between" style={{ background: "var(--sk-surface)" }}>
             <div className="min-w-0">
               <div className="text-xs font-semibold text-white mb-0.5 truncate">
                 {user?.user_metadata?.full_name || user?.email || "Admin"}
               </div>
-              <div className="text-[10px]" style={{ color: "#3d4560" }}>Administrateur</div>
+              <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Administrateur</div>
             </div>
             <NotificationBell />
           </div>
@@ -303,14 +303,14 @@ export default function AdminPage() {
 
       {/* ── TOP BAR MOBILE (< lg) ── */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between"
-        style={{ background: "rgba(13,17,23,.97)", borderBottom: "1px solid #1e2330", backdropFilter: "blur(12px)" }}>
+        style={{ background: "rgba(13,17,23,.97)", borderBottom: "1px solid var(--sk-surface)", backdropFilter: "blur(12px)" }}>
         <div className="flex items-center gap-2">
           <BrandLogo size={28} />
           <span className="font-bold text-white text-sm">{settings.app_name}</span>
         </div>
         <div className="flex items-center gap-2">
           <NotificationBell />
-          <button onClick={() => signOut()} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "#1e2330", color: "#8b92a8" }}>
+          <button onClick={() => signOut()} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>
             Déconnexion
           </button>
         </div>
@@ -318,14 +318,14 @@ export default function AdminPage() {
 
       {/* ── MOBILE NAV TABS ── */}
       <div className="lg:hidden fixed top-12 left-0 right-0 z-40 flex items-center gap-0 overflow-x-auto"
-        style={{ background: "#0d1117", borderBottom: "1px solid #1e2330" }}>
+        style={{ background: "var(--sk-bg)", borderBottom: "1px solid var(--sk-surface)" }}>
         {tabGroups.map((group, gi) => (
           <React.Fragment key={group.label}>
-            {gi > 0 && <div className="flex-shrink-0 w-px h-6 mx-1" style={{ background: "#1e2330" }} />}
+            {gi > 0 && <div className="flex-shrink-0 w-px h-6 mx-1" style={{ background: "var(--sk-surface)" }} />}
             {group.items.map(([id, icon]) => (
               <button key={id} onClick={() => id === "drivers" ? router.push("/admin/drivers") : setTab(id)}
                 className="flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium"
-                style={{ color: tab === id ? "#f5a623" : "#555e75", borderBottom: tab === id ? "2px solid #f5a623" : "2px solid transparent" }}>
+                style={{ color: tab === id ? "#f5a623" : "var(--sk-t3)", borderBottom: tab === id ? "2px solid #f5a623" : "2px solid transparent" }}>
                 {(() => { const I = NAV_ICONS[id]; return I
                   ? <I size={18} strokeWidth={1.75} />
                   : <span className="text-base leading-none">{icon}</span>; })()}
@@ -340,7 +340,7 @@ export default function AdminPage() {
       <main className="flex-1 min-w-0 min-h-screen" style={{ marginLeft: 0 }}>
         <div className="lg:hidden" style={{ height: 88 }} /> {/* mobile header offset */}
         <div className="lg:pl-[220px]">
-        <div className="p-6 lg:p-10 w-full max-w-none" style={{ background: "#080a0f", minHeight: "100vh" }}>
+        <div className="p-6 lg:p-10 w-full max-w-none" style={{ background: "var(--sk-deep)", minHeight: "100vh" }}>
 
         {/* Expiration essai / abonnement */}
         <TrialBanner />
@@ -366,33 +366,33 @@ export default function AdminPage() {
           <div className="mb-6">
             <button onClick={() => toggleFilters(true)}
               className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-              style={{ background: "#0d1117", border: "1px solid #1e2330", color: filterDriverId ? "#f5a623" : "#555e75" }}>
+              style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", color: filterDriverId ? "#f5a623" : "var(--sk-t3)" }}>
               🔍 Filtres{filterDriverId ? ` · ${allDrivers.find((d) => d.id === filterDriverId)?.full_name || "1 chauffeur"}` : ""}
             </button>
           </div>
         )}
         {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage"].includes(tab) && allDrivers.length > 0 && showFilters && (
-          <div className="mb-6 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-            <span className="text-[10px] font-bold uppercase tracking-widest mr-1" style={{ color: "#3d4560" }}>Vue :</span>
+          <div className="mb-6 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+            <span className="text-[10px] font-bold uppercase tracking-widest mr-1" style={{ color: "var(--sk-t4)" }}>Vue :</span>
             <button onClick={() => setFilterDriverId("")}
               className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
-              style={{ background: !filterDriverId ? "#f5a623" : "#1e2330", color: !filterDriverId ? "#000" : "#555e75" }}>
+              style={{ background: !filterDriverId ? "#f5a623" : "var(--sk-surface)", color: !filterDriverId ? "#000" : "var(--sk-t3)" }}>
               👥 Tous
             </button>
             {allDrivers.map((d) => (
               <button key={d.id} onClick={() => setFilterDriverId(filterDriverId === d.id ? "" : d.id)}
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5"
-                style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "#1e2330",
-                  color: filterDriverId === d.id ? "#f5a623" : "#555e75",
+                style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "var(--sk-surface)",
+                  color: filterDriverId === d.id ? "#f5a623" : "var(--sk-t3)",
                   border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}`,
                   opacity: d.active === false ? 0.55 : 1 }}>
                 👤 {d.full_name || d.driver_id}
-                {d.plate && <span className="font-mono px-1.5 py-0.5 rounded" style={{ background: "#080a0f", color: "#8b92a8", fontSize: 10 }}>🚗 {d.plate}</span>}
-                {d.active === false && <span className="text-[9px] uppercase" style={{ color: "#3d4560" }}>inactif</span>}
+                {d.plate && <span className="font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--sk-deep)", color: "var(--sk-t2)", fontSize: 10 }}>🚗 {d.plate}</span>}
+                {d.active === false && <span className="text-[9px] uppercase" style={{ color: "var(--sk-t4)" }}>inactif</span>}
               </button>
             ))}
             <button onClick={() => toggleFilters(false)} title="Masquer les filtres"
-              className="ml-auto text-xs px-2.5 py-1.5 rounded-lg" style={{ background: "transparent", color: "#3d4560" }}>
+              className="ml-auto text-xs px-2.5 py-1.5 rounded-lg" style={{ background: "transparent", color: "var(--sk-t4)" }}>
               ✕ Masquer
             </button>
           </div>
@@ -421,18 +421,18 @@ export default function AdminPage() {
                         prev.includes(mn) ? (prev.length > 1 ? prev.filter((x) => x !== mn) : prev) : [...prev, mn].sort()
                       )}
                         className="text-xs px-2 py-1 rounded-lg font-semibold transition-all"
-                        style={{ background: active ? "#f5a623" : "#1e2330", color: active ? "#000" : "#555e75" }}>
+                        style={{ background: active ? "#f5a623" : "var(--sk-surface)", color: active ? "#000" : "var(--sk-t3)" }}>
                         {m}
                       </button>
                     );
                   })}
                   <button onClick={() => setFilterMonths([1,2,3,4,5,6,7,8,9,10,11,12])}
                     className="text-xs px-2 py-1 rounded-lg font-semibold"
-                    style={{ background: filterMonths.length === 12 ? "#f5a623" : "#1e2330", color: filterMonths.length === 12 ? "#000" : "#555e75" }}>
+                    style={{ background: filterMonths.length === 12 ? "#f5a623" : "var(--sk-surface)", color: filterMonths.length === 12 ? "#000" : "var(--sk-t3)" }}>
                     Année
                   </button>
                 </div>
-                <span className="text-xs" style={{ color: "#555e75" }}>{periodFrom} → {periodTo}</span>
+                <span className="text-xs" style={{ color: "var(--sk-t3)" }}>{periodFrom} → {periodTo}</span>
               </div>
             </div>
 
@@ -457,7 +457,7 @@ export default function AdminPage() {
                     <KPICard label="Total Dépenses" value={kpis.totalDepenses} color="#ef4444" negative sub={`Moy/jour: ${Math.round(kpis.avgDepensesPerDay).toLocaleString("fr-FR")} XOF`} />
                     <KPICard label="NET FINAL" value={kpis.netFinal} color={kpis.netFinal >= 0 ? "#22c55e" : "#ef4444"} big sub={`${kpis.monthMarginPercent.toFixed(1)}% de marge`} />
                   </div>
-                  <p className="text-xs mb-2" style={{ color: "#3d4560" }}>Vue commissions (taux %) — base de la rémunération.</p>
+                  <p className="text-xs mb-2" style={{ color: "var(--sk-t4)" }}>Vue commissions (taux %) — base de la rémunération.</p>
                 </AccordionSection>
 
                 {/* ── RÉSULTAT OPÉRATIONNEL RÉEL ── */}
@@ -479,7 +479,7 @@ export default function AdminPage() {
                     return (
                       <button type="button" onClick={() => setShowAllZeros((s) => !s)}
                         className="text-xs mt-3 underline underline-offset-2 transition-colors"
-                        style={{ color: "#555e75" }}>
+                        style={{ color: "var(--sk-t3)" }}>
                         {showAllZeros ? "Masquer les postes à zéro" : `Afficher tout (${zeroCount} poste${zeroCount > 1 ? "s" : ""} à zéro)`}
                       </button>
                     );
@@ -659,14 +659,14 @@ export default function AdminPage() {
 
                   {/* Chart 1 : Recettes par jour */}
                   {kpis.dailyRows.length > 0 && (
-                    <div className="rounded-xl p-5" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+                    <div className="rounded-xl p-5" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
                       <h3 className="text-sm font-bold text-white mb-4">📊 Recettes par jour — Brut Yango · Hors Yango · Net final</h3>
                       <ResponsiveContainer width="100%" height={260}>
                         <BarChart data={kpis.dailyRows} barGap={2}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="#1e2330" vertical={false} />
-                          <XAxis dataKey="date" stroke="#555e75" tick={{ fontSize: 10, fill: "#555e75" }} tickFormatter={(d) => d.slice(5)} />
-                          <YAxis stroke="#555e75" tick={{ fontSize: 10, fill: "#555e75" }} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
-                          <Tooltip contentStyle={{ backgroundColor: "#0d1117", border: "1px solid #1e2330", borderRadius: 8, fontSize: 12 }}
+                          <CartesianGrid strokeDasharray="3 3" stroke="var(--sk-surface)" vertical={false} />
+                          <XAxis dataKey="date" stroke="var(--sk-t3)" tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(d) => d.slice(5)} />
+                          <YAxis stroke="var(--sk-t3)" tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
+                          <Tooltip contentStyle={{ backgroundColor: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderRadius: 8, fontSize: 12 }}
                             formatter={(v: any) => [Number(v).toLocaleString("fr-FR") + " XOF"]} />
                           <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                           <Bar dataKey="brutYango" fill="#f5a623" name="Brut Yango" radius={[3,3,0,0]} />
@@ -679,9 +679,9 @@ export default function AdminPage() {
 
                   {/* Chart 2 : Treemap dépenses par catégorie (style Power BI) */}
                   {kpis.expenseBreakdown.length > 0 && (
-                    <div className="rounded-xl p-5" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+                    <div className="rounded-xl p-5" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
                       <h3 className="text-sm font-bold text-white mb-1">⛽ Dépenses par catégorie</h3>
-                      <p className="text-xs mb-4" style={{ color: "#555e75" }}>
+                      <p className="text-xs mb-4" style={{ color: "var(--sk-t3)" }}>
                         Taille des blocs proportionnelle au montant sur la période
                       </p>
                       <ResponsiveContainer width="100%" height={280}>
@@ -694,7 +694,7 @@ export default function AdminPage() {
                           isAnimationActive={false}
                           content={<TreemapCell />}
                         >
-                          <Tooltip contentStyle={{ backgroundColor: "#0d1117", border: "1px solid #1e2330", borderRadius: 8, fontSize: 12 }}
+                          <Tooltip contentStyle={{ backgroundColor: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderRadius: 8, fontSize: 12 }}
                             formatter={(v: any, _n: any, entry: any) => [
                               Number(v).toLocaleString("fr-FR") + " XOF (" +
                                 (typeof entry?.payload?.percent === "number" ? entry.payload.percent.toFixed(1) : "—") + "%)",
@@ -706,7 +706,7 @@ export default function AdminPage() {
                         {kpis.expenseBreakdown.map((cat, i) => (
                           <div key={cat.type} className="flex items-center gap-1.5 text-xs">
                             <div className="w-2.5 h-2.5 rounded-sm" style={{ background: EXPENSE_COLORS[i % EXPENSE_COLORS.length] }} />
-                            <span style={{ color: "#8b92a8" }}>{cat.type}</span>
+                            <span style={{ color: "var(--sk-t2)" }}>{cat.type}</span>
                           </div>
                         ))}
                       </div>
@@ -716,15 +716,15 @@ export default function AdminPage() {
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Chart 3 : KM par jour */}
                     {kpis.dailyRows.some((r) => r.km > 0) && (
-                      <div className="rounded-xl p-5" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+                      <div className="rounded-xl p-5" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
                         <h3 className="text-sm font-bold text-white mb-1">🚗 KM parcourus / jour</h3>
-                        <p className="text-xs mb-4" style={{ color: "#555e75" }}>Calculé depuis les relevés kilométriques fin de journée. Moy: {kpis.avgKmPerDay} km/j</p>
+                        <p className="text-xs mb-4" style={{ color: "var(--sk-t3)" }}>Calculé depuis les relevés kilométriques fin de journée. Moy: {kpis.avgKmPerDay} km/j</p>
                         <ResponsiveContainer width="100%" height={180}>
                           <BarChart data={kpis.dailyRows.filter((r) => r.km > 0)}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1e2330" vertical={false} />
-                            <XAxis dataKey="date" stroke="#555e75" tick={{ fontSize: 10, fill: "#555e75" }} tickFormatter={(d) => d.slice(5)} />
-                            <YAxis stroke="#555e75" tick={{ fontSize: 10, fill: "#555e75" }} />
-                            <Tooltip contentStyle={{ backgroundColor: "#0d1117", border: "1px solid #1e2330", borderRadius: 8, fontSize: 12 }}
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--sk-surface)" vertical={false} />
+                            <XAxis dataKey="date" stroke="var(--sk-t3)" tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(d) => d.slice(5)} />
+                            <YAxis stroke="var(--sk-t3)" tick={{ fontSize: 10, fill: "var(--sk-t3)" }} />
+                            <Tooltip contentStyle={{ backgroundColor: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderRadius: 8, fontSize: 12 }}
                               formatter={(v: any) => [v + " km", "KM"]} />
                             <Bar dataKey="km" fill="#3b82f6" name="KM / jour" radius={[3,3,0,0]} />
                           </BarChart>
@@ -734,14 +734,14 @@ export default function AdminPage() {
 
                     {/* Chart 4 : Dépenses par jour (empilé par catégorie) */}
                     {kpis.dailyExpByCategory.length > 0 && kpis.expenseBreakdown.length > 0 && (
-                      <div className="rounded-xl p-5" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+                      <div className="rounded-xl p-5" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
                         <h3 className="text-sm font-bold text-white mb-4">📅 Dépenses par jour</h3>
                         <ResponsiveContainer width="100%" height={180}>
                           <BarChart data={kpis.dailyExpByCategory}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1e2330" vertical={false} />
-                            <XAxis dataKey="date" stroke="#555e75" tick={{ fontSize: 10, fill: "#555e75" }} tickFormatter={(d) => d.slice(5)} />
-                            <YAxis stroke="#555e75" tick={{ fontSize: 10, fill: "#555e75" }} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
-                            <Tooltip contentStyle={{ backgroundColor: "#0d1117", border: "1px solid #1e2330", borderRadius: 8, fontSize: 12 }}
+                            <CartesianGrid strokeDasharray="3 3" stroke="var(--sk-surface)" vertical={false} />
+                            <XAxis dataKey="date" stroke="var(--sk-t3)" tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(d) => d.slice(5)} />
+                            <YAxis stroke="var(--sk-t3)" tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
+                            <Tooltip contentStyle={{ backgroundColor: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderRadius: 8, fontSize: 12 }}
                               formatter={(v: any) => [Number(v).toLocaleString("fr-FR") + " XOF"]} />
                             {kpis.expenseBreakdown.map((cat, i) => (
                               <Bar key={cat.type} dataKey={cat.type} stackId="a"
@@ -889,7 +889,7 @@ export default function AdminPage() {
         )}
 
         {tab === "vehicles" && adminTenantId && <FleetTab tenantId={adminTenantId} />}
-        {tab === "vehicles" && !adminTenantId && <div className="p-6 text-sm" style={{ color: "#555e75" }}>Chargement...</div>}
+        {tab === "vehicles" && !adminTenantId && <div className="p-6 text-sm" style={{ color: "var(--sk-t3)" }}>Chargement...</div>}
 
         {tab === "drivers" && (
           <div>
@@ -915,7 +915,7 @@ export default function AdminPage() {
           <div className="text-center py-12">
             <div className="text-4xl mb-3">🎯</div>
             <p className="text-white font-semibold mb-2">Module Pilotage</p>
-            <p className="text-sm mb-4" style={{ color: "#555e75" }}>Projections, P&L, simulation de flotte et insights avancés.</p>
+            <p className="text-sm mb-4" style={{ color: "var(--sk-t3)" }}>Projections, P&L, simulation de flotte et insights avancés.</p>
             <a href="/admin/pilotage" className="inline-block px-6 py-3 rounded-xl text-sm font-bold text-black"
               style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>
               Ouvrir le module Pilotage →
@@ -928,7 +928,7 @@ export default function AdminPage() {
         {tab === "import" && (
           <div className="p-6 max-w-2xl">
             <h2 className="text-xl font-bold text-white mb-2">Import d'historique</h2>
-            <p className="text-sm mb-6" style={{ color: "#555e75" }}>
+            <p className="text-sm mb-6" style={{ color: "var(--sk-t3)" }}>
               Importez vos données historiques (rapports journaliers) depuis un fichier CSV.
               Vous vérifiez les données — M3A procède à l'injection dans les 24h.
             </p>
@@ -945,17 +945,17 @@ export default function AdminPage() {
 
         {tab === "remuneration" && adminTenantId && <RemunerationSettingsTab tenantId={adminTenantId} />}
         {tab === "remuneration" && !adminTenantId && (
-          <div className="p-6 text-sm" style={{ color: "#555e75" }}>Chargement du tenant...</div>
+          <div className="p-6 text-sm" style={{ color: "var(--sk-t3)" }}>Chargement du tenant...</div>
         )}
 
         {tab === "kyc" && adminTenantId && <KycAdminTab tenantId={adminTenantId} filterDriverId={filterDriverId} />}
-        {tab === "kyc" && !adminTenantId && <div className="p-6 text-sm" style={{ color: "#555e75" }}>Chargement...</div>}
+        {tab === "kyc" && !adminTenantId && <div className="p-6 text-sm" style={{ color: "var(--sk-t3)" }}>Chargement...</div>}
 
         {tab === "settings" && (
           <div>
             <h2 className="text-2xl font-bold text-white mb-6">Paramètres</h2>
-            <div className="rounded-2xl p-6 max-w-md" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-              <p className="text-sm mb-4" style={{ color: "#555e75" }}>
+            <div className="rounded-2xl p-6 max-w-md" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+              <p className="text-sm mb-4" style={{ color: "var(--sk-t3)" }}>
                 La configuration des commissions et du modèle de rémunération se trouve dans l'onglet <strong className="text-white">💼 Rémunération</strong>.
               </p>
             </div>
@@ -989,32 +989,32 @@ function ImportBatchList() {
     rejected:             { label: "Rejeté",             color: "#dc2626", bg: "#fee2e2" },
   };
 
-  if (loading) return <div style={{ color: "#555e75", fontSize: 13 }}>Chargement…</div>;
+  if (loading) return <div style={{ color: "var(--sk-t3)", fontSize: 13 }}>Chargement…</div>;
   if (batches.length === 0) return (
-    <div style={{ color: "#555e75", fontSize: 13 }}>
+    <div style={{ color: "var(--sk-t3)", fontSize: 13 }}>
       Aucun import pour l'instant. Cliquez sur "Importer un fichier CSV" pour commencer.
     </div>
   );
 
   return (
     <div>
-      <div style={{ fontSize: 12, fontWeight: 700, color: "#8b92a8", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: "var(--sk-t2)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 10 }}>
         Historique des imports
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {batches.map((b) => {
-          const s = statusLabel[b.status] ?? { label: b.status, color: "#555e75", bg: "#f5f4f0" };
+          const s = statusLabel[b.status] ?? { label: b.status, color: "var(--sk-t3)", bg: "#f5f4f0" };
           return (
-            <div key={b.id} style={{ background: "#0d1117", border: "1px solid #1e2330", borderRadius: 12, padding: "14px 18px" }}>
+            <div key={b.id} style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderRadius: 12, padding: "14px 18px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: "#fff", marginBottom: 4 }}>
                     {b.date_from} → {b.date_to}
-                    <span style={{ marginLeft: 8, fontSize: 11, color: "#555e75" }}>
+                    <span style={{ marginLeft: 8, fontSize: 11, color: "var(--sk-t3)" }}>
                       ({b.valid_count}/{b.row_count} lignes valides)
                     </span>
                   </div>
-                  <div style={{ fontSize: 11, color: "#555e75" }}>
+                  <div style={{ fontSize: 11, color: "var(--sk-t3)" }}>
                     {b.drivers_found?.join(", ") || "—"}
                     {b.duplicate_count > 0 && ` · ${b.duplicate_count} doublon(s)`}
                     {b.error_count > 0 && ` · ${b.error_count} erreur(s)`}
@@ -1044,7 +1044,7 @@ function ImportBatchList() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "#555e75" }}>{label}</div>
+      <div className="text-[10px] uppercase tracking-widest font-semibold mb-1.5" style={{ color: "var(--sk-t3)" }}>{label}</div>
       {children}
     </div>
   );
@@ -1055,7 +1055,7 @@ function InpText({ type, placeholder, value, onChange }: { type: string; placeho
     <input type={type} placeholder={placeholder} value={value}
       onChange={(e) => onChange(e.target.value)}
       className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-      style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#fff" }} />
+      style={{ background: "var(--sk-deep)", border: "1px solid #2a2f3d", color: "#fff" }} />
   );
 }
 
@@ -1063,8 +1063,8 @@ function InpText({ type, placeholder, value, onChange }: { type: string; placeho
 const VEHICLE_STATUS_META: Record<string, { label: string; color: string }> = {
   active:      { label: "Actif",        color: "#22c55e" },
   maintenance: { label: "Maintenance",  color: "#f5a623" },
-  inactive:    { label: "Inactif",      color: "#555e75" },
-  sold:        { label: "Vendu",        color: "#3d4560" },
+  inactive:    { label: "Inactif",      color: "var(--sk-t3)" },
+  sold:        { label: "Vendu",        color: "var(--sk-t4)" },
 };
 
 const MAINT_TYPE_META: Record<string, string> = {
@@ -1084,11 +1084,11 @@ function daysUntil(dateStr: string | null): number | null {
 
 function ExpiryBadge({ label, dateStr }: { label: string; dateStr: string | null }) {
   const days = daysUntil(dateStr);
-  const color = days === null ? "#3d4560" : days < 0 ? "#ef4444" : days < 30 ? "#f5a623" : "#22c55e";
+  const color = days === null ? "var(--sk-t4)" : days < 0 ? "#ef4444" : days < 30 ? "#f5a623" : "#22c55e";
   const text = days === null ? "Non renseigné" : days < 0 ? `Expiré (${Math.abs(days)}j)` : days === 0 ? "Expire aujourd'hui" : `${days}j`;
   return (
     <div className="text-[10px]">
-      <span style={{ color: "#555e75" }}>{label} : </span>
+      <span style={{ color: "var(--sk-t3)" }}>{label} : </span>
       <span style={{ color }}>{text}</span>
     </div>
   );
@@ -1178,10 +1178,10 @@ function FleetTab({ tenantId }: { tenantId: string }) {
       <div className="p-4 space-y-4">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <button onClick={() => { setSelected(null); setVehicle(null); setShowForm(false); }} className="text-sm px-3 py-1.5 rounded-lg" style={{ background: "#1e2330", color: "#8b92a8" }}>← Flotte</button>
+          <button onClick={() => { setSelected(null); setVehicle(null); setShowForm(false); }} className="text-sm px-3 py-1.5 rounded-lg" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>← Flotte</button>
           <div className="flex-1">
             <div className="font-bold text-white text-lg">{vehicle.plate}</div>
-            <div className="text-xs" style={{ color: "#555e75" }}>{vehicle.make} {vehicle.model} {vehicle.year}</div>
+            <div className="text-xs" style={{ color: "var(--sk-t3)" }}>{vehicle.make} {vehicle.model} {vehicle.year}</div>
           </div>
           <span className="text-xs px-2 py-1 rounded-full font-semibold" style={{ background: `${statusMeta.color}18`, color: statusMeta.color }}>{statusMeta.label}</span>
           <button onClick={() => setShowForm(!showForm)} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623", border: "1px solid rgba(245,166,35,.2)" }}>✏️ Modifier</button>
@@ -1189,12 +1189,12 @@ function FleetTab({ tenantId }: { tenantId: string }) {
 
         {/* Edit form */}
         {showForm && (
-          <div className="rounded-2xl p-4 space-y-3" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-            <div className="text-xs uppercase tracking-widest font-semibold mb-2" style={{ color: "#3d4560" }}>Modifier le véhicule</div>
+          <div className="rounded-2xl p-4 space-y-3" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+            <div className="text-xs uppercase tracking-widest font-semibold mb-2" style={{ color: "var(--sk-t4)" }}>Modifier le véhicule</div>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Plaque *"><InpText type="text" value={form.plate} onChange={(v) => setF("plate", v)} /></Field>
               <Field label="Statut">
-                <select value={form.status} onChange={(e) => setF("status", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#fff" }}>
+                <select value={form.status} onChange={(e) => setF("status", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "var(--sk-deep)", border: "1px solid #2a2f3d", color: "#fff" }}>
                   {Object.entries(VEHICLE_STATUS_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                 </select>
               </Field>
@@ -1203,12 +1203,12 @@ function FleetTab({ tenantId }: { tenantId: string }) {
               <Field label="Année"><InpText type="number" value={form.year} onChange={(v) => setF("year", v)} /></Field>
               <Field label="Couleur"><InpText type="text" value={form.color} onChange={(v) => setF("color", v)} /></Field>
               <Field label="Carburant">
-                <select value={form.fuel_type} onChange={(e) => setF("fuel_type", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#fff" }}>
+                <select value={form.fuel_type} onChange={(e) => setF("fuel_type", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "var(--sk-deep)", border: "1px solid #2a2f3d", color: "#fff" }}>
                   {["essence", "diesel", "hybride", "électrique", "gpl"].map((f) => <option key={f}>{f}</option>)}
                 </select>
               </Field>
               <Field label="Transmission">
-                <select value={form.transmission} onChange={(e) => setF("transmission", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#fff" }}>
+                <select value={form.transmission} onChange={(e) => setF("transmission", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "var(--sk-deep)", border: "1px solid #2a2f3d", color: "#fff" }}>
                   {["manuelle", "automatique"].map((f) => <option key={f}>{f}</option>)}
                 </select>
               </Field>
@@ -1222,14 +1222,14 @@ function FleetTab({ tenantId }: { tenantId: string }) {
               <Field label="Expir. visite tech."><InpText type="date" value={form.visite_expiry} onChange={(v) => setF("visite_expiry", v)} /></Field>
             </div>
             <Field label="Chauffeur assigné">
-              <select value={form.driver_id} onChange={(e) => setF("driver_id", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#fff" }}>
+              <select value={form.driver_id} onChange={(e) => setF("driver_id", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "var(--sk-deep)", border: "1px solid #2a2f3d", color: "#fff" }}>
                 <option value="">— Aucun —</option>
                 {drivers.map((d) => <option key={d.id} value={d.id}>{d.full_name} ({d.driver_id})</option>)}
               </select>
             </Field>
             <Field label="Notes"><InpText type="text" value={form.notes} onChange={(v) => setF("notes", v)} /></Field>
             <button onClick={saveVehicle} disabled={saving} className="w-full py-2.5 rounded-xl text-sm font-bold transition-all"
-              style={{ background: saving ? "#2a2f3d" : "linear-gradient(135deg,#f5a623,#e8951a)", color: saving ? "#555e75" : "#000" }}>
+              style={{ background: saving ? "#2a2f3d" : "linear-gradient(135deg,#f5a623,#e8951a)", color: saving ? "var(--sk-t3)" : "#000" }}>
               {saving ? "Enregistrement..." : "✓ Enregistrer"}
             </button>
           </div>
@@ -1237,32 +1237,32 @@ function FleetTab({ tenantId }: { tenantId: string }) {
 
         {/* Info cards */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="rounded-2xl p-3" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-            <div className="text-[10px] uppercase tracking-widest mb-2" style={{ color: "#3d4560" }}>Documents</div>
+          <div className="rounded-2xl p-3" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+            <div className="text-[10px] uppercase tracking-widest mb-2" style={{ color: "var(--sk-t4)" }}>Documents</div>
             <ExpiryBadge label="Assurance" dateStr={vehicle.insurance_expiry} />
             <ExpiryBadge label="Visite tech." dateStr={vehicle.visite_expiry} />
-            {vehicle.insurance_company && <div className="text-[10px] mt-1" style={{ color: "#555e75" }}>Assureur : {vehicle.insurance_company}</div>}
+            {vehicle.insurance_company && <div className="text-[10px] mt-1" style={{ color: "var(--sk-t3)" }}>Assureur : {vehicle.insurance_company}</div>}
           </div>
-          <div className="rounded-2xl p-3" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-            <div className="text-[10px] uppercase tracking-widest mb-2" style={{ color: "#3d4560" }}>Stats</div>
-            <div className="text-xs" style={{ color: "#8b92a8" }}>Kilométrage : <span className="text-white font-semibold">{xof(vehicle.mileage)} km</span></div>
-            <div className="text-xs mt-1" style={{ color: "#8b92a8" }}>Coût maint. total : <span className="text-white font-semibold">{xof(totalMaintCost)} XOF</span></div>
-            {assignedDriver && <div className="text-xs mt-1" style={{ color: "#8b92a8" }}>Chauffeur : <span className="text-white">{assignedDriver.full_name}</span></div>}
+          <div className="rounded-2xl p-3" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+            <div className="text-[10px] uppercase tracking-widest mb-2" style={{ color: "var(--sk-t4)" }}>Stats</div>
+            <div className="text-xs" style={{ color: "var(--sk-t2)" }}>Kilométrage : <span className="text-white font-semibold">{xof(vehicle.mileage)} km</span></div>
+            <div className="text-xs mt-1" style={{ color: "var(--sk-t2)" }}>Coût maint. total : <span className="text-white font-semibold">{xof(totalMaintCost)} XOF</span></div>
+            {assignedDriver && <div className="text-xs mt-1" style={{ color: "var(--sk-t2)" }}>Chauffeur : <span className="text-white">{assignedDriver.full_name}</span></div>}
           </div>
         </div>
 
         {/* Maintenance */}
-        <div className="rounded-2xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+        <div className="rounded-2xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
           <div className="flex items-center justify-between mb-3">
-            <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: "#3d4560" }}>Historique maintenance</div>
+            <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: "var(--sk-t4)" }}>Historique maintenance</div>
             <button onClick={() => setShowMaintForm(!showMaintForm)} className="text-xs px-3 py-1 rounded-lg font-semibold" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623", border: "1px solid rgba(245,166,35,.2)" }}>+ Ajouter</button>
           </div>
 
           {showMaintForm && (
-            <div className="mb-4 p-3 rounded-xl space-y-2" style={{ background: "#080a0f", border: "1px solid #2a2f3d" }}>
+            <div className="mb-4 p-3 rounded-xl space-y-2" style={{ background: "var(--sk-deep)", border: "1px solid #2a2f3d" }}>
               <div className="grid grid-cols-2 gap-2">
                 <Field label="Type">
-                  <select value={maintForm.type} onChange={(e) => setMaintForm((f) => ({ ...f, type: e.target.value }))} className="w-full rounded-xl px-3 py-2 text-xs outline-none" style={{ background: "#0d1117", border: "1px solid #2a2f3d", color: "#fff" }}>
+                  <select value={maintForm.type} onChange={(e) => setMaintForm((f) => ({ ...f, type: e.target.value }))} className="w-full rounded-xl px-3 py-2 text-xs outline-none" style={{ background: "var(--sk-bg)", border: "1px solid #2a2f3d", color: "#fff" }}>
                     {Object.entries(MAINT_TYPE_META).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
                   </select>
                 </Field>
@@ -1280,17 +1280,17 @@ function FleetTab({ tenantId }: { tenantId: string }) {
             </div>
           )}
 
-          {maintenance.length === 0 && <div className="text-xs text-center py-3" style={{ color: "#3d4560" }}>Aucun historique</div>}
+          {maintenance.length === 0 && <div className="text-xs text-center py-3" style={{ color: "var(--sk-t4)" }}>Aucun historique</div>}
           <div className="space-y-2">
             {maintenance.map((m) => (
-              <div key={m.id} className="rounded-xl px-3 py-2.5" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
+              <div key={m.id} className="rounded-xl px-3 py-2.5" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
                 <div className="flex items-start justify-between">
                   <div>
                     <div className="text-xs font-semibold text-white">{MAINT_TYPE_META[m.type] || m.type} — {m.title}</div>
-                    {m.description && <div className="text-[10px] mt-0.5" style={{ color: "#555e75" }}>{m.description}</div>}
-                    <div className="text-[10px] mt-0.5" style={{ color: "#3d4560" }}>{m.date} {m.mileage_at ? `· ${xof(m.mileage_at)} km` : ""}</div>
+                    {m.description && <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t3)" }}>{m.description}</div>}
+                    <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>{m.date} {m.mileage_at ? `· ${xof(m.mileage_at)} km` : ""}</div>
                   </div>
-                  <div className="text-xs font-semibold flex-shrink-0 ml-2" style={{ color: m.cost > 0 ? "#f5a623" : "#3d4560" }}>
+                  <div className="text-xs font-semibold flex-shrink-0 ml-2" style={{ color: m.cost > 0 ? "#f5a623" : "var(--sk-t4)" }}>
                     {m.cost > 0 ? `-${xof(m.cost)}` : "—"} XOF
                   </div>
                 </div>
@@ -1308,7 +1308,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-xl font-bold text-white">Gestion de flotte</h2>
-          <p className="text-xs mt-0.5" style={{ color: "#555e75" }}>{vehicles.length} véhicule{vehicles.length !== 1 ? "s" : ""}</p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>{vehicles.length} véhicule{vehicles.length !== 1 ? "s" : ""}</p>
         </div>
         <button onClick={() => { setIsNew(true); setForm({ ...EMPTY_VEH }); setSelected("__new__"); setVehicle({}); setMaintenance([]); setShowForm(true); }}
           className="text-sm px-4 py-2 rounded-xl font-bold text-black"
@@ -1319,7 +1319,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
 
       {/* New vehicle form (inline) */}
       {selected === "__new__" && showForm && (
-        <div className="rounded-2xl p-4 mb-4 space-y-3" style={{ background: "#0d1117", border: "1px solid rgba(245,166,35,.3)" }}>
+        <div className="rounded-2xl p-4 mb-4 space-y-3" style={{ background: "var(--sk-bg)", border: "1px solid rgba(245,166,35,.3)" }}>
           <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: "#f5a623" }}>Nouveau véhicule</div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Plaque *"><InpText type="text" value={form.plate} onChange={(v) => setF("plate", v)} /></Field>
@@ -1328,7 +1328,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
             <Field label="Année"><InpText type="number" value={form.year} onChange={(v) => setF("year", v)} /></Field>
             <Field label="Couleur"><InpText type="text" value={form.color} onChange={(v) => setF("color", v)} /></Field>
             <Field label="Carburant">
-              <select value={form.fuel_type} onChange={(e) => setF("fuel_type", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#fff" }}>
+              <select value={form.fuel_type} onChange={(e) => setF("fuel_type", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "var(--sk-deep)", border: "1px solid #2a2f3d", color: "#fff" }}>
                 {["essence", "diesel", "hybride", "électrique", "gpl"].map((f) => <option key={f}>{f}</option>)}
               </select>
             </Field>
@@ -1336,7 +1336,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
             <Field label="Expir. visite tech."><InpText type="date" value={form.visite_expiry} onChange={(v) => setF("visite_expiry", v)} /></Field>
           </div>
           <Field label="Chauffeur assigné">
-            <select value={form.driver_id} onChange={(e) => setF("driver_id", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#fff" }}>
+            <select value={form.driver_id} onChange={(e) => setF("driver_id", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "var(--sk-deep)", border: "1px solid #2a2f3d", color: "#fff" }}>
               <option value="">— Aucun —</option>
               {drivers.map((d) => <option key={d.id} value={d.id}>{d.full_name} ({d.driver_id})</option>)}
             </select>
@@ -1345,7 +1345,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
             <button onClick={saveVehicle} disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-black" style={{ background: saving ? "#2a2f3d" : "linear-gradient(135deg,#f5a623,#e8951a)" }}>
               {saving ? "..." : "Créer le véhicule"}
             </button>
-            <button onClick={() => { setSelected(null); setShowForm(false); setIsNew(false); }} className="px-4 rounded-xl text-sm" style={{ background: "#1e2330", color: "#8b92a8" }}>
+            <button onClick={() => { setSelected(null); setShowForm(false); setIsNew(false); }} className="px-4 rounded-xl text-sm" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>
               Annuler
             </button>
           </div>
@@ -1356,7 +1356,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
         <div className="text-center py-12">
           <div className="text-4xl mb-3">🚗</div>
           <p className="text-white font-semibold mb-1">Aucun véhicule enregistré</p>
-          <p className="text-sm" style={{ color: "#555e75" }}>Ajoutez votre premier véhicule avec le bouton ci-dessus.</p>
+          <p className="text-sm" style={{ color: "var(--sk-t3)" }}>Ajoutez votre premier véhicule avec le bouton ci-dessus.</p>
         </div>
       )}
 
@@ -1370,21 +1370,21 @@ function FleetTab({ tenantId }: { tenantId: string }) {
           return (
             <button key={v.id} onClick={() => selectVehicle(v.id)}
               className="w-full rounded-xl px-4 py-3 flex items-center gap-3 transition-all text-left"
-              style={{ background: "#0d1117", border: `1px solid ${hasAlert ? "rgba(245,166,35,.3)" : "#1e2330"}` }}>
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: "#1e2330" }}>🚗</div>
+              style={{ background: "var(--sk-bg)", border: `1px solid ${hasAlert ? "rgba(245,166,35,.3)" : "var(--sk-surface)"}` }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: "var(--sk-surface)" }}>🚗</div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-white">{v.plate}</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: `${sm.color}18`, color: sm.color }}>{sm.label}</span>
                   {hasAlert && <span className="text-[10px]" style={{ color: "#f5a623" }}>⚠️</span>}
                 </div>
-                <div className="text-xs" style={{ color: "#555e75" }}>{v.make} {v.model} {v.year} {driver ? `· ${driver.full_name}` : ""}</div>
+                <div className="text-xs" style={{ color: "var(--sk-t3)" }}>{v.make} {v.model} {v.year} {driver ? `· ${driver.full_name}` : ""}</div>
                 <div className="flex gap-3 mt-0.5">
                   {v.insurance_expiry && <ExpiryBadge label="Ass." dateStr={v.insurance_expiry} />}
                   {v.visite_expiry && <ExpiryBadge label="Visite" dateStr={v.visite_expiry} />}
                 </div>
               </div>
-              <span className="text-xs" style={{ color: "#3d4560" }}>›</span>
+              <span className="text-xs" style={{ color: "var(--sk-t4)" }}>›</span>
             </button>
           );
         })}
@@ -1404,8 +1404,8 @@ const KYC_DOC_DEFS = [
 ];
 
 const ONBOARDING_STATUS_COLORS: Record<string, string> = {
-  incomplete: "#555e75",
-  pending:    "#555e75",
+  incomplete: "var(--sk-t3)",
+  pending:    "var(--sk-t3)",
   in_review:  "#3b82f6",
   approved:   "#22c55e",
   rejected:   "#ef4444",
@@ -1544,7 +1544,7 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
   };
 
   const statusBadge = (s: string) => (
-    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: `${ONBOARDING_STATUS_COLORS[s] || "#555e75"}18`, color: ONBOARDING_STATUS_COLORS[s] || "#555e75" }}>
+    <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: `${ONBOARDING_STATUS_COLORS[s] || "var(--sk-t3)"}18`, color: ONBOARDING_STATUS_COLORS[s] || "var(--sk-t3)" }}>
       {s === "approved" ? "Validé" : s === "rejected" ? "Rejeté" : s === "in_review" ? "En revue" : s === "incomplete" ? "Incomplet" : "Pending"}
     </span>
   );
@@ -1554,20 +1554,20 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
     return (
       <div className="p-4 space-y-4">
         <div className="flex items-center gap-3 mb-2">
-          <button onClick={() => setSelected(null)} className="text-sm px-3 py-1.5 rounded-lg" style={{ background: "#1e2330", color: "#8b92a8" }}>← Retour</button>
+          <button onClick={() => setSelected(null)} className="text-sm px-3 py-1.5 rounded-lg" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>← Retour</button>
           <div>
             <div className="font-bold text-white">{driverProfile.full_name}</div>
-            <div className="text-xs" style={{ color: "#555e75" }}>{driverProfile.driver_id} · {completedDocs.length}/{KYC_DOC_DEFS.length} docs</div>
+            <div className="text-xs" style={{ color: "var(--sk-t3)" }}>{driverProfile.driver_id} · {completedDocs.length}/{KYC_DOC_DEFS.length} docs</div>
           </div>
           <div className="ml-auto">{statusBadge(driverProfile.onboarding_status || "incomplete")}</div>
         </div>
 
         {/* Personal info */}
-        <div className="rounded-2xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+        <div className="rounded-2xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
           <div className="flex items-center justify-between mb-3">
-            <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: "#3d4560" }}>Informations</div>
+            <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: "var(--sk-t4)" }}>Informations</div>
             <button onClick={() => setEditingProfile(!editingProfile)} className="text-xs px-3 py-1 rounded-lg font-semibold"
-              style={{ background: editingProfile ? "rgba(245,166,35,.15)" : "#1e2330", color: editingProfile ? "#f5a623" : "#8b92a8" }}>
+              style={{ background: editingProfile ? "rgba(245,166,35,.15)" : "var(--sk-surface)", color: editingProfile ? "#f5a623" : "var(--sk-t2)" }}>
               {editingProfile ? "Annuler" : "✏️ Modifier"}
             </button>
           </div>
@@ -1583,10 +1583,10 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
                 ["Relation", "emergency_relation", "text"],
               ].map(([label, key, type]) => (
                 <div key={key as string}>
-                  <div className="text-[10px] mb-1" style={{ color: "#555e75" }}>{label as string}</div>
+                  <div className="text-[10px] mb-1" style={{ color: "var(--sk-t3)" }}>{label as string}</div>
                   <input type={type as string} value={profileForm[key as string] || ""} onChange={(e) => setProfileForm(p => ({ ...p, [key as string]: e.target.value }))}
                     className="w-full rounded-lg px-3 py-2 text-xs outline-none"
-                    style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#f0f2f7" }} />
+                    style={{ background: "var(--sk-deep)", border: "1px solid #2a2f3d", color: "var(--sk-t1)" }} />
                 </div>
               ))}
               <button onClick={saveProfile} disabled={saving} className="w-full py-2.5 rounded-xl text-xs font-bold mt-2"
@@ -1597,22 +1597,22 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
           ) : (
             <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
               {[["Adresse", driverProfile.address], ["Ville", driverProfile.city], ["Naissance", driverProfile.birth_date], ["Nationalité", driverProfile.nationality], ["Permis", driverProfile.license_number], ["Expiration", driverProfile.license_expiry], ["Expérience", driverProfile.years_experience != null ? `${driverProfile.years_experience} ans` : "—"], ["Contact urgence", driverProfile.emergency_name], ["Tél urgence", driverProfile.emergency_phone], ["Relation", driverProfile.emergency_relation]].map(([k, v]) => (
-                <div key={k as string}><span style={{ color: "#555e75" }}>{k} : </span><span className="text-white">{(v as string) || "—"}</span></div>
+                <div key={k as string}><span style={{ color: "var(--sk-t3)" }}>{k} : </span><span className="text-white">{(v as string) || "—"}</span></div>
               ))}
             </div>
           )}
         </div>
 
         {/* Documents */}
-        <div className="rounded-2xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-          <div className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: "#3d4560" }}>Documents KYC</div>
+        <div className="rounded-2xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+          <div className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: "var(--sk-t4)" }}>Documents KYC</div>
           <div className="space-y-3">
             {KYC_DOC_DEFS.map((def) => {
               const doc = driverDocs.find((d) => d.doc_type === def.type);
               const url = docUrls[def.type];
               const docStatusColor = doc?.status === "approved" ? "#22c55e" : doc?.status === "rejected" ? "#ef4444" : doc ? "#f5a623" : "#2a2f3d";
               return (
-                <div key={def.type} className="rounded-xl p-3" style={{ background: "#080a0f", border: `1px solid ${docStatusColor}30` }}>
+                <div key={def.type} className="rounded-xl p-3" style={{ background: "var(--sk-deep)", border: `1px solid ${docStatusColor}30` }}>
                   <div className="flex items-center justify-between mb-2">
                     <div className="text-xs font-semibold text-white">{def.label}</div>
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -1623,9 +1623,9 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
                           {doc.status !== "rejected" && <button onClick={() => updateDocStatus(doc.id, "rejected")} className="text-[10px] px-2 py-0.5 rounded font-semibold" style={{ background: "rgba(239,68,68,.1)", color: "#ef4444" }}>Rejeter</button>}
                         </>
                       ) : (
-                        <span className="text-[10px]" style={{ color: "#3d4560" }}>Non uploadé</span>
+                        <span className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Non uploadé</span>
                       )}
-                      <label className="text-[10px] px-2 py-0.5 rounded font-semibold cursor-pointer" style={{ background: "rgba(245,166,35,.1)", color: uploadingDoc === def.type ? "#555e75" : "#f5a623" }}>
+                      <label className="text-[10px] px-2 py-0.5 rounded font-semibold cursor-pointer" style={{ background: "rgba(245,166,35,.1)", color: uploadingDoc === def.type ? "var(--sk-t3)" : "#f5a623" }}>
                         {uploadingDoc === def.type ? "⏳" : doc ? "🔄 Remplacer" : "📎 Uploader"}
                         <input type="file" accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,video/*" className="hidden"
                           onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(def.type, f); e.target.value = ""; }}
@@ -1638,7 +1638,7 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
                       <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs underline" style={{ color: "#f5a623" }}>📄 Voir le PDF</a>
                     ) : (
                       <a href={url} target="_blank" rel="noopener noreferrer">
-                        <img src={url} alt={def.label} className="w-full max-h-48 object-contain rounded-lg" style={{ background: "#1e2330" }} />
+                        <img src={url} alt={def.label} className="w-full max-h-48 object-contain rounded-lg" style={{ background: "var(--sk-surface)" }} />
                       </a>
                     )
                   )}
@@ -1649,29 +1649,29 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
         </div>
 
         {/* Decision */}
-        <div className="rounded-2xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-          <div className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: "#3d4560" }}>Décision & Niveau</div>
+        <div className="rounded-2xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+          <div className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: "var(--sk-t4)" }}>Décision & Niveau</div>
           <div className="space-y-3">
             <div>
-              <div className="text-xs mb-1.5" style={{ color: "#8b92a8" }}>Niveau chauffeur</div>
+              <div className="text-xs mb-1.5" style={{ color: "var(--sk-t2)" }}>Niveau chauffeur</div>
               <div className="flex gap-2">
                 {LEVEL_OPTS.map((o) => (
                   <button key={o.value} onClick={() => setLevel(o.value)}
                     className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
-                    style={{ background: level === o.value ? "rgba(245,166,35,.15)" : "#080a0f", color: level === o.value ? "#f5a623" : "#555e75", border: `1px solid ${level === o.value ? "rgba(245,166,35,.3)" : "#2a2f3d"}` }}>
+                    style={{ background: level === o.value ? "rgba(245,166,35,.15)" : "var(--sk-deep)", color: level === o.value ? "#f5a623" : "var(--sk-t3)", border: `1px solid ${level === o.value ? "rgba(245,166,35,.3)" : "#2a2f3d"}` }}>
                     {o.label}
                   </button>
                 ))}
               </div>
-              <button onClick={autoLevel} className="mt-2 text-[10px] w-full py-1 rounded-lg" style={{ background: "#1e2330", color: "#555e75" }}>
+              <button onClick={autoLevel} className="mt-2 text-[10px] w-full py-1 rounded-lg" style={{ background: "var(--sk-surface)", color: "var(--sk-t3)" }}>
                 Auto-suggérer selon l'expérience
               </button>
             </div>
             <div>
-              <div className="text-xs mb-1.5" style={{ color: "#8b92a8" }}>Note / motif de rejet</div>
+              <div className="text-xs mb-1.5" style={{ color: "var(--sk-t2)" }}>Note / motif de rejet</div>
               <textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="Optionnel — visible du chauffeur si rejeté"
                 className="w-full rounded-xl px-3 py-2 text-xs resize-none outline-none"
-                style={{ background: "#080a0f", border: "1px solid #2a2f3d", color: "#fff" }} />
+                style={{ background: "var(--sk-deep)", border: "1px solid #2a2f3d", color: "#fff" }} />
             </div>
             <div className="flex gap-2">
               <button onClick={() => setOnboardingStatus("approved")} disabled={saving}
@@ -1694,26 +1694,26 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
   return (
     <div className="p-4">
       <h2 className="text-xl font-bold text-white mb-1">KYC & Onboarding</h2>
-      <p className="text-xs mb-4" style={{ color: "#555e75" }}>Vérification des dossiers chauffeurs</p>
-      {drivers.length === 0 && <div className="text-sm text-center py-8" style={{ color: "#3d4560" }}>Aucun chauffeur enregistré</div>}
+      <p className="text-xs mb-4" style={{ color: "var(--sk-t3)" }}>Vérification des dossiers chauffeurs</p>
+      {drivers.length === 0 && <div className="text-sm text-center py-8" style={{ color: "var(--sk-t4)" }}>Aucun chauffeur enregistré</div>}
       <div className="space-y-2">
         {drivers.map((d) => {
           const s = d.onboarding_status || "incomplete";
-          const sc = ONBOARDING_STATUS_COLORS[s] || "#555e75";
+          const sc = ONBOARDING_STATUS_COLORS[s] || "var(--sk-t3)";
           return (
             <button key={d.id} onClick={() => selectDriver(d.id)} className="w-full rounded-xl px-4 py-3 flex items-center gap-3 transition-all text-left"
-              style={{ background: "#0d1117", border: `1px solid ${sc}20` }}>
+              style={{ background: "var(--sk-bg)", border: `1px solid ${sc}20` }}>
               <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm text-black flex-shrink-0"
                 style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>
                 {d.full_name?.[0] || "?"}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-semibold text-white truncate">{d.full_name}</div>
-                <div className="text-[10px]" style={{ color: "#555e75" }}>{d.driver_id}</div>
+                <div className="text-[10px]" style={{ color: "var(--sk-t3)" }}>{d.driver_id}</div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
                 {statusBadge(s)}
-                <span className="text-[10px]" style={{ color: "#3d4560" }}>›</span>
+                <span className="text-[10px]" style={{ color: "var(--sk-t4)" }}>›</span>
               </div>
             </button>
           );
@@ -1740,7 +1740,7 @@ function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh }: 
       approved: ["#22c55e", "rgba(34,197,94,.12)"],
       rejected: ["#ef4444", "rgba(239,68,68,.12)"],
     };
-    const [color, bg] = map[s] ?? ["#8b92a8", "#1e2330"];
+    const [color, bg] = map[s] ?? ["var(--sk-t2)", "var(--sk-surface)"];
     const label = s === "submitted" ? "En attente" : s === "approved" ? "Validé" : s === "rejected" ? "Rejeté" : s;
     return <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ color, background: bg }}>{label}</span>;
   };
@@ -1753,7 +1753,7 @@ function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh }: 
           {(["reports", "expenses"] as const).map((t) => (
             <button key={t} onClick={() => setActiveTab(t)}
               className="text-sm px-4 py-1.5 rounded-lg font-semibold"
-              style={{ background: activeTab === t ? "#f5a623" : "#1e2330", color: activeTab === t ? "#000" : "#555e75" }}>
+              style={{ background: activeTab === t ? "#f5a623" : "var(--sk-surface)", color: activeTab === t ? "#000" : "var(--sk-t3)" }}>
               {t === "reports" ? `📋 Rapports (${reports.length})` : `💸 Dépenses (${expenses.length})`}
             </button>
           ))}
@@ -1769,7 +1769,7 @@ function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh }: 
           <div className="space-y-3">
             {reports.map((r) => (
               <div key={r.id} className="rounded-xl border cursor-pointer transition-all hover:border-yellow-500/40"
-                style={{ background: isRepos(r) ? "rgba(99,102,241,.04)" : "#0d1117", border: `1px solid ${isRepos(r) ? "rgba(99,102,241,.25)" : "#1e2330"}` }}
+                style={{ background: isRepos(r) ? "rgba(99,102,241,.04)" : "var(--sk-bg)", border: `1px solid ${isRepos(r) ? "rgba(99,102,241,.25)" : "var(--sk-surface)"}` }}
                 onClick={() => setSelected(r)}>
                 <div className="flex items-center justify-between p-4">
                   <div>
@@ -1781,7 +1781,7 @@ function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh }: 
                         </span>
                       )}
                     </div>
-                    <div className="text-xs mt-1" style={{ color: "#555e75" }}>
+                    <div className="text-xs mt-1" style={{ color: "var(--sk-t3)" }}>
                       {isRepos(r)
                         ? (r.comment?.replace("[REPOS]", "").trim() || "Jour de repos") + " · " + r.driver_id?.slice(0, 8) + "..."
                         : `${r.yango_trip_count ?? 0} courses · ${r.driver_id?.slice(0, 8)}...`}
@@ -1803,15 +1803,15 @@ function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh }: 
           <div className="space-y-3">
             {expenses.map((e) => (
               <div key={e.id} className="rounded-xl border cursor-pointer transition-all hover:border-yellow-500/40"
-                style={{ background: "#0d1117", border: "1px solid #1e2330" }}
+                style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}
                 onClick={() => setSelectedExpense(e)}>
                 <div className="flex items-center justify-between p-4">
                   <div>
                     <div className="font-semibold text-white text-sm">{e.category}</div>
-                    <div className="text-xs mt-1" style={{ color: "#555e75" }}>
+                    <div className="text-xs mt-1" style={{ color: "var(--sk-t3)" }}>
                       {e._profile?.full_name || e._profile?.driver_id || e.driver_id?.slice(0, 8)} · 📅 {e.expense_date || e.created_at?.slice(0, 10)}
                     </div>
-                    {e.description && <div className="text-xs mt-0.5" style={{ color: "#3d4560" }}>{e.description}</div>}
+                    {e.description && <div className="text-xs mt-0.5" style={{ color: "var(--sk-t4)" }}>{e.description}</div>}
                   </div>
                   <div className="text-right flex flex-col items-end gap-1">
                     <div className="font-mono font-bold text-sm" style={{ color: "#ef4444" }}>-{xof(e.amount)}</div>
@@ -1921,11 +1921,11 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 px-4 pb-8 overflow-y-auto"
       style={{ background: "rgba(0,0,0,0.75)" }} onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="w-full max-w-md rounded-2xl" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-        <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: "#1e2330" }}>
+      <div className="w-full max-w-md rounded-2xl" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+        <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: "var(--sk-surface)" }}>
           <div>
             <div className="font-bold text-white">{expense.category}</div>
-            <div className="text-xs mt-0.5" style={{ color: "#555e75" }}>
+            <div className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>
               {expense.profiles?.full_name || expense.driver_id?.slice(0, 8)} · 📅 {expense.expense_date || expense.created_at?.slice(0, 10)}
             </div>
           </div>
@@ -1936,59 +1936,59 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#555e75" }}>Catégorie</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--sk-t3)" }}>Catégorie</label>
                 <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)}
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                  style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }}>
+                  style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }}>
                   {expenseTypes.map((t) => <option key={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#555e75" }}>Montant (XOF)</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--sk-t3)" }}>Montant (XOF)</label>
                 <input type="number" value={editAmount} onChange={(e) => setEditAmount(e.target.value)}
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                  style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#ef4444" }} />
+                  style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "#ef4444" }} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#555e75" }}>📅 Date déclarée</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--sk-t3)" }}>📅 Date déclarée</label>
                 <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)}
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                  style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7", colorScheme: "dark" }} />
+                  style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", colorScheme: "dark" }} />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#3d4560" }}>🕐 Date soumission</label>
-                <div className="rounded-xl px-3 py-2 text-sm font-mono" style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#3d4560" }}>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--sk-t4)" }}>🕐 Date soumission</label>
+                <div className="rounded-xl px-3 py-2 text-sm font-mono" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t4)" }}>
                   {expense.created_at?.slice(0, 10)}
                 </div>
               </div>
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "#555e75" }}>Description</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--sk-t3)" }}>Description</label>
               <input type="text" value={editDesc} onChange={(e) => setEditDesc(e.target.value)}
                 placeholder="Détails..." className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }} />
+                style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }} />
             </div>
             <button onClick={saveEdit} disabled={saving}
               className="w-full py-2.5 rounded-xl text-sm font-bold"
-              style={{ background: saving ? "#1e2330" : "rgba(59,130,246,.15)", border: "1px solid rgba(59,130,246,.3)", color: "#3b82f6" }}>
+              style={{ background: saving ? "var(--sk-surface)" : "rgba(59,130,246,.15)", border: "1px solid rgba(59,130,246,.3)", color: "#3b82f6" }}>
               {saving ? "..." : "💾 Enregistrer les modifications"}
             </button>
           </div>
 
           {/* Pièces jointes */}
-          <div className="rounded-xl p-4" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
-            <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "#3d4560" }}>📎 Pièces jointes</div>
+          <div className="rounded-xl p-4" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
+            <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "var(--sk-t4)" }}>📎 Pièces jointes</div>
             <div className="flex gap-2 mb-3">
               <button onClick={() => cameraRef.current?.click()} disabled={uploading}
                 className="flex-1 py-2.5 rounded-xl text-sm border"
-                style={{ background: uploading ? "#1e2330" : "rgba(245,166,35,.08)", borderColor: "rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
+                style={{ background: uploading ? "var(--sk-surface)" : "rgba(245,166,35,.08)", borderColor: "rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
                 {uploading ? "⏳" : "📷 Photo"}
               </button>
               <button onClick={() => fileRef.current?.click()} disabled={uploading}
                 className="flex-1 py-2.5 rounded-xl text-sm border-dashed border-2"
-                style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "#555e75" }}>
+                style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "var(--sk-t3)" }}>
                 {uploading ? "⏳ Upload..." : "📁 Fichier / Galerie"}
               </button>
             </div>
@@ -2000,7 +2000,7 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
               <div className="grid grid-cols-3 gap-2 mb-2">
                 {uploads.filter((u: any) => u.isImg).map((u: any, i: number) => (
                   <a key={i} href={u.publicUrl} target="_blank" rel="noopener noreferrer">
-                    <img src={u.publicUrl} alt={u.file_name} className="w-full h-20 object-cover rounded-lg" style={{ border: "1px solid #1e2330" }} />
+                    <img src={u.publicUrl} alt={u.file_name} className="w-full h-20 object-cover rounded-lg" style={{ border: "1px solid var(--sk-surface)" }} />
                   </a>
                 ))}
               </div>
@@ -2008,12 +2008,12 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
             {uploads.filter((u: any) => !u.isImg).map((u: any, i: number) => (
               <a key={i} href={u.publicUrl} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-2 text-xs p-2 rounded-lg mb-1"
-                style={{ background: "#1e2330", color: "#8b92a8" }}>
+                style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>
                 <span>📄</span><span className="truncate flex-1">{u.file_name}</span>
                 <span style={{ color: "#f5a623" }}>Ouvrir →</span>
               </a>
             ))}
-            {uploads.length === 0 && <div className="text-xs text-center py-1" style={{ color: "#3d4560" }}>Aucune pièce jointe</div>}
+            {uploads.length === 0 && <div className="text-xs text-center py-1" style={{ color: "var(--sk-t4)" }}>Aucune pièce jointe</div>}
           </div>
 
           {/* Approve / Reject */}
@@ -2170,22 +2170,22 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 px-4 pb-8 overflow-y-auto"
       style={{ background: "rgba(0,0,0,0.75)" }} onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="w-full max-w-lg rounded-2xl" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+      <div className="w-full max-w-lg rounded-2xl" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: "#1e2330" }}>
+        <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: "var(--sk-surface)" }}>
           <div>
             <div className="font-bold text-white">Rapport — {report.date}</div>
-            <div className="text-xs mt-0.5" style={{ color: "#555e75" }}>Driver ID: {report.driver_id?.slice(0, 8)}...</div>
+            <div className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>Driver ID: {report.driver_id?.slice(0, 8)}...</div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
         </div>
 
         <div className="p-5 space-y-5">
           {/* Details */}
-          <div className="rounded-xl p-4" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
+          <div className="rounded-xl p-4" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
             {rows.map(([l, v]) => (
-              <div key={l} className="flex justify-between py-1.5 text-sm" style={{ borderBottom: "1px solid #1e2330" }}>
-                <span style={{ color: "#555e75" }}>{l}</span>
+              <div key={l} className="flex justify-between py-1.5 text-sm" style={{ borderBottom: "1px solid var(--sk-surface)" }}>
+                <span style={{ color: "var(--sk-t3)" }}>{l}</span>
                 <span className="font-mono text-white">{v}</span>
               </div>
             ))}
@@ -2196,24 +2196,24 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
           </div>
 
           {report.comment && (
-            <div className="text-sm rounded-xl px-4 py-3" style={{ background: "rgba(245,166,35,.05)", border: "1px solid rgba(245,166,35,.15)", color: "#8b92a8" }}>
+            <div className="text-sm rounded-xl px-4 py-3" style={{ background: "rgba(245,166,35,.05)", border: "1px solid rgba(245,166,35,.15)", color: "var(--sk-t2)" }}>
               💬 {report.comment}
             </div>
           )}
 
           {/* Editable fields — always available */}
-          <div className="rounded-xl p-4 space-y-3" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
+          <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
             <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: "#f5a623" }}>✏️ Modifier le rapport</div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs mb-1" style={{ color: "#555e75" }}>Date</label>
+                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Date</label>
                 <input type="date" value={dateEdit} onChange={(e) => setDateEdit(e.target.value)}
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                  style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#f0f2f7", colorScheme: "dark" }} />
+                  style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "var(--sk-t1)", colorScheme: "dark" }} />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "#555e75" }}>Net calculé (auto)</label>
-                <div className="w-full rounded-xl px-3 py-2 text-sm font-mono font-bold" style={{ background: "#080a0f", border: "1px solid rgba(34,197,94,.2)", color: "#22c55e" }}>
+                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Net calculé (auto)</label>
+                <div className="w-full rounded-xl px-3 py-2 text-sm font-mono font-bold" style={{ background: "var(--sk-deep)", border: "1px solid rgba(34,197,94,.2)", color: "#22c55e" }}>
                   {(() => {
                     const yg = parseFloat(yangoGrossEdit) || 0;
                     const yb = parseFloat(yangoBonus) || 0;
@@ -2224,67 +2224,67 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
                     return new Intl.NumberFormat("fr-FR").format(Math.round(net)) + " XOF";
                   })()}
                 </div>
-                <div className="text-[10px] mt-0.5" style={{ color: "#3d4560" }}>Brut − 15% Yango − 0,75% part. + hors Yango</div>
+                <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>Brut − 15% Yango − 0,75% part. + hors Yango</div>
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "#555e75" }}>Brut Yango</label>
+                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Brut Yango</label>
                 <input type="number" value={yangoGrossEdit} onChange={(e) => setYangoGrossEdit(e.target.value)}
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                  style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#f0f2f7" }} />
+                  style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "var(--sk-t1)" }} />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "#555e75" }}>Bonus Yango</label>
+                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Bonus Yango</label>
                 <input type="number" value={yangoBonus} onChange={(e) => setYangoBonus(e.target.value)}
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                  style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#f0f2f7" }} />
+                  style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "var(--sk-t1)" }} />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "#555e75" }}>Hors Yango</label>
+                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Hors Yango</label>
                 <input type="number" value={horsYangoEdit} onChange={(e) => setHorsYangoEdit(e.target.value)}
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                  style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#a855f7" }} />
+                  style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "#a855f7" }} />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "#555e75" }}>💳 Solde wallet</label>
+                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>💳 Solde wallet</label>
                 <input type="number" value={soldeEdit} onChange={(e) => setSoldeEdit(e.target.value)}
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                  style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#f5a623" }} />
+                  style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "#f5a623" }} />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "#555e75" }}>🚗 Km fin de journée</label>
+                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>🚗 Km fin de journée</label>
                 <input type="number" value={kmEdit} onChange={(e) => setKmEdit(e.target.value)}
                   placeholder="Ex: 145230"
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                  style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#3b82f6" }} />
+                  style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "#3b82f6" }} />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "#555e75" }}>Courses Yango</label>
+                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Courses Yango</label>
                 <input type="number" value={yangoTripsEdit} onChange={(e) => setYangoTripsEdit(e.target.value)}
                   placeholder="Nb de courses"
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                  style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#f0f2f7" }} />
+                  style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "var(--sk-t1)" }} />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "#555e75" }}>Courses hors Yango</label>
+                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Courses hors Yango</label>
                 <input type="number" value={offYangoTripsEdit} onChange={(e) => setOffYangoTripsEdit(e.target.value)}
                   placeholder="Nb de courses"
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                  style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#a855f7" }} />
+                  style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "#a855f7" }} />
               </div>
             </div>
             <div>
-              <label className="block text-xs mb-1" style={{ color: "#555e75" }}>➕ Service supplémentaire Yango</label>
+              <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>➕ Service supplémentaire Yango</label>
               <input type="number" value={serviceSuppEdit} onChange={(e) => setServiceSuppEdit(e.target.value)}
                 placeholder="Charge Yango add. (optionnel)"
                 className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#ef4444" }} />
+                style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "#ef4444" }} />
             </div>
             <div>
-              <label className="block text-xs mb-1" style={{ color: "#555e75" }}>Note / commentaire</label>
+              <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Note / commentaire</label>
               <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2}
                 placeholder="Commentaire, motif de rejet..."
                 className="w-full rounded-xl px-3 py-2 text-sm outline-none resize-none"
-                style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#f0f2f7" }} />
+                style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "var(--sk-t1)" }} />
             </div>
             <button onClick={saveFields} disabled={saving}
               className="w-full py-2.5 rounded-xl text-sm font-bold"
@@ -2294,17 +2294,17 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
           </div>
 
           {/* Attachments */}
-          <div className="rounded-xl p-4" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
-            <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "#3d4560" }}>📎 Pièces jointes</div>
+          <div className="rounded-xl p-4" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
+            <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "var(--sk-t4)" }}>📎 Pièces jointes</div>
             <div className="flex gap-2 mb-3">
               <button onClick={() => cameraRef.current?.click()} disabled={uploading}
                 className="flex-1 py-2.5 rounded-xl text-sm border"
-                style={{ background: uploading ? "#1e2330" : "rgba(245,166,35,.08)", borderColor: "rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
+                style={{ background: uploading ? "var(--sk-surface)" : "rgba(245,166,35,.08)", borderColor: "rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
                 {uploading ? "⏳" : "📷 Photo"}
               </button>
               <button onClick={() => fileRef.current?.click()} disabled={uploading}
                 className="flex-1 py-2.5 rounded-xl text-sm border-dashed border-2"
-                style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "#555e75" }}>
+                style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "var(--sk-t3)" }}>
                 {uploading ? "⏳ Upload..." : "📁 Fichier / Galerie"}
               </button>
             </div>
@@ -2318,7 +2318,7 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
                 {uploads.filter((u: any) => u.isImg).map((u: any, i: number) => (
                   <a key={i} href={u.publicUrl} target="_blank" rel="noopener noreferrer">
                     <img src={u.publicUrl} alt={u.file_name} className="w-full h-20 object-cover rounded-lg"
-                      style={{ border: "1px solid #1e2330" }} />
+                      style={{ border: "1px solid var(--sk-surface)" }} />
                   </a>
                 ))}
               </div>
@@ -2327,13 +2327,13 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
             {uploads.filter((u: any) => !u.isImg).map((u: any, i: number) => (
               <a key={i} href={u.publicUrl} target="_blank" rel="noopener noreferrer"
                 className="flex items-center gap-2 text-xs p-2 rounded-lg mb-1"
-                style={{ background: "#1e2330", color: "#8b92a8" }}>
+                style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>
                 <span>{u.file_type?.includes("admin") ? "👤" : "📄"}</span>
                 <span className="truncate flex-1">{u.file_name}</span>
                 <span style={{ color: "#f5a623" }}>Ouvrir →</span>
               </a>
             ))}
-            {uploads.length === 0 && <div className="text-xs text-center py-2" style={{ color: "#3d4560" }}>Aucune pièce jointe</div>}
+            {uploads.length === 0 && <div className="text-xs text-center py-2" style={{ color: "var(--sk-t4)" }}>Aucune pièce jointe</div>}
           </div>
 
           {/* Actions */}
@@ -2376,43 +2376,43 @@ function DailyTable({ data, periodFrom, periodTo }: { data: any[]; periodFrom: s
   });
 
   const cols = [
-    { k: "date", label: "Date", fmt: (v: any) => v, color: () => "#f0f2f7" },
+    { k: "date", label: "Date", fmt: (v: any) => v, color: () => "var(--sk-t1)" },
     { k: "brutYango", label: "Brut Yango", fmt: xof, color: () => "#f5a623" },
     { k: "horsYango", label: "Hors Yango", fmt: xof, color: () => "#a855f7" },
     { k: "netRecettes", label: "Net recettes", fmt: xof, color: () => "#3b82f6" },
     { k: "depenses", label: "Dépenses", fmt: (v: number) => v > 0 ? `- ${xof(v)}` : "—", color: () => "#ef4444" },
     { k: "netFinal", label: "NET FINAL", fmt: xof, color: (v: number) => v >= 0 ? "#22c55e" : "#ef4444" },
-    { k: "km", label: "KM", fmt: (v: number) => v > 0 ? `${v} km` : "—", color: () => "#555e75" },
-    { k: "nbCourses", label: "Courses", fmt: (v: number) => v > 0 ? String(v) : "—", color: () => "#555e75" },
+    { k: "km", label: "KM", fmt: (v: number) => v > 0 ? `${v} km` : "—", color: () => "var(--sk-t3)" },
+    { k: "nbCourses", label: "Courses", fmt: (v: number) => v > 0 ? String(v) : "—", color: () => "var(--sk-t3)" },
   ];
 
   return (
-    <div className="rounded-xl overflow-hidden" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-      <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "#1e2330" }}>
+    <div className="rounded-xl overflow-hidden" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+      <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--sk-surface)" }}>
         <h3 className="font-bold text-white text-sm">📅 Tableau journalier détaillé</h3>
         <div className="flex items-center gap-2">
           <input type="date" value={filter} onChange={(e) => setFilter(e.target.value)}
             min={periodFrom} max={periodTo}
             className="text-xs px-2 py-1 rounded-lg outline-none"
-            style={{ background: "#1e2330", border: "1px solid #2a2f3d", color: "#f0f2f7", colorScheme: "dark" }} />
+            style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "var(--sk-t1)", colorScheme: "dark" }} />
           {filter && <button onClick={() => setFilter("")} className="text-xs px-2 py-1 rounded" style={{ color: "#f5a623", background: "rgba(245,166,35,.1)" }}>✕ Tout afficher</button>}
         </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full" style={{ fontSize: 11 }}>
           <thead>
-            <tr style={{ background: "#080a0f", borderBottom: "1px solid #1e2330" }}>
+            <tr style={{ background: "var(--sk-deep)", borderBottom: "1px solid var(--sk-surface)" }}>
               {cols.map((c) => (
-                <th key={c.k} className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: "#3d4560" }}>{c.label}</th>
+                <th key={c.k} className="px-3 py-2 text-left font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: "var(--sk-t4)" }}>{c.label}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {filtered.length === 0 && (
-              <tr><td colSpan={cols.length} className="text-center py-8" style={{ color: "#3d4560" }}>Aucune donnée pour cette période</td></tr>
+              <tr><td colSpan={cols.length} className="text-center py-8" style={{ color: "var(--sk-t4)" }}>Aucune donnée pour cette période</td></tr>
             )}
             {filtered.map((d: any, i: number) => (
-              <tr key={d.date} style={{ borderBottom: "1px solid #0a0c10", background: i % 2 === 0 ? "#0d1117" : "#080a0f" }}>
+              <tr key={d.date} style={{ borderBottom: "1px solid #0a0c10", background: i % 2 === 0 ? "var(--sk-bg)" : "var(--sk-deep)" }}>
                 {cols.map((c) => (
                   <td key={c.k} className="px-3 py-2 font-mono whitespace-nowrap" style={{ color: c.color(d[c.k]) }}>
                     {c.fmt(d[c.k])}
@@ -2422,15 +2422,15 @@ function DailyTable({ data, periodFrom, periodTo }: { data: any[]; periodFrom: s
             ))}
           </tbody>
           <tfoot>
-            <tr style={{ background: "#1e2330", borderTop: "2px solid #2a2f3d" }}>
+            <tr style={{ background: "var(--sk-surface)", borderTop: "2px solid #2a2f3d" }}>
               <td className="px-3 py-2.5 font-bold text-white">TOTAL ({filtered.length} j)</td>
               <td className="px-3 py-2.5 font-mono font-bold" style={{ color: "#f5a623" }}>{xof(tot.brutYango)}</td>
               <td className="px-3 py-2.5 font-mono font-bold" style={{ color: "#a855f7" }}>{xof(tot.horsYango)}</td>
               <td className="px-3 py-2.5 font-mono font-bold" style={{ color: "#3b82f6" }}>{xof(tot.netRecettes)}</td>
               <td className="px-3 py-2.5 font-mono font-bold" style={{ color: "#ef4444" }}>- {xof(tot.depenses)}</td>
               <td className="px-3 py-2.5 font-mono font-bold" style={{ color: tot.netFinal >= 0 ? "#22c55e" : "#ef4444" }}>{xof(tot.netFinal)}</td>
-              <td className="px-3 py-2.5 font-mono" style={{ color: "#555e75" }}>{tot.km > 0 ? `${tot.km} km` : "—"}</td>
-              <td className="px-3 py-2.5 font-mono" style={{ color: "#555e75" }}>{tot.nbCourses > 0 ? tot.nbCourses : "—"}</td>
+              <td className="px-3 py-2.5 font-mono" style={{ color: "var(--sk-t3)" }}>{tot.km > 0 ? `${tot.km} km` : "—"}</td>
+              <td className="px-3 py-2.5 font-mono" style={{ color: "var(--sk-t3)" }}>{tot.nbCourses > 0 ? tot.nbCourses : "—"}</td>
             </tr>
           </tfoot>
         </table>
@@ -2474,7 +2474,7 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
   return (
     <div>
       <div className="flex items-center gap-3 mb-4">
-        <h3 className="text-sm uppercase tracking-widest font-semibold" style={{ color: "#555e75" }}>
+        <h3 className="text-sm uppercase tracking-widest font-semibold" style={{ color: "var(--sk-t3)" }}>
           Allocation par chauffeur — <span style={{ color: "#f5a623" }}>{modelLabel[model] ?? model}</span>
         </h3>
         <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623" }}>
@@ -2491,14 +2491,14 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
           const hasPending = d.nbPending > 0;
           return (
             <div key={d.driver_id} className="rounded-2xl p-4 space-y-3"
-              style={{ background: "#0d1117", border: `1px solid ${hasPending ? "rgba(245,166,35,.25)" : "#1e2330"}` }}>
+              style={{ background: "var(--sk-bg)", border: `1px solid ${hasPending ? "rgba(245,166,35,.25)" : "var(--sk-surface)"}` }}>
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-semibold text-sm text-white">{d.name}</div>
-                  <div className="text-[10px] mt-0.5" style={{ color: "#3d4560" }}>
+                  <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>
                     {d.nbApproved > 0 && <span className="text-green-500">✓ {d.nbApproved} validés</span>}
                     {d.nbPending > 0 && <span className="ml-1" style={{ color: "#f5a623" }}>⏳ {d.nbPending} en attente</span>}
-                    {d.nbReports === 0 && <span style={{ color: "#3d4560" }}>Aucun rapport</span>}
+                    {d.nbReports === 0 && <span style={{ color: "var(--sk-t4)" }}>Aucun rapport</span>}
                   </div>
                 </div>
                 {dModel === "tiered" && (() => {
@@ -2513,7 +2513,7 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
                   <span className="text-[9px] px-1.5 py-0.5 rounded" style={{ background: "rgba(168,85,247,.12)", color: "#a855f7" }}>modèle perso</span>
                 )}
               </div>
-              <div className="space-y-1.5 text-xs" style={{ color: "#555e75" }}>
+              <div className="space-y-1.5 text-xs" style={{ color: "var(--sk-t3)" }}>
                 {d.netApproved > 0 && (
                   <div className="flex justify-between">
                     <span>Net approuvé</span>
@@ -2526,14 +2526,14 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
                     <span className="font-mono" style={{ color: "#f5a623" }}>{xof(d.netPending)}</span>
                   </div>
                 )}
-                <div className="flex justify-between pt-1 border-t" style={{ borderColor: "#1e2330" }}>
+                <div className="flex justify-between pt-1 border-t" style={{ borderColor: "var(--sk-surface)" }}>
                   <span>Total déclaré</span>
                   <span className="font-mono font-bold text-white">{xof(d.netDeclared)}</span>
                 </div>
               </div>
               {dModel !== "location" && (
-                <div className="rounded-xl px-3 py-2.5" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
-                  <div className="text-[10px] uppercase tracking-wider mb-1 flex items-center justify-between" style={{ color: "#3d4560" }}>
+                <div className="rounded-xl px-3 py-2.5" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
+                  <div className="text-[10px] uppercase tracking-wider mb-1 flex items-center justify-between" style={{ color: "var(--sk-t4)" }}>
                     <span>Allocation estimée</span>
                     {isProrated && (
                       <span className="px-1.5 py-0.5 rounded" style={{ background: "rgba(168,85,247,.12)", color: "#a855f7" }}>
@@ -2543,7 +2543,7 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
                   </div>
                   <div className="font-mono font-bold text-base" style={{ color: "#f5a623" }}>{xof(salary)}</div>
                   {isProrated && d.hire_date && (
-                    <div className="text-[10px] mt-0.5" style={{ color: "#3d4560" }}>
+                    <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>
                       Entré le {new Date(d.hire_date).toLocaleDateString("fr-FR")}
                     </div>
                   )}
@@ -2588,7 +2588,7 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
     const masseSalariale = estSalaire * (kpis.totalDrivers || 1);
     items = [
       { label: "CA net moy/driver", value: xof(avgPerDriver), color: "#f5a623", sub: "Base estimation palier" },
-      { label: "Palier estimé", value: estTier?.label ?? "—", color: "#8b92a8", sub: `→ ${xof(estSalaire)}/driver` },
+      { label: "Palier estimé", value: estTier?.label ?? "—", color: "var(--sk-t2)", sub: `→ ${xof(estSalaire)}/driver` },
       { label: "Masse salariale estimée", value: xof(masseSalariale), color: "#ef4444", sub: `${kpis.totalDrivers} drivers` },
       { label: "Marge après salaires", value: xof(kpis.totalBrut - masseSalariale), color: kpis.totalBrut - masseSalariale >= 0 ? "#22c55e" : "#ef4444" },
     ];
@@ -2599,7 +2599,7 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
       { label: `Part drivers (${Math.round((cfg.commission_rate || 0) * 100)}%)`, value: xof(partDriver), color: "#ef4444" },
       { label: "Part opérateur", value: xof(partOpe), color: "#22c55e" },
       { label: "CA net période", value: xof(kpis.totalBrut), color: "#f5a623" },
-      { label: "Taux opérateur", value: `${Math.round((1 - (cfg.commission_rate || 0)) * 100)}%`, color: "#8b92a8" },
+      { label: "Taux opérateur", value: `${Math.round((1 - (cfg.commission_rate || 0)) * 100)}%`, color: "var(--sk-t2)" },
     ];
   } else if (model === "hybrid") {
     const avgPerDriver = kpis.totalDrivers > 0 ? kpis.totalBrut / kpis.totalDrivers : 0;
@@ -2619,21 +2619,21 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
       { label: `Loyer/jour/driver`, value: xof(cfg.daily_rent), color: "#f5a623" },
       { label: `Loyer collecté (${daysElapsed}j)`, value: xof(loyerTotal), color: "#22c55e", sub: `${kpis.totalDrivers} drivers` },
       { label: "Loyer mensuel projeté", value: xof(loyerMensuel), color: "#3b82f6", sub: `${daysInMonth}j × ${kpis.totalDrivers} drivers` },
-      { label: "CA net drivers (après loyer)", value: xof(kpis.totalBrut - loyerTotal), color: "#8b92a8", sub: "Géré par les drivers" },
+      { label: "CA net drivers (après loyer)", value: xof(kpis.totalBrut - loyerTotal), color: "var(--sk-t2)", sub: "Géré par les drivers" },
     ];
   }
 
   return (
     <div>
-      <h3 className="text-sm uppercase tracking-widest font-semibold mb-4" style={{ color: "#555e75" }}>
+      <h3 className="text-sm uppercase tracking-widest font-semibold mb-4" style={{ color: "var(--sk-t3)" }}>
         Rémunération — <span style={{ color: "#f5a623" }}>{modelLabel[model] ?? model}</span>
       </h3>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {items.map((item) => (
-          <div key={item.label} className="rounded-xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330", borderLeft: `3px solid ${item.color}` }}>
-            <div className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: "#555e75" }}>{item.label}</div>
+          <div key={item.label} className="rounded-xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderLeft: `3px solid ${item.color}` }}>
+            <div className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: "var(--sk-t3)" }}>{item.label}</div>
             <div className="text-lg font-mono font-bold" style={{ color: item.color }}>{item.value}</div>
-            {item.sub && <div className="text-[10px] mt-1" style={{ color: "#3d4560" }}>{item.sub}</div>}
+            {item.sub && <div className="text-[10px] mt-1" style={{ color: "var(--sk-t4)" }}>{item.sub}</div>}
           </div>
         ))}
       </div>
@@ -2657,13 +2657,13 @@ function InsightsPanel({ kpis }: { kpis: any }) {
 
   if (insights.length === 0) return null;
   return (
-    <div className="rounded-xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+    <div className="rounded-xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
       <h3 className="font-bold text-white text-sm mb-3">💡 Insights</h3>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {insights.map((ins, i) => (
-          <div key={i} className="rounded-lg p-3" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
+          <div key={i} className="rounded-lg p-3" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
             <div className="text-lg mb-1">{ins.icon}</div>
-            <div className="text-xs mb-1" style={{ color: "#555e75" }}>{ins.label}</div>
+            <div className="text-xs mb-1" style={{ color: "var(--sk-t3)" }}>{ins.label}</div>
             <div className="text-sm font-bold font-mono" style={{ color: ins.color }}>{ins.value}</div>
           </div>
         ))}
@@ -2738,7 +2738,7 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
       salaire: ["#22c55e", "rgba(34,197,94,.1)"],
       acompte: ["#f5a623", "rgba(245,166,35,.1)"],
       bonus: ["#3b82f6", "rgba(59,130,246,.1)"],
-      autre: ["#8b92a8", "#1e2330"],
+      autre: ["var(--sk-t2)", "var(--sk-surface)"],
     };
     const [color, bg] = map[t] ?? map.autre;
     return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize" style={{ color, background: bg }}>{t}</span>;
@@ -2759,62 +2759,62 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
         <h2 className="text-2xl font-bold text-white">💵 Paiements chauffeurs</h2>
         <button onClick={() => setShowForm(!showForm)}
           className="text-sm px-4 py-2 rounded-xl font-semibold"
-          style={{ background: showForm ? "#1e2330" : "linear-gradient(135deg,#f5a623,#e8951a)", color: showForm ? "#8b92a8" : "#000" }}>
+          style={{ background: showForm ? "var(--sk-surface)" : "linear-gradient(135deg,#f5a623,#e8951a)", color: showForm ? "var(--sk-t2)" : "#000" }}>
           {showForm ? "Annuler" : "+ Nouveau paiement"}
         </button>
       </div>
 
       {/* Form */}
       {showForm && (
-        <div className="rounded-2xl p-6 space-y-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+        <div className="rounded-2xl p-6 space-y-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
           <h3 className="text-sm font-bold text-white">Enregistrer un paiement</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#555e75" }}>Chauffeur *</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>Chauffeur *</label>
               <select value={form.driver_id} onChange={(e) => setForm((f) => ({ ...f, driver_id: e.target.value }))}
                 className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }}>
+                style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }}>
                 {drivers.map((d) => <option key={d.id} value={d.id}>{d.full_name} ({d.driver_id})</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#555e75" }}>Type</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>Type</label>
               <select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
                 className="w-full rounded-xl px-4 py-3 text-sm outline-none capitalize"
-                style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }}>
+                style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }}>
                 {paymentTypes.map((t) => <option key={t} value={t} className="capitalize">{t}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#555e75" }}>Montant (XOF) *</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>Montant (XOF) *</label>
               <input type="number" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
                 placeholder="ex: 200 000" className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }} />
+                style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }} />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#555e75" }}>📅 Date effective paiement</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>📅 Date effective paiement</label>
               <input type="date" value={form.payment_date} onChange={(e) => setForm((f) => ({ ...f, payment_date: e.target.value }))}
                 className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7", colorScheme: "dark" }} />
+                style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", colorScheme: "dark" }} />
             </div>
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#f5a623" }}>📆 Mois du salaire (à imputer)</label>
               <input type="month" value={form.salary_month?.slice(0, 7)} onChange={(e) => setForm((f) => ({ ...f, salary_month: e.target.value + "-01" }))}
                 className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                style={{ background: "#080a0f", border: "1px solid rgba(245,166,35,.4)", color: "#f5a623", colorScheme: "dark" }} />
-              <p className="text-xs mt-1" style={{ color: "#3d4560" }}>Apparaît comme charge sur ce mois dans le dashboard</p>
+                style={{ background: "var(--sk-deep)", border: "1px solid rgba(245,166,35,.4)", color: "#f5a623", colorScheme: "dark" }} />
+              <p className="text-xs mt-1" style={{ color: "var(--sk-t4)" }}>Apparaît comme charge sur ce mois dans le dashboard</p>
             </div>
           </div>
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#555e75" }}>Notes</label>
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>Notes</label>
             <textarea value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
               placeholder="Période couverte, détails..." rows={2}
               className="w-full rounded-xl px-4 py-3 text-sm outline-none resize-none"
-              style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }} />
+              style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }} />
           </div>
           <button onClick={save} disabled={saving}
             className="w-full py-3 rounded-xl text-sm font-bold"
-            style={{ background: saving ? "#1e2330" : "linear-gradient(135deg,#f5a623,#e8951a)", color: saving ? "#555e75" : "#000" }}>
+            style={{ background: saving ? "var(--sk-surface)" : "linear-gradient(135deg,#f5a623,#e8951a)", color: saving ? "var(--sk-t3)" : "#000" }}>
             {saving ? "Enregistrement..." : "✓ Enregistrer le paiement"}
           </button>
 
@@ -2824,7 +2824,7 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
               <div className="text-xs font-semibold mb-2" style={{ color: "#22c55e" }}>✓ Paiement enregistré — ajoutez des pièces jointes</div>
               <PaymentUpload paymentId={newPaymentId} driverId={newPaymentDriverId} />
               <button onClick={() => { setNewPaymentId(null); setNewPaymentDriverId(null); setShowForm(false); }}
-                className="mt-3 w-full py-2 rounded-xl text-xs" style={{ background: "#1e2330", color: "#8b92a8" }}>
+                className="mt-3 w-full py-2 rounded-xl text-xs" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>
                 Fermer
               </button>
             </div>
@@ -2836,10 +2836,10 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
       {Object.keys(totByDriver).length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {Object.entries(totByDriver).map(([name, total]: [string, any]) => (
-            <div key={name} className="rounded-xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330", borderLeft: "3px solid #22c55e" }}>
-              <div className="text-xs mb-1" style={{ color: "#555e75" }}>{name}</div>
+            <div key={name} className="rounded-xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderLeft: "3px solid #22c55e" }}>
+              <div className="text-xs mb-1" style={{ color: "var(--sk-t3)" }}>{name}</div>
               <div className="font-mono font-bold text-sm" style={{ color: "#22c55e" }}>{xof(total)} XOF</div>
-              <div className="text-[10px] mt-0.5" style={{ color: "#3d4560" }}>total payé</div>
+              <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>total payé</div>
             </div>
           ))}
         </div>
@@ -2847,9 +2847,9 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
 
       {/* List */}
       {loading ? (
-        <div className="text-center py-12" style={{ color: "#3d4560" }}>Chargement...</div>
+        <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Chargement...</div>
       ) : filteredPayments.length === 0 ? (
-        <div className="text-center py-12" style={{ color: "#3d4560" }}>Aucun paiement enregistré</div>
+        <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Aucun paiement enregistré</div>
       ) : (
         <div className="space-y-2">
           {filteredPayments.map((p) => (
@@ -2898,12 +2898,12 @@ function PaymentUpload({ paymentId, driverId }: { paymentId: string; driverId: s
       <div className="flex gap-2 mb-2">
         <button onClick={() => cameraRef.current?.click()} disabled={uploading}
           className="flex-1 py-2 rounded-xl text-xs border"
-          style={{ background: uploading ? "#1e2330" : "rgba(245,166,35,.08)", borderColor: "rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
+          style={{ background: uploading ? "var(--sk-surface)" : "rgba(245,166,35,.08)", borderColor: "rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
           {uploading ? "⏳" : "📷 Photo"}
         </button>
         <button onClick={() => fileRef.current?.click()} disabled={uploading}
           className="flex-1 py-2 rounded-xl text-xs border-dashed border-2"
-          style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "#555e75" }}>
+          style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "var(--sk-t3)" }}>
           {uploading ? "⏳ Upload..." : "📁 Fichier / Galerie"}
         </button>
       </div>
@@ -2915,7 +2915,7 @@ function PaymentUpload({ paymentId, driverId }: { paymentId: string; driverId: s
         <div className="grid grid-cols-4 gap-2 mb-1">
           {uploads.filter(u => u.isImg).map((u, i) => (
             <a key={i} href={u.publicUrl} target="_blank" rel="noopener noreferrer">
-              <img src={u.publicUrl} alt={u.file_name} className="w-full h-14 object-cover rounded-lg" style={{ border: "1px solid #1e2330" }} />
+              <img src={u.publicUrl} alt={u.file_name} className="w-full h-14 object-cover rounded-lg" style={{ border: "1px solid var(--sk-surface)" }} />
             </a>
           ))}
         </div>
@@ -2923,7 +2923,7 @@ function PaymentUpload({ paymentId, driverId }: { paymentId: string; driverId: s
       {uploads.filter(u => !u.isImg).map((u, i) => (
         <a key={i} href={u.publicUrl} target="_blank" rel="noopener noreferrer"
           className="flex items-center gap-2 text-xs p-1.5 rounded-lg mb-1"
-          style={{ background: "#1e2330", color: "#8b92a8" }}>
+          style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>
           <span>📄</span><span className="truncate flex-1">{u.file_name}</span>
           <span style={{ color: "#f5a623" }}>→</span>
         </a>
@@ -2937,14 +2937,14 @@ function PaymentRow({ payment: p, onDelete, typeBadge, xof }: { payment: any; on
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="rounded-xl" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+    <div className="rounded-xl" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
       <div className="flex items-center justify-between px-4 py-3">
         <div>
           <div className="text-sm font-semibold text-white">
             {p.profiles?.full_name || "—"}
-            <span className="ml-2 text-xs" style={{ color: "#3d4560" }}>{p.profiles?.driver_id}</span>
+            <span className="ml-2 text-xs" style={{ color: "var(--sk-t4)" }}>{p.profiles?.driver_id}</span>
           </div>
-          <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap" style={{ color: "#555e75" }}>
+          <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap" style={{ color: "var(--sk-t3)" }}>
             {p.salary_month && <span style={{ color: "#f5a623" }}>📆 Mois: {p.salary_month?.slice(0, 7)}</span>}
             <span>📅 Payé le: {p.payment_date}</span>
             {typeBadge(p.type)}
@@ -2954,15 +2954,15 @@ function PaymentRow({ payment: p, onDelete, typeBadge, xof }: { payment: any; on
         <div className="flex items-center gap-3">
           <div className="font-mono font-bold" style={{ color: "#22c55e" }}>{xof(p.amount)} XOF</div>
           <button onClick={() => setOpen(!open)} className="text-xs px-2 py-1 rounded-lg"
-            style={{ background: open ? "rgba(245,166,35,.1)" : "#1e2330", color: open ? "#f5a623" : "#555e75" }}>
+            style={{ background: open ? "rgba(245,166,35,.1)" : "var(--sk-surface)", color: open ? "#f5a623" : "var(--sk-t3)" }}>
             📎
           </button>
-          <button onClick={onDelete} className="text-xs" style={{ color: "#3d4560" }}>🗑</button>
+          <button onClick={onDelete} className="text-xs" style={{ color: "var(--sk-t4)" }}>🗑</button>
         </div>
       </div>
 
       {open && (
-        <div className="px-4 pb-4 pt-3 border-t" style={{ borderColor: "#1e2330" }}>
+        <div className="px-4 pb-4 pt-3 border-t" style={{ borderColor: "var(--sk-surface)" }}>
           <PaymentUpload paymentId={p.id} driverId={p.driver_id} />
         </div>
       )}
@@ -3056,48 +3056,48 @@ function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string
         </div>
         <button onClick={() => setShowForm(!showForm)}
           className="text-sm px-4 py-2 rounded-xl font-semibold"
-          style={{ background: showForm ? "#1e2330" : "linear-gradient(135deg,#f5a623,#e8951a)", color: showForm ? "#8b92a8" : "#000" }}>
+          style={{ background: showForm ? "var(--sk-surface)" : "linear-gradient(135deg,#f5a623,#e8951a)", color: showForm ? "var(--sk-t2)" : "#000" }}>
           {showForm ? "Annuler" : "+ Nouvelle avance"}
         </button>
       </div>
 
       {/* Form */}
       {showForm && (
-        <div className="rounded-2xl p-6 space-y-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+        <div className="rounded-2xl p-6 space-y-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
           <h3 className="text-sm font-bold text-white">Enregistrer une avance sur salaire</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#555e75" }}>Chauffeur *</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>Chauffeur *</label>
               <select value={form.driver_id} onChange={(e) => setForm((f) => ({ ...f, driver_id: e.target.value }))}
                 className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }}>
+                style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }}>
                 {drivers.map((d) => <option key={d.id} value={d.id}>{d.full_name} ({d.driver_id})</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#555e75" }}>Montant (XOF) *</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>Montant (XOF) *</label>
               <input type="number" value={form.amount} onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
                 placeholder="ex: 50 000"
                 className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }} />
+                style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }} />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#555e75" }}>Date</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>Date</label>
               <input type="date" value={form.payment_date} onChange={(e) => setForm((f) => ({ ...f, payment_date: e.target.value }))}
                 className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7", colorScheme: "dark" }} />
+                style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", colorScheme: "dark" }} />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#555e75" }}>Motif / Notes</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>Motif / Notes</label>
               <input type="text" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
                 placeholder="ex: avance loyer, urgence..."
                 className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }} />
+                style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }} />
             </div>
           </div>
           <button onClick={saveAdvance} disabled={saving}
             className="w-full py-3 rounded-xl text-sm font-bold"
-            style={{ background: saving ? "#1e2330" : "linear-gradient(135deg,#f5a623,#e8951a)", color: saving ? "#555e75" : "#000" }}>
+            style={{ background: saving ? "var(--sk-surface)" : "linear-gradient(135deg,#f5a623,#e8951a)", color: saving ? "var(--sk-t3)" : "#000" }}>
             {saving ? "Enregistrement..." : "✓ Enregistrer l'avance"}
           </button>
         </div>
@@ -3107,18 +3107,18 @@ function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string
       {byDriver.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {byDriver.map((d) => (
-            <div key={d.id} className="rounded-2xl p-5" style={{ background: "#0d1117", border: "1px solid #1e2330", borderLeft: `3px solid ${d.pending > 0 ? "#f5a623" : "#22c55e"}` }}>
+            <div key={d.id} className="rounded-2xl p-5" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderLeft: `3px solid ${d.pending > 0 ? "#f5a623" : "#22c55e"}` }}>
               <div className="font-semibold text-white text-sm mb-1">{d.full_name}</div>
-              <div className="text-xs mb-3" style={{ color: "#3d4560" }}>{d.driver_id}</div>
+              <div className="text-xs mb-3" style={{ color: "var(--sk-t4)" }}>{d.driver_id}</div>
               <div className="flex gap-4">
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: "#555e75" }}>En attente</div>
-                  <div className="font-mono font-bold text-sm" style={{ color: d.pending > 0 ? "#f5a623" : "#3d4560" }}>
+                  <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: "var(--sk-t3)" }}>En attente</div>
+                  <div className="font-mono font-bold text-sm" style={{ color: d.pending > 0 ? "#f5a623" : "var(--sk-t4)" }}>
                     {xof(d.pending)} XOF
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: "#555e75" }}>Déduit</div>
+                  <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: "var(--sk-t3)" }}>Déduit</div>
                   <div className="font-mono font-bold text-sm" style={{ color: "#22c55e" }}>{xof(d.deducted)} XOF</div>
                 </div>
               </div>
@@ -3129,20 +3129,20 @@ function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string
 
       {/* Detail list */}
       {loading ? (
-        <div className="text-center py-12" style={{ color: "#3d4560" }}>Chargement...</div>
+        <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Chargement...</div>
       ) : advances.length === 0 ? (
-        <div className="text-center py-12" style={{ color: "#3d4560" }}>Aucune avance enregistrée</div>
+        <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Aucune avance enregistrée</div>
       ) : (
         <div className="space-y-2">
           {advances.map((a) => (
             <div key={a.id} className="rounded-xl px-4 py-3 flex items-center justify-between"
-              style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+              style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
               <div>
                 <div className="text-sm font-semibold text-white">
                   {a.profiles?.full_name || "—"}
-                  <span className="ml-2 text-xs" style={{ color: "#3d4560" }}>{a.profiles?.driver_id}</span>
+                  <span className="ml-2 text-xs" style={{ color: "var(--sk-t4)" }}>{a.profiles?.driver_id}</span>
                 </div>
-                <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap" style={{ color: "#555e75" }}>
+                <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap" style={{ color: "var(--sk-t3)" }}>
                   <span>📅 {a.payment_date}</span>
                   {a.notes && <span className="truncate max-w-[200px]">{a.notes}</span>}
                   {a.is_deducted
@@ -3152,7 +3152,7 @@ function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <div className="font-mono font-bold" style={{ color: a.is_deducted ? "#555e75" : "#f5a623" }}>
+                <div className="font-mono font-bold" style={{ color: a.is_deducted ? "var(--sk-t3)" : "#f5a623" }}>
                   {xof(a.amount)} XOF
                 </div>
                 {!a.is_deducted && (
@@ -3162,7 +3162,7 @@ function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string
                     Marquer déduit
                   </button>
                 )}
-                <button onClick={() => deleteAdvance(a.id)} className="text-xs" style={{ color: "#3d4560" }}>🗑</button>
+                <button onClick={() => deleteAdvance(a.id)} className="text-xs" style={{ color: "var(--sk-t4)" }}>🗑</button>
               </div>
             </div>
           ))}
@@ -3261,38 +3261,38 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
         <h2 className="text-2xl font-bold text-white">📅 Calendrier chauffeurs</h2>
         <div className="flex items-center gap-2">
           <button onClick={prevMonth} className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold"
-            style={{ background: "#1e2330", color: "#8b92a8" }}>‹</button>
+            style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>‹</button>
           <span className="text-sm font-bold text-white px-3">{MONTHS[viewMonth]} {viewYear}</span>
           <button onClick={nextMonth} className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold"
-            style={{ background: "#1e2330", color: "#8b92a8" }}>›</button>
+            style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>›</button>
           <button onClick={() => { setViewYear(today.getFullYear()); setViewMonth(today.getMonth()); }}
             className="text-xs px-3 py-1.5 rounded-lg font-semibold ml-1"
-            style={{ background: "#1e2330", color: "#555e75" }}>Aujourd'hui</button>
+            style={{ background: "var(--sk-surface)", color: "var(--sk-t3)" }}>Aujourd'hui</button>
         </div>
       </div>
 
       {/* Legend */}
       <div className="flex gap-4 flex-wrap text-xs">
         {[["#6366f1","Repos planifié"],["#22c55e","Travaillé"],["#f5a623","En attente"],["#ef4444","Rejeté"]].map(([c, l]) => (
-          <div key={l} className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm" style={{ background: c }} /><span style={{ color: "#8b92a8" }}>{l}</span></div>
+          <div key={l} className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm" style={{ background: c }} /><span style={{ color: "var(--sk-t2)" }}>{l}</span></div>
         ))}
       </div>
 
       {/* Calendar grid */}
       {loading ? (
-        <div className="text-center py-12" style={{ color: "#3d4560" }}>Chargement...</div>
+        <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Chargement...</div>
       ) : (
-        <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid #1e2330" }}>
+        <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--sk-surface)" }}>
           {/* Day headers */}
-          <div className="grid grid-cols-7" style={{ background: "#0d1117", borderBottom: "1px solid #1e2330" }}>
+          <div className="grid grid-cols-7" style={{ background: "var(--sk-bg)", borderBottom: "1px solid var(--sk-surface)" }}>
             {DAYS.map(d => (
-              <div key={d} className="text-center py-2 text-xs font-bold uppercase tracking-widest" style={{ color: "#3d4560" }}>{d}</div>
+              <div key={d} className="text-center py-2 text-xs font-bold uppercase tracking-widest" style={{ color: "var(--sk-t4)" }}>{d}</div>
             ))}
           </div>
           {/* Weeks */}
-          <div className="grid grid-cols-7" style={{ background: "#080a0f" }}>
+          <div className="grid grid-cols-7" style={{ background: "var(--sk-deep)" }}>
             {Array.from({ length: startPad }).map((_, i) => (
-              <div key={`pad-${i}`} style={{ borderRight: "1px solid #0d1117", borderBottom: "1px solid #0d1117", minHeight: 80 }} />
+              <div key={`pad-${i}`} style={{ borderRight: "1px solid var(--sk-bg)", borderBottom: "1px solid var(--sk-bg)", minHeight: 80 }} />
             ))}
             {days.map((day) => {
               const dateStr = `${monthStr}-${String(day).padStart(2, "0")}`;
@@ -3303,9 +3303,9 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
               return (
                 <div key={day} onClick={() => { if (!isFuture || true) { setAddModal({ date: dateStr }); if (drivers.length === 1) setAddDriver(drivers[0].id); } }}
                   className="cursor-pointer transition-all hover:bg-opacity-80"
-                  style={{ borderRight: "1px solid #0d1117", borderBottom: "1px solid #0d1117", minHeight: 80, padding: "6px", background: isToday ? "rgba(245,166,35,.05)" : "transparent" }}>
+                  style={{ borderRight: "1px solid var(--sk-bg)", borderBottom: "1px solid var(--sk-bg)", minHeight: 80, padding: "6px", background: isToday ? "rgba(245,166,35,.05)" : "transparent" }}>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-bold" style={{ color: isToday ? "#f5a623" : isPast ? "#3d4560" : "#8b92a8",
+                    <span className="text-xs font-bold" style={{ color: isToday ? "#f5a623" : isPast ? "var(--sk-t4)" : "var(--sk-t2)",
                       background: isToday ? "rgba(245,166,35,.15)" : "transparent", borderRadius: 4, padding: "0 3px" }}>
                       {day}
                     </span>
@@ -3328,7 +3328,7 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
                         </div>
                       );
                     })}
-                    {dayEvents.length > 3 && <div className="text-[9px]" style={{ color: "#3d4560" }}>+{dayEvents.length - 3} autres</div>}
+                    {dayEvents.length > 3 && <div className="text-[9px]" style={{ color: "var(--sk-t4)" }}>+{dayEvents.length - 3} autres</div>}
                   </div>
                 </div>
               );
@@ -3341,31 +3341,31 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
       {addModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center px-4"
           style={{ background: "rgba(0,0,0,.75)" }} onClick={() => setAddModal(null)}>
-          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}
+          <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
               <div className="font-bold text-white">📅 {addModal.date}</div>
               <button onClick={() => setAddModal(null)} className="text-gray-400 hover:text-white">✕</button>
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#555e75" }}>Chauffeur</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>Chauffeur</label>
               <select value={addDriver} onChange={(e) => setAddDriver(e.target.value)}
                 className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }}>
+                style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }}>
                 <option value="">-- Sélectionner --</option>
                 {allDrivers.map((d) => <option key={d.id} value={d.id}>{d.full_name} {d.plate ? `· ${d.plate}` : ""}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#555e75" }}>Motif (optionnel)</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>Motif (optionnel)</label>
               <input type="text" value={addMotif} onChange={(e) => setAddMotif(e.target.value)}
                 placeholder="Congé, maladie, entretien..." className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }} />
+                style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }} />
             </div>
             <button onClick={addRepos} disabled={saving || !addDriver}
               className="w-full py-3 rounded-xl text-sm font-bold"
-              style={{ background: saving || !addDriver ? "#1e2330" : "linear-gradient(135deg,#6366f1,#4f46e5)",
-                color: saving || !addDriver ? "#3d4560" : "#fff" }}>
+              style={{ background: saving || !addDriver ? "var(--sk-surface)" : "linear-gradient(135deg,#6366f1,#4f46e5)",
+                color: saving || !addDriver ? "var(--sk-t4)" : "#fff" }}>
               {saving ? "Enregistrement..." : "🛌 Planifier le repos"}
             </button>
           </div>
@@ -3381,27 +3381,27 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
             const travailCount = dEvents.filter(e => !e.comment?.startsWith("[REPOS]")).length;
             const totalNet = dEvents.filter(e => !e.comment?.startsWith("[REPOS]")).reduce((s, e) => s + (e.net_after_expenses || 0), 0);
             return (
-              <div key={d.id} className="rounded-2xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+              <div key={d.id} className="rounded-2xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black text-black"
                     style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>{d.full_name[0]}</div>
                   <div>
                     <div className="text-sm font-bold text-white">{d.full_name}</div>
-                    {d.plate && <div className="text-[10px] font-mono" style={{ color: "#3d4560" }}>{d.plate}</div>}
+                    {d.plate && <div className="text-[10px] font-mono" style={{ color: "var(--sk-t4)" }}>{d.plate}</div>}
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="rounded-xl py-2" style={{ background: "#080a0f" }}>
+                  <div className="rounded-xl py-2" style={{ background: "var(--sk-deep)" }}>
                     <div className="text-lg font-bold" style={{ color: "#22c55e" }}>{travailCount}</div>
-                    <div className="text-[10px]" style={{ color: "#3d4560" }}>Jours travaillés</div>
+                    <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Jours travaillés</div>
                   </div>
-                  <div className="rounded-xl py-2" style={{ background: "#080a0f" }}>
+                  <div className="rounded-xl py-2" style={{ background: "var(--sk-deep)" }}>
                     <div className="text-lg font-bold" style={{ color: "#6366f1" }}>{reposCount}</div>
-                    <div className="text-[10px]" style={{ color: "#3d4560" }}>Repos</div>
+                    <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Repos</div>
                   </div>
-                  <div className="rounded-xl py-2" style={{ background: "#080a0f" }}>
+                  <div className="rounded-xl py-2" style={{ background: "var(--sk-deep)" }}>
                     <div className="text-sm font-bold font-mono" style={{ color: "#f5a623" }}>{(totalNet / 1000).toFixed(0)}k</div>
-                    <div className="text-[10px]" style={{ color: "#3d4560" }}>Net XOF</div>
+                    <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Net XOF</div>
                   </div>
                 </div>
               </div>
@@ -3451,20 +3451,20 @@ function ActionLogsTab({ filterDriverId = "" }: { filterDriverId?: string }) {
     expense: "Dépense",
   };
 
-  if (loading) return <div className="text-center py-16 text-sm" style={{ color: "#555e75" }}>Chargement...</div>;
+  if (loading) return <div className="text-center py-16 text-sm" style={{ color: "var(--sk-t3)" }}>Chargement...</div>;
 
   return (
     <div>
       <h2 className="text-xl font-bold text-white mb-6">📋 Journal des actions</h2>
       {logs.length === 0 ? (
-        <div className="text-center py-16 text-sm" style={{ color: "#555e75" }}>Aucune action enregistrée</div>
+        <div className="text-center py-16 text-sm" style={{ color: "var(--sk-t3)" }}>Aucune action enregistrée</div>
       ) : (
         <div className="space-y-2">
           {logs.map((log) => {
-            const [icon, color] = actionLabel[log.action] || ["•", "#555e75"];
+            const [icon, color] = actionLabel[log.action] || ["•", "var(--sk-t3)"];
             return (
               <div key={log.id} className="flex items-start gap-3 rounded-xl px-4 py-3"
-                style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+                style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
                 <span className="text-lg mt-0.5">{icon}</span>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -3473,21 +3473,21 @@ function ActionLogsTab({ filterDriverId = "" }: { filterDriverId?: string }) {
                       {log.action.charAt(0).toUpperCase() + log.action.slice(1)}
                     </span>
                     <span className="text-xs px-2 py-0.5 rounded-full"
-                      style={{ background: "#1e2330", color: "#8b92a8" }}>
+                      style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>
                       {entityLabel[log.entity_type] || log.entity_type}
                     </span>
-                    <span className="text-xs" style={{ color: "#555e75" }}>
-                      par <span style={{ color: "#8b92a8" }}>{log.actor_role === "driver" ? (profiles[log.actor_id] || "chauffeur") : "admin"}</span>
+                    <span className="text-xs" style={{ color: "var(--sk-t3)" }}>
+                      par <span style={{ color: "var(--sk-t2)" }}>{log.actor_role === "driver" ? (profiles[log.actor_id] || "chauffeur") : "admin"}</span>
                     </span>
                   </div>
                   {log.metadata && (
-                    <div className="text-xs mt-0.5" style={{ color: "#3d4560" }}>
+                    <div className="text-xs mt-0.5" style={{ color: "var(--sk-t4)" }}>
                       {log.entity_type === "expense" && `${log.metadata.category} · ${new Intl.NumberFormat("fr-FR").format(log.metadata.amount)} XOF`}
                       {log.entity_type === "daily_report" && `Date ${log.metadata.date} · Net ${new Intl.NumberFormat("fr-FR").format(log.metadata.net)} XOF`}
                     </div>
                   )}
                 </div>
-                <div className="text-xs whitespace-nowrap" style={{ color: "#3d4560" }}>
+                <div className="text-xs whitespace-nowrap" style={{ color: "var(--sk-t4)" }}>
                   {new Date(log.created_at).toLocaleString("fr-FR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
                 </div>
               </div>
@@ -3579,31 +3579,31 @@ function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
   };
 
   const inp = "w-full rounded-xl px-3 py-2 text-sm text-white font-mono";
-  const inpStyle = { background: "#080a0f", border: "1px solid #2a2f3d", outline: "none" };
+  const inpStyle = { background: "var(--sk-deep)", border: "1px solid #2a2f3d", outline: "none" };
   const lbl = "text-xs uppercase tracking-wider font-semibold mb-1 block";
 
-  if (loading) return <div className="py-20 text-center text-sm" style={{ color: "#3d4560" }}>Chargement...</div>;
+  if (loading) return <div className="py-20 text-center text-sm" style={{ color: "var(--sk-t4)" }}>Chargement...</div>;
 
   return (
     <div className="max-w-2xl">
       <h2 className="text-2xl font-bold text-white mb-1">💼 Rémunération</h2>
-      <p className="text-sm mb-6" style={{ color: "#555e75" }}>Configuration du modèle de paiement des chauffeurs pour ce tenant.</p>
+      <p className="text-sm mb-6" style={{ color: "var(--sk-t3)" }}>Configuration du modèle de paiement des chauffeurs pour ce tenant.</p>
 
       {/* Model selector */}
-      <div className="rounded-2xl p-5 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-        <label className={lbl} style={{ color: "#3d4560" }}>Modèle de rémunération</label>
+      <div className="rounded-2xl p-5 mb-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+        <label className={lbl} style={{ color: "var(--sk-t4)" }}>Modèle de rémunération</label>
         <div className="grid grid-cols-1 gap-2 mt-2">
           {(Object.entries(MODEL_LABELS) as [RemuModel, string][]).map(([key, label]) => (
             <button key={key} onClick={() => set("model", key)}
               className="flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all"
               style={{
-                background: cfg.model === key ? "rgba(245,166,35,.1)" : "#080a0f",
-                border: `1px solid ${cfg.model === key ? "rgba(245,166,35,.4)" : "#1e2330"}`,
+                background: cfg.model === key ? "rgba(245,166,35,.1)" : "var(--sk-deep)",
+                border: `1px solid ${cfg.model === key ? "rgba(245,166,35,.4)" : "var(--sk-surface)"}`,
               }}>
               <div className="w-3 h-3 rounded-full border-2 flex-shrink-0" style={{ borderColor: cfg.model === key ? "#f5a623" : "#2a2f3d", background: cfg.model === key ? "#f5a623" : "transparent" }} />
               <div>
-                <div className="text-sm font-semibold" style={{ color: cfg.model === key ? "#f5a623" : "#8b92a8" }}>{label}</div>
-                <div className="text-[10px] mt-0.5" style={{ color: "#3d4560" }}>
+                <div className="text-sm font-semibold" style={{ color: cfg.model === key ? "#f5a623" : "var(--sk-t2)" }}>{label}</div>
+                <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>
                   {key === "fixed"    && "Salaire fixe peu importe le CA. Idéal pour partenariats stables."}
                   {key === "tiered"   && "Grille de paliers : le salaire monte avec le CA net mensuel."}
                   {key === "percent"  && "Le chauffeur garde X% du CA net. Simple et proportionnel."}
@@ -3617,29 +3617,29 @@ function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
       </div>
 
       {/* Commissions (tous modèles) */}
-      <div className="rounded-2xl p-5 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-        <div className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: "#3d4560" }}>Commissions plateformes</div>
+      <div className="rounded-2xl p-5 mb-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+        <div className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: "var(--sk-t4)" }}>Commissions plateformes</div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className={lbl} style={{ color: "#555e75" }}>Commission Yango (%)</label>
+            <label className={lbl} style={{ color: "var(--sk-t3)" }}>Commission Yango (%)</label>
             <input type="number" value={cfg.comm_yango} onChange={(e) => set("comm_yango", parseFloat(e.target.value) || 0)}
               className={inp} style={inpStyle} step="0.1" />
-            <div className="text-[10px] mt-1" style={{ color: "#3d4560" }}>Prélevée par Yango sur le brut</div>
+            <div className="text-[10px] mt-1" style={{ color: "var(--sk-t4)" }}>Prélevée par Yango sur le brut</div>
           </div>
           <div>
-            <label className={lbl} style={{ color: "#555e75" }}>Commission Partenaire (%)</label>
+            <label className={lbl} style={{ color: "var(--sk-t3)" }}>Commission Partenaire (%)</label>
             <input type="number" value={cfg.comm_partner} onChange={(e) => set("comm_partner", parseFloat(e.target.value) || 0)}
               className={inp} style={inpStyle} step="0.01" />
-            <div className="text-[10px] mt-1" style={{ color: "#3d4560" }}>Prélevée en plus par l'opérateur</div>
+            <div className="text-[10px] mt-1" style={{ color: "var(--sk-t4)" }}>Prélevée en plus par l'opérateur</div>
           </div>
         </div>
       </div>
 
       {/* Fixed */}
       {cfg.model === "fixed" && (
-        <div className="rounded-2xl p-5 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-          <div className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: "#3d4560" }}>Salaire fixe</div>
-          <label className={lbl} style={{ color: "#555e75" }}>Montant mensuel (XOF)</label>
+        <div className="rounded-2xl p-5 mb-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+          <div className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: "var(--sk-t4)" }}>Salaire fixe</div>
+          <label className={lbl} style={{ color: "var(--sk-t3)" }}>Montant mensuel (XOF)</label>
           <input type="number" value={cfg.base_amount} onChange={(e) => set("base_amount", parseFloat(e.target.value) || 0)}
             className={inp} style={inpStyle} />
         </div>
@@ -3647,37 +3647,37 @@ function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
 
       {/* Tiered */}
       {cfg.model === "tiered" && (
-        <div className="rounded-2xl p-5 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
+        <div className="rounded-2xl p-5 mb-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
           <div className="flex items-center justify-between mb-4">
-            <div className="text-xs uppercase tracking-wider font-semibold" style={{ color: "#3d4560" }}>Grille de paliers</div>
+            <div className="text-xs uppercase tracking-wider font-semibold" style={{ color: "var(--sk-t4)" }}>Grille de paliers</div>
             <button onClick={addTier} className="text-xs px-3 py-1.5 rounded-lg font-semibold"
               style={{ background: "rgba(245,166,35,.1)", color: "#f5a623", border: "1px solid rgba(245,166,35,.2)" }}>
               + Ajouter palier
             </button>
           </div>
-          <div className="text-[10px] mb-3 px-3 py-2 rounded-lg" style={{ background: "#080a0f", color: "#555e75" }}>
+          <div className="text-[10px] mb-3 px-3 py-2 rounded-lg" style={{ background: "var(--sk-deep)", color: "var(--sk-t3)" }}>
             Le premier palier (CA min = 0) est le salaire de base. Les suivants se débloquent quand le CA net mensuel dépasse le seuil.
           </div>
           {cfg.salary_tiers.map((t, i) => (
-            <div key={i} className="rounded-xl p-3 mb-2" style={{ background: "#080a0f", border: "1px solid #1e2330" }}>
+            <div key={i} className="rounded-xl p-3 mb-2" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
               <div className="grid grid-cols-3 gap-2 mb-2">
                 <div>
-                  <label className={lbl} style={{ color: "#3d4560" }}>Libellé</label>
+                  <label className={lbl} style={{ color: "var(--sk-t4)" }}>Libellé</label>
                   <input value={t.label} onChange={(e) => setTier(i, "label", e.target.value)}
                     className={inp} style={inpStyle} />
                 </div>
                 <div>
-                  <label className={lbl} style={{ color: "#3d4560" }}>CA min (XOF)</label>
+                  <label className={lbl} style={{ color: "var(--sk-t4)" }}>CA min (XOF)</label>
                   <input type="number" value={t.min_net} onChange={(e) => setTier(i, "min_net", e.target.value)}
                     className={inp} style={inpStyle} />
                 </div>
                 <div>
-                  <label className={lbl} style={{ color: "#3d4560" }}>Salaire (XOF)</label>
+                  <label className={lbl} style={{ color: "var(--sk-t4)" }}>Salaire (XOF)</label>
                   <input type="number" value={t.total_salary} onChange={(e) => setTier(i, "total_salary", e.target.value)}
                     className={inp} style={inpStyle} />
                 </div>
               </div>
-              <div className="flex items-center justify-between text-[10px]" style={{ color: "#3d4560" }}>
+              <div className="flex items-center justify-between text-[10px]" style={{ color: "var(--sk-t4)" }}>
                 <span>≥ {xof(t.min_net)} → {xof(t.total_salary)}</span>
                 {cfg.salary_tiers.length > 1 && (
                   <button onClick={() => removeTier(i)} className="text-red-500 hover:text-red-400">✕ Supprimer</button>
@@ -3686,7 +3686,7 @@ function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
             </div>
           ))}
           <div className="mt-3">
-            <label className={lbl} style={{ color: "#555e75" }}>Objectif CA net mensuel (XOF) <span style={{ color: "#3d4560" }}>— pour le Pilotage chauffeur</span></label>
+            <label className={lbl} style={{ color: "var(--sk-t3)" }}>Objectif CA net mensuel (XOF) <span style={{ color: "var(--sk-t4)" }}>— pour le Pilotage chauffeur</span></label>
             <input type="number" value={cfg.target_net} onChange={(e) => set("target_net", parseFloat(e.target.value) || 0)}
               className={inp} style={inpStyle} />
           </div>
@@ -3695,37 +3695,37 @@ function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
 
       {/* Percent */}
       {cfg.model === "percent" && (
-        <div className="rounded-2xl p-5 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-          <div className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: "#3d4560" }}>Part du chauffeur</div>
-          <label className={lbl} style={{ color: "#555e75" }}>% du CA net reversé au chauffeur (0–1)</label>
+        <div className="rounded-2xl p-5 mb-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+          <div className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: "var(--sk-t4)" }}>Part du chauffeur</div>
+          <label className={lbl} style={{ color: "var(--sk-t3)" }}>% du CA net reversé au chauffeur (0–1)</label>
           <input type="number" value={cfg.commission_rate} onChange={(e) => set("commission_rate", parseFloat(e.target.value) || 0)}
             className={inp} style={inpStyle} step="0.01" min="0" max="1" />
-          <div className="text-[10px] mt-1" style={{ color: "#3d4560" }}>Ex : 0.60 = le chauffeur garde 60% du CA net</div>
+          <div className="text-[10px] mt-1" style={{ color: "var(--sk-t4)" }}>Ex : 0.60 = le chauffeur garde 60% du CA net</div>
         </div>
       )}
 
       {/* Hybrid */}
       {cfg.model === "hybrid" && (
-        <div className="rounded-2xl p-5 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-          <div className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: "#3d4560" }}>Fixe + bonus</div>
+        <div className="rounded-2xl p-5 mb-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+          <div className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: "var(--sk-t4)" }}>Fixe + bonus</div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className={lbl} style={{ color: "#555e75" }}>Salaire fixe (XOF)</label>
+              <label className={lbl} style={{ color: "var(--sk-t3)" }}>Salaire fixe (XOF)</label>
               <input type="number" value={cfg.base_amount} onChange={(e) => set("base_amount", parseFloat(e.target.value) || 0)}
                 className={inp} style={inpStyle} />
             </div>
             <div>
-              <label className={lbl} style={{ color: "#555e75" }}>Seuil CA pour bonus (XOF)</label>
+              <label className={lbl} style={{ color: "var(--sk-t3)" }}>Seuil CA pour bonus (XOF)</label>
               <input type="number" value={cfg.bonus_threshold} onChange={(e) => set("bonus_threshold", parseFloat(e.target.value) || 0)}
                 className={inp} style={inpStyle} />
             </div>
             <div>
-              <label className={lbl} style={{ color: "#555e75" }}>Montant bonus (XOF)</label>
+              <label className={lbl} style={{ color: "var(--sk-t3)" }}>Montant bonus (XOF)</label>
               <input type="number" value={cfg.bonus_amount} onChange={(e) => set("bonus_amount", parseFloat(e.target.value) || 0)}
                 className={inp} style={inpStyle} />
             </div>
             <div>
-              <label className={lbl} style={{ color: "#555e75" }}>% commission (optionnel, 0–1)</label>
+              <label className={lbl} style={{ color: "var(--sk-t3)" }}>% commission (optionnel, 0–1)</label>
               <input type="number" value={cfg.commission_rate} onChange={(e) => set("commission_rate", parseFloat(e.target.value) || 0)}
                 className={inp} style={inpStyle} step="0.01" />
             </div>
@@ -3735,16 +3735,16 @@ function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
 
       {/* Location */}
       {cfg.model === "location" && (
-        <div className="rounded-2xl p-5 mb-4" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
-          <div className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: "#3d4560" }}>Loyer journalier</div>
-          <label className={lbl} style={{ color: "#555e75" }}>Montant loyer/jour (XOF)</label>
+        <div className="rounded-2xl p-5 mb-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+          <div className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: "var(--sk-t4)" }}>Loyer journalier</div>
+          <label className={lbl} style={{ color: "var(--sk-t3)" }}>Montant loyer/jour (XOF)</label>
           <input type="number" value={cfg.daily_rent} onChange={(e) => set("daily_rent", parseFloat(e.target.value) || 0)}
             className={inp} style={inpStyle} />
-          <div className="text-[10px] mt-2 px-3 py-2 rounded-lg" style={{ background: "#080a0f", color: "#555e75" }}>
+          <div className="text-[10px] mt-2 px-3 py-2 rounded-lg" style={{ background: "var(--sk-deep)", color: "var(--sk-t3)" }}>
             Le chauffeur paie ce montant chaque jour travaillé à l'opérateur. Il conserve le reste de ses recettes et gère lui-même son salaire, carburant et autres charges. Le Pilotage chauffeur affiche le loyer dû et le net après loyer.
           </div>
           <div className="mt-4">
-            <label className={lbl} style={{ color: "#555e75" }}>Objectif CA net mensuel (XOF) <span style={{ color: "#3d4560" }}>— optionnel, pour le Pilotage</span></label>
+            <label className={lbl} style={{ color: "var(--sk-t3)" }}>Objectif CA net mensuel (XOF) <span style={{ color: "var(--sk-t4)" }}>— optionnel, pour le Pilotage</span></label>
             <input type="number" value={cfg.target_net} onChange={(e) => set("target_net", parseFloat(e.target.value) || 0)}
               className={inp} style={inpStyle} />
           </div>
@@ -3754,7 +3754,7 @@ function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
       {/* Save */}
       <button onClick={save} disabled={saving}
         className="w-full py-3 rounded-xl font-semibold text-black transition-all"
-        style={{ background: saved ? "#22c55e" : saving ? "#2a2f3d" : "#f5a623", color: saving ? "#555e75" : "#000" }}>
+        style={{ background: saved ? "#22c55e" : saving ? "#2a2f3d" : "#f5a623", color: saving ? "var(--sk-t3)" : "#000" }}>
         {saving ? "Enregistrement..." : saved ? "✓ Enregistré !" : "Enregistrer la configuration"}
       </button>
     </div>
@@ -3771,13 +3771,13 @@ function KPICard({ label, value, color, sub, negative, big, hideWhenZero, showZe
   if (hideWhenZero && !showZeros && Math.round(value) === 0) return null;
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(Math.abs(n)));
   return (
-    <div className="rounded-xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330", borderLeft: `3px solid ${color}` }}>
-      <div className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: "#555e75" }}>{label}</div>
+    <div className="rounded-xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderLeft: `3px solid ${color}` }}>
+      <div className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: "var(--sk-t3)" }}>{label}</div>
       <div className={`font-mono font-bold ${big ? "text-2xl" : "text-xl"}`} style={{ color }}>
         {negative ? "- " : ""}{xof(value)}
-        <span className="text-xs ml-1" style={{ color: "#3d4560" }}>XOF</span>
+        <span className="text-xs ml-1" style={{ color: "var(--sk-t4)" }}>XOF</span>
       </div>
-      {sub && <div className="text-xs mt-1" style={{ color: "#3d4560" }}>{sub}</div>}
+      {sub && <div className="text-xs mt-1" style={{ color: "var(--sk-t4)" }}>{sub}</div>}
     </div>
   );
 }
@@ -3790,16 +3790,16 @@ function HeroCard({ label, value, color, sub, primary }: {
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(Math.abs(n)));
   return (
     <div className="rounded-2xl p-5" style={{
-      background: primary ? "linear-gradient(135deg, rgba(34,197,94,.06), #0d1117 60%)" : "#0d1117",
-      border: `1px solid ${primary ? "rgba(34,197,94,.25)" : "#1e2330"}`,
+      background: primary ? "linear-gradient(135deg, rgba(34,197,94,.06), var(--sk-bg) 60%)" : "var(--sk-bg)",
+      border: `1px solid ${primary ? "rgba(34,197,94,.25)" : "var(--sk-surface)"}`,
       borderLeft: `3px solid ${color}`,
     }}>
-      <div className="text-[11px] uppercase tracking-wider font-semibold mb-2" style={{ color: "#8b92a8" }}>{label}</div>
+      <div className="text-[11px] uppercase tracking-wider font-semibold mb-2" style={{ color: "var(--sk-t2)" }}>{label}</div>
       <div className="font-mono font-bold" style={{ color, fontSize: "1.9rem", lineHeight: 1.15 }}>
         {value < 0 ? "- " : ""}{xof(value)}
-        <span className="text-xs font-normal ml-1.5" style={{ color: "#555e75" }}>XOF</span>
+        <span className="text-xs font-normal ml-1.5" style={{ color: "var(--sk-t3)" }}>XOF</span>
       </div>
-      {sub && <div className="text-xs mt-1.5" style={{ color: "#555e75" }}>{sub}</div>}
+      {sub && <div className="text-xs mt-1.5" style={{ color: "var(--sk-t3)" }}>{sub}</div>}
     </div>
   );
 }
@@ -3811,18 +3811,18 @@ function AccordionSection({ title, subtitle, defaultOpen, right, children }: {
 }) {
   const [open, setOpen] = useState(!!defaultOpen);
   return (
-    <div className="rounded-xl overflow-hidden" style={{ background: "#0b0e14", border: "1px solid #1e2330" }}>
+    <div className="rounded-xl overflow-hidden" style={{ background: "#0b0e14", border: "1px solid var(--sk-surface)" }}>
       <button type="button" onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-3 px-5 py-3.5 text-left transition-colors"
         style={{ background: "transparent" }}>
         <div className="flex-1 min-w-0">
           <div className="text-sm uppercase tracking-widest font-semibold" style={{ color: "#9ca3af" }}>{title}</div>
-          {subtitle && <div className="text-xs mt-0.5" style={{ color: "#3d4560" }}>{subtitle}</div>}
+          {subtitle && <div className="text-xs mt-0.5" style={{ color: "var(--sk-t4)" }}>{subtitle}</div>}
         </div>
         {right}
-        <span className="text-xs flex-shrink-0 transition-transform" style={{ color: "#555e75", transform: open ? "rotate(180deg)" : "none" }}>▾</span>
+        <span className="text-xs flex-shrink-0 transition-transform" style={{ color: "var(--sk-t3)", transform: open ? "rotate(180deg)" : "none" }}>▾</span>
       </button>
-      {open && <div className="px-5 pb-5 pt-1 border-t" style={{ borderColor: "#1e2330" }}>{children}</div>}
+      {open && <div className="px-5 pb-5 pt-1 border-t" style={{ borderColor: "var(--sk-surface)" }}>{children}</div>}
     </div>
   );
 }

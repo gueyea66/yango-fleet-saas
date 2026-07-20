@@ -124,10 +124,10 @@ export default function NotificationBell() {
       {open && (
         <div style={{
           position: "absolute", right: 0, top: "36px", width: "320px", zIndex: 1000,
-          background: "#0d1117", border: "1px solid #1e2330", borderRadius: "16px",
+          background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderRadius: "16px",
           boxShadow: "0 8px 32px rgba(0,0,0,.6)", overflow: "hidden",
         }}>
-          <div style={{ padding: "12px 16px", borderBottom: "1px solid #1e2330", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--sk-surface)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span style={{ color: "#fff", fontWeight: 700, fontSize: "14px" }}>Notifications</span>
             <div style={{ display: "flex", gap: 8 }}>
               {unread > 0 && (
@@ -136,7 +136,7 @@ export default function NotificationBell() {
                 </button>
               )}
               {!pushEnabled && (
-                <button onClick={enablePush} style={{ fontSize: "11px", color: "#555e75", background: "none", border: "none", cursor: "pointer" }} title="Activer les notifications push">
+                <button onClick={enablePush} style={{ fontSize: "11px", color: "var(--sk-t3)", background: "none", border: "none", cursor: "pointer" }} title="Activer les notifications push">
                   🔔 Activer push
                 </button>
               )}
@@ -145,7 +145,7 @@ export default function NotificationBell() {
 
           <div style={{ maxHeight: "360px", overflowY: "auto" }}>
             {notifications.length === 0 ? (
-              <div style={{ padding: "24px 16px", textAlign: "center", color: "#555e75", fontSize: "13px" }}>
+              <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--sk-t3)", fontSize: "13px" }}>
                 Aucune notification
               </div>
             ) : (
@@ -154,13 +154,13 @@ export default function NotificationBell() {
                   key={n.id}
                   onClick={() => !n.read_at && markRead(n.id)}
                   style={{
-                    padding: "10px 16px", borderBottom: "1px solid #1e2330", cursor: n.read_at ? "default" : "pointer",
+                    padding: "10px 16px", borderBottom: "1px solid var(--sk-surface)", cursor: n.read_at ? "default" : "pointer",
                     background: n.read_at ? "transparent" : "rgba(245,166,35,.05)",
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                     <span style={{ color: "#fff", fontSize: "13px", fontWeight: n.read_at ? 400 : 600 }}>{n.title}</span>
-                    <span style={{ color: "#555e75", fontSize: "10px", whiteSpace: "nowrap", marginLeft: 8 }}>{fmtTime(n.created_at)}</span>
+                    <span style={{ color: "var(--sk-t3)", fontSize: "10px", whiteSpace: "nowrap", marginLeft: 8 }}>{fmtTime(n.created_at)}</span>
                   </div>
                   <div style={{ color: "#888", fontSize: "12px", marginTop: 2 }}>{n.body}</div>
                   {!n.read_at && (

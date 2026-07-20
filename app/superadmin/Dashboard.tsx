@@ -52,7 +52,7 @@ function LineChart({ points, height=120 }: { points: { x: number; y: number; lab
         const v=maxY*(1-i/ticks);
         const y=pad.t+iH*(i/ticks);
         return <g key={i}>
-          <line x1={pad.l} y1={y} x2={W-pad.r} y2={y} stroke="#1e2330" strokeWidth={0.5}/>
+          <line x1={pad.l} y1={y} x2={W-pad.r} y2={y} stroke="var(--sk-surface)" strokeWidth={0.5}/>
           <text x={pad.l-4} y={y+4} textAnchor="end" fontSize={9} fill="#374151">{fmtK(v)}</text>
         </g>;
       })}
@@ -111,8 +111,8 @@ function Donut({ data, size=100 }: { data:{label:string;value:number;color:strin
       {slices.map((s,i)=>s.angle>0.5&&(
         <path key={i} d={arc(s.start,s.angle,R)+" L"+cx+","+cy+" Z"} fill={s.color} opacity={0.85}/>
       ))}
-      <circle cx={cx} cy={cy} r={24} fill="#0d1117"/>
-      <text x={cx} y={cy+4} textAnchor="middle" fontSize={11} fill="#f0f2f7" fontWeight="bold">{total}</text>
+      <circle cx={cx} cy={cy} r={24} fill="var(--sk-bg)"/>
+      <text x={cx} y={cy+4} textAnchor="middle" fontSize={11} fill="var(--sk-t1)" fontWeight="bold">{total}</text>
     </svg>
   );
 }
@@ -130,7 +130,7 @@ function Gauge({ value, max, color="#f5a623", label="" }:
   };
   return (
     <svg viewBox="0 0 100 80" style={{width:"100%",height:80}}>
-      <path d={arcPath(R,-210,240)} fill="none" stroke="#1e2330" strokeWidth={7} strokeLinecap="round"/>
+      <path d={arcPath(R,-210,240)} fill="none" stroke="var(--sk-surface)" strokeWidth={7} strokeLinecap="round"/>
       {pct>0&&<path d={arcPath(R,-210,sweepAngle*pct)} fill="none" stroke={color} strokeWidth={7} strokeLinecap="round"/>}
       <text x={cx} y={cy-6} textAnchor="middle" fontSize={14} fill={color} fontWeight="bold">{Math.round(pct*100)}%</text>
       <text x={cx} y={cy+6} textAnchor="middle" fontSize={8} fill="#6b7280">{label}</text>
@@ -141,7 +141,7 @@ function Gauge({ value, max, color="#f5a623", label="" }:
 /* ─── KPI Card ───────────────────────────────────────────── */
 function Card({ icon,label,value,sub,color="#f5a623",border }:{icon:string;label:string;value:string;sub?:string;color?:string;border?:string}) {
   return (
-    <div style={{background:"#0d1117",border:`0.5px solid ${border||"#1e2330"}`,borderRadius:12,padding:"16px 18px",flex:1,minWidth:130}}>
+    <div style={{background:"var(--sk-bg)",border:`0.5px solid ${border||"var(--sk-surface)"}`,borderRadius:12,padding:"16px 18px",flex:1,minWidth:130}}>
       <div style={{fontSize:18,marginBottom:4}}>{icon}</div>
       <div style={{fontSize:20,fontWeight:800,color,letterSpacing:"-0.5px",lineHeight:1}}>{value}</div>
       <div style={{fontSize:11,color:"#6b7280",marginTop:3}}>{label}</div>
@@ -284,7 +284,7 @@ export default function Dashboard({ superadminKey }: { superadminKey: string }) 
           {label:"Dépenses ce mois",value:fmtXOF(kpi!.expensesThisMonth)+" XOF",color:"#f87171"},
           {label:"CA all-time",value:fmtXOF(kpi!.grossAllTime)+" XOF",color:"#f5a623"},
         ].map(({label,value,color})=>(
-          <div key={label} style={{background:"#0d1117",border:"0.5px solid #1e2330",borderRadius:10,padding:"12px 16px"}}>
+          <div key={label} style={{background:"var(--sk-bg)",border:"0.5px solid var(--sk-surface)",borderRadius:10,padding:"12px 16px"}}>
             <div style={{fontSize:10,color:"#6b7280",marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>{label}</div>
             <div style={{fontSize:14,fontWeight:800,color}}>{value}</div>
           </div>
@@ -299,10 +299,10 @@ export default function Dashboard({ superadminKey }: { superadminKey: string }) 
             {expiring.map(t=>{
               const c=t.daysLeft!<=1?"#ef4444":t.daysLeft!<=3?"#f97316":t.daysLeft!<=7?"#f5a623":"#22c55e";
               return (
-                <div key={t.id} style={{background:"#0d1117",border:`1px solid ${c}30`,borderRadius:8,padding:"8px 14px",display:"flex",alignItems:"center",gap:10}}>
+                <div key={t.id} style={{background:"var(--sk-bg)",border:`1px solid ${c}30`,borderRadius:8,padding:"8px 14px",display:"flex",alignItems:"center",gap:10}}>
                   <span style={{width:7,height:7,borderRadius:"50%",background:c,display:"inline-block",flexShrink:0}}/>
                   <div>
-                    <div style={{fontSize:12,fontWeight:700,color:"#f0f2f7"}}>{t.app_name}</div>
+                    <div style={{fontSize:12,fontWeight:700,color:"var(--sk-t1)"}}>{t.app_name}</div>
                     <div style={{fontSize:10,color:"#6b7280"}}>J-{t.daysLeft} · {t.plan} · {t.driverCount} drivers</div>
                   </div>
                 </div>
@@ -317,10 +317,10 @@ export default function Dashboard({ superadminKey }: { superadminKey: string }) 
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:16,marginBottom:20}}>
 
         {/* CA journalier — line chart */}
-        <div style={{background:"#0d1117",border:"0.5px solid #1e2330",borderRadius:12,padding:"18px 20px"}}>
+        <div style={{background:"var(--sk-bg)",border:"0.5px solid var(--sk-surface)",borderRadius:12,padding:"18px 20px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
             <div>
-              <div style={{fontWeight:700,fontSize:13,color:"#f0f2f7"}}>CA journalier — 30j</div>
+              <div style={{fontWeight:700,fontSize:13,color:"var(--sk-t1)"}}>CA journalier — 30j</div>
               <div style={{fontSize:10,color:"#6b7280",marginTop:2}}>Chiffre d'affaires brut en XOF</div>
             </div>
             <div style={{textAlign:"right"}}>
@@ -332,10 +332,10 @@ export default function Dashboard({ superadminKey }: { superadminKey: string }) 
         </div>
 
         {/* Rapports/jour — bar chart */}
-        <div style={{background:"#0d1117",border:"0.5px solid #1e2330",borderRadius:12,padding:"18px 20px"}}>
+        <div style={{background:"var(--sk-bg)",border:"0.5px solid var(--sk-surface)",borderRadius:12,padding:"18px 20px"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
             <div>
-              <div style={{fontWeight:700,fontSize:13,color:"#f0f2f7"}}>Rapports / jour — 30j</div>
+              <div style={{fontWeight:700,fontSize:13,color:"var(--sk-t1)"}}>Rapports / jour — 30j</div>
               <div style={{fontSize:10,color:"#6b7280",marginTop:2}}>
                 <span style={{color:"#f5a623"}}>▌</span> Rapports &nbsp;
                 <span style={{color:"#8b5cf640"}}>▌</span> CA relatif
@@ -350,21 +350,21 @@ export default function Dashboard({ superadminKey }: { superadminKey: string }) 
         </div>
 
         {/* Répartition plans + conversion */}
-        <div style={{background:"#0d1117",border:"0.5px solid #1e2330",borderRadius:12,padding:"18px 20px"}}>
-          <div style={{fontWeight:700,fontSize:13,color:"#f0f2f7",marginBottom:14}}>Répartition clients</div>
+        <div style={{background:"var(--sk-bg)",border:"0.5px solid var(--sk-surface)",borderRadius:12,padding:"18px 20px"}}>
+          <div style={{fontWeight:700,fontSize:13,color:"var(--sk-t1)",marginBottom:14}}>Répartition clients</div>
           <div style={{display:"flex",gap:20,alignItems:"center"}}>
             <Donut data={[
               {label:"Standard",value:planCounts["standard"]||0,color:"#f5a623"},
               {label:"Pro",value:planCounts["pro"]||0,color:"#8b5cf6"},
               {label:"Essai",value:kpi!.trialTenants,color:"#374151"},
-              {label:"Suspendu",value:kpi!.suspendedTenants+kpi!.expiredTenants,color:"#1e2330"},
+              {label:"Suspendu",value:kpi!.suspendedTenants+kpi!.expiredTenants,color:"var(--sk-surface)"},
             ]} size={110}/>
             <div style={{flex:1}}>
               {[
                 {label:"Standard payant",count:planCounts["standard"]||0,color:"#f5a623",revenue:(planCounts["standard"]||0)*PLAN_LIMITS.standard.priceXOF},
                 {label:"Pro payant",count:planCounts["pro"]||0,color:"#8b5cf6",revenue:(planCounts["pro"]||0)*PLAN_LIMITS.pro.priceXOF},
                 {label:"En essai",count:kpi!.trialTenants,color:"#374151",revenue:0},
-                {label:"Inactifs",count:kpi!.suspendedTenants+kpi!.expiredTenants,color:"#1e2330",revenue:0},
+                {label:"Inactifs",count:kpi!.suspendedTenants+kpi!.expiredTenants,color:"var(--sk-surface)",revenue:0},
               ].map(({label,count,color,revenue})=>(
                 <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
                   <div style={{display:"flex",alignItems:"center",gap:6}}>
@@ -374,7 +374,7 @@ export default function Dashboard({ superadminKey }: { superadminKey: string }) 
                   <span style={{fontSize:11,color:revenue>0?color:"#374151",fontWeight:700}}>{revenue>0?fmtXOF(revenue)+" XOF":"—"}</span>
                 </div>
               ))}
-              <div style={{borderTop:"0.5px solid #1e2330",paddingTop:8,marginTop:4,display:"flex",justifyContent:"space-between"}}>
+              <div style={{borderTop:"0.5px solid var(--sk-surface)",paddingTop:8,marginTop:4,display:"flex",justifyContent:"space-between"}}>
                 <span style={{fontSize:11,color:"#9ca3af",fontWeight:700}}>MRR</span>
                 <span style={{fontSize:13,color:"#f5a623",fontWeight:800}}>{fmtXOF(kpi!.mrr)} XOF</span>
               </div>
@@ -383,8 +383,8 @@ export default function Dashboard({ superadminKey }: { superadminKey: string }) 
         </div>
 
         {/* Gauges */}
-        <div style={{background:"#0d1117",border:"0.5px solid #1e2330",borderRadius:12,padding:"18px 20px"}}>
-          <div style={{fontWeight:700,fontSize:13,color:"#f0f2f7",marginBottom:14}}>Indicateurs santé</div>
+        <div style={{background:"var(--sk-bg)",border:"0.5px solid var(--sk-surface)",borderRadius:12,padding:"18px 20px"}}>
+          <div style={{fontWeight:700,fontSize:13,color:"var(--sk-t1)",marginBottom:14}}>Indicateurs santé</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
             <div style={{textAlign:"center"}}>
               <Gauge value={kpi!.conversionRate} max={100} color="#22c55e" label="Conversion"/>
@@ -403,23 +403,23 @@ export default function Dashboard({ superadminKey }: { superadminKey: string }) 
       </div>
 
       {/* ── ROW 5 : TENANT TABLE ── */}
-      <div style={{background:"#0d1117",border:"0.5px solid #1e2330",borderRadius:12,overflow:"hidden"}}>
-        <div style={{padding:"14px 18px",display:"flex",alignItems:"center",gap:10,borderBottom:"0.5px solid #1e2330",flexWrap:"wrap"}}>
-          <div style={{fontWeight:700,fontSize:13,color:"#f0f2f7",flex:1}}>Détail par client ({rows.length})</div>
+      <div style={{background:"var(--sk-bg)",border:"0.5px solid var(--sk-surface)",borderRadius:12,overflow:"hidden"}}>
+        <div style={{padding:"14px 18px",display:"flex",alignItems:"center",gap:10,borderBottom:"0.5px solid var(--sk-surface)",flexWrap:"wrap"}}>
+          <div style={{fontWeight:700,fontSize:13,color:"var(--sk-t1)",flex:1}}>Détail par client ({rows.length})</div>
           <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
             {(["grossMonth","reportsMonth","driverCount","daysLeft","netMonth"] as const).map(col=>(
               <button key={col} onClick={()=>setSortBy(col)}
-                style={{background:sortBy===col?"#f5a62318":"#080a0f",border:`0.5px solid ${sortBy===col?"#f5a62350":"#1e2330"}`,borderRadius:6,padding:"4px 10px",color:sortBy===col?"#f5a623":"#6b7280",cursor:"pointer",fontSize:10,fontWeight:sortBy===col?700:400}}>
+                style={{background:sortBy===col?"#f5a62318":"var(--sk-deep)",border:`0.5px solid ${sortBy===col?"#f5a62350":"var(--sk-surface)"}`,borderRadius:6,padding:"4px 10px",color:sortBy===col?"#f5a623":"#6b7280",cursor:"pointer",fontSize:10,fontWeight:sortBy===col?700:400}}>
                 {col==="grossMonth"?"CA mois":col==="reportsMonth"?"Rapports":col==="driverCount"?"Drivers":col==="daysLeft"?"Expiry":"Net mois"}
               </button>
             ))}
           </div>
-          <button onClick={load} style={{background:"#1e2330",border:"none",borderRadius:6,padding:"4px 10px",color:"#9ca3af",cursor:"pointer",fontSize:10}}>↻</button>
+          <button onClick={load} style={{background:"var(--sk-surface)",border:"none",borderRadius:6,padding:"4px 10px",color:"#9ca3af",cursor:"pointer",fontSize:10}}>↻</button>
         </div>
         <div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
             <thead>
-              <tr style={{borderBottom:"0.5px solid #1e2330"}}>
+              <tr style={{borderBottom:"0.5px solid var(--sk-surface)"}}>
                 {["Client","Plan","Statut","Drivers","Rapports/m","CA mois","Net mois","Dépenses/m","Expiry","Créé le"].map(h=>(
                   <th key={h} style={{padding:"9px 14px",color:"#6b7280",fontWeight:600,textAlign:"left",whiteSpace:"nowrap",fontSize:10}}>{h}</th>
                 ))}
@@ -431,14 +431,14 @@ export default function Dashboard({ superadminKey }: { superadminKey: string }) 
                 const warn=t.daysLeft!==null&&t.daysLeft>0&&t.daysLeft<=7;
                 const ec=exp?"#ef4444":warn?"#f97316":t.daysLeft!==null&&t.daysLeft<=14?"#f5a623":"#22c55e";
                 return (
-                  <tr key={t.id} style={{borderBottom:"0.5px solid #1e2330",background:i%2===0?"transparent":"#08080810"}}>
+                  <tr key={t.id} style={{borderBottom:"0.5px solid var(--sk-surface)",background:i%2===0?"transparent":"#08080810"}}>
                     <td style={{padding:"10px 14px"}}>
                       <div style={{display:"flex",alignItems:"center",gap:7}}>
-                        <div style={{width:24,height:24,borderRadius:5,background:t.primary_color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#080a0f",flexShrink:0}}>
+                        <div style={{width:24,height:24,borderRadius:5,background:t.primary_color,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"var(--sk-deep)",flexShrink:0}}>
                           {t.app_name.slice(0,2).toUpperCase()}
                         </div>
                         <div>
-                          <div style={{fontWeight:600,color:"#f0f2f7"}}>{t.app_name}</div>
+                          <div style={{fontWeight:600,color:"var(--sk-t1)"}}>{t.app_name}</div>
                           <div style={{color:"#374151",fontSize:9}}>{t.slug}</div>
                         </div>
                       </div>
@@ -453,7 +453,7 @@ export default function Dashboard({ superadminKey }: { superadminKey: string }) 
                         {!t.active?"Suspendu":exp?"Expiré":t.plan_expires_at?"Payant":"Essai"}
                       </span>
                     </td>
-                    <td style={{padding:"10px 14px",color:"#f0f2f7",fontWeight:600,textAlign:"right"}}>{t.driverCount}</td>
+                    <td style={{padding:"10px 14px",color:"var(--sk-t1)",fontWeight:600,textAlign:"right"}}>{t.driverCount}</td>
                     <td style={{padding:"10px 14px",color:"#a78bfa",fontWeight:600,textAlign:"right"}}>{t.reportsMonth}</td>
                     <td style={{padding:"10px 14px",color:"#34d399",fontWeight:700,textAlign:"right"}}>{t.grossMonth>0?fmtK(t.grossMonth)+" XOF":"—"}</td>
                     <td style={{padding:"10px 14px",color:"#60a5fa",fontWeight:700,textAlign:"right"}}>{t.netMonth>0?fmtK(t.netMonth)+" XOF":"—"}</td>

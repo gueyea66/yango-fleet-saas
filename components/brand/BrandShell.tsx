@@ -27,7 +27,7 @@ export function BrandLogo({ size = 32 }: { size?: number }) {
         justifyContent: "center",
         fontSize: size * 0.4,
         fontWeight: 600,
-        color: "#080a0f",
+        color: "var(--sk-deep)",
         flexShrink: 0,
       }}
     >

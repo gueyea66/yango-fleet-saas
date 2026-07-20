@@ -17,6 +17,7 @@ export interface TenantSettings {
   currency: string;
   timezone: string;
   operator_name: string | null;
+  skin?: string | null; // ambiance des surfaces (midnight | slate | graphite) — accent inchangé
 }
 
 export type RemunerationModel = "fixed" | "tiered" | "percent" | "hybrid" | "location";

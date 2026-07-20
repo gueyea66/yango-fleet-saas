@@ -90,6 +90,9 @@ export async function POST(req: NextRequest) {
     const operatorName = formData.get("operator_name");
     if (typeof operatorName === "string") patch.operator_name = operatorName.trim().slice(0, 80) || null;
 
+    const skinRaw = formData.get("skin");
+    const skinVal = (typeof skinRaw === "string" && ["midnight", "slate", "graphite"].includes(skinRaw)) ? skinRaw : null;
+
     const currency = formData.get("currency");
     if (typeof currency === "string" && currency.trim()) patch.currency = currency.trim().toUpperCase().slice(0, 5);
 
@@ -132,19 +135,31 @@ export async function POST(req: NextRequest) {
       patch.logo_url = null;
     }
 
-    if (Object.keys(patch).length === 0) {
+    if (Object.keys(patch).length === 0 && !skinVal) {
       return NextResponse.json({ error: "Aucune modification fournie" }, { status: 400 });
     }
 
-    const { error: updateError } = await adminClient
-      .from("tenant_settings")
-      .update({ ...patch, updated_at: new Date().toISOString() })
-      .eq("tenant_id", tenantId);
-    if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    if (Object.keys(patch).length > 0) {
+      const { error: updateError } = await adminClient
+        .from("tenant_settings")
+        .update({ ...patch, updated_at: new Date().toISOString() })
+        .eq("tenant_id", tenantId);
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 });
+      }
     }
 
-    return NextResponse.json({ ok: true, updated: patch });
+    // Skin : mise à jour SÉPARÉE et best-effort — n'échoue pas la sauvegarde du
+    // branding si la colonne `skin` n'existe pas encore (migration 031 non appliquée).
+    if (skinVal) {
+      const { error: skinErr } = await adminClient
+        .from("tenant_settings")
+        .update({ skin: skinVal, updated_at: new Date().toISOString() })
+        .eq("tenant_id", tenantId);
+      if (skinErr) console.warn("[branding] skin non enregistré (migration 031 requise ?):", skinErr.message);
+    }
+
+    return NextResponse.json({ ok: true, updated: { ...patch, ...(skinVal ? { skin: skinVal } : {}) } });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: err.status ?? 500 });
   }

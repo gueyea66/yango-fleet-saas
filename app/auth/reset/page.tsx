@@ -38,18 +38,18 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4"
-      style={{ background: "linear-gradient(135deg, #080a0f 0%, #0d1117 50%, #0a0c12 100%)" }}>
+      style={{ background: "linear-gradient(135deg, var(--sk-deep) 0%, var(--sk-bg) 50%, #0a0c12 100%)" }}>
       <div className="w-full max-w-[400px]">
         <div className="flex flex-col items-center mb-10">
           <div className="mb-5"><BrandLogo size={56} /></div>
-          <h1 className="text-xl font-bold tracking-tight" style={{ color: "#f0f2f7" }}>Nouveau mot de passe</h1>
+          <h1 className="text-xl font-bold tracking-tight" style={{ color: "var(--sk-t1)" }}>Nouveau mot de passe</h1>
         </div>
 
-        <div className="rounded-2xl border p-8" style={{ background: "#0d1117", borderColor: "#1e2330" }}>
+        <div className="rounded-2xl border p-8" style={{ background: "var(--sk-bg)", borderColor: "var(--sk-surface)" }}>
           {done ? (
             <div className="text-center">
               <div className="text-3xl mb-3">✅</div>
-              <p className="text-sm" style={{ color: "#f0f2f7" }}>
+              <p className="text-sm" style={{ color: "var(--sk-t1)" }}>
                 Mot de passe mis à jour — redirection vers la connexion…
               </p>
             </div>
@@ -62,26 +62,26 @@ export default function ResetPasswordPage() {
                 </div>
               )}
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#555e75" }}>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>
                   Nouveau mot de passe
                 </label>
                 <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••••" required autoComplete="new-password"
                   className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                  style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }} />
+                  style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }} />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#555e75" }}>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>
                   Confirmer
                 </label>
                 <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)}
                   placeholder="••••••••••" required autoComplete="new-password"
                   className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                  style={{ background: "#080a0f", border: "1px solid #1e2330", color: "#f0f2f7" }} />
+                  style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }} />
               </div>
               <button type="submit" disabled={loading}
                 className="w-full py-3.5 rounded-xl text-sm font-bold"
-                style={{ background: loading ? "#1e2330" : brand, color: loading ? "#555e75" : "#000" }}>
+                style={{ background: loading ? "var(--sk-surface)" : brand, color: loading ? "var(--sk-t3)" : "#000" }}>
                 {loading ? "Mise à jour..." : "Définir le mot de passe"}
               </button>
             </form>

@@ -23,6 +23,7 @@ const DEFAULT_SETTINGS = {
   currency: "XOF",
   timezone: "Africa/Dakar",
   operator_name: null,
+  skin: "midnight",
 };
 
 const DEFAULT_REMUNERATION = {

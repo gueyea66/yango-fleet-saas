@@ -48,7 +48,7 @@ export default async function StatusPage() {
   ];
 
   return (
-    <div style={{ minHeight: "100vh", background: "#0f1117", color: "#f0f2f7", padding: "40px 16px", fontFamily: "system-ui, -apple-system, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "#0f1117", color: "var(--sk-t1)", padding: "40px 16px", fontFamily: "system-ui, -apple-system, sans-serif" }}>
       <div style={{ maxWidth: 680, margin: "0 auto" }}>
 
         {/* Header */}

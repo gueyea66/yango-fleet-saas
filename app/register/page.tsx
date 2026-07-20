@@ -65,9 +65,9 @@ export default function RegisterPage() {
       <div style={{ minHeight: "100vh", background: "#0f1117", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
         <div style={{ background: "#1a1f2e", border: "1px solid #2a3147", borderRadius: "16px", padding: "40px", maxWidth: "480px", width: "100%", textAlign: "center" }}>
           <div style={{ fontSize: "48px", marginBottom: "16px" }}>🎉</div>
-          <h1 style={{ color: "#f0f2f7", fontSize: "24px", fontWeight: 700, marginBottom: "8px" }}>Compte créé !</h1>
+          <h1 style={{ color: "var(--sk-t1)", fontSize: "24px", fontWeight: 700, marginBottom: "8px" }}>Compte créé !</h1>
           <p style={{ color: "#8892a4", marginBottom: "24px" }}>
-            Votre essai gratuit est actif jusqu&apos;au <strong style={{ color: "#f0f2f7" }}>{trialEnd}</strong>.
+            Votre essai gratuit est actif jusqu&apos;au <strong style={{ color: "var(--sk-t1)" }}>{trialEnd}</strong>.
           </p>
           <a
             href={success.loginUrl}
@@ -88,7 +88,7 @@ export default function RegisterPage() {
     <div style={{ minHeight: "100vh", background: "#0f1117", display: "flex", alignItems: "center", justifyContent: "center", padding: "24px" }}>
       <div style={{ background: "#1a1f2e", border: "1px solid #2a3147", borderRadius: "16px", padding: "40px", maxWidth: "480px", width: "100%" }}>
         <div style={{ textAlign: "center", marginBottom: "32px" }}>
-          <h1 style={{ color: "#f0f2f7", fontSize: "28px", fontWeight: 800, marginBottom: "8px" }}>Créer votre compte</h1>
+          <h1 style={{ color: "var(--sk-t1)", fontSize: "28px", fontWeight: 800, marginBottom: "8px" }}>Créer votre compte</h1>
           <p style={{ color: "#8892a4", fontSize: "15px" }}>14 jours d&apos;essai gratuit — aucune carte bancaire requise</p>
         </div>
 
@@ -103,7 +103,7 @@ export default function RegisterPage() {
               onChange={e => setForm(f => ({ ...f, companyName: e.target.value }))}
               placeholder="Ex: Keur Transport Dakar"
               required
-              style={{ width: "100%", background: "#252b3b", border: "1px solid #343b4f", color: "#f0f2f7", borderRadius: "8px", padding: "10px 14px", fontSize: "14px", outline: "none", boxSizing: "border-box" }}
+              style={{ width: "100%", background: "#252b3b", border: "1px solid var(--sk-border)", color: "var(--sk-t1)", borderRadius: "8px", padding: "10px 14px", fontSize: "14px", outline: "none", boxSizing: "border-box" }}
             />
             {slugPreview && (
               <p style={{ color: "#8892a4", fontSize: "12px", marginTop: "4px" }}>
@@ -122,7 +122,7 @@ export default function RegisterPage() {
               onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
               placeholder="admin@votreentreprise.com"
               required
-              style={{ width: "100%", background: "#252b3b", border: "1px solid #343b4f", color: "#f0f2f7", borderRadius: "8px", padding: "10px 14px", fontSize: "14px", outline: "none", boxSizing: "border-box" }}
+              style={{ width: "100%", background: "#252b3b", border: "1px solid var(--sk-border)", color: "var(--sk-t1)", borderRadius: "8px", padding: "10px 14px", fontSize: "14px", outline: "none", boxSizing: "border-box" }}
             />
           </div>
 
@@ -137,7 +137,7 @@ export default function RegisterPage() {
               placeholder="Minimum 8 caractères"
               required
               minLength={8}
-              style={{ width: "100%", background: "#252b3b", border: "1px solid #343b4f", color: "#f0f2f7", borderRadius: "8px", padding: "10px 14px", fontSize: "14px", outline: "none", boxSizing: "border-box" }}
+              style={{ width: "100%", background: "#252b3b", border: "1px solid var(--sk-border)", color: "var(--sk-t1)", borderRadius: "8px", padding: "10px 14px", fontSize: "14px", outline: "none", boxSizing: "border-box" }}
             />
           </div>
 
@@ -148,7 +148,7 @@ export default function RegisterPage() {
             <select
               value={form.currency}
               onChange={e => setForm(f => ({ ...f, currency: e.target.value }))}
-              style={{ width: "100%", background: "#252b3b", border: "1px solid #343b4f", color: "#f0f2f7", borderRadius: "8px", padding: "10px 14px", fontSize: "14px", outline: "none", boxSizing: "border-box" }}
+              style={{ width: "100%", background: "#252b3b", border: "1px solid var(--sk-border)", color: "var(--sk-t1)", borderRadius: "8px", padding: "10px 14px", fontSize: "14px", outline: "none", boxSizing: "border-box" }}
             >
               {CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
             </select>
