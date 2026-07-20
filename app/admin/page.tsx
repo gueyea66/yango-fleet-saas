@@ -65,6 +65,7 @@ export default function AdminPage() {
   const { settings } = useTenant();
   const router = useRouter();
   const [tab, setTab] = useState("dashboard");
+  const [showAllZeros, setShowAllZeros] = useState(false); // audit UI : révéler les postes à zéro masqués
   const [showImportModal, setShowImportModal] = useState(false);
   const [reports, setReports] = useState<DailyReport[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
@@ -448,12 +449,26 @@ export default function AdminPage() {
                   </p>
                   <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                     <KPICard label="Recettes réelles" value={kpis.brutYango + kpis.horsYango} color="#22c55e" />
-                    <KPICard label="Solde consommé" value={kpis.soldeConsomme} color="#ef4444" negative sub="mesuré (wallet)" />
-                    <KPICard label="Carburant consommé" value={kpis.carburantConsomme} color="#ef4444" negative sub={`${Math.round(kpis.coutCarburantKm).toLocaleString("fr-FR")} XOF/km`} />
-                    <KPICard label="Autres dépenses" value={kpis.autresDepensesOpe} color="#ef4444" negative sub="hors solde & carburant" />
-                    <KPICard label="Salaires" value={kpis.totalDepenses - kpis.provisionsSolde - kpis.achatsCarburant - kpis.autresDepensesOpe} color="#ef4444" negative />
+                    <KPICard label="Solde consommé" value={kpis.soldeConsomme} color="#ef4444" negative sub="mesuré (wallet)" hideWhenZero showZeros={showAllZeros} />
+                    <KPICard label="Carburant consommé" value={kpis.carburantConsomme} color="#ef4444" negative sub={`${Math.round(kpis.coutCarburantKm).toLocaleString("fr-FR")} XOF/km`} hideWhenZero showZeros={showAllZeros} />
+                    <KPICard label="Autres dépenses" value={kpis.autresDepensesOpe} color="#ef4444" negative sub="hors solde & carburant" hideWhenZero showZeros={showAllZeros} />
+                    <KPICard label="Salaires" value={kpis.totalDepenses - kpis.provisionsSolde - kpis.achatsCarburant - kpis.autresDepensesOpe} color="#ef4444" negative hideWhenZero showZeros={showAllZeros} />
                     <KPICard label="NET OPÉRATIONNEL" value={kpis.netOperationnel} color={kpis.netOperationnel >= 0 ? "#22c55e" : "#ef4444"} big sub="vrai résultat" />
                   </div>
+                  {(() => {
+                    // Audit UI : compte les postes à zéro masqués et propose de les révéler.
+                    const salaires = kpis.totalDepenses - kpis.provisionsSolde - kpis.achatsCarburant - kpis.autresDepensesOpe;
+                    const zeroCount = [kpis.soldeConsomme, kpis.carburantConsomme, kpis.autresDepensesOpe, salaires]
+                      .filter((v) => Math.round(v) === 0).length;
+                    if (zeroCount === 0) return null;
+                    return (
+                      <button type="button" onClick={() => setShowAllZeros((s) => !s)}
+                        className="text-xs mt-3 underline underline-offset-2 transition-colors"
+                        style={{ color: "#555e75" }}>
+                        {showAllZeros ? "Masquer les postes à zéro" : `Afficher tout (${zeroCount} poste${zeroCount > 1 ? "s" : ""} à zéro)`}
+                      </button>
+                    );
+                  })()}
                 </div>
 
                 {/* ── TRÉSORERIE ── */}
@@ -3737,9 +3752,14 @@ function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
   );
 }
 
-function KPICard({ label, value, color, sub, negative, big }: {
+function KPICard({ label, value, color, sub, negative, big, hideWhenZero, showZeros }: {
   label: string; value: number; color: string; sub?: string; negative?: boolean; big?: boolean;
+  hideWhenZero?: boolean; showZeros?: boolean;
 }) {
+  // Audit UI : les postes à zéro sont masqués par défaut (allègement du dashboard),
+  // révélés par le lien « Afficher tout ». Trésorerie/Encaissements n'utilisent
+  // jamais ce flag — un zéro y est une info critique.
+  if (hideWhenZero && !showZeros && Math.round(value) === 0) return null;
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(Math.abs(n)));
   return (
     <div className="rounded-xl p-4" style={{ background: "#0d1117", border: "1px solid #1e2330", borderLeft: `3px solid ${color}` }}>
