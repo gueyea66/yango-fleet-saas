@@ -75,6 +75,10 @@ export default function AdminPage() {
 
   // Driver / vehicle filter (global, shared across tabs)
   const [filterDriverId, setFilterDriverId] = useState("");
+  // Barre de filtres masquable (préférence par appareil, partagée avec Pilotage)
+  const [showFilters, setShowFilters] = useState(true);
+  useEffect(() => { setShowFilters(localStorage.getItem("m3a_filters_on") !== "0"); }, []);
+  const toggleFilters = (v: boolean) => { setShowFilters(v); localStorage.setItem("m3a_filters_on", v ? "1" : "0"); };
   const [allDrivers, setAllDrivers] = useState<any[]>([]); // { id, full_name, driver_id, plate }
   const [adminTenantId, setAdminTenantId] = useState<string | null>(null);
   const [remunCfg, setRemunCfg] = useState<any>(null);
@@ -339,8 +343,17 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* ── DRIVER / VEHICLE FILTER BAR — visible on all data tabs ── */}
-        {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage"].includes(tab) && allDrivers.length > 0 && (
+        {/* ── DRIVER / VEHICLE FILTER BAR — visible on all data tabs, masquable ── */}
+        {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage"].includes(tab) && allDrivers.length > 0 && !showFilters && (
+          <div className="mb-6">
+            <button onClick={() => toggleFilters(true)}
+              className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+              style={{ background: "#0d1117", border: "1px solid #1e2330", color: filterDriverId ? "#f5a623" : "#555e75" }}>
+              🔍 Filtres{filterDriverId ? ` · ${allDrivers.find((d) => d.id === filterDriverId)?.full_name || "1 chauffeur"}` : ""}
+            </button>
+          </div>
+        )}
+        {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage"].includes(tab) && allDrivers.length > 0 && showFilters && (
           <div className="mb-6 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2" style={{ background: "#0d1117", border: "1px solid #1e2330" }}>
             <span className="text-[10px] font-bold uppercase tracking-widest mr-1" style={{ color: "#3d4560" }}>Vue :</span>
             <button onClick={() => setFilterDriverId("")}
@@ -360,6 +373,10 @@ export default function AdminPage() {
                 {d.active === false && <span className="text-[9px] uppercase" style={{ color: "#3d4560" }}>inactif</span>}
               </button>
             ))}
+            <button onClick={() => toggleFilters(false)} title="Masquer les filtres"
+              className="ml-auto text-xs px-2.5 py-1.5 rounded-lg" style={{ background: "transparent", color: "#3d4560" }}>
+              ✕ Masquer
+            </button>
           </div>
         )}
 

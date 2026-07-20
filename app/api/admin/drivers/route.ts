@@ -114,7 +114,7 @@ export async function POST(request: Request) {
 
     if (action === "update") {
       // Mise à jour des paramètres de rému/commission d'un chauffeur
-      const { driverProfileId, comm_yango, comm_partner, hire_date, solde_initial, salary_model, base_amount } = body;
+      const { driverProfileId, comm_yango, comm_partner, hire_date, contract_end_date, solde_initial, salary_model, base_amount } = body;
       if (!driverProfileId) return Response.json({ error: "driverProfileId manquant" }, { status: 400 });
 
       // Vérifier que le chauffeur appartient au tenant de l'admin
@@ -131,6 +131,7 @@ export async function POST(request: Request) {
         base_amount: numOrNull(base_amount),
         salary_model: salary_model && MODELS.includes(salary_model) ? salary_model : null,
         hire_date: hire_date ? String(hire_date) : null,
+        contract_end_date: contract_end_date ? String(contract_end_date) : null,
         updated_at: new Date().toISOString(),
       };
       const { error: updErr } = await adminClient.from("profiles").update(patch).eq("id", driverProfileId);

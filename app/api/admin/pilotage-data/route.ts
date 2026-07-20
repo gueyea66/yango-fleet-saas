@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
       srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).gte("date", sixAgo).neq("status", "rejected").order("date"),
       srcQ(dQ(tQ(admin.from("expenses").select("*")))),
       dQ(tQ(admin.from("payments").select("*"))),
-      tQ(admin.from("profiles").select("id,full_name,driver_id").eq("role", "driver")),
+      tQ(admin.from("profiles").select("*").eq("role", "driver")),
       tQ(admin.from("vehicles").select("id,plate,driver_id")),
     ]);
 
