@@ -79,6 +79,8 @@ export default function AdminPage() {
   const { settings } = useTenant();
   const router = useRouter();
   const [tab, setTab] = useState("dashboard");
+  // Groupes repliables de la sidebar (ex. Config) — clé = label, valeur = ouvert ?
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [showAllZeros, setShowAllZeros] = useState(false); // audit UI : révéler les postes à zéro masqués
   const [showImportModal, setShowImportModal] = useState(false);
   const [reports, setReports] = useState<DailyReport[]>([]);
@@ -231,6 +233,7 @@ export default function AdminPage() {
     },
     {
       label: "Config",
+      collapsible: true,
       items: [
         ["remuneration","💼", "Rémunération"],
         ["journal",     "📋", "Journal"],
@@ -260,9 +263,23 @@ export default function AdminPage() {
 
         {/* Nav items grouped */}
         <nav className="flex-1 px-3 py-4 overflow-y-auto">
-          {tabGroups.map((group) => (
+          {tabGroups.map((group) => {
+            const collapsible = (group as any).collapsible;
+            const activeInside = group.items.some(([id]: any) => id === tab);
+            const open = collapsible ? (openGroups[group.label] ?? activeInside) : true;
+            return (
             <div key={group.label} className="mb-4">
-              <div className="px-3 mb-1 text-[9px] uppercase tracking-[0.12em] font-bold" style={{ color: "var(--sk-t4)" }}>{group.label}</div>
+              {collapsible ? (
+                <button onClick={() => setOpenGroups((s) => ({ ...s, [group.label]: !open }))}
+                  className="w-full px-3 mb-1 flex items-center justify-between text-[9px] uppercase tracking-[0.12em] font-bold transition-colors"
+                  style={{ color: "var(--sk-t4)" }}>
+                  <span>{group.label}</span>
+                  <span className="text-[10px] transition-transform" style={{ transform: open ? "rotate(180deg)" : "none" }}>▾</span>
+                </button>
+              ) : (
+                <div className="px-3 mb-1 text-[9px] uppercase tracking-[0.12em] font-bold" style={{ color: "var(--sk-t4)" }}>{group.label}</div>
+              )}
+              {open && (
               <div className="space-y-0.5">
                 {group.items.map(([id, icon, label]) => (
                   <button key={id} onClick={() => id === "drivers" ? router.push("/admin/drivers") : setTab(id)} className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5"
@@ -278,8 +295,9 @@ export default function AdminPage() {
                   </button>
                 ))}
               </div>
+              )}
             </div>
-          ))}
+          );})}
         </nav>
 
         {/* User + logout */}
