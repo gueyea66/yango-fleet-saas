@@ -10,7 +10,7 @@ import { useTenant } from "@/lib/tenant/context";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import NotificationBell from "@/components/NotificationBell";
 import { resolveRates, computeCommissions } from "@/lib/calc";
-import { Home, ClipboardList, Wallet, BedDouble, History, Target, LogOut } from "lucide-react";
+import { Home, ClipboardList, Wallet, BedDouble, History, Target, LogOut, Gauge, CheckCircle2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import type { RemunerationConfig } from "@/lib/tenant/types";
@@ -540,7 +540,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
   if (submitted) return (
     <div className="p-4">
       <div className="text-center pt-10 pb-6">
-        <div className="text-5xl mb-4">📋</div>
+        <div className="flex justify-center mb-4"><CheckCircle2 size={48} strokeWidth={1.8} style={{ color: "#22c55e" }} /></div>
         <div className="text-lg font-semibold text-white mb-2">Rapport soumis !</div>
         <div className="text-sm mb-4" style={{ color: "var(--sk-t3)" }}>En attente de validation</div>
       </div>
@@ -572,13 +572,13 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
             className="w-full rounded-xl px-4 py-3 text-sm outline-none"
             style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", colorScheme: "dark", opacity: !canEdit ? 0.5 : 1 }} />
         </Field>
-        <Field label="🔢 Compteur km fin de journée"><InpText type="number" placeholder="ex: 48900" value={form.end_odometer} onChange={(v) => set("end_odometer", v)} disabled={!canEdit} /></Field>
+        <Field label="Compteur km fin de journée" icon={Gauge}><InpText type="number" placeholder="ex: 48900" value={form.end_odometer} onChange={(v) => set("end_odometer", v)} disabled={!canEdit} /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Brut Yango *"><InpText type="number" placeholder="0" value={form.yango_gross} onChange={(v) => set("yango_gross", v)} disabled={!canEdit} /></Field>
           <Field label="Bonus Yango"><InpText type="number" placeholder="0" value={form.yango_bonus} onChange={(v) => set("yango_bonus", v)} disabled={!canEdit} /></Field>
         </div>
         <Field label="Hors Yango (XOF)"><InpText type="number" placeholder="0" value={form.off_yango_revenue} onChange={(v) => set("off_yango_revenue", v)} disabled={!canEdit} /></Field>
-        <Field label="💳 Solde Yango (wallet fin de journée)"><InpText type="number" placeholder="ex: 15 000" value={form.solde_yango} onChange={(v) => set("solde_yango", v)} disabled={!canEdit} /></Field>
+        <Field label="Solde Yango (wallet fin de journée)" icon={Wallet}><InpText type="number" placeholder="ex: 15 000" value={form.solde_yango} onChange={(v) => set("solde_yango", v)} disabled={!canEdit} /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Courses Yango"><InpText type="number" placeholder="0" value={form.yango_trip_count} onChange={(v) => set("yango_trip_count", v)} disabled={!canEdit} /></Field>
           <Field label="Courses hors"><InpText type="number" placeholder="0" value={form.off_yango_trip_count} onChange={(v) => set("off_yango_trip_count", v)} disabled={!canEdit} /></Field>
@@ -1597,7 +1597,7 @@ function ReposTab({ profile, onBack }: { profile: Profile; onBack: () => void })
 
   if (submitted) return (
     <div className="p-6 pt-16 text-center">
-      <div className="text-5xl mb-4">🛌</div>
+      <div className="flex justify-center mb-4"><CheckCircle2 size={48} strokeWidth={1.8} style={{ color: "#22c55e" }} /></div>
       <div className="text-lg font-semibold text-white mb-2">Jour de repos déclaré</div>
       <div className="text-sm mb-6" style={{ color: "var(--sk-t3)" }}>En attente de validation admin</div>
       <button onClick={onBack} className="px-6 py-2.5 rounded-xl text-sm font-bold text-black" style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>
@@ -1611,7 +1611,7 @@ function ReposTab({ profile, onBack }: { profile: Profile; onBack: () => void })
 
   return (
     <div className="p-4">
-      <BackHeader title="🛌 Déclarer un jour de repos" onBack={onBack} />
+      <BackHeader title="Déclarer un jour de repos" icon={BedDouble} onBack={onBack} />
       <div className="space-y-4">
         <div className="rounded-2xl p-4" style={{ background: "rgba(245,166,35,.04)", border: "1px solid rgba(245,166,35,.15)" }}>
           <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: "#f5a623" }}>Information</div>
@@ -1814,7 +1814,7 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
 
   return (
     <div className="p-4 pb-6">
-      <BackHeader title="🎯 Mon Pilotage" onBack={onBack} />
+      <BackHeader title="Mon Pilotage" icon={Target} onBack={onBack} />
 
       {/* Main KPI */}
       <div className="rounded-2xl p-5 mb-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderLeft: "3px solid #f5a623" }}>
@@ -2056,11 +2056,14 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
 }
 
 // ─── SHARED COMPONENTS ───────────────────────────────
-function BackHeader({ title, onBack }: { title: string; onBack: () => void }) {
+function BackHeader({ title, icon: Icon, onBack }: { title: string; icon?: LucideIcon; onBack: () => void }) {
   return (
     <div className="flex items-center gap-3 mb-5">
       <button onClick={onBack} style={{ background: "none", border: "none", color: "var(--sk-t3)", fontSize: 20, cursor: "pointer", padding: 0 }}>←</button>
-      <h2 className="text-base font-semibold text-white">{title}</h2>
+      <h2 className="flex items-center gap-2 text-base font-semibold text-white">
+        {Icon && <Icon size={18} strokeWidth={2} style={{ color: "#f5a623" }} />}
+        {title}
+      </h2>
     </div>
   );
 }
@@ -2075,10 +2078,13 @@ function StatusBanner({ type, children }: { type: "ok" | "err"; children: React.
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, icon: Icon, children }: { label: string; icon?: LucideIcon; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>{label}</label>
+      <label className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>
+        {Icon && <Icon size={13} strokeWidth={2} />}
+        {label}
+      </label>
       {children}
     </div>
   );
