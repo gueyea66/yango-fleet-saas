@@ -14,7 +14,8 @@ const NAV_ICONS: Record<string, LucideIcon> = {
 import React, { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard, Inbox, History, Calendar, Banknote, HandCoins, Gauge,
-  Car, Users, BadgeCheck, Briefcase, BookText, Upload, Settings, BarChart3, Download, BellRing, type LucideIcon,
+  Car, Users, BadgeCheck, Briefcase, BookText, Upload, Settings, BarChart3, Download, BellRing,
+  AlertTriangle, Info, type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { useRouter } from "next/navigation";
@@ -438,6 +439,7 @@ export default function AdminPage() {
             </div>
 
             <RemindBanner />
+            <AlertsPanel />
 
             {kpis.loading ? (
               <DashboardSkeleton />
@@ -3845,6 +3847,41 @@ function DashboardSkeleton() {
       </div>
       <SkelBox h={320} />
       <SkelBox h={64} /><SkelBox h={64} /><SkelBox h={64} />
+    </div>
+  );
+}
+
+// ── Alertes opérationnelles : surface ce qui demande une action et n'est visible
+// nulle part ailleurs (chauffeurs inactifs, rapports en attente trop longs). Lecture seule.
+function AlertsPanel() {
+  const [alerts, setAlerts] = useState<{ kind: string; severity: string; title: string; detail: string }[]>([]);
+
+  useEffect(() => {
+    fetch("/api/admin/alerts")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d?.alerts && setAlerts(d.alerts))
+      .catch(() => {});
+  }, []);
+
+  if (alerts.length === 0) return null;
+
+  return (
+    <div className="space-y-2">
+      {alerts.map((a) => {
+        const warn = a.severity === "warn";
+        const color = warn ? "#f5a623" : "#60a5fa";
+        const Icon = warn ? AlertTriangle : Info;
+        return (
+          <div key={a.kind} className="rounded-xl px-5 py-3 flex items-start gap-3"
+            style={{ background: warn ? "rgba(245,166,35,.06)" : "rgba(96,165,250,.06)", border: `1px solid ${warn ? "rgba(245,166,35,.22)" : "rgba(96,165,250,.22)"}` }}>
+            <Icon size={17} strokeWidth={2} style={{ color, flexShrink: 0, marginTop: 1 }} />
+            <div className="min-w-0">
+              <div className="text-sm font-semibold" style={{ color: "var(--sk-t1)" }}>{a.title}</div>
+              <div className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>{a.detail}</div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
