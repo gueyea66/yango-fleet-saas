@@ -1700,7 +1700,7 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
       // Fetch MTD reports with all fields needed for accurate projections
       const [{ data: reps }, { data: fuelExps }] = await Promise.all([
         supabase.from("daily_reports")
-          .select("date,net_after_expenses,yango_gross,yango_bonus,off_yango_revenue,solde_yango,end_odometer")
+          .select("date,net_after_expenses,yango_gross,yango_bonus,off_yango_revenue,solde_yango,end_odometer,commission_amount,service_supplementaire")
           .eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).or("source.eq.saas,source.is.null")
           .gte("date", start).lte("date", todayStr).neq("status", "rejected")
           .order("date", { ascending: true }),
@@ -1736,18 +1736,15 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
         ? kmDeltas.reduce((s, v) => s + v, 0) / kmDeltas.length
         : null;
 
-      // ── Fuel wallet burn rate from solde_yango deltas ──
-      const soldeDeltas: number[] = [];
-      for (let i = 1; i < sortedReps.length; i++) {
-        const prev = sortedReps[i - 1].solde_yango;
-        const curr = sortedReps[i].solde_yango;
-        if (prev != null && curr != null) {
-          const burn = prev - curr; // positive = wallet decreased = consumed
-          if (burn > 0) soldeDeltas.push(burn);
-        }
-      }
-      const avgDailyWalletBurn = soldeDeltas.length > 0
-        ? soldeDeltas.reduce((s, v) => s + v, 0) / soldeDeltas.length
+      // ── Solde consommé (« burnt ») par jour = commissions réellement déclarées :
+      // commission Yango + partenaire (= commission_amount) + frais supplémentaires.
+      // Aligné sur le « solde consommé » du dashboard admin (mesure la plus juste,
+      // remplace l'ancien delta de wallet solde_yango).
+      const dailyBurns = (reps || [])
+        .map((r: any) => (r.commission_amount || 0) + (r.service_supplementaire || 0))
+        .filter((b: number) => b > 0);
+      const avgDailyWalletBurn = dailyBurns.length > 0
+        ? dailyBurns.reduce((s: number, v: number) => s + v, 0) / dailyBurns.length
         : null;
 
       // ── Price per liter from approved fuel declarations ──
@@ -1911,9 +1908,9 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
             )}
             {stats.avgDailyWalletBurn != null && (
               <div className="rounded-xl p-3" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
-                <div className="text-[10px] mb-1" style={{ color: "var(--sk-t4)" }}>Burn wallet/jour</div>
+                <div className="text-[10px] mb-1" style={{ color: "var(--sk-t4)" }}>Commissions/jour</div>
                 <div className="text-sm font-mono font-bold" style={{ color: "#ef4444" }}>{xof(Math.round(stats.avgDailyWalletBurn))}</div>
-                <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>delta solde Yango J−1→J</div>
+                <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Yango + partenaire + frais</div>
               </div>
             )}
             {stats.avgPricePerLiter != null && (
@@ -1933,7 +1930,7 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
           </div>
           {stats.avgDailyWalletBurn != null && (
             <div className="mt-3 text-[10px] rounded-lg px-3 py-2" style={{ background: "#0a0c10", color: "var(--sk-t3)" }}>
-              Projection nette/jour = {xof(Math.round(stats.avgDailyGross))} CA − {xof(Math.round(stats.avgDailyWalletBurn))} burn = <span style={{ color: stats.projDailyNet >= 0 ? "#22c55e" : "#ef4444" }}>{xof(Math.round(stats.projDailyNet))}/j</span>
+              Projection nette/jour = {xof(Math.round(stats.avgDailyGross))} CA − {xof(Math.round(stats.avgDailyWalletBurn))} commissions = <span style={{ color: stats.projDailyNet >= 0 ? "#22c55e" : "#ef4444" }}>{xof(Math.round(stats.projDailyNet))}/j</span>
             </div>
           )}
         </div>

@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getTenantId } from "@/lib/supabase/tenanted";
 import {
-  soldeConsomme as calcSoldeConsomme, coutCarburantParKm, carburantConsomme,
+  coutCarburantParKm, carburantConsomme,
   computeOperationnel, computeTresorerie, joursOuvresProjetes,
 } from "@/lib/calc";
 
@@ -231,35 +231,22 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       const achatsCarburant = exps.filter((e: any) => e.category === CAT_CARBU).reduce((s: number, e: any) => s + (e.amount || 0), 0);
       const autresDepensesOpe = exps.filter((e: any) => e.category !== CAT_SOLDE && e.category !== CAT_CARBU).reduce((s: number, e: any) => s + (e.amount || 0), 0);
 
-      // Solde consommé : jour par jour, par chauffeur (solde_veille dérivé du rapport précédent)
-      const provByDriverDate: Record<string, number> = {};
-      exps.filter((e: any) => e.category === CAT_SOLDE).forEach((e: any) => {
-        const k = `${e.driver_id}|${getED(e)}`;
-        provByDriverDate[k] = (provByDriverDate[k] || 0) + (e.amount || 0);
-      });
-      const soldeInitByDriver: Record<string, number | null> = {};
+      // Solde consommé (« burnt ») = commissions réellement déclarées par jour :
+      // commission Yango + commission partenaire (= commission_amount déjà cumulé) +
+      // frais supplémentaires (service_supplementaire). C'est la mesure la plus juste
+      // de ce que Yango prélève réellement sur le wallet, et elle remplace l'ancien
+      // calcul par différence de wallet (soldeVeille − soldeFin + provisions).
+      const totalSoldeConsomme = reps.reduce(
+        (s, r) => s + (r.commission_amount || 0) + (r.service_supplementaire || 0), 0
+      );
       const salaryModelByDriver: Record<string, string | null> = {};
       const baseAmountByDriver: Record<string, number | null> = {};
       drivers.forEach((d: any) => {
-        soldeInitByDriver[d.id] = d.solde_initial ?? null;
         salaryModelByDriver[d.id] = d.salary_model ?? null;
         baseAmountByDriver[d.id] = d.base_amount ?? null;
       });
       const repsByDriver: Record<string, any[]> = {};
       reps.forEach((r: any) => { (repsByDriver[r.driver_id] ||= []).push(r); });
-      let totalSoldeConsomme = 0;
-      Object.entries(repsByDriver).forEach(([drvId, list]) => {
-        const sorted = [...list].sort((a, b) => a.date.localeCompare(b.date));
-        let prevSolde: number | null = soldeInitByDriver[drvId] ?? null;
-        sorted.forEach((r) => {
-          const soldeFin = r.solde_yango ?? null;
-          const prov = provByDriverDate[`${drvId}|${r.date}`] || 0;
-          if (soldeFin != null && prevSolde != null) {
-            totalSoldeConsomme += calcSoldeConsomme({ soldeVeille: prevSolde, soldeFin, provisionsDuJour: prov });
-          }
-          if (soldeFin != null) prevSolde = soldeFin;
-        });
-      });
 
       // Carburant consommé = km × coût/km (dérivé de l'historique de la période)
       const coutCarburantKm = coutCarburantParKm(achatsCarburant, totalKm);
