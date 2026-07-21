@@ -10,7 +10,7 @@ import { useTenant } from "@/lib/tenant/context";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import NotificationBell from "@/components/NotificationBell";
 import { resolveRates, computeCommissions } from "@/lib/calc";
-import { Home, ClipboardList, Wallet, BedDouble, History, Target, LogOut, Gauge, CheckCircle2 } from "lucide-react";
+import { Home, ClipboardList, Wallet, BedDouble, History, Target, LogOut, Gauge, CheckCircle2, AlertTriangle, Paperclip, Calendar, Car, HandCoins } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import type { RemunerationConfig } from "@/lib/tenant/types";
@@ -131,7 +131,7 @@ export default function DriverApp() {
     return (
       <div className="flex min-h-screen items-center justify-center px-6" style={{ background: "var(--sk-deep)" }}>
         <div className="text-center max-w-sm">
-          <div className="text-4xl mb-4">⚠️</div>
+          <div className="flex justify-center mb-4"><AlertTriangle size={40} strokeWidth={1.7} style={{ color: "#f5a623" }} /></div>
           <h2 className="text-lg font-semibold text-white mb-2">Compte non configuré</h2>
           <p className="text-sm mb-6" style={{ color: "var(--sk-t3)" }}>{profileError}</p>
           <button onClick={() => signOut()} className="text-sm px-4 py-2 rounded-lg"
@@ -546,7 +546,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
       </div>
       {reportId && (
         <div className="mb-6">
-          <UploadBlock driverId={profile.id} refId={reportId} refType="report" label="📎 Ajouter photos / documents" />
+          <UploadBlock driverId={profile.id} refId={reportId} refType="report" label="Ajouter photos / documents" />
         </div>
       )}
       <button onClick={onBack} className="w-full py-3 rounded-xl text-sm font-bold text-black" style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>Retour accueil</button>
@@ -588,7 +588,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         {(n(form.yango_gross) > 0 || n(form.yango_bonus) > 0 || n(form.off_yango_revenue) > 0) && (
           <div className="rounded-2xl p-4" style={{ background: "rgba(245,166,35,.04)", border: "1px solid rgba(245,166,35,.15)" }}>
             <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "#f5a623" }}>Aperçu calcul</div>
-            {[["Base Yango", calc.base, false], [`Commission Yango (${rates.yangoPct}%)`, calc.commYango, true], [`Comm. partenaire (${rates.partnerPct.toFixed(2)}%)`, calc.commPartner, true], ...(calc.serviceSupp > 0 ? [["Service supplémentaire", calc.serviceSupp, true]] : []), ["Net Yango", calc.netYango, false], ["Hors Yango", n(form.off_yango_revenue), false], ...(n(form.solde_yango) > 0 ? [["💳 Solde wallet", n(form.solde_yango), false]] : [])].map(([l, v, neg]) => (
+            {[["Base Yango", calc.base, false], [`Commission Yango (${rates.yangoPct}%)`, calc.commYango, true], [`Comm. partenaire (${rates.partnerPct.toFixed(2)}%)`, calc.commPartner, true], ...(calc.serviceSupp > 0 ? [["Service supplémentaire", calc.serviceSupp, true]] : []), ["Net Yango", calc.netYango, false], ["Hors Yango", n(form.off_yango_revenue), false], ...(n(form.solde_yango) > 0 ? [["Solde wallet", n(form.solde_yango), false]] : [])].map(([l, v, neg]) => (
               <div key={String(l)} className="flex justify-between text-xs py-1.5" style={{ borderBottom: "1px solid rgba(245,166,35,.07)" }}>
                 <span style={{ color: "var(--sk-t3)" }}>{l}</span>
                 <span className="font-mono font-semibold" style={{ color: neg ? "#ef4444" : "var(--sk-t2)" }}>{neg ? "- " : ""}{xof(Math.abs(Number(v)))}</span>
@@ -605,7 +605,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
 
         {canEdit && (
           <div style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", borderRadius: 16, padding: 16 }}>
-            <div className="text-xs font-semibold mb-3" style={{ color: "var(--sk-t2)" }}>📎 Pièces jointes (optionnel)</div>
+            <div className="flex items-center gap-1.5 text-xs font-semibold mb-3" style={{ color: "var(--sk-t2)" }}><Paperclip size={13} strokeWidth={2} />Pièces jointes (optionnel)</div>
             {pendingFiles.length > 0 && (
               <div className="space-y-1.5 mb-3">
                 {pendingFiles.map((f, i) => (
@@ -642,7 +642,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
 }
 
 // ─── UPLOAD BLOCK (reusable) ─────────────────────────
-function UploadBlock({ driverId, refId, refType, label = "📎 Photos / Reçus" }: { driverId: string; refId: string | null; refType: string; label?: string }) {
+function UploadBlock({ driverId, refId, refType, label = "Photos / Reçus" }: { driverId: string; refId: string | null; refType: string; label?: string }) {
   const [uploading, setUploading] = useState(false);
   const [files, setFiles] = useState<{ name: string; url: string; isImg: boolean }[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
@@ -697,7 +697,7 @@ function UploadBlock({ driverId, refId, refType, label = "📎 Photos / Reçus" 
 
   return (
     <div className="rounded-xl p-4" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
-      <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "var(--sk-t4)" }}>{label}</div>
+      <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "var(--sk-t4)" }}><Paperclip size={12} strokeWidth={2} />{label}</div>
       <div className="flex gap-2 mb-3">
         <button onClick={() => cameraRef.current?.click()} disabled={uploading}
           className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all"
@@ -800,7 +800,7 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
   if (submitted) return (
     <div className="p-4">
       <div className="text-center pt-8 pb-6">
-        <div className="text-5xl mb-3">✅</div>
+        <div className="flex justify-center mb-3"><CheckCircle2 size={48} strokeWidth={1.8} style={{ color: "#22c55e" }} /></div>
         <div className="text-lg font-semibold text-white mb-1">Dépense soumise</div>
         <div className="text-sm" style={{ color: "var(--sk-t3)" }}>Ajoutez des photos si besoin</div>
       </div>
@@ -842,7 +842,7 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
 
         {/* Justificatifs */}
         <div style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", borderRadius: 16, padding: 16 }}>
-          <div className="text-xs font-semibold mb-3" style={{ color: "var(--sk-t2)" }}>📎 Justificatif (reçu, photo…)</div>
+          <div className="flex items-center gap-1.5 text-xs font-semibold mb-3" style={{ color: "var(--sk-t2)" }}><Paperclip size={13} strokeWidth={2} />Justificatif (reçu, photo…)</div>
           {pendingFiles.length > 0 && (
             <div className="space-y-1.5 mb-3">
               {pendingFiles.map((f, i) => (
@@ -914,7 +914,13 @@ function HistoryTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => 
       </div>
       {loading ? <div className="text-center py-12 text-sm" style={{ color: "var(--sk-t4)" }}>Chargement...</div> : subTab === "reports" ? (
         <div className="space-y-3">
-          {reports.length === 0 && <div className="text-center py-12 text-sm" style={{ color: "var(--sk-t4)" }}>Aucun rapport</div>}
+          {reports.length === 0 && (
+            <div className="flex flex-col items-center text-center py-14 gap-2" style={{ color: "var(--sk-t4)" }}>
+              <ClipboardList size={30} strokeWidth={1.6} />
+              <span className="text-sm">Aucun rapport pour l'instant</span>
+              <span className="text-xs" style={{ color: "var(--sk-t4)" }}>Vos rapports soumis apparaîtront ici.</span>
+            </div>
+          )}
           {reports.map((r) => (
             <ReportHistoryCard key={r.id} report={r} profile={profile} onRefresh={() => {
               const supabase = createClient() as any;
@@ -924,7 +930,13 @@ function HistoryTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => 
         </div>
       ) : (
         <div className="space-y-3">
-          {expenses.length === 0 && <div className="text-center py-12 text-sm" style={{ color: "var(--sk-t4)" }}>Aucune dépense</div>}
+          {expenses.length === 0 && (
+            <div className="flex flex-col items-center text-center py-14 gap-2" style={{ color: "var(--sk-t4)" }}>
+              <Wallet size={30} strokeWidth={1.6} />
+              <span className="text-sm">Aucune dépense pour l'instant</span>
+              <span className="text-xs" style={{ color: "var(--sk-t4)" }}>Vos dépenses ajoutées apparaîtront ici.</span>
+            </div>
+          )}
           {expenses.map((e) => (
             <ExpenseCard key={e.id} expense={e} driverId={profile.id} profile={profile} onRefresh={() => {
               const supabase = createClient() as any;
@@ -1013,7 +1025,7 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
           <div className="text-xs mt-0.5" style={{ color: "var(--sk-t4)" }}>
             {[report.yango_trip_count ? `${report.yango_trip_count} courses` : null, report.end_odometer ? `${report.end_odometer} km` : null].filter(Boolean).join(" · ") || "—"}
           </div>
-          {report.solde_yango > 0 && <div className="text-xs mt-1" style={{ color: "#f5a623" }}>💳 {xof(report.solde_yango)}</div>}
+          {report.solde_yango > 0 && <div className="flex items-center gap-1 text-xs mt-1" style={{ color: "#f5a623" }}><Wallet size={11} strokeWidth={2} />{xof(report.solde_yango)}</div>}
         </div>
         <div className="text-right">
           <div className="font-mono font-bold text-sm text-white">{xof(report.net_after_expenses ?? 0)}</div>
@@ -1037,11 +1049,11 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
           {!editing && (
             <div className="pt-2 space-y-1 text-xs" style={{ color: "var(--sk-t3)" }}>
               {[
-                ["🔢 Km fin de journée", report.end_odometer ? `${report.end_odometer} km` : null],
+                ["Km fin de journée", report.end_odometer ? `${report.end_odometer} km` : null],
                 ["Brut Yango", report.yango_gross ? xof(report.yango_gross) : null],
                 ["Bonus Yango", report.yango_bonus ? xof(report.yango_bonus) : null],
                 ["Hors Yango", report.off_yango_revenue ? xof(report.off_yango_revenue) : null],
-                ["💳 Solde wallet", report.solde_yango ? xof(report.solde_yango) : null],
+                ["Solde wallet", report.solde_yango ? xof(report.solde_yango) : null],
                 ["Courses Yango", report.yango_trip_count],
                 ["Courses hors", report.off_yango_trip_count],
                 ["Net total", report.net_after_expenses ? xof(report.net_after_expenses) : null],
@@ -1060,11 +1072,11 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
             <div className="pt-2 space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  ["🔢 Km fin journée", "end_odometer"],
+                  ["Km fin journée", "end_odometer"],
                   ["Brut Yango", "yango_gross"],
                   ["Bonus Yango", "yango_bonus"],
                   ["Hors Yango", "off_yango_revenue"],
-                  ["💳 Solde wallet", "solde_yango"],
+                  ["Solde wallet", "solde_yango"],
                   ["Courses Yango", "yango_trip_count"],
                   ["Courses hors", "off_yango_trip_count"],
                 ].map(([label, key]) => (
@@ -1084,7 +1096,7 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
             </div>
           )}
 
-          <UploadBlock driverId={profile.id} refId={report.id} refType="report" label="📎 Pièces jointes" />
+          <UploadBlock driverId={profile.id} refId={report.id} refType="report" label="Pièces jointes" />
 
           {/* Actions */}
           {report.status === "rejected" && !editing && (
@@ -1180,8 +1192,8 @@ function ExpenseCard({ expense, driverId, profile, onRefresh }: { expense: any; 
             <div className="font-semibold text-sm text-white">{expense.category}</div>
             {statusBadge(expense.status || "submitted")}
           </div>
-          <div className="text-xs mt-0.5" style={{ color: "var(--sk-t4)" }}>
-            📅 {expense.expense_date || expense.created_at?.slice(0, 10)}
+          <div className="flex items-center gap-1 text-xs mt-0.5" style={{ color: "var(--sk-t4)" }}>
+            <Calendar size={11} strokeWidth={2} />{expense.expense_date || expense.created_at?.slice(0, 10)}
           </div>
           {expense.description && <div className="text-xs mt-1" style={{ color: "var(--sk-t3)" }}>{expense.description}</div>}
           {expense.status === "rejected" && (
@@ -1194,7 +1206,7 @@ function ExpenseCard({ expense, driverId, profile, onRefresh }: { expense: any; 
           <div className="font-mono font-bold text-sm" style={{ color: "#ef4444" }}>-{xof(expense.amount || 0)}</div>
           <button onClick={() => setOpen(!open)} className="text-[10px] mt-1 px-2 py-0.5 rounded-full transition-all"
             style={{ background: open ? "rgba(245,166,35,.15)" : "var(--sk-surface)", color: open ? "#f5a623" : "var(--sk-t3)" }}>
-            {open ? "▲ Fermer" : "📎 Détails"}
+            {open ? "Fermer ▲" : "Détails ▾"}
           </button>
         </div>
       </div>
@@ -1446,12 +1458,12 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
           </button>
         )}
         {status === "in_review" && <div className="mt-4 text-center text-xs" style={{ color: "#3b82f6" }}>🔍 Dossier en cours de vérification par l'équipe</div>}
-        {status === "approved" && <div className="mt-4 text-center text-xs font-semibold" style={{ color: "#22c55e" }}>✅ Dossier validé — Bienvenue !</div>}
+        {status === "approved" && <div className="mt-4 flex items-center justify-center gap-1.5 text-xs font-semibold" style={{ color: "#22c55e" }}><CheckCircle2 size={14} strokeWidth={2} />Dossier validé — Bienvenue !</div>}
       </div>
 
       {/* Véhicule */}
       <div className="rounded-2xl p-5" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
-        <div className="text-xs uppercase tracking-widest font-semibold mb-4" style={{ color: "var(--sk-t4)" }}>🚗 Véhicule assigné</div>
+        <div className="flex items-center gap-1.5 text-xs uppercase tracking-widest font-semibold mb-4" style={{ color: "var(--sk-t4)" }}><Car size={13} strokeWidth={2} />Véhicule assigné</div>
         <div className="space-y-3">
           <Field label="Plaque *"><InpText type="text" placeholder="ex: DK-1234-AA" value={vehicleForm.plate} onChange={(v) => setVehicleForm((f) => ({ ...f, plate: v }))} /></Field>
           <div className="grid grid-cols-2 gap-3">
@@ -1501,7 +1513,7 @@ function DriverAvancesSection({ driverId }: { driverId: string }) {
   return (
     <div className="rounded-2xl p-5 mt-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
       <div className="flex items-center justify-between mb-4">
-        <div className="font-semibold text-white text-sm">💰 Avances sur salaire</div>
+        <div className="flex items-center gap-1.5 font-semibold text-white text-sm"><HandCoins size={15} strokeWidth={2} style={{ color: "#f5a623" }} />Avances sur salaire</div>
         {pending > 0 && (
           <div className="text-xs font-mono font-bold px-3 py-1 rounded-full"
             style={{ background: "rgba(245,166,35,.1)", color: "#f5a623" }}>
@@ -1636,7 +1648,7 @@ function ReposTab({ profile, onBack }: { profile: Profile; onBack: () => void })
         </Field>
 
         <BtnPrimary onClick={submit} disabled={saving || !date}>
-          {saving ? "Envoi..." : "🛌 Soumettre le jour de repos →"}
+          {saving ? "Envoi..." : "Soumettre le jour de repos →"}
         </BtnPrimary>
 
         {/* Historique repos du mois */}
