@@ -14,7 +14,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
 import React, { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard, Inbox, History, Calendar, Banknote, HandCoins, Gauge,
-  Car, Users, BadgeCheck, Briefcase, BookText, Upload, Settings, BarChart3, type LucideIcon,
+  Car, Users, BadgeCheck, Briefcase, BookText, Upload, Settings, BarChart3, Download, type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { useRouter } from "next/navigation";
@@ -433,6 +433,7 @@ export default function AdminPage() {
                   </button>
                 </div>
                 <span className="text-xs" style={{ color: "var(--sk-t3)" }}>{periodFrom} → {periodTo}</span>
+                <ExportMenu dateFrom={periodFrom} dateTo={periodTo} />
               </div>
             </div>
 
@@ -3842,6 +3843,68 @@ function DashboardSkeleton() {
       </div>
       <SkelBox h={320} />
       <SkelBox h={64} /><SkelBox h={64} /><SkelBox h={64} />
+    </div>
+  );
+}
+
+// ── Export comptable : télécharge un CSV (Excel FR, séparateur ';' + BOM) de la
+// période affichée. Auth par cookie de session (même mécanisme que /api/admin/kpis).
+function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const download = async (resource: string) => {
+    setBusy(resource); setErr(null);
+    try {
+      const res = await fetch(`/api/admin/export?resource=${resource}&dateFrom=${dateFrom}&dateTo=${dateTo}`);
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({} as any));
+        setErr(j.error || "Export impossible.");
+        return;
+      }
+      const blob = await res.blob();
+      const cd = res.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename="(.+?)"/);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = m ? m[1] : `${resource}.csv`; a.click();
+      URL.revokeObjectURL(url);
+      setOpen(false);
+    } catch {
+      setErr("Erreur réseau pendant l'export.");
+    } finally { setBusy(null); }
+  };
+
+  const items: [string, string][] = [
+    ["reports", "Rapports journaliers"],
+    ["expenses", "Dépenses"],
+    ["payments", "Paiements / salaires"],
+  ];
+
+  return (
+    <div className="relative">
+      <button onClick={() => { setOpen((o) => !o); setErr(null); }}
+        className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg font-semibold transition-colors"
+        style={{ background: "var(--sk-surface)", color: "var(--sk-t2)", border: "1px solid var(--sk-border)" }}>
+        <Download size={15} strokeWidth={2} /> Exporter
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-1.5 z-50 rounded-xl overflow-hidden min-w-[210px]"
+          style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-border)", boxShadow: "0 12px 32px rgba(0,0,0,.45)" }}>
+          {items.map(([r, label]) => (
+            <button key={r} onClick={() => download(r)} disabled={!!busy}
+              className="w-full text-left text-sm px-4 py-2.5 disabled:opacity-50"
+              style={{ color: "var(--sk-t2)" }}>
+              {busy === r ? "Préparation…" : label}
+            </button>
+          ))}
+          {err && <div className="text-xs px-4 py-2 border-t" style={{ color: "#f87171", borderColor: "var(--sk-surface)" }}>{err}</div>}
+          <div className="text-[10px] px-4 py-2 border-t" style={{ color: "var(--sk-t4)", borderColor: "var(--sk-surface)" }}>
+            Période affichée · format Excel FR
+          </div>
+        </div>
+      )}
     </div>
   );
 }
