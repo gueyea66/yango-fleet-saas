@@ -14,7 +14,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
 import React, { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard, Inbox, History, Calendar, Banknote, HandCoins, Gauge,
-  Car, Users, BadgeCheck, Briefcase, BookText, Upload, Settings, type LucideIcon,
+  Car, Users, BadgeCheck, Briefcase, BookText, Upload, Settings, BarChart3, type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { useRouter } from "next/navigation";
@@ -437,7 +437,7 @@ export default function AdminPage() {
             </div>
 
             {kpis.loading ? (
-              <div className="text-center text-gray-400 py-12">Chargement des données...</div>
+              <DashboardSkeleton />
             ) : (
               <>
                 {/* ── Audit UI — HERO BAR : 3 KPIs décisionnels, toujours en tête ── */}
@@ -446,6 +446,12 @@ export default function AdminPage() {
                   <HeroCard label="Total Recettes" value={kpis.totalBrut} color="#f5a623" sub="net · période sélectionnée" />
                   <HeroCard label="Trésorerie Nette" value={kpis.tresorerie} color={kpis.tresorerie >= 0 ? "#22c55e" : "#ef4444"} sub="cash net" />
                 </div>
+
+                {/* ── Audit UI — État vide : aucune donnée sur la période ── */}
+                {kpis.dailyRows.length === 0 && (
+                  <EmptyState icon={BarChart3} title="Aucune activité sur cette période"
+                    hint="Dès qu'un rapport chauffeur est approuvé, les graphiques et les totaux détaillés apparaissent ici. Ajuste la période ci-dessus si besoin." />
+                )}
 
                 {/* ── Audit UI — ACTIVITÉ (graphique-first, comme la maquette) ── */}
                 {kpis.dailyRows.length > 0 && (
@@ -3819,6 +3825,38 @@ function AccordionSection({ title, subtitle, defaultOpen, right, children }: {
         <span className="text-xs flex-shrink-0 transition-transform" style={{ color: "var(--sk-t3)", transform: open ? "rotate(180deg)" : "none" }}>▾</span>
       </button>
       {open && <div className="px-5 pb-5 pt-1 border-t" style={{ borderColor: "var(--sk-surface)" }}>{children}</div>}
+    </div>
+  );
+}
+
+// ── Audit UI — Squelette de chargement : reproduit la silhouette du dashboard
+// (hero + graphe + accordéons) au lieu d'un texte « Chargement… », pour un ressenti premium.
+function SkelBox({ h, className = "" }: { h: number; className?: string }) {
+  return <div className={`rounded-xl animate-pulse ${className}`} style={{ height: h, background: "var(--sk-surface)", opacity: 0.55 }} />;
+}
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-4" aria-busy="true" aria-label="Chargement du tableau de bord">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2">
+        <SkelBox h={104} /><SkelBox h={104} /><SkelBox h={104} />
+      </div>
+      <SkelBox h={320} />
+      <SkelBox h={64} /><SkelBox h={64} /><SkelBox h={64} />
+    </div>
+  );
+}
+
+// ── Audit UI — État vide : au lieu de faire disparaître les graphes en silence,
+// on explique quoi faire pour que les données apparaissent.
+function EmptyState({ icon: Icon, title, hint }: { icon: LucideIcon; title: string; hint?: string }) {
+  return (
+    <div className="rounded-2xl flex flex-col items-center text-center px-6 py-14"
+      style={{ background: "var(--sk-bg)", border: "1px dashed var(--sk-border)" }}>
+      <div className="rounded-2xl p-3 mb-4" style={{ background: "var(--sk-surface)" }}>
+        <Icon size={26} strokeWidth={1.8} style={{ color: "var(--sk-t3)" }} />
+      </div>
+      <div className="font-semibold text-sm" style={{ color: "var(--sk-t1)" }}>{title}</div>
+      {hint && <div className="text-xs mt-1.5 max-w-sm" style={{ color: "var(--sk-t3)" }}>{hint}</div>}
     </div>
   );
 }
