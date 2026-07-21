@@ -11,19 +11,22 @@ const admin = createClient(
   { db: { schema: "fleet" } }
 );
 
-const todayStr = () => new Date().toISOString().split("T")[0];
+// Les rapports se soumettent EN FIN DE JOURNÉE : le jour en cours n'est pas encore
+// dû. La relance porte donc sur la veille (J-1), dernier jour complet.
+const refDayStr = () => new Date(Date.now() - 86400_000).toISOString().split("T")[0];
 
-/** Chauffeurs actifs sans rapport (soumis ou validé) pour aujourd'hui. */
+/** Chauffeurs actifs sans rapport (soumis ou validé) pour la veille (J-1). */
 async function findMissing(tenantId: string) {
-  const today = todayStr();
+  const ref = refDayStr();
   const [{ data: drivers }, { data: reports }] = await Promise.all([
-    admin.from("profiles").select("id, driver_id, full_name")
+    admin.from("profiles").select("id, driver_id, full_name, hire_date")
       .eq("tenant_id", tenantId).eq("role", "driver").eq("active", true),
     admin.from("daily_reports").select("driver_id")
-      .eq("tenant_id", tenantId).eq("date", today).in("status", ["submitted", "approved"]),
+      .eq("tenant_id", tenantId).eq("date", ref).in("status", ["submitted", "approved"]),
   ]);
   const submitted = new Set((reports || []).map((r: any) => r.driver_id));
-  return (drivers || []).filter((d: any) => !submitted.has(d.id));
+  // On ne relance pas un chauffeur embauché après le jour de référence (pas encore dû).
+  return (drivers || []).filter((d: any) => !submitted.has(d.id) && (!d.hire_date || d.hire_date <= ref));
 }
 
 export async function GET() {
@@ -50,8 +53,8 @@ export async function POST(_req: NextRequest) {
         const first = (d.full_name || "").split(" ")[0] || "chauffeur";
         return sendNotification(
           tenantId, d.id, "report_reminder",
-          "Rappel — rapport du jour",
-          `Bonjour ${first}, pensez à soumettre votre rapport d'aujourd'hui.`,
+          "Rappel — rapport manquant",
+          `Bonjour ${first}, votre rapport d'hier n'a pas encore été soumis. Merci de le compléter.`,
           { url: "/driver" }
         );
       })
