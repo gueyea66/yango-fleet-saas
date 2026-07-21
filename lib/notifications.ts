@@ -27,7 +27,8 @@ export type NotifType =
   | "advance_approved"
   | "advance_rejected"
   | "plan_expiring"
-  | "payment_due";
+  | "payment_due"
+  | "report_reminder";
 
 export async function sendNotification(
   tenantId: string,

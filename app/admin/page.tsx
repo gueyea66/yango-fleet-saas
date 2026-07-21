@@ -14,7 +14,7 @@ const NAV_ICONS: Record<string, LucideIcon> = {
 import React, { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard, Inbox, History, Calendar, Banknote, HandCoins, Gauge,
-  Car, Users, BadgeCheck, Briefcase, BookText, Upload, Settings, BarChart3, Download, type LucideIcon,
+  Car, Users, BadgeCheck, Briefcase, BookText, Upload, Settings, BarChart3, Download, BellRing, type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { useRouter } from "next/navigation";
@@ -436,6 +436,8 @@ export default function AdminPage() {
                 <ExportMenu dateFrom={periodFrom} dateTo={periodTo} />
               </div>
             </div>
+
+            <RemindBanner />
 
             {kpis.loading ? (
               <DashboardSkeleton />
@@ -3843,6 +3845,57 @@ function DashboardSkeleton() {
       </div>
       <SkelBox h={320} />
       <SkelBox h={64} /><SkelBox h={64} /><SkelBox h={64} />
+    </div>
+  );
+}
+
+// ── Relance chauffeurs : liste les chauffeurs actifs SANS rapport aujourd'hui et
+// permet de leur envoyer un rappel (notification in-app + push best-effort).
+function RemindBanner() {
+  const [state, setState] = useState<{ count: number; drivers: { id: string; name: string }[] } | null>(null);
+  const [sending, setSending] = useState(false);
+  const [done, setDone] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/admin/remind-drivers")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setState(d))
+      .catch(() => {});
+  }, []);
+
+  if (!state || state.count === 0) return null;
+
+  const remind = async () => {
+    setSending(true);
+    try {
+      const res = await fetch("/api/admin/remind-drivers", { method: "POST" });
+      const j = await res.json().catch(() => ({} as any));
+      if (res.ok) setDone(j.reminded ?? 0);
+    } finally { setSending(false); }
+  };
+
+  const names = state.drivers.map((d) => d.name).join(", ");
+  return (
+    <div className="rounded-xl px-5 py-3.5 flex items-center gap-4 flex-wrap"
+      style={{ background: "rgba(245,166,35,.07)", border: "1px solid rgba(245,166,35,.25)" }}>
+      <BellRing size={18} strokeWidth={2} style={{ color: "#f5a623", flexShrink: 0 }} />
+      <div className="flex-1 min-w-[180px]">
+        <div className="text-sm font-semibold" style={{ color: "var(--sk-t1)" }}>
+          {state.count} chauffeur{state.count > 1 ? "s" : ""} sans rapport aujourd'hui
+        </div>
+        <div className="text-xs mt-0.5 truncate" style={{ color: "var(--sk-t3)" }}>{names}</div>
+      </div>
+      {done != null ? (
+        <span className="text-sm font-semibold flex items-center gap-1.5" style={{ color: "#22c55e" }}>
+          ✓ {done} relancé{done > 1 ? "s" : ""}
+        </span>
+      ) : (
+        <button onClick={remind} disabled={sending}
+          className="text-sm px-4 py-2 rounded-lg font-semibold disabled:opacity-50"
+          style={{ background: "#f5a623", color: "#000" }}>
+          {sending ? "Envoi…" : "Relancer"}
+        </button>
+      )}
     </div>
   );
 }
