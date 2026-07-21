@@ -44,7 +44,8 @@ export async function POST(request: Request) {
     const ip = getClientIp(request as any);
 
     const body = await request.json();
-    const { action, driverId, fullName, password, paymentFrequency } = body;
+    const { action, driverId, fullName, password, paymentFrequency, accountType } = body;
+    const normAccountType = accountType === "technical" ? "technical" : "driver";
 
     if (action === "create") {
       if (!driverId || !fullName || !password) {
@@ -98,6 +99,7 @@ export async function POST(request: Request) {
           driver_id: driverId.toUpperCase(),
           full_name: fullName,
           role: "driver",
+          account_type: normAccountType,
           payment_frequency: paymentFrequency || "monthly",
           updated_at: new Date().toISOString(),
         }, { onConflict: "id" })
@@ -114,7 +116,7 @@ export async function POST(request: Request) {
 
     if (action === "update") {
       // Mise à jour des paramètres de rému/commission d'un chauffeur
-      const { driverProfileId, comm_yango, comm_partner, hire_date, contract_end_date, solde_initial, salary_model, base_amount } = body;
+      const { driverProfileId, comm_yango, comm_partner, hire_date, contract_end_date, solde_initial, salary_model, base_amount, account_type } = body;
       if (!driverProfileId) return Response.json({ error: "driverProfileId manquant" }, { status: 400 });
 
       // Vérifier que le chauffeur appartient au tenant de l'admin
@@ -132,6 +134,7 @@ export async function POST(request: Request) {
         salary_model: salary_model && MODELS.includes(salary_model) ? salary_model : null,
         hire_date: hire_date ? String(hire_date) : null,
         contract_end_date: contract_end_date ? String(contract_end_date) : null,
+        ...(account_type === "driver" || account_type === "technical" ? { account_type } : {}),
         updated_at: new Date().toISOString(),
       };
       const { error: updErr } = await adminClient.from("profiles").update(patch).eq("id", driverProfileId);

@@ -167,9 +167,14 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       const todayReps: any[] = (todayRep || []).filter((r: any) => r.status === "approved");
       const weekReps: any[] = (weekRep || []).filter((r: any) => r.status === "approved");
       const drivers: any[] = driverProfiles || [];
+      // Comptes techniques (décaissements, ex. « Founder ») : exclus de l'effectif et de
+      // la masse salariale, mais leurs déclarations restent comptées dans les chiffres.
+      const technicalIds = new Set(
+        (drivers || []).filter((d: any) => d.account_type === "technical").map((d: any) => d.id)
+      );
       // Chauffeurs ACTIFS aujourd'hui (masse salariale, effectif) — l'historique garde tout le monde
       const activeDrivers: any[] = drivers.filter((d: any) =>
-        d.active !== false && (!d.contract_end_date || d.contract_end_date >= today));
+        d.account_type !== "technical" && d.active !== false && (!d.contract_end_date || d.contract_end_date >= today));
 
       // Filter expenses by user-entered date (expense_date) or created_at fallback
       // Only approved expenses count in real figures
@@ -185,7 +190,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       const getSalaryDate = (p: any) => p.salary_month?.slice(0, 10) || p.payment_date || p.created_at?.slice(0, 10) || "";
       const periodPayments: any[] = (allPayments || []).filter((p: any) => {
         const d = getSalaryDate(p);
-        return d >= periodStart && d <= periodEnd;
+        return d >= periodStart && d <= periodEnd && !technicalIds.has(p.driver_id);
       });
       const totalSalaries = periodPayments.reduce((s, p) => s + (p.amount || 0), 0);
 

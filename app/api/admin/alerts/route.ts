@@ -27,7 +27,7 @@ export async function GET() {
     const today = new Date().toISOString().split("T")[0];
 
     const [{ data: drivers }, { data: recentReports }, { data: pending }] = await Promise.all([
-      admin.from("profiles").select("id, driver_id, full_name, hire_date")
+      admin.from("profiles").select("*")
         .eq("tenant_id", tenantId).eq("role", "driver").eq("active", true),
       // rapports des N derniers jours (pour dater la dernière activité par chauffeur)
       admin.from("daily_reports").select("driver_id, date")
@@ -46,7 +46,7 @@ export async function GET() {
     // eu la fenêtre pour soumettre) — évite le faux positif du nouveau chauffeur.
     const hiredCutoff = daysAgoStr(INACTIVE_DAYS);
     const inactive = (drivers || [])
-      .filter((d: any) => !recentSet.has(d.id) && (!d.hire_date || d.hire_date <= hiredCutoff))
+      .filter((d: any) => d.account_type !== "technical" && !recentSet.has(d.id) && (!d.hire_date || d.hire_date <= hiredCutoff))
       .map((d: any) => d.full_name || d.driver_id);
 
     const stalePending = (pending || []).map((r: any) => ({
