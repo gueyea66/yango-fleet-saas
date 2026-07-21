@@ -200,15 +200,22 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       const netFinal = totalBrut - totalDepenses;
 
       // ── KM PER DAY from odometer ──
-      const sortedReps = [...reps].sort((a, b) => a.date.localeCompare(b.date));
+      // Le km/jour = différence de compteur d'un MÊME véhicule d'un relevé au suivant.
+      // On regroupe donc par chauffeur avant de faire les écarts : sinon on soustrait
+      // le compteur d'un véhicule (~142 000) de celui d'un autre (~100 000) et on
+      // fabrique des dizaines de milliers de km fantômes (bug historique).
+      const MAX_KM_JOUR = 1500; // garde-fou anti-saisie aberrante (chiffre en trop au compteur)
       const kmByDate: Record<string, number> = {};
-      for (let i = 0; i < sortedReps.length; i++) {
-        const cur = sortedReps[i];
-        const prev = sortedReps[i - 1];
-        if (cur.end_odometer && prev?.end_odometer && cur.end_odometer > prev.end_odometer) {
-          kmByDate[cur.date] = cur.end_odometer - prev.end_odometer;
-        } else {
-          kmByDate[cur.date] = 0;
+      const repsByDriverKm: Record<string, any[]> = {};
+      reps.forEach((r: any) => { (repsByDriverKm[r.driver_id] ||= []).push(r); });
+      for (const driverReps of Object.values(repsByDriverKm)) {
+        const sorted = driverReps.sort((a, b) => a.date.localeCompare(b.date));
+        for (let i = 1; i < sorted.length; i++) {
+          const cur = sorted[i], prev = sorted[i - 1];
+          if (cur.end_odometer && prev?.end_odometer && cur.end_odometer > prev.end_odometer) {
+            const delta = cur.end_odometer - prev.end_odometer;
+            if (delta <= MAX_KM_JOUR) kmByDate[cur.date] = (kmByDate[cur.date] || 0) + delta;
+          }
         }
       }
       const totalKm = Object.values(kmByDate).reduce((s, k) => s + k, 0);
