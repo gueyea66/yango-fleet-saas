@@ -448,7 +448,7 @@ export default function AdminPage() {
                 </div>
 
                 {/* ── PÉRIODE SÉLECTIONNÉE ── */}
-                <AccordionSection title="Période — Recettes vs Charges" subtitle="Détail des recettes et charges de la période" defaultOpen>
+                <AccordionSection title="Période — Recettes vs Charges" subtitle="Détail des postes — replié par défaut (le hero suffit pour la lecture 5 s)">
                   <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-4">
                     <KPICard label="Brut Yango" value={kpis.brutYango} color="#f5a623" sub={`Moy/jour: ${Math.round(kpis.avgBrutPerDay).toLocaleString("fr-FR")} XOF`} />
                     <KPICard label="Net Yango" value={kpis.netYango} color="#3b82f6" sub="Après commission" />
