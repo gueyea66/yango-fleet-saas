@@ -3918,7 +3918,7 @@ function RemindBanner() {
       <BellRing size={18} strokeWidth={2} style={{ color: "#f5a623", flexShrink: 0 }} />
       <div className="flex-1 min-w-[180px]">
         <div className="text-sm font-semibold" style={{ color: "var(--sk-t1)" }}>
-          {state.count} chauffeur{state.count > 1 ? "s" : ""} sans rapport aujourd'hui
+          {state.count} chauffeur{state.count > 1 ? "s" : ""} sans rapport hier (J-1)
         </div>
         <div className="text-xs mt-0.5 truncate" style={{ color: "var(--sk-t3)" }}>{names}</div>
       </div>
