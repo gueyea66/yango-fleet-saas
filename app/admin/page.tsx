@@ -15,7 +15,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard, Inbox, History, Calendar, Banknote, HandCoins, Gauge,
   Car, Users, BadgeCheck, Briefcase, BookText, Upload, Settings, BarChart3, Download, BellRing,
-  AlertTriangle, Info, type LucideIcon,
+  AlertTriangle, Info, TrendingUp, Fuel, Coins, Wallet, type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { useRouter } from "next/navigation";
@@ -957,9 +957,9 @@ export default function AdminPage() {
         {tab === "avances" && adminTenantId && <AvancesTab filterDriverId={filterDriverId} tenantId={adminTenantId} />}
         {tab === "pilotage" && (
           <div className="text-center py-12">
-            <div className="text-4xl mb-3">🎯</div>
+            <div className="flex justify-center mb-3"><Gauge size={40} strokeWidth={1.6} style={{ color: "#f5a623" }} /></div>
             <p className="text-white font-semibold mb-2">Module Pilotage</p>
-            <p className="text-sm mb-4" style={{ color: "var(--sk-t3)" }}>Projections, P&L, simulation de flotte et insights avancés.</p>
+            <p className="text-sm mb-4" style={{ color: "var(--sk-t3)" }}>Projections, P&L, simulation de flotte et recommandations. Les moyennes de la période sont sur le dashboard.</p>
             <a href="/admin/pilotage" className="inline-block px-6 py-3 rounded-xl text-sm font-bold text-black"
               style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>
               Ouvrir le module Pilotage →
@@ -978,10 +978,10 @@ export default function AdminPage() {
             </p>
             <button
               onClick={() => setShowImportModal(true)}
-              className="flex items-center gap-3 px-5 py-3 rounded-xl font-bold text-sm text-black mb-8"
+              className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm text-black mb-8"
               style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}
             >
-              <span>📥</span> Importer un fichier CSV
+              <Upload size={16} strokeWidth={2.2} /> Importer un fichier CSV
             </button>
             <ImportBatchList />
           </div>
@@ -2686,31 +2686,36 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
 }
 
 // ─── INSIGHTS PANEL ───────────────────────────────────
+// Moyennes descriptives de la période (rétrospectif). Renommé « Moyennes de la
+// période » : ce ne sont pas des recommandations — les vraies « Insights »
+// (alertes/opportunités/conseils) vivent dans le module Pilotage. Marge % (déjà
+// dans la carte Net Final) et KM/jour (déjà dans le graphe KM) retirés : doublons.
 function InsightsPanel({ kpis }: { kpis: any }) {
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
-  const insights: { icon: string; label: string; value: string; color: string }[] = [];
+  const insights: { icon: LucideIcon; label: string; value: string; color: string }[] = [];
 
-  if (kpis.avgBrutPerDay > 0) insights.push({ icon: "📈", label: "Net recettes moy/jour", value: xof(kpis.avgBrutPerDay) + " XOF", color: "#f5a623" });
-  if (kpis.avgDepensesPerDay > 0) insights.push({ icon: "⛽", label: "Dépense moy/jour", value: xof(kpis.avgDepensesPerDay) + " XOF", color: "#ef4444" });
-  if (kpis.avgNetPerDay !== 0) insights.push({ icon: "💰", label: "Net final moy/jour", value: xof(kpis.avgNetPerDay) + " XOF", color: kpis.avgNetPerDay > 0 ? "#22c55e" : "#ef4444" });
-  if (kpis.avgKmPerDay > 0) insights.push({ icon: "🚗", label: "KM moy/jour", value: kpis.avgKmPerDay + " km", color: "#3b82f6" });
-  if (kpis.avgSoldePerDay > 0) insights.push({ icon: "💳", label: "Solde wallet moy/jour", value: xof(kpis.avgSoldePerDay) + " XOF", color: "#a855f7" });
-  if (kpis.totalFuelCost > 0) insights.push({ icon: "🛢️", label: "Carburant total période", value: xof(kpis.totalFuelCost) + " XOF", color: "#f97316" });
-  if (kpis.monthMarginPercent !== 0) insights.push({ icon: "📊", label: "Marge nette période", value: kpis.monthMarginPercent.toFixed(1) + "%", color: kpis.monthMarginPercent > 0 ? "#22c55e" : "#ef4444" });
-  if (kpis.totalDrivers > 0) insights.push({ icon: "👥", label: "Moy recette/chauffeur", value: xof(kpis.avgRevenuePerDriver) + " XOF", color: "#3b82f6" });
+  if (kpis.avgBrutPerDay > 0) insights.push({ icon: TrendingUp, label: "Net recettes moy/jour", value: xof(kpis.avgBrutPerDay) + " XOF", color: "#f5a623" });
+  if (kpis.avgDepensesPerDay > 0) insights.push({ icon: Fuel, label: "Dépense moy/jour", value: xof(kpis.avgDepensesPerDay) + " XOF", color: "#ef4444" });
+  if (kpis.avgNetPerDay !== 0) insights.push({ icon: Coins, label: "Net final moy/jour", value: xof(kpis.avgNetPerDay) + " XOF", color: kpis.avgNetPerDay > 0 ? "#22c55e" : "#ef4444" });
+  if (kpis.avgSoldePerDay > 0) insights.push({ icon: Wallet, label: "Solde wallet moy/jour", value: xof(kpis.avgSoldePerDay) + " XOF", color: "#a855f7" });
+  if (kpis.totalFuelCost > 0) insights.push({ icon: Fuel, label: "Carburant total période", value: xof(kpis.totalFuelCost) + " XOF", color: "#f97316" });
+  if (kpis.totalDrivers > 0) insights.push({ icon: Users, label: "Moy recette/chauffeur", value: xof(kpis.avgRevenuePerDriver) + " XOF", color: "#3b82f6" });
 
   if (insights.length === 0) return null;
   return (
     <div className="rounded-xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
-      <h3 className="font-bold text-white text-sm mb-3">💡 Insights</h3>
+      <h3 className="font-bold text-white text-sm mb-3">Moyennes de la période</h3>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-        {insights.map((ins, i) => (
+        {insights.map((ins, i) => {
+          const Icon = ins.icon;
+          return (
           <div key={i} className="rounded-lg p-3" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
-            <div className="text-lg mb-1">{ins.icon}</div>
+            <Icon size={16} strokeWidth={2} style={{ color: ins.color }} className="mb-1.5" />
             <div className="text-xs mb-1" style={{ color: "var(--sk-t3)" }}>{ins.label}</div>
             <div className="text-sm font-bold font-mono" style={{ color: ins.color }}>{ins.value}</div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
