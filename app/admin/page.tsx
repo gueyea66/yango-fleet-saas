@@ -447,6 +447,25 @@ export default function AdminPage() {
                   <HeroCard label="Trésorerie Nette" value={kpis.tresorerie} color={kpis.tresorerie >= 0 ? "#22c55e" : "#ef4444"} sub="cash net" />
                 </div>
 
+                {/* ── Audit UI — ACTIVITÉ (graphique-first, comme la maquette) ── */}
+                {kpis.dailyRows.length > 0 && (
+                  <AccordionSection title="Activité — Recettes par jour" subtitle="Brut Yango · Hors Yango · Net final — la vue de lecture principale" defaultOpen>
+                    <ResponsiveContainer width="100%" height={260}>
+                      <BarChart data={kpis.dailyRows} barGap={2}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="var(--sk-surface)" vertical={false} />
+                        <XAxis dataKey="date" stroke="var(--sk-t3)" tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(d) => d.slice(5)} />
+                        <YAxis stroke="var(--sk-t3)" tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
+                        <Tooltip contentStyle={{ backgroundColor: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderRadius: 8, fontSize: 12 }}
+                          formatter={(v: any) => [Number(v).toLocaleString("fr-FR") + " XOF"]} />
+                        <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                        <Bar dataKey="brutYango" fill="#f5a623" name="Brut Yango" radius={[3,3,0,0]} />
+                        <Bar dataKey="horsYango" fill="#a855f7" name="Hors Yango" radius={[3,3,0,0]} />
+                        <Bar dataKey="netFinal" fill="#22c55e" name="Net final" radius={[3,3,0,0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </AccordionSection>
+                )}
+
                 {/* ── PÉRIODE SÉLECTIONNÉE ── */}
                 <AccordionSection title="Période — Recettes vs Charges" subtitle="Détail des postes — replié par défaut (le hero suffit pour la lecture 5 s)">
                   <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-4">
@@ -657,25 +676,7 @@ export default function AdminPage() {
                 {/* ── CHARTS ── */}
                 <div className="space-y-6">
 
-                  {/* Chart 1 : Recettes par jour */}
-                  {kpis.dailyRows.length > 0 && (
-                    <div className="rounded-xl p-5" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
-                      <h3 className="text-sm font-bold text-white mb-4">📊 Recettes par jour — Brut Yango · Hors Yango · Net final</h3>
-                      <ResponsiveContainer width="100%" height={260}>
-                        <BarChart data={kpis.dailyRows} barGap={2}>
-                          <CartesianGrid strokeDasharray="3 3" stroke="var(--sk-surface)" vertical={false} />
-                          <XAxis dataKey="date" stroke="var(--sk-t3)" tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(d) => d.slice(5)} />
-                          <YAxis stroke="var(--sk-t3)" tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
-                          <Tooltip contentStyle={{ backgroundColor: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderRadius: 8, fontSize: 12 }}
-                            formatter={(v: any) => [Number(v).toLocaleString("fr-FR") + " XOF"]} />
-                          <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                          <Bar dataKey="brutYango" fill="#f5a623" name="Brut Yango" radius={[3,3,0,0]} />
-                          <Bar dataKey="horsYango" fill="#a855f7" name="Hors Yango" radius={[3,3,0,0]} />
-                          <Bar dataKey="netFinal" fill="#22c55e" name="Net final" radius={[3,3,0,0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  )}
+                  {/* Chart 1 (Recettes par jour) promu en tête → section « Activité » sous le hero */}
 
                   {/* Chart 2 : Treemap dépenses par catégorie (style Power BI) */}
                   {kpis.expenseBreakdown.length > 0 && (
