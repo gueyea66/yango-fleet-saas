@@ -282,12 +282,14 @@ export default function AdminPage() {
               {open && (
               <div className="space-y-0.5">
                 {group.items.map(([id, icon, label]) => (
-                  <button key={id} onClick={() => id === "drivers" ? router.push("/admin/drivers") : setTab(id)} className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all flex items-center gap-2.5"
+                  <button key={id} onClick={() => id === "drivers" ? router.push("/admin/drivers") : setTab(id)} className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150 flex items-center gap-2.5 hover:translate-x-0.5"
                     style={{
                       background: tab === id ? "rgba(245,166,35,.12)" : "transparent",
                       color: tab === id ? "#f5a623" : "var(--sk-t2)",
                       border: `1px solid ${tab === id ? "rgba(245,166,35,.2)" : "transparent"}`,
-                    }}>
+                    }}
+                    onMouseEnter={(e) => { if (tab !== id) { e.currentTarget.style.background = "rgba(255,255,255,.045)"; e.currentTarget.style.color = "#fff"; } }}
+                    onMouseLeave={(e) => { if (tab !== id) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--sk-t2)"; } }}>
                     {(() => { const I = NAV_ICONS[id]; return I
                       ? <I size={16} strokeWidth={1.75} className="flex-shrink-0" />
                       : <span className="text-sm leading-none w-4 text-center flex-shrink-0">{icon}</span>; })()}
@@ -465,9 +467,26 @@ export default function AdminPage() {
               <>
                 {/* ── Audit UI — HERO BAR : 3 KPIs décisionnels, toujours en tête ── */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2">
-                  <HeroCard label="Net Final" value={kpis.netFinal} color={kpis.netFinal >= 0 ? "#22c55e" : "#ef4444"} sub={`${kpis.monthMarginPercent.toFixed(1)}% de marge · période`} primary />
-                  <HeroCard label="Total Recettes" value={kpis.totalBrut} color="#f5a623" sub="net · période sélectionnée" />
-                  <HeroCard label="Trésorerie Nette" value={kpis.tresorerie} color={kpis.tresorerie >= 0 ? "#22c55e" : "#ef4444"} sub="cash net" />
+                  <HeroCard label="Net Final" value={kpis.netFinal} color={kpis.netFinal >= 0 ? "#22c55e" : "#ef4444"} primary
+                    prev={kpis.prevNetFinal}
+                    sub={`${kpis.monthMarginPercent.toFixed(1)}% de marge · période`}
+                    breakdown={[
+                      { label: "Rec. nettes", value: kpis.totalBrut, color: "#22c55e" },
+                      { label: "Charges", value: kpis.totalDepenses, color: "#ef4444" },
+                    ]} />
+                  <HeroCard label="Total Recettes" value={kpis.brutYango + kpis.horsYango} color="#f5a623"
+                    prev={kpis.prevRecettes}
+                    sub="brut · Yango + hors-app"
+                    breakdown={[
+                      { label: "Yango", value: kpis.brutYango, color: "#f5a623" },
+                      { label: "Hors-app", value: kpis.horsYango, color: "#a855f7" },
+                    ]} />
+                  <HeroCard label="Trésorerie Nette" value={kpis.tresorerie} color={kpis.tresorerie >= 0 ? "#22c55e" : "#ef4444"}
+                    sub="cash net"
+                    breakdown={[
+                      { label: "Encaissements", value: kpis.tresorerie + kpis.decaissements, color: "#22c55e" },
+                      { label: "Décaissements", value: kpis.decaissements, color: "#ef4444" },
+                    ]} />
                 </div>
 
                 {/* ── Audit UI — État vide : aucune donnée sur la période ── */}
@@ -3809,22 +3828,40 @@ function KPICard({ label, value, color, sub, negative, big, hideWhenZero, showZe
 
 // ── Audit UI — Hero bar : les 3 KPIs décisionnels, toujours visibles en tête
 // de dashboard (lisibilité en 5 s). Affichage seul, données inchangées.
-function HeroCard({ label, value, color, sub, primary }: {
+function HeroCard({ label, value, color, sub, primary, prev, breakdown }: {
   label: string; value: number; color: string; sub?: string; primary?: boolean;
+  prev?: number | null; breakdown?: { label: string; value: number; color?: string }[];
 }) {
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(Math.abs(n)));
+  const pct = (prev != null && prev !== 0) ? ((value - prev) / Math.abs(prev)) * 100 : null;
+  const up = pct != null && pct >= 0;
   return (
-    <div className="rounded-2xl p-5" style={{
+    <div className="rounded-2xl p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg" style={{
       background: primary ? "linear-gradient(135deg, rgba(34,197,94,.06), var(--sk-bg) 60%)" : "var(--sk-bg)",
       border: `1px solid ${primary ? "rgba(34,197,94,.25)" : "var(--sk-surface)"}`,
       borderLeft: `3px solid ${color}`,
     }}>
-      <div className="text-[11px] uppercase tracking-wider font-semibold mb-2" style={{ color: "var(--sk-t2)" }}>{label}</div>
+      <div className="flex items-center justify-between mb-2 gap-2">
+        <div className="text-[11px] uppercase tracking-wider font-semibold" style={{ color: "var(--sk-t2)" }}>{label}</div>
+        {pct != null && (
+          <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 flex-shrink-0"
+            style={{ color: up ? "#22c55e" : "#ef4444", background: up ? "rgba(34,197,94,.1)" : "rgba(239,68,68,.1)" }}>
+            {up ? "▲" : "▼"} {up ? "+" : ""}{pct.toFixed(1)}% <span className="font-normal opacity-70">vs préc.</span>
+          </span>
+        )}
+      </div>
       <div className="font-mono font-bold" style={{ color, fontSize: "1.9rem", lineHeight: 1.15 }}>
         {value < 0 ? "- " : ""}{xof(value)}
         <span className="text-xs font-normal ml-1.5" style={{ color: "var(--sk-t3)" }}>XOF</span>
       </div>
       {sub && <div className="text-xs mt-1.5" style={{ color: "var(--sk-t3)" }}>{sub}</div>}
+      {breakdown && breakdown.length > 0 && (
+        <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-2 text-[11px]" style={{ color: "var(--sk-t3)" }}>
+          {breakdown.map((b) => (
+            <span key={b.label}>{b.label} : <span className="font-mono font-semibold" style={{ color: b.color || "var(--sk-t2)" }}>{xof(b.value)}</span></span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

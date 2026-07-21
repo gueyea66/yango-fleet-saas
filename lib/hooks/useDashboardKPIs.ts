@@ -29,6 +29,9 @@ export interface DashboardKPIs {
   totalBrut: number;
   totalDepenses: number;
   netFinal: number;
+  prevNetFinal: number | null;   // net final de la période précédente (évolution vs N-1)
+  prevTotalBrut: number | null;  // net après charges de la période précédente
+  prevRecettes: number | null;   // recettes brutes (Yango + hors) de la période précédente
 
   // ── Reporting OPÉRATIONNEL réel ──
   soldeConsomme: number;       // solde Yango réellement consommé (mesuré)
@@ -103,6 +106,7 @@ export interface DashboardKPIs {
 
 const ZERO: DashboardKPIs = {
   brutYango: 0, netYango: 0, horsYango: 0, totalBrut: 0, totalDepenses: 0, netFinal: 0,
+  prevNetFinal: null, prevTotalBrut: null, prevRecettes: null,
   soldeConsomme: 0, carburantConsomme: 0, coutCarburantKm: 0, provisionsSolde: 0,
   achatsCarburant: 0, autresDepensesOpe: 0, netOperationnel: 0,
   decaissements: 0, tresorerie: 0, avanceSolde: 0, avanceCarburant: 0,
@@ -127,6 +131,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       const periodEnd = dateTo || today;
 
       let allReps: any[], allExps: any[], allPayments: any[], todayRep: any[], weekRep: any[], driverProfiles: any[];
+      let prev: { netFinal: number; totalBrut: number; recettes: number } | null = null;
 
       if (explicitTenantId) {
         // Admin context — bypass RLS via service-role API
@@ -139,6 +144,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         todayRep = json.todayRep || [];
         weekRep = json.weekRep || [];
         driverProfiles = json.driverProfiles || [];
+        prev = json.prev || null;
       } else {
         // Driver context — use anon client (driver reads their own data, RLS allows it)
         const supabase = createClient() as any;
@@ -380,6 +386,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
 
       setKPIs({
         brutYango, netYango, horsYango, totalBrut, totalDepenses, netFinal,
+        prevNetFinal: prev?.netFinal ?? null, prevTotalBrut: prev?.totalBrut ?? null, prevRecettes: prev?.recettes ?? null,
         soldeConsomme: totalSoldeConsomme, carburantConsomme: carbuConsomme, coutCarburantKm,
         provisionsSolde, achatsCarburant, autresDepensesOpe, netOperationnel,
         decaissements: treso.decaissements, tresorerie: treso.tresorerie,
