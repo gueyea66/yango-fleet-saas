@@ -55,6 +55,29 @@ export default function DriversPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [settingsForm, setSettingsForm] = useState<SettingsForm>({ comm_yango: "", comm_partner: "", hire_date: "", contract_end_date: "", solde_initial: "", salary_model: "", base_amount: "" });
   const [savingSettings, setSavingSettings] = useState(false);
+  // Réinitialisation du mot de passe par l'admin
+  const [pwInput, setPwInput] = useState<Record<string, string>>({});
+  const [pwBusy, setPwBusy] = useState<string | null>(null);
+
+  const resetPassword = async (driverProfileId: string) => {
+    const password = pwInput[driverProfileId] || "";
+    if (password.length < 6) { setError("Mot de passe : 6 caractères minimum"); return; }
+    setPwBusy(driverProfileId); setError(null);
+    try {
+      const res = await fetch("/api/admin/drivers", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "reset_password", driverProfileId, password }),
+      });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Erreur");
+      setSuccess("Mot de passe réinitialisé");
+      setPwInput((s) => ({ ...s, [driverProfileId]: "" }));
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setPwBusy(null);
+    }
+  };
 
   const openSettings = (d: Driver) => {
     setEditId(editId === d.id ? null : d.id);
@@ -460,6 +483,27 @@ export default function DriversPage() {
                       >
                         {driver.active === false ? "▶ Réactiver le compte" : "⏸ Désactiver le compte"}
                       </button>
+                    </div>
+
+                    {/* Réinitialisation du mot de passe par l'admin */}
+                    <div className="mt-4 pt-4 border-t border-gray-700">
+                      <label className="text-xs text-gray-400 block mb-1">Réinitialiser le mot de passe</label>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="text"
+                          value={pwInput[driver.id] || ""}
+                          onChange={(e) => setPwInput((s) => ({ ...s, [driver.id]: e.target.value }))}
+                          placeholder="Nouveau mot de passe (6 car. min)"
+                          autoComplete="new-password"
+                          className="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500" />
+                        <button
+                          onClick={() => resetPassword(driver.id)}
+                          disabled={pwBusy === driver.id || (pwInput[driver.id] || "").length < 6}
+                          className="bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-white font-semibold px-4 py-2 rounded text-sm shrink-0">
+                          {pwBusy === driver.id ? "..." : "Réinitialiser"}
+                        </button>
+                      </div>
+                      <div className="text-[11px] text-gray-500 mt-1">Communique le nouveau mot de passe au chauffeur — il l'utilise avec son ID conducteur.</div>
                     </div>
                   </div>
                 )}

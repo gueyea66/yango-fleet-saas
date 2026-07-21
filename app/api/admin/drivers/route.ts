@@ -187,6 +187,24 @@ export async function POST(request: Request) {
       return Response.json({ success: true });
     }
 
+    if (action === "reset_password") {
+      const { driverProfileId, password } = body;
+      if (!driverProfileId || !password || String(password).length < 6) {
+        return Response.json({ error: "Mot de passe requis (6 caractères minimum)" }, { status: 400 });
+      }
+      // Le chauffeur doit appartenir au tenant de l'admin
+      const { data: prof } = await adminClient.from("profiles").select("id, tenant_id").eq("id", driverProfileId).single();
+      if (!prof || prof.tenant_id !== tenantId) {
+        return Response.json({ error: "Chauffeur introuvable dans ce tenant" }, { status: 403 });
+      }
+      // profile.id === auth user id (créés ensemble)
+      const { error: pwErr } = await adminClient.auth.admin.updateUserById(driverProfileId, { password: String(password) });
+      if (pwErr) return Response.json({ error: pwErr.message }, { status: 500 });
+
+      audit({ tenantId, userId, action: "driver.reset_password", resourceType: "driver", resourceId: driverProfileId, ip });
+      return Response.json({ success: true });
+    }
+
     return Response.json({ error: "Action invalide" }, { status: 400 });
 
   } catch (error: any) {
