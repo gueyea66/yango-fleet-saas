@@ -3967,6 +3967,7 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
   };
 
   const items: [string, string][] = [
+    ["recap", "Récap comptable (par chauffeur)"],
     ["reports", "Rapports journaliers"],
     ["expenses", "Dépenses"],
     ["payments", "Paiements / salaires"],

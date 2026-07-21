@@ -125,6 +125,56 @@ export async function GET(req: NextRequest) {
         "Notes": p.notes ?? "",
       }));
       filename = `paiements_${today()}.csv`;
+    } else if (resource === "recap") {
+      // Récap comptable consolidé : une ligne par chauffeur (totaux de la période) + TOTAL.
+      let repQ = admin.from("daily_reports")
+        .select("driver_id,yango_gross,yango_bonus,off_yango_revenue,commission_amount,net_after_expenses")
+        .eq("tenant_id", tenantId).eq("status", "approved").or("source.eq.saas,source.is.null").limit(20000);
+      if (dateFrom) repQ = repQ.gte("date", dateFrom) as any;
+      if (dateTo) repQ = repQ.lte("date", dateTo) as any;
+      let expQ = admin.from("expenses").select("driver_id,amount,expense_date").eq("tenant_id", tenantId).limit(20000);
+      if (dateFrom) expQ = expQ.gte("expense_date", dateFrom) as any;
+      if (dateTo) expQ = expQ.lte("expense_date", dateTo) as any;
+      const payQ = admin.from("payments").select("driver_id,amount,payment_date,salary_month").eq("tenant_id", tenantId).limit(20000);
+      const [{ data: reps }, { data: exps }, { data: pays }] = await Promise.all([repQ, expQ, payQ]);
+
+      const salaryDate = (p: any) => (p.salary_month ? String(p.salary_month).slice(0, 10) : p.payment_date) || "";
+      const inPeriod = (d: string) => (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);
+
+      type Agg = { jours: number; brut: number; bonus: number; hors: number; comm: number; net: number; dep: number; sal: number };
+      const acc = new Map<string, Agg>();
+      const get = (id: string) => {
+        if (!acc.has(id)) acc.set(id, { jours: 0, brut: 0, bonus: 0, hors: 0, comm: 0, net: 0, dep: 0, sal: 0 });
+        return acc.get(id)!;
+      };
+      (reps || []).forEach((r: any) => {
+        const a = get(r.driver_id);
+        a.jours += 1; a.brut += r.yango_gross || 0; a.bonus += r.yango_bonus || 0;
+        a.hors += r.off_yango_revenue || 0; a.comm += r.commission_amount || 0; a.net += r.net_after_expenses || 0;
+      });
+      (exps || []).forEach((e: any) => { get(e.driver_id).dep += e.amount || 0; });
+      (pays || []).filter((p: any) => inPeriod(salaryDate(p))).forEach((p: any) => { get(p.driver_id).sal += p.amount || 0; });
+
+      headers = ["Chauffeur", "Jours", "Brut Yango", "Bonus", "Hors Yango", "Commission",
+        "Net après charges", "Dépenses", "Salaire versé", "Net final"];
+      const built = Array.from(acc.entries())
+        .map(([id, a]) => ({ name: nameOf.get(id) || id, a }))
+        .sort((x, y) => x.name.localeCompare(y.name));
+      const tot: Agg = { jours: 0, brut: 0, bonus: 0, hors: 0, comm: 0, net: 0, dep: 0, sal: 0 };
+      rows = built.map(({ name, a }) => {
+        (Object.keys(tot) as (keyof Agg)[]).forEach((k) => (tot[k] += a[k]));
+        return {
+          "Chauffeur": name, "Jours": a.jours, "Brut Yango": num(a.brut), "Bonus": num(a.bonus),
+          "Hors Yango": num(a.hors), "Commission": num(a.comm), "Net après charges": num(a.net),
+          "Dépenses": num(a.dep), "Salaire versé": num(a.sal), "Net final": num(a.net - a.dep - a.sal),
+        };
+      });
+      rows.push({
+        "Chauffeur": "TOTAL", "Jours": tot.jours, "Brut Yango": num(tot.brut), "Bonus": num(tot.bonus),
+        "Hors Yango": num(tot.hors), "Commission": num(tot.comm), "Net après charges": num(tot.net),
+        "Dépenses": num(tot.dep), "Salaire versé": num(tot.sal), "Net final": num(tot.net - tot.dep - tot.sal),
+      });
+      filename = `recap_${dateFrom || "debut"}_${dateTo || today()}.csv`;
     } else if (resource === "drivers") {
       const { data } = await admin.from("profiles").select("driver_id,full_name,email,created_at")
         .eq("tenant_id", tenantId).eq("role", "driver").order("driver_id");
