@@ -21,9 +21,10 @@ interface Driver {
   base_amount: number | null;
   active?: boolean | null; // false = désactivé (plus de connexion, historique conservé)
   contract_end_date?: string | null; // fin de contrat → prorata masse salariale
+  account_type?: string | null; // 'driver' | 'technical' (compte de décaissement)
 }
 
-type SettingsForm = { comm_yango: string; comm_partner: string; hire_date: string; contract_end_date: string; solde_initial: string; salary_model: string; base_amount: string };
+type SettingsForm = { comm_yango: string; comm_partner: string; hire_date: string; contract_end_date: string; solde_initial: string; salary_model: string; base_amount: string; account_type: string };
 
 const SALARY_MODELS: { value: string; label: string }[] = [
   { value: "", label: "— (config tenant par défaut)" },
@@ -49,11 +50,12 @@ export default function DriversPage() {
     fullName: "",
     password: "",
     paymentFrequency: "monthly",
+    accountType: "driver",
   });
 
   // Édition des paramètres commission/rému par chauffeur
   const [editId, setEditId] = useState<string | null>(null);
-  const [settingsForm, setSettingsForm] = useState<SettingsForm>({ comm_yango: "", comm_partner: "", hire_date: "", contract_end_date: "", solde_initial: "", salary_model: "", base_amount: "" });
+  const [settingsForm, setSettingsForm] = useState<SettingsForm>({ comm_yango: "", comm_partner: "", hire_date: "", contract_end_date: "", solde_initial: "", salary_model: "", base_amount: "", account_type: "driver" });
   const [savingSettings, setSavingSettings] = useState(false);
 
   const openSettings = (d: Driver) => {
@@ -66,6 +68,7 @@ export default function DriversPage() {
       solde_initial: d.solde_initial != null ? String(d.solde_initial) : "",
       salary_model: d.salary_model || "",
       base_amount: d.base_amount != null ? String(d.base_amount) : "",
+      account_type: d.account_type || "driver",
     });
   };
 
@@ -155,6 +158,7 @@ export default function DriversPage() {
           fullName: formData.fullName,
           password: formData.password,
           paymentFrequency: formData.paymentFrequency,
+          accountType: formData.accountType,
         }),
       });
 
@@ -167,7 +171,7 @@ export default function DriversPage() {
       setSuccess(
         `Conducteur ${formData.driverId.toUpperCase()} créé avec succès`
       );
-      setFormData({ driverId: "", fullName: "", password: "", paymentFrequency: "monthly" });
+      setFormData({ driverId: "", fullName: "", password: "", paymentFrequency: "monthly", accountType: "driver" });
       setShowForm(false);
 
       // Reload drivers list
@@ -327,6 +331,23 @@ export default function DriversPage() {
                 </select>
               </div>
 
+              <div>
+                <label className="text-xs uppercase font-semibold text-gray-400 block mb-2">
+                  Type de compte
+                </label>
+                <select
+                  value={formData.accountType}
+                  onChange={(e) => setFormData({ ...formData, accountType: e.target.value })}
+                  className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white focus:outline-none focus:border-yellow-500"
+                >
+                  <option value="driver">Chauffeur</option>
+                  <option value="technical">Compte technique (décaissements)</option>
+                </select>
+                <p className="text-[11px] text-gray-500 mt-1">
+                  Un compte technique sert à enregistrer des décaissements sans être un chauffeur : exclu des relances, alertes et masse salariale, mais ses écritures comptent dans les chiffres.
+                </p>
+              </div>
+
               <button
                 type="submit"
                 disabled={formLoading}
@@ -388,6 +409,16 @@ export default function DriversPage() {
                       Champs vides → repli automatique sur le véhicule puis la config tenant.
                     </p>
                     <div className="grid grid-cols-2 gap-3">
+                      <div className="col-span-2">
+                        <label className="text-xs text-gray-400 block mb-1">Type de compte</label>
+                        <select value={settingsForm.account_type}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, account_type: e.target.value })}
+                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500">
+                          <option value="driver">Chauffeur</option>
+                          <option value="technical">Compte technique (décaissements)</option>
+                        </select>
+                        <p className="text-[11px] text-gray-500 mt-1">Technique = exclu des relances, alertes et masse salariale ; ses écritures restent dans les chiffres.</p>
+                      </div>
                       <div>
                         <label className="text-xs text-gray-400 block mb-1">Modèle de rémunération</label>
                         <select value={settingsForm.salary_model}

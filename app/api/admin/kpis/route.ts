@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
       dQ(tQ(admin.from("payments").select("*"))),
       srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).eq("date", today),
       srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).gte("date", weekAgo).lte("date", today),
-      admin.from("profiles").select("id,full_name,driver_id,solde_initial,hire_date,salary_model,base_amount").eq("tenant_id", tenantId).eq("role", "driver"),
+      admin.from("profiles").select("*").eq("tenant_id", tenantId).eq("role", "driver"),
     ]);
 
     return Response.json({

@@ -19,14 +19,15 @@ const refDayStr = () => new Date(Date.now() - 86400_000).toISOString().split("T"
 async function findMissing(tenantId: string) {
   const ref = refDayStr();
   const [{ data: drivers }, { data: reports }] = await Promise.all([
-    admin.from("profiles").select("id, driver_id, full_name, hire_date")
+    admin.from("profiles").select("*")
       .eq("tenant_id", tenantId).eq("role", "driver").eq("active", true),
     admin.from("daily_reports").select("driver_id")
       .eq("tenant_id", tenantId).eq("date", ref).in("status", ["submitted", "approved"]),
   ]);
   const submitted = new Set((reports || []).map((r: any) => r.driver_id));
-  // On ne relance pas un chauffeur embauché après le jour de référence (pas encore dû).
-  return (drivers || []).filter((d: any) => !submitted.has(d.id) && (!d.hire_date || d.hire_date <= ref));
+  // Exclut les comptes techniques et ceux embauchés après le jour de référence.
+  return (drivers || []).filter((d: any) =>
+    d.account_type !== "technical" && !submitted.has(d.id) && (!d.hire_date || d.hire_date <= ref));
 }
 
 export async function GET() {
