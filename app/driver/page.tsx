@@ -10,6 +10,8 @@ import { useTenant } from "@/lib/tenant/context";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import NotificationBell from "@/components/NotificationBell";
 import { resolveRates, computeCommissions } from "@/lib/calc";
+import { Home, ClipboardList, Wallet, BedDouble, History, Target, LogOut } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import type { RemunerationConfig } from "@/lib/tenant/types";
 
@@ -143,13 +145,13 @@ export default function DriverApp() {
 
   if (!user || !profile) return null;
 
-  const navItems: [Tab, string, string][] = [
-    ["home",    "🏠", "Accueil"],
-    ["report",  "📋", "Rapport"],
-    ["expense", "💸", "Dépense"],
-    ["repos",   "🛌", "Repos"],
-    ["history", "📜", "Historique"],
-    ["pilotage","🎯", "Pilotage"],
+  const navItems: [Tab, LucideIcon, string][] = [
+    ["home",    Home,          "Accueil"],
+    ["report",  ClipboardList, "Rapport"],
+    ["expense", Wallet,        "Dépense"],
+    ["repos",   BedDouble,     "Repos"],
+    ["history", History,       "Historique"],
+    ["pilotage",Target,        "Pilotage"],
   ];
 
   return (
@@ -173,7 +175,7 @@ export default function DriverApp() {
         </div>
         {/* Nav */}
         <nav className="flex-1 py-4 px-3 space-y-1">
-          {navItems.map(([id, icon, label]) => (
+          {navItems.map(([id, Icon, label]) => (
             <button key={id} onClick={() => setTab(id)}
               className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
               style={{
@@ -181,7 +183,7 @@ export default function DriverApp() {
                 color: tab === id ? "#f5a623" : "var(--sk-t3)",
                 border: tab === id ? "1px solid rgba(245,166,35,.2)" : "1px solid transparent",
               }}>
-              <span className="text-base">{icon}</span>
+              <Icon size={18} strokeWidth={2} />
               <span>{label}</span>
             </button>
           ))}
@@ -212,9 +214,10 @@ export default function DriverApp() {
           </div>
           <div className="flex items-center gap-2">
             <NotificationBell />
-            <button onClick={() => signOut()} className="text-xs px-3 py-1.5 rounded-lg"
+            <button onClick={() => signOut()} aria-label="Se déconnecter"
+              className="p-2 rounded-lg flex items-center justify-center"
               style={{ background: "var(--sk-surface)", color: "var(--sk-t2)", border: "1px solid #2a2f3d" }}>
-              Déco
+              <LogOut size={16} strokeWidth={2} />
             </button>
           </div>
         </div>
@@ -247,11 +250,11 @@ export default function DriverApp() {
       {/* ── MOBILE BOTTOM NAV ── (hidden on desktop) */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 flex z-50"
         style={{ background: "var(--sk-bg)", borderTop: "1px solid var(--sk-surface)" }}>
-        {navItems.map(([id, icon, label]) => (
+        {navItems.map(([id, Icon, label]) => (
           <button key={id} onClick={() => setTab(id)}
-            className="flex-1 py-3 flex flex-col items-center gap-0.5"
+            className="flex-1 py-2.5 flex flex-col items-center gap-1"
             style={{ color: tab === id ? "#f5a623" : "var(--sk-t4)" }}>
-            <span className="text-lg">{icon}</span>
+            <Icon size={20} strokeWidth={tab === id ? 2.4 : 2} />
             <span className="text-[10px] font-medium">{label}</span>
           </button>
         ))}
@@ -318,13 +321,15 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
       )}
 
       <div className="grid grid-cols-2 gap-3">
-        <button onClick={() => onNav("report")} className="rounded-2xl p-4 text-center text-xs font-semibold transition-all"
+        <button onClick={() => onNav("report")} className="rounded-2xl p-4 flex flex-col items-center justify-center gap-2 text-xs font-semibold transition-all"
           style={{ background: todayStatus && todayStatus !== "rejected" ? "var(--sk-bg)" : "linear-gradient(135deg,#f5a623,#e8951a)", color: todayStatus && todayStatus !== "rejected" ? "var(--sk-t4)" : "#000", border: todayStatus && todayStatus !== "rejected" ? "1px solid var(--sk-surface)" : "none" }}>
-          📋<br /><span className="block mt-1">{todayStatus && todayStatus !== "rejected" ? "Rapport soumis" : "Faire le rapport"}</span>
+          <ClipboardList size={22} strokeWidth={2.2} />
+          <span>{todayStatus && todayStatus !== "rejected" ? "Rapport soumis" : "Faire le rapport"}</span>
         </button>
-        <button onClick={() => onNav("expense")} className="rounded-2xl p-4 text-center text-xs font-semibold"
+        <button onClick={() => onNav("expense")} className="rounded-2xl p-4 flex flex-col items-center justify-center gap-2 text-xs font-semibold"
           style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", color: "var(--sk-t2)" }}>
-          💸<br /><span className="block mt-1 text-xs">Ajouter dépense</span>
+          <Wallet size={22} strokeWidth={2.2} />
+          <span>Ajouter dépense</span>
         </button>
       </div>
 
