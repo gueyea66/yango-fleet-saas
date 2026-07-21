@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
   const { data: settings } = await adminClient
     .from("tenant_settings")
-    .select("app_name, logo_url, primary_color, currency, timezone, operator_name")
+    .select("app_name, logo_url, primary_color, currency, timezone, operator_name, skin")
     .eq("tenant_id", tenant.id)
     .single();
 
