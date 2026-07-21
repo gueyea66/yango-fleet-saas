@@ -518,9 +518,8 @@ export default function AdminPage() {
                 </AccordionSection>
 
                 {/* ── AUJOURD'HUI ── */}
-                <div>
-                  <h3 className="text-sm uppercase text-gray-400 tracking-widest font-semibold mb-4">
-                    Aujourd'hui</h3>
+                <AccordionSection title="Aujourd'hui" subtitle="Activité du jour — revenus, dépenses, marge"
+                  right={<span className="text-sm font-mono font-bold flex-shrink-0" style={{ color: kpis.todayNetMargin > 0 ? "#22c55e" : "#ef4444" }}>{Math.round(kpis.todayNetMargin).toLocaleString("fr-FR")} XOF</span>}>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="bg-gray-800 border-l-4 border-yellow-500 rounded-lg p-4">
                       <div className="text-xs uppercase text-gray-400 tracking-widest font-semibold">
@@ -577,13 +576,11 @@ export default function AdminPage() {
                       </div>
                     </div>
                   </div>
-                </div>
+                </AccordionSection>
 
                 {/* Week KPIs */}
-                <div>
-                  <h3 className="text-sm uppercase text-gray-400 tracking-widest font-semibold mb-4">
-                    7 derniers jours
-                  </h3>
+                <AccordionSection title="7 derniers jours" subtitle="Tendance sur la semaine glissante"
+                  right={<span className="text-sm font-mono font-bold flex-shrink-0" style={{ color: kpis.weekNetMargin > 0 ? "#22c55e" : "#ef4444" }}>{Math.round(kpis.weekNetMargin).toLocaleString("fr-FR")} XOF</span>}>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
                       <div className="text-xs uppercase text-gray-400 tracking-widest font-semibold">
@@ -621,13 +618,11 @@ export default function AdminPage() {
                       </div>
                     </div>
                   </div>
-                </div>
+                </AccordionSection>
 
                 {/* Period KPIs */}
-                <div>
-                  <h3 className="text-sm uppercase text-gray-400 tracking-widest font-semibold mb-4">
-                    Période sélectionnée ({periodFrom} → {periodTo})
-                  </h3>
+                <AccordionSection title={`Période sélectionnée (${periodFrom} → ${periodTo})`} subtitle="Totaux sur la plage de dates choisie"
+                  right={<span className="text-sm font-mono font-bold flex-shrink-0" style={{ color: "#f5a623" }}>{Math.round(kpis.monthRevenue).toLocaleString("fr-FR")} XOF</span>}>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
                       <div className="text-xs uppercase text-gray-400 tracking-widest font-semibold">
@@ -671,7 +666,7 @@ export default function AdminPage() {
                       </div>
                     </div>
                   </div>
-                </div>
+                </AccordionSection>
 
                 {/* ── CHARTS ── */}
                 <div className="space-y-6">
