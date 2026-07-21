@@ -15,7 +15,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard, Inbox, History, Calendar, Banknote, HandCoins, Gauge,
   Car, Users, BadgeCheck, Briefcase, BookText, Upload, Settings, BarChart3, Download, BellRing,
-  AlertTriangle, Info, TrendingUp, Fuel, Coins, Wallet, type LucideIcon,
+  AlertTriangle, Info, TrendingUp, Fuel, Coins, Wallet, FileText, BedDouble, Paperclip, Trash2, type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { useRouter } from "next/navigation";
@@ -370,7 +370,7 @@ export default function AdminPage() {
         {sessionError && (
           <div style={{ background: "#2d1515", border: "1px solid #c53030", borderRadius: 12, padding: "14px 18px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <span style={{ fontSize: 20 }}>⚠️</span>
+              <AlertTriangle size={19} strokeWidth={2} style={{ color: "#f5a623" }} />
               <div>
                 <div style={{ color: "#fc8181", fontWeight: 700, fontSize: 14 }}>{sessionError}</div>
                 <div style={{ color: "#a0aab8", fontSize: 12 }}>Vos données sont intactes — reconnectez-vous pour y accéder.</div>
@@ -398,7 +398,7 @@ export default function AdminPage() {
             <button onClick={() => setFilterDriverId("")}
               className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
               style={{ background: !filterDriverId ? "#f5a623" : "var(--sk-surface)", color: !filterDriverId ? "#000" : "var(--sk-t3)" }}>
-              👥 Tous
+              Tous
             </button>
             {allDrivers.map((d) => (
               <button key={d.id} onClick={() => setFilterDriverId(filterDriverId === d.id ? "" : d.id)}
@@ -408,7 +408,7 @@ export default function AdminPage() {
                   border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}`,
                   opacity: d.active === false ? 0.55 : 1 }}>
                 👤 {d.full_name || d.driver_id}
-                {d.plate && <span className="font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--sk-deep)", color: "var(--sk-t2)", fontSize: 10 }}>🚗 {d.plate}</span>}
+                {d.plate && <span className="font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--sk-deep)", color: "var(--sk-t2)", fontSize: 10 }}>{d.plate}</span>}
                 {d.active === false && <span className="text-[9px] uppercase" style={{ color: "var(--sk-t4)" }}>inactif</span>}
               </button>
             ))}
@@ -724,7 +724,7 @@ export default function AdminPage() {
                   {/* Chart 2 : Treemap dépenses par catégorie (style Power BI) */}
                   {kpis.expenseBreakdown.length > 0 && (
                     <div className="rounded-xl p-5" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
-                      <h3 className="text-sm font-bold text-white mb-1">⛽ Dépenses par catégorie</h3>
+                      <h3 className="flex items-center gap-1.5 text-sm font-bold text-white mb-1"><Fuel size={15} strokeWidth={2} />Dépenses par catégorie</h3>
                       <p className="text-xs mb-4" style={{ color: "var(--sk-t3)" }}>
                         Taille des blocs proportionnelle au montant sur la période
                       </p>
@@ -761,7 +761,7 @@ export default function AdminPage() {
                     {/* Chart 3 : KM par jour */}
                     {kpis.dailyRows.some((r) => r.km > 0) && (
                       <div className="rounded-xl p-5" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
-                        <h3 className="text-sm font-bold text-white mb-1">🚗 KM parcourus / jour</h3>
+                        <h3 className="flex items-center gap-1.5 text-sm font-bold text-white mb-1"><Car size={15} strokeWidth={2} />KM parcourus / jour</h3>
                         <p className="text-xs mb-4" style={{ color: "var(--sk-t3)" }}>Calculé depuis les relevés kilométriques fin de journée. Moy: {kpis.avgKmPerDay} km/j</p>
                         <ResponsiveContainer width="100%" height={180}>
                           <BarChart data={kpis.dailyRows.filter((r) => r.km > 0)}>
@@ -779,7 +779,7 @@ export default function AdminPage() {
                     {/* Chart 4 : Dépenses par jour (empilé par catégorie) */}
                     {kpis.dailyExpByCategory.length > 0 && kpis.expenseBreakdown.length > 0 && (
                       <div className="rounded-xl p-5" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
-                        <h3 className="text-sm font-bold text-white mb-4">📅 Dépenses par jour</h3>
+                        <h3 className="flex items-center gap-1.5 text-sm font-bold text-white mb-4"><Calendar size={15} strokeWidth={2} />Dépenses par jour</h3>
                         <ResponsiveContainer width="100%" height={180}>
                           <BarChart data={kpis.dailyExpByCategory}>
                             <CartesianGrid strokeDasharray="3 3" stroke="var(--sk-surface)" vertical={false} />
@@ -922,7 +922,7 @@ export default function AdminPage() {
                         }}
                         className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded text-sm"
                       >
-                        ✏️ Modifier
+                        Modifier
                       </button>
                     )}
                   </div>
@@ -1112,11 +1112,11 @@ const VEHICLE_STATUS_META: Record<string, { label: string; color: string }> = {
 };
 
 const MAINT_TYPE_META: Record<string, string> = {
-  maintenance:       "🔧 Entretien",
+  maintenance:       "Entretien",
   reparation:        "🔨 Réparation",
-  accident:          "⚠️ Accident",
-  visite_technique:  "📋 Visite technique",
-  vidange:           "🛢️ Vidange",
+  accident:          "Accident",
+  visite_technique:  "Visite technique",
+  vidange:           "Vidange",
   autre:             "📌 Autre",
 };
 
@@ -1228,7 +1228,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
             <div className="text-xs" style={{ color: "var(--sk-t3)" }}>{vehicle.make} {vehicle.model} {vehicle.year}</div>
           </div>
           <span className="text-xs px-2 py-1 rounded-full font-semibold" style={{ background: `${statusMeta.color}18`, color: statusMeta.color }}>{statusMeta.label}</span>
-          <button onClick={() => setShowForm(!showForm)} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623", border: "1px solid rgba(245,166,35,.2)" }}>✏️ Modifier</button>
+          <button onClick={() => setShowForm(!showForm)} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623", border: "1px solid rgba(245,166,35,.2)" }}>Modifier</button>
         </div>
 
         {/* Edit form */}
@@ -1398,7 +1398,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
 
       {vehicles.length === 0 && !showForm && (
         <div className="text-center py-12">
-          <div className="text-4xl mb-3">🚗</div>
+          <div className="flex justify-center mb-3"><Car size={36} strokeWidth={1.6} style={{ color: "var(--sk-t3)" }} /></div>
           <p className="text-white font-semibold mb-1">Aucun véhicule enregistré</p>
           <p className="text-sm" style={{ color: "var(--sk-t3)" }}>Ajoutez votre premier véhicule avec le bouton ci-dessus.</p>
         </div>
@@ -1415,12 +1415,12 @@ function FleetTab({ tenantId }: { tenantId: string }) {
             <button key={v.id} onClick={() => selectVehicle(v.id)}
               className="w-full rounded-xl px-4 py-3 flex items-center gap-3 transition-all text-left"
               style={{ background: "var(--sk-bg)", border: `1px solid ${hasAlert ? "rgba(245,166,35,.3)" : "var(--sk-surface)"}` }}>
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0" style={{ background: "var(--sk-surface)" }}>🚗</div>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "var(--sk-surface)" }}><Car size={18} strokeWidth={2} style={{ color: "var(--sk-t2)" }} /></div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-white">{v.plate}</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: `${sm.color}18`, color: sm.color }}>{sm.label}</span>
-                  {hasAlert && <span className="text-[10px]" style={{ color: "#f5a623" }}>⚠️</span>}
+                  {hasAlert && <AlertTriangle size={11} strokeWidth={2.2} style={{ color: "#f5a623" }} />}
                 </div>
                 <div className="text-xs" style={{ color: "var(--sk-t3)" }}>{v.make} {v.model} {v.year} {driver ? `· ${driver.full_name}` : ""}</div>
                 <div className="flex gap-3 mt-0.5">
@@ -1612,7 +1612,7 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
             <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: "var(--sk-t4)" }}>Informations</div>
             <button onClick={() => setEditingProfile(!editingProfile)} className="text-xs px-3 py-1 rounded-lg font-semibold"
               style={{ background: editingProfile ? "rgba(245,166,35,.15)" : "var(--sk-surface)", color: editingProfile ? "#f5a623" : "var(--sk-t2)" }}>
-              {editingProfile ? "Annuler" : "✏️ Modifier"}
+              {editingProfile ? "Annuler" : "Modifier"}
             </button>
           </div>
           {editingProfile ? (
@@ -1662,7 +1662,7 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {doc ? (
                         <>
-                          <span className="text-[10px]" style={{ color: docStatusColor }}>{doc.status === "approved" ? "✓ Approuvé" : doc.status === "rejected" ? "✗ Rejeté" : "⏳ En attente"}</span>
+                          <span className="text-[10px]" style={{ color: docStatusColor }}>{doc.status === "approved" ? "✓ Approuvé" : doc.status === "rejected" ? "✗ Rejeté" : "En attente"}</span>
                           {doc.status !== "approved" && <button onClick={() => updateDocStatus(doc.id, "approved")} className="text-[10px] px-2 py-0.5 rounded font-semibold" style={{ background: "rgba(34,197,94,.1)", color: "#22c55e" }}>Approuver</button>}
                           {doc.status !== "rejected" && <button onClick={() => updateDocStatus(doc.id, "rejected")} className="text-[10px] px-2 py-0.5 rounded font-semibold" style={{ background: "rgba(239,68,68,.1)", color: "#ef4444" }}>Rejeter</button>}
                         </>
@@ -1670,7 +1670,7 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
                         <span className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Non uploadé</span>
                       )}
                       <label className="text-[10px] px-2 py-0.5 rounded font-semibold cursor-pointer" style={{ background: "rgba(245,166,35,.1)", color: uploadingDoc === def.type ? "var(--sk-t3)" : "#f5a623" }}>
-                        {uploadingDoc === def.type ? "⏳" : doc ? "🔄 Remplacer" : "📎 Uploader"}
+                        {uploadingDoc === def.type ? "…" : doc ? "Remplacer" : "Uploader"}
                         <input type="file" accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,video/*" className="hidden"
                           onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(def.type, f); e.target.value = ""; }}
                           disabled={!!uploadingDoc} />
@@ -1798,7 +1798,7 @@ function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh }: 
             <button key={t} onClick={() => setActiveTab(t)}
               className="text-sm px-4 py-1.5 rounded-lg font-semibold"
               style={{ background: activeTab === t ? "#f5a623" : "var(--sk-surface)", color: activeTab === t ? "#000" : "var(--sk-t3)" }}>
-              {t === "reports" ? `📋 Rapports (${reports.length})` : `💸 Dépenses (${expenses.length})`}
+              {t === "reports" ? `Rapports (${reports.length})` : `Dépenses (${expenses.length})`}
             </button>
           ))}
         </div>
@@ -1821,7 +1821,7 @@ function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh }: 
                       <div className="font-semibold text-white text-sm">{r.date}</div>
                       {isRepos(r) && (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,.15)", color: "#818cf8" }}>
-                          🛌 REPOS
+                          REPOS
                         </span>
                       )}
                     </div>
@@ -1853,7 +1853,7 @@ function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh }: 
                   <div>
                     <div className="font-semibold text-white text-sm">{e.category}</div>
                     <div className="text-xs mt-1" style={{ color: "var(--sk-t3)" }}>
-                      {e._profile?.full_name || e._profile?.driver_id || e.driver_id?.slice(0, 8)} · 📅 {e.expense_date || e.created_at?.slice(0, 10)}
+                      {e._profile?.full_name || e._profile?.driver_id || e.driver_id?.slice(0, 8)} · {e.expense_date || e.created_at?.slice(0, 10)}
                     </div>
                     {e.description && <div className="text-xs mt-0.5" style={{ color: "var(--sk-t4)" }}>{e.description}</div>}
                   </div>
@@ -1970,7 +1970,7 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
           <div>
             <div className="font-bold text-white">{expense.category}</div>
             <div className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>
-              {expense.profiles?.full_name || expense.driver_id?.slice(0, 8)} · 📅 {expense.expense_date || expense.created_at?.slice(0, 10)}
+              {expense.profiles?.full_name || expense.driver_id?.slice(0, 8)} · {expense.expense_date || expense.created_at?.slice(0, 10)}
             </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
@@ -1996,13 +1996,13 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--sk-t3)" }}>📅 Date déclarée</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--sk-t3)" }}>Date déclarée</label>
                 <input type="date" value={editDate} onChange={(e) => setEditDate(e.target.value)}
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
                   style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", colorScheme: "dark" }} />
               </div>
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--sk-t4)" }}>🕐 Date soumission</label>
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-1" style={{ color: "var(--sk-t4)" }}>Date soumission</label>
                 <div className="rounded-xl px-3 py-2 text-sm font-mono" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t4)" }}>
                   {expense.created_at?.slice(0, 10)}
                 </div>
@@ -2023,17 +2023,17 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
 
           {/* Pièces jointes */}
           <div className="rounded-xl p-4" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
-            <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "var(--sk-t4)" }}>📎 Pièces jointes</div>
+            <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "var(--sk-t4)" }}><Paperclip size={12} strokeWidth={2} />Pièces jointes</div>
             <div className="flex gap-2 mb-3">
               <button onClick={() => cameraRef.current?.click()} disabled={uploading}
                 className="flex-1 py-2.5 rounded-xl text-sm border"
                 style={{ background: uploading ? "var(--sk-surface)" : "rgba(245,166,35,.08)", borderColor: "rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
-                {uploading ? "⏳" : "📷 Photo"}
+                {uploading ? "…" : "Photo"}
               </button>
               <button onClick={() => fileRef.current?.click()} disabled={uploading}
                 className="flex-1 py-2.5 rounded-xl text-sm border-dashed border-2"
                 style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "var(--sk-t3)" }}>
-                {uploading ? "⏳ Upload..." : "📁 Fichier / Galerie"}
+                {uploading ? "Upload…" : "Fichier / Galerie"}
               </button>
             </div>
             <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
@@ -2203,7 +2203,7 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
     ["Brut Yango", xof(report.yango_gross)],
     ["Bonus Yango", xof(report.yango_bonus)],
     ["Hors Yango", xof(report.off_yango_revenue)],
-    ["💳 Solde wallet", xof(report.solde_yango)],
+    ["Solde wallet", xof(report.solde_yango)],
     ["Commission", `- ${xof(report.commission_amount)}`],
     ...(report.service_supplementaire > 0 ? [["Service supp.", `- ${xof(report.service_supplementaire)}`]] : []),
     ["Courses Yango", report.yango_trip_count ?? "—"],
@@ -2247,7 +2247,7 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
 
           {/* Editable fields — always available */}
           <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
-            <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: "#f5a623" }}>✏️ Modifier le rapport</div>
+            <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: "#f5a623" }}>Modifier le rapport</div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Date</label>
@@ -2289,13 +2289,13 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
                   style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "#a855f7" }} />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>💳 Solde wallet</label>
+                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Solde wallet</label>
                 <input type="number" value={soldeEdit} onChange={(e) => setSoldeEdit(e.target.value)}
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
                   style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "#f5a623" }} />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>🚗 Km fin de journée</label>
+                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Km fin de journée</label>
                 <input type="number" value={kmEdit} onChange={(e) => setKmEdit(e.target.value)}
                   placeholder="Ex: 145230"
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
@@ -2339,17 +2339,17 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
 
           {/* Attachments */}
           <div className="rounded-xl p-4" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
-            <div className="text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "var(--sk-t4)" }}>📎 Pièces jointes</div>
+            <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "var(--sk-t4)" }}><Paperclip size={12} strokeWidth={2} />Pièces jointes</div>
             <div className="flex gap-2 mb-3">
               <button onClick={() => cameraRef.current?.click()} disabled={uploading}
                 className="flex-1 py-2.5 rounded-xl text-sm border"
                 style={{ background: uploading ? "var(--sk-surface)" : "rgba(245,166,35,.08)", borderColor: "rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
-                {uploading ? "⏳" : "📷 Photo"}
+                {uploading ? "…" : "Photo"}
               </button>
               <button onClick={() => fileRef.current?.click()} disabled={uploading}
                 className="flex-1 py-2.5 rounded-xl text-sm border-dashed border-2"
                 style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "var(--sk-t3)" }}>
-                {uploading ? "⏳ Upload..." : "📁 Fichier / Galerie"}
+                {uploading ? "Upload…" : "Fichier / Galerie"}
               </button>
             </div>
             <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
@@ -2433,7 +2433,7 @@ function DailyTable({ data, periodFrom, periodTo }: { data: any[]; periodFrom: s
   return (
     <div className="rounded-xl overflow-hidden" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
       <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "var(--sk-surface)" }}>
-        <h3 className="font-bold text-white text-sm">📅 Tableau journalier détaillé</h3>
+        <h3 className="flex items-center gap-1.5 font-bold text-white text-sm"><Calendar size={15} strokeWidth={2} />Tableau journalier détaillé</h3>
         <div className="flex items-center gap-2">
           <input type="date" value={filter} onChange={(e) => setFilter(e.target.value)}
             min={periodFrom} max={periodTo}
@@ -2541,7 +2541,7 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
                   <div className="font-semibold text-sm text-white">{d.name}</div>
                   <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>
                     {d.nbApproved > 0 && <span className="text-green-500">✓ {d.nbApproved} validés</span>}
-                    {d.nbPending > 0 && <span className="ml-1" style={{ color: "#f5a623" }}>⏳ {d.nbPending} en attente</span>}
+                    {d.nbPending > 0 && <span className="ml-1" style={{ color: "#f5a623" }}>{d.nbPending} en attente</span>}
                     {d.nbReports === 0 && <span style={{ color: "var(--sk-t4)" }}>Aucun rapport</span>}
                   </div>
                 </div>
@@ -2805,7 +2805,7 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-bold text-white">💵 Paiements chauffeurs</h2>
+        <h2 className="flex items-center gap-2 text-2xl font-bold text-white"><Banknote size={22} strokeWidth={2} />Paiements chauffeurs</h2>
         <button onClick={() => setShowForm(!showForm)}
           className="text-sm px-4 py-2 rounded-xl font-semibold"
           style={{ background: showForm ? "var(--sk-surface)" : "linear-gradient(135deg,#f5a623,#e8951a)", color: showForm ? "var(--sk-t2)" : "#000" }}>
@@ -2841,13 +2841,13 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
                 style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }} />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>📅 Date effective paiement</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>Date effective paiement</label>
               <input type="date" value={form.payment_date} onChange={(e) => setForm((f) => ({ ...f, payment_date: e.target.value }))}
                 className="w-full rounded-xl px-4 py-3 text-sm outline-none"
                 style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", colorScheme: "dark" }} />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#f5a623" }}>📆 Mois du salaire (à imputer)</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#f5a623" }}>Mois du salaire (à imputer)</label>
               <input type="month" value={form.salary_month?.slice(0, 7)} onChange={(e) => setForm((f) => ({ ...f, salary_month: e.target.value + "-01" }))}
                 className="w-full rounded-xl px-4 py-3 text-sm outline-none"
                 style={{ background: "var(--sk-deep)", border: "1px solid rgba(245,166,35,.4)", color: "#f5a623", colorScheme: "dark" }} />
@@ -2948,12 +2948,12 @@ function PaymentUpload({ paymentId, driverId }: { paymentId: string; driverId: s
         <button onClick={() => cameraRef.current?.click()} disabled={uploading}
           className="flex-1 py-2 rounded-xl text-xs border"
           style={{ background: uploading ? "var(--sk-surface)" : "rgba(245,166,35,.08)", borderColor: "rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
-          {uploading ? "⏳" : "📷 Photo"}
+          {uploading ? "…" : "Photo"}
         </button>
         <button onClick={() => fileRef.current?.click()} disabled={uploading}
           className="flex-1 py-2 rounded-xl text-xs border-dashed border-2"
           style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "var(--sk-t3)" }}>
-          {uploading ? "⏳ Upload..." : "📁 Fichier / Galerie"}
+          {uploading ? "Upload…" : "Fichier / Galerie"}
         </button>
       </div>
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
@@ -2994,8 +2994,8 @@ function PaymentRow({ payment: p, onDelete, typeBadge, xof }: { payment: any; on
             <span className="ml-2 text-xs" style={{ color: "var(--sk-t4)" }}>{p.profiles?.driver_id}</span>
           </div>
           <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap" style={{ color: "var(--sk-t3)" }}>
-            {p.salary_month && <span style={{ color: "#f5a623" }}>📆 Mois: {p.salary_month?.slice(0, 7)}</span>}
-            <span>📅 Payé le: {p.payment_date}</span>
+            {p.salary_month && <span style={{ color: "#f5a623" }}>Mois: {p.salary_month?.slice(0, 7)}</span>}
+            <span>Payé le: {p.payment_date}</span>
             {typeBadge(p.type)}
             {p.notes && <span className="truncate max-w-[200px]">{p.notes}</span>}
           </div>
@@ -3004,9 +3004,9 @@ function PaymentRow({ payment: p, onDelete, typeBadge, xof }: { payment: any; on
           <div className="font-mono font-bold" style={{ color: "#22c55e" }}>{xof(p.amount)} XOF</div>
           <button onClick={() => setOpen(!open)} className="text-xs px-2 py-1 rounded-lg"
             style={{ background: open ? "rgba(245,166,35,.1)" : "var(--sk-surface)", color: open ? "#f5a623" : "var(--sk-t3)" }}>
-            📎
+            <Paperclip size={13} strokeWidth={2} />
           </button>
-          <button onClick={onDelete} className="text-xs" style={{ color: "var(--sk-t4)" }}>🗑</button>
+          <button onClick={onDelete} className="text-xs" style={{ color: "var(--sk-t4)" }}><Trash2 size={13} strokeWidth={2} /></button>
         </div>
       </div>
 
@@ -3096,10 +3096,10 @@ function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white">💰 Avances sur salaire</h2>
+          <h2 className="flex items-center gap-2 text-2xl font-bold text-white"><HandCoins size={22} strokeWidth={2} />Avances sur salaire</h2>
           {totalPending > 0 && (
             <div className="text-sm mt-1" style={{ color: "#f5a623" }}>
-              ⚠️ Total avances non déduites : <span className="font-mono font-bold">{xof(totalPending)} XOF</span>
+              <span className="inline-flex items-center gap-1"><AlertTriangle size={13} strokeWidth={2} />Total avances non déduites :</span> <span className="font-mono font-bold">{xof(totalPending)} XOF</span>
             </div>
           )}
         </div>
@@ -3192,11 +3192,11 @@ function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string
                   <span className="ml-2 text-xs" style={{ color: "var(--sk-t4)" }}>{a.profiles?.driver_id}</span>
                 </div>
                 <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap" style={{ color: "var(--sk-t3)" }}>
-                  <span>📅 {a.payment_date}</span>
+                  <span>{a.payment_date}</span>
                   {a.notes && <span className="truncate max-w-[200px]">{a.notes}</span>}
                   {a.is_deducted
                     ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: "#22c55e", background: "rgba(34,197,94,.1)" }}>✓ Déduit {a.deducted_at || ""}</span>
-                    : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: "#f5a623", background: "rgba(245,166,35,.1)" }}>⏳ En attente</span>
+                    : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: "#f5a623", background: "rgba(245,166,35,.1)" }}>En attente</span>
                   }
                 </div>
               </div>
@@ -3211,7 +3211,7 @@ function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string
                     Marquer déduit
                   </button>
                 )}
-                <button onClick={() => deleteAdvance(a.id)} className="text-xs" style={{ color: "var(--sk-t4)" }}>🗑</button>
+                <button onClick={() => deleteAdvance(a.id)} className="text-xs" style={{ color: "var(--sk-t4)" }}><Trash2 size={13} strokeWidth={2} /></button>
               </div>
             </div>
           ))}
@@ -3307,7 +3307,7 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h2 className="text-2xl font-bold text-white">📅 Calendrier chauffeurs</h2>
+        <h2 className="flex items-center gap-2 text-2xl font-bold text-white"><Calendar size={22} strokeWidth={2} />Calendrier chauffeurs</h2>
         <div className="flex items-center gap-2">
           <button onClick={prevMonth} className="w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold"
             style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>‹</button>
@@ -3370,7 +3370,7 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
                         <div key={e.id} onClick={(ev) => { ev.stopPropagation(); }}
                           className="text-[10px] px-1.5 py-0.5 rounded font-semibold truncate flex items-center justify-between group"
                           style={{ background: color + "20", color, border: `1px solid ${color}40` }}>
-                          <span className="truncate">{isRepos ? "🛌" : "✓"} {driverName(e.driver_id)}</span>
+                          <span className="truncate">{isRepos ? "Repos" : "✓"} {driverName(e.driver_id)}</span>
                           <button onClick={(ev) => { ev.stopPropagation(); deleteEvent(e.id); }}
                             className="ml-1 opacity-0 group-hover:opacity-100 text-[9px] flex-shrink-0"
                             style={{ color: "#ef4444" }}>✕</button>
@@ -3393,7 +3393,7 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
           <div className="w-full max-w-sm rounded-2xl p-6 space-y-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}
             onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between">
-              <div className="font-bold text-white">📅 {addModal.date}</div>
+              <div className="font-bold text-white">{addModal.date}</div>
               <button onClick={() => setAddModal(null)} className="text-gray-400 hover:text-white">✕</button>
             </div>
             <div>
@@ -3415,7 +3415,7 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
               className="w-full py-3 rounded-xl text-sm font-bold"
               style={{ background: saving || !addDriver ? "var(--sk-surface)" : "linear-gradient(135deg,#6366f1,#4f46e5)",
                 color: saving || !addDriver ? "var(--sk-t4)" : "#fff" }}>
-              {saving ? "Enregistrement..." : "🛌 Planifier le repos"}
+              {saving ? "Enregistrement..." : "Planifier le repos"}
             </button>
           </div>
         </div>
@@ -3489,10 +3489,10 @@ function ActionLogsTab({ filterDriverId = "" }: { filterDriverId?: string }) {
     : allLogs;
 
   const actionLabel: Record<string, [string, string]> = {
-    submitted: ["⏳", "#f5a623"],
-    approved:  ["✅", "#22c55e"],
-    rejected:  ["❌", "#ef4444"],
-    edited:    ["✏️", "#3b82f6"],
+    submitted: ["Soumis", "#f5a623"],
+    approved:  ["Validé", "#22c55e"],
+    rejected:  ["Rejeté", "#ef4444"],
+    edited:    ["Modifié", "#3b82f6"],
   };
 
   const entityLabel: Record<string, string> = {
@@ -3504,7 +3504,7 @@ function ActionLogsTab({ filterDriverId = "" }: { filterDriverId?: string }) {
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-white mb-6">📋 Journal des actions</h2>
+      <h2 className="flex items-center gap-2 text-xl font-bold text-white mb-6"><FileText size={20} strokeWidth={2} />Journal des actions</h2>
       {logs.length === 0 ? (
         <div className="text-center py-16 text-sm" style={{ color: "var(--sk-t3)" }}>Aucune action enregistrée</div>
       ) : (
