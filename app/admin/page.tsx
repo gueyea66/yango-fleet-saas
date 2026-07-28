@@ -26,6 +26,7 @@ import ImportHistoriqueModal from "@/components/ImportHistoriqueModal";
 import { useTenant } from "@/lib/tenant/context";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import TrialBanner from "@/components/TrialBanner";
+import AiBriefingSection from "@/components/ai/AiBriefingSection";
 import { computeCommissions } from "@/lib/calc";
 import {
   BarChart, Bar, Treemap,
@@ -421,6 +422,8 @@ export default function AdminPage() {
 
         {tab === "dashboard" && (
           <div className="space-y-8">
+            {/* Couche IA V3 (additive) — rend null si AI_LAYER désactivé */}
+            <AiBriefingSection />
             <div className="flex flex-wrap items-center justify-between gap-4">
               <h2 className="text-3xl font-bold text-white">Dashboard Flotte</h2>
               {/* Period selector */}
