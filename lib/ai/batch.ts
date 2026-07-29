@@ -11,7 +11,7 @@ import { DEFAULT_THRESHOLDS } from "./killSwitch";
 import {
   computePeriodAggregates, confidenceFromCoverage, fetchTenantWindow, freshnessSnapshot,
 } from "./dataReader";
-import { buildKpiInsights, paramsHash } from "./insightEngine";
+import { buildKpiInsights, describeCauses, paramsHash } from "./insightEngine";
 import { runRules } from "./recommendationEngine";
 import { narrate, narrativeCitesOnlyKnownNumbers } from "./llmGateway";
 import { AI_CALC_VERSION, BriefingContent, BriefingDriver, BriefingKpi } from "./types";
@@ -87,9 +87,13 @@ async function runTenantBatch(
     // Narration du seul insight net_operationnel (décomposition riche)
     let narrative: string | null = null;
     if (d.kpi_name === "net_operationnel" && d.causes.length) {
+      // Causes décrites en clair (hausse/baisse pré-calculées) : le LLM ne doit
+      // jamais interpréter le signe d'une contribution — observé en prod le 29/07.
       const payload = JSON.stringify({
         kpi: d.kpi_name, delta_fcfa: d.delta_value, delta_pct: d.delta_pct,
-        periode: { de: d.period_start, a: d.period_end }, causes: d.causes,
+        periode: { de: d.period_start, a: d.period_end },
+        causes: describeCauses(d.causes),
+        consigne: "Recopier le champ 'evolution' de chaque cause tel quel (sens déjà calculé).",
       });
       narrative = await narrate(payload, { model: opts.llmModel });
       if (narrative && !narrativeCitesOnlyKnownNumbers(narrative, payload)) {

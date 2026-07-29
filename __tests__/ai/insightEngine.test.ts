@@ -74,3 +74,22 @@ describe("buildKpiInsights — seuils", () => {
     expect(out.some((i) => i.kpi_name === "taux_soumission")).toBe(true);
   });
 });
+
+describe("describeCauses — le sens hausse/baisse est pré-calculé pour le LLM", () => {
+  const { describeCauses } = require("@/lib/ai/insightEngine");
+  it("coût avec contribution négative = coût en HAUSSE qui pèse sur le net", () => {
+    const [d] = describeCauses([{ component: "depenses_ope", delta_fcfa: -92_100, contribution_pct: 36.8, badge: "calculated" }]);
+    expect(d.evolution).toContain("hausse");
+    expect(d.evolution).toContain("pèse sur le net");
+  });
+  it("recettes avec contribution positive = recettes en hausse qui améliorent le net", () => {
+    const [d] = describeCauses([{ component: "recettes", delta_fcfa: 56_448, contribution_pct: 22.5, badge: "calculated" }]);
+    expect(d.evolution).toContain("hausse");
+    expect(d.evolution).toContain("améliore le net");
+  });
+  it("coût avec contribution positive = coût en BAISSE qui améliore le net", () => {
+    const [d] = describeCauses([{ component: "solde_consomme", delta_fcfa: 30_000, contribution_pct: 10, badge: "calculated" }]);
+    expect(d.evolution).toContain("baisse");
+    expect(d.evolution).toContain("améliore le net");
+  });
+});
