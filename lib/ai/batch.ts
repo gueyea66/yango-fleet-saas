@@ -250,12 +250,19 @@ async function buildBriefingContent(
     .filter((c) => c.palier_cible_fcfa && joursRestants > 0)
     .map((c) => {
       const manque = Math.max(0, (c.palier_cible_fcfa ?? 0) - c.ca_mtd_fcfa);
+      const rythme = Math.round(c.ca_mtd_fcfa / dayOfMonth);
+      const besoin = Math.ceil(manque / joursRestants);
+      // Tous les écarts sont PRÉ-CALCULÉS : le LLM n'a jamais à faire une
+      // soustraction (cause du rejet anti-hallucination du 29/07).
       return {
         chauffeur: c.driver_ref,
         palier_fcfa: c.palier_cible_fcfa,
-        rythme_actuel_fcfa_par_jour: Math.round(c.ca_mtd_fcfa / dayOfMonth),
-        besoin_fcfa_par_jour_pour_palier: Math.ceil(manque / joursRestants),
+        manque_total_fcfa: manque,
+        rythme_actuel_fcfa_par_jour: rythme,
+        besoin_fcfa_par_jour_pour_palier: besoin,
+        effort_supplementaire_fcfa_par_jour: Math.max(0, besoin - rythme),
         jours_restants: joursRestants,
+        atteignable: besoin <= rythme * 2,
       };
     })
     .filter((p) => p.besoin_fcfa_par_jour_pour_palier > 0);
@@ -275,20 +282,23 @@ async function buildBriefingContent(
     faits_calcules: { paliers, depenses_mouvements: depensesMouvements },
     projections,
   });
-  const raw = await narrate(llmPayload, { model: llmModel, system: BRIEFING_JSON_SYSTEM });
-
+  // Jusqu'à 2 tentatives : un rejet anti-hallucination ne condamne pas le briefing
   let points: string[] | null = null;
   let action: string | null = null;
-  if (raw && narrativeCitesOnlyKnownNumbers(raw, llmPayload)) {
+  for (let attempt = 0; attempt < 2 && !points; attempt++) {
+    const raw = await narrate(llmPayload, { model: llmModel, system: BRIEFING_JSON_SYSTEM });
+    if (!raw) break; // LLM indisponible → dégradé direct
+    if (!narrativeCitesOnlyKnownNumbers(raw, llmPayload)) {
+      console.warn(`[ai/batch] narration briefing rejetée (chiffre étranger, tentative ${attempt + 1})`);
+      continue;
+    }
     const parsed = extractJsonObject(raw);
     const p = parsed?.points;
     const a = parsed?.action;
     if (Array.isArray(p) && p.length && p.every((x) => typeof x === "string")) {
       points = (p as string[]).slice(0, 3).map(stripMarkdown);
+      if (typeof a === "string" && a.trim()) action = stripMarkdown(a);
     }
-    if (typeof a === "string" && a.trim()) action = stripMarkdown(a);
-  } else if (raw) {
-    console.warn("[ai/batch] narration briefing rejetée (chiffre étranger)");
   }
 
   // Résolution pseudonyme → prénom APRÈS le LLM (jamais de nom dans le prompt)
@@ -322,7 +332,9 @@ Règles ABSOLUES :
 - Chaque point doit apprendre quelque chose de NON visible sur les cartes KPI : utilise faits_calcules
   (rythme vs besoin par jour pour un palier, poste de dépense qui bouge) et projections.
 - INTERDIT de recopier les valeurs de kpis_deja_affiches_a_l_ecran, sauf pour les mettre en rapport avec un fait.
-- Tu n'inventes JAMAIS un chiffre : uniquement ceux du JSON fourni, recopiés tels quels.
+- Tu n'inventes JAMAIS un chiffre et tu ne fais JAMAIS de calcul (ni somme, ni différence, ni arrondi) :
+  uniquement les nombres du JSON fourni, recopiés tels quels. Tous les écarts utiles sont déjà fournis
+  (manque_total_fcfa, effort_supplementaire_fcfa_par_jour…).
 - Les chauffeurs sont désignés par leur référence drv_xxxx : recopie-les telles quelles.
 - "action" : UNE action concrète et CHIFFRÉE pour aujourd'hui (qui, combien, sur combien de jours).`;
 
