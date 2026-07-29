@@ -90,6 +90,10 @@ export interface BriefingDriver {
 
 export interface BriefingContent {
   narrative_fr: string | null;
+  /** Briefing structuré : 2-3 points courts, chacun une info NON visible sur les cartes. */
+  narrative_points?: string[] | null;
+  /** L'action du jour, concrète et chiffrée. */
+  action_fr?: string | null;
   degraded_message_fr: string | null;
   kpis: BriefingKpi[];
   chauffeurs: Array<Omit<BriefingDriver, "driver_ref">>;

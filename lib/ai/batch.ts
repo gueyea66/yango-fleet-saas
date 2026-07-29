@@ -10,10 +10,11 @@ import { isAiEnabled } from "./killSwitch";
 import { DEFAULT_THRESHOLDS } from "./killSwitch";
 import {
   computePeriodAggregates, confidenceFromCoverage, fetchTenantWindow, freshnessSnapshot,
+  topExpenseMovements,
 } from "./dataReader";
 import { buildKpiInsights, describeCauses, paramsHash } from "./insightEngine";
 import { runRules } from "./recommendationEngine";
-import { narrate, narrativeCitesOnlyKnownNumbers } from "./llmGateway";
+import { extractJsonObject, narrate, narrativeCitesOnlyKnownNumbers } from "./llmGateway";
 import { AI_CALC_VERSION, BriefingContent, BriefingDriver, BriefingKpi } from "./types";
 import { projeterResultat, joursOuvresProjetes, joursOuvresRealises } from "@/lib/calc";
 import { sendNotification, getTenantAdminId } from "@/lib/notifications";
@@ -243,32 +244,90 @@ async function buildBriefingContent(
     hypotheses: ["6 jours travaillés sur 7", "rythme du mois en cours maintenu", "salaires mensuels non déduits"],
   };
 
-  // Payload LLM : pseudonymes uniquement, agrégats uniquement
+  // ── Faits calculés « palpables » : ce que les cartes KPI ne montrent PAS ──
+  // (retour terrain 29/07 : la narration répétait les chiffres déjà affichés)
+  const paliers = chauffeurs
+    .filter((c) => c.palier_cible_fcfa && joursRestants > 0)
+    .map((c) => {
+      const manque = Math.max(0, (c.palier_cible_fcfa ?? 0) - c.ca_mtd_fcfa);
+      return {
+        chauffeur: c.driver_ref,
+        palier_fcfa: c.palier_cible_fcfa,
+        rythme_actuel_fcfa_par_jour: Math.round(c.ca_mtd_fcfa / dayOfMonth),
+        besoin_fcfa_par_jour_pour_palier: Math.ceil(manque / joursRestants),
+        jours_restants: joursRestants,
+      };
+    })
+    .filter((p) => p.besoin_fcfa_par_jour_pour_palier > 0);
+
+  const depensesMouvements = topExpenseMovements(
+    win.expenses, cur.from, cur.to, prev.from, prev.to
+  ).map((m) => ({
+    poste: m.poste,
+    mouvement: `${m.sens} de ${Math.abs(m.delta_fcfa)} FCFA vs semaine précédente`,
+    delta_fcfa: m.delta_fcfa,
+  }));
+
+  // Payload LLM : pseudonymes uniquement, agrégats + faits uniquement
   const llmPayload = JSON.stringify({
-    date: today, kpis,
-    chauffeurs: chauffeurs.map(({ driver_id: _id, driver_name: _n, ...safe }) => safe),
+    date: today,
+    kpis_deja_affiches_a_l_ecran: kpis,
+    faits_calcules: { paliers, depenses_mouvements: depensesMouvements },
     projections,
   });
-  let narrative = await narrate(llmPayload, { model: llmModel });
-  if (narrative && !narrativeCitesOnlyKnownNumbers(narrative, llmPayload)) {
-    console.warn("[ai/batch] narration briefing rejetée (chiffre étranger)");
-    narrative = null;
-  }
-  // Résolution pseudonyme → prénom APRÈS le LLM (jamais de nom dans le prompt)
-  if (narrative) {
-    for (const c of chauffeurs) {
-      narrative = narrative.split(c.driver_ref).join(c.driver_name.split(" ")[0]);
+  const raw = await narrate(llmPayload, { model: llmModel, system: BRIEFING_JSON_SYSTEM });
+
+  let points: string[] | null = null;
+  let action: string | null = null;
+  if (raw && narrativeCitesOnlyKnownNumbers(raw, llmPayload)) {
+    const parsed = extractJsonObject(raw);
+    const p = parsed?.points;
+    const a = parsed?.action;
+    if (Array.isArray(p) && p.length && p.every((x) => typeof x === "string")) {
+      points = (p as string[]).slice(0, 3).map(stripMarkdown);
     }
+    if (typeof a === "string" && a.trim()) action = stripMarkdown(a);
+  } else if (raw) {
+    console.warn("[ai/batch] narration briefing rejetée (chiffre étranger)");
   }
+
+  // Résolution pseudonyme → prénom APRÈS le LLM (jamais de nom dans le prompt)
+  const resolve = (s: string) => {
+    let out = s;
+    for (const c of chauffeurs) out = out.split(c.driver_ref).join(c.driver_name.split(" ")[0]);
+    return out;
+  };
+  points = points?.map(resolve) ?? null;
+  action = action ? resolve(action) : null;
+  const narrative = points ? [...points, action].filter(Boolean).join(" ") : null;
 
   return {
     narrative_fr: narrative,
+    narrative_points: points,
+    action_fr: action,
     degraded_message_fr: narrative ? null
       : "Analyse narrative indisponible — les chiffres calculés restent affichés.",
     kpis,
     chauffeurs: chauffeurs.map(({ driver_ref: _r, ...rest }) => rest),
     projections,
   };
+}
+
+/** Le briefing est structuré et ne répète pas ce que l'écran montre déjà. */
+const BRIEFING_JSON_SYSTEM = `Tu rédiges le briefing matinal d'un opérateur de flotte VTC à Dakar.
+Réponds UNIQUEMENT par un objet JSON valide, sans texte autour :
+{"points":["…","…"],"action":"…"}
+Règles ABSOLUES :
+- 2 ou 3 points maximum, UNE phrase courte par point, français direct, AUCUN markdown ni astérisque.
+- Chaque point doit apprendre quelque chose de NON visible sur les cartes KPI : utilise faits_calcules
+  (rythme vs besoin par jour pour un palier, poste de dépense qui bouge) et projections.
+- INTERDIT de recopier les valeurs de kpis_deja_affiches_a_l_ecran, sauf pour les mettre en rapport avec un fait.
+- Tu n'inventes JAMAIS un chiffre : uniquement ceux du JSON fourni, recopiés tels quels.
+- Les chauffeurs sont désignés par leur référence drv_xxxx : recopie-les telles quelles.
+- "action" : UNE action concrète et CHIFFRÉE pour aujourd'hui (qui, combien, sur combien de jours).`;
+
+function stripMarkdown(s: string): string {
+  return s.replace(/\*\*/g, "").replace(/^[#\-•*]\s*/gm, "").trim();
 }
 
 function buildPushSummary(content: BriefingContent): string | null {

@@ -168,6 +168,40 @@ export function kmPeriode(reports: RawReport[], from: string, to: string): numbe
   return km;
 }
 
+/**
+ * Mouvements des postes de dépenses opé (hors Carburant/Solde) entre deux
+ * périodes — nourrit le briefing avec du "palpable" : QUEL poste a bougé,
+ * pas seulement le total déjà affiché sur les cartes KPI.
+ */
+export function topExpenseMovements(
+  expenses: RawExpense[],
+  curFrom: string, curTo: string,
+  prevFrom: string, prevTo: string,
+  minDelta = 5_000, top = 3
+): Array<{ poste: string; delta_fcfa: number; sens: "hausse" | "baisse" }> {
+  const sum = (from: string, to: string) => {
+    const acc = new Map<string, number>();
+    for (const e of expenses) {
+      if (e.category === "Carburant" || e.category === "Solde Yango") continue;
+      if (!expenseOk(e) || !inPeriod(e.expense_date, from, to)) continue;
+      const cat = e.category ?? "Autre";
+      acc.set(cat, (acc.get(cat) ?? 0) + n(e.amount));
+    }
+    return acc;
+  };
+  const cur = sum(curFrom, curTo);
+  const prev = sum(prevFrom, prevTo);
+  const cats = new Set([...cur.keys(), ...prev.keys()]);
+  return [...cats]
+    .map((poste) => {
+      const delta = Math.round((cur.get(poste) ?? 0) - (prev.get(poste) ?? 0));
+      return { poste, delta_fcfa: delta, sens: (delta >= 0 ? "hausse" : "baisse") as "hausse" | "baisse" };
+    })
+    .filter((m) => Math.abs(m.delta_fcfa) >= minDelta)
+    .sort((a, b) => Math.abs(b.delta_fcfa) - Math.abs(a.delta_fcfa))
+    .slice(0, top);
+}
+
 export interface PeriodAggregates {
   from: string;
   to: string;
