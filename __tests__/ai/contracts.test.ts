@@ -122,3 +122,41 @@ describe("Briefing palpable — faits calculés et parsing JSON", () => {
     expect(extractJsonObject('{"cassé": ')).toBeNull();
   });
 });
+
+describe("Fallback déterministe du briefing — jamais vide", () => {
+  const { buildDeterministicBriefing } = require("@/lib/ai/briefingFallback");
+  const { foreignNumbers } = require("@/lib/ai/llmGateway");
+
+  const palier = (over: Record<string, unknown> = {}) => ({
+    prenom: "Daouda", palier_fcfa: 1_000_000, manque_total_fcfa: 507_224,
+    rythme_actuel_fcfa_par_jour: 17_000, besoin_fcfa_par_jour_pour_palier: 253_612,
+    effort_supplementaire_fcfa_par_jour: 236_612, jours_restants: 2, atteignable: false,
+    ...over,
+  });
+
+  it("palier hors de portée → point lucide + pas d'action de forcing", () => {
+    const out = buildDeterministicBriefing({
+      paliers: [palier()], mouvements: [], netProjete: 1_355_693, joursRestantsMois: 2,
+    });
+    expect(out.points[0]).toContain("hors de portée");
+    expect(out.points[0]).toContain("Daouda");
+    expect(out.action).toBeNull();
+  });
+
+  it("palier atteignable → action chiffrée de suivi", () => {
+    const out = buildDeterministicBriefing({
+      paliers: [palier({ atteignable: true, effort_supplementaire_fcfa_par_jour: 6_300, jours_restants: 15 })],
+      mouvements: [{ poste: "Entretien", delta_fcfa: 70_000, sens: "hausse" }],
+      netProjete: 900_000, joursRestantsMois: 15,
+    });
+    expect(out.action).toContain("Daouda");
+    expect(out.action).toContain("6");
+    expect(out.points.some((p: string) => p.includes("Entretien"))).toBe(true);
+  });
+
+  it("foreignNumbers identifie précisément l'intrus", () => {
+    const payload = JSON.stringify({ a: 253612, b: 17000 });
+    expect(foreignNumbers("il manque 236612 FCFA par jour", payload)).toEqual(["236612"]);
+    expect(foreignNumbers("il faut 253612 FCFA par jour", payload)).toEqual([]);
+  });
+});

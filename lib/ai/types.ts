@@ -94,6 +94,8 @@ export interface BriefingContent {
   narrative_points?: string[] | null;
   /** L'action du jour, concrète et chiffrée. */
   action_fr?: string | null;
+  /** Origine des points : "llm" (badge IA) ou "deterministic" (badge Calculé). */
+  narrative_source?: "llm" | "deterministic" | null;
   degraded_message_fr: string | null;
   kpis: BriefingKpi[];
   chauffeurs: Array<Omit<BriefingDriver, "driver_ref">>;
