@@ -51,6 +51,7 @@ interface Briefing {
     narrative_fr: string | null;
     narrative_points?: string[] | null;
     action_fr?: string | null;
+    narrative_source?: "llm" | "deterministic" | null;
     degraded_message_fr: string | null;
     kpis: Array<{ kpi_name: string; value: number; unit: string; delta_pct_wow: number | null }>;
     projections: { net_projete_fcfa: number; jours_restants_mois: number };
@@ -143,7 +144,7 @@ export default function AiBriefingSection() {
                 <span>{stripMd(p)}</span>
               </p>
             ))}
-            <span className="inline-block"><AiBadge /></span>
+            <span className="inline-block">{c.narrative_source === "deterministic" ? <CalcBadge /> : <AiBadge />}</span>
             {c.action_fr && (
               <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
                 <span className="text-[10px] font-bold uppercase tracking-wide text-amber-400">Action du jour</span>

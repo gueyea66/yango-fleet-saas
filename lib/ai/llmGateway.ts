@@ -94,11 +94,12 @@ async function withTimeout<T>(ms: number, fn: (signal: AbortSignal) => Promise<T
 }
 
 /**
- * Garde-fou anti-hallucination : vérifie que chaque nombre ≥ 4 chiffres cité
- * dans la narration existe dans le payload source (tolère les séparateurs).
- * En cas de chiffre étranger → narration rejetée (mode dégradé).
+ * Garde-fou anti-hallucination : chaque nombre ≥ 4 chiffres cité dans la
+ * narration doit exister dans le payload source (tolère les séparateurs).
+ * foreignNumbers liste les intrus (diagnostic) ; narrativeCitesOnlyKnownNumbers
+ * est le verdict binaire. Chiffre étranger → narration rejetée (mode dégradé).
  */
-export function narrativeCitesOnlyKnownNumbers(narrative: string, payloadJson: string): boolean {
+export function foreignNumbers(narrative: string, payloadJson: string): string[] {
   const known = new Set(
     (payloadJson.match(/-?\d+(?:\.\d+)?/g) ?? []).flatMap((s) => {
       const clean = s.replace(/\.0+$/, "");
@@ -106,7 +107,11 @@ export function narrativeCitesOnlyKnownNumbers(narrative: string, payloadJson: s
     })
   );
   const cited = narrative.replace(/[  \s]/g, "").match(/\d{4,}/g) ?? [];
-  return cited.every((c) => known.has(c) || known.has(String(Number(c))));
+  return cited.filter((c) => !known.has(c) && !known.has(String(Number(c))));
+}
+
+export function narrativeCitesOnlyKnownNumbers(narrative: string, payloadJson: string): boolean {
+  return foreignNumbers(narrative, payloadJson).length === 0;
 }
 
 /**

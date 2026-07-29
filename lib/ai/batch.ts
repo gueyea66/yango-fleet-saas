@@ -14,7 +14,8 @@ import {
 } from "./dataReader";
 import { buildKpiInsights, describeCauses, paramsHash } from "./insightEngine";
 import { runRules } from "./recommendationEngine";
-import { extractJsonObject, narrate, narrativeCitesOnlyKnownNumbers } from "./llmGateway";
+import { extractJsonObject, foreignNumbers, narrate, narrativeCitesOnlyKnownNumbers } from "./llmGateway";
+import { buildDeterministicBriefing } from "./briefingFallback";
 import { AI_CALC_VERSION, BriefingContent, BriefingDriver, BriefingKpi } from "./types";
 import { projeterResultat, joursOuvresProjetes, joursOuvresRealises } from "@/lib/calc";
 import { sendNotification, getTenantAdminId } from "@/lib/notifications";
@@ -285,11 +286,13 @@ async function buildBriefingContent(
   // Jusqu'à 2 tentatives : un rejet anti-hallucination ne condamne pas le briefing
   let points: string[] | null = null;
   let action: string | null = null;
+  let narrativeSource: "llm" | "deterministic" = "llm";
   for (let attempt = 0; attempt < 2 && !points; attempt++) {
     const raw = await narrate(llmPayload, { model: llmModel, system: BRIEFING_JSON_SYSTEM });
-    if (!raw) break; // LLM indisponible → dégradé direct
-    if (!narrativeCitesOnlyKnownNumbers(raw, llmPayload)) {
-      console.warn(`[ai/batch] narration briefing rejetée (chiffre étranger, tentative ${attempt + 1})`);
+    if (!raw) break; // LLM indisponible → fallback déterministe direct
+    const foreign = foreignNumbers(raw, llmPayload);
+    if (foreign.length) {
+      console.warn(`[ai/batch] narration briefing rejetée (tentative ${attempt + 1}) — chiffres étrangers: ${foreign.join(",")}`);
       continue;
     }
     const parsed = extractJsonObject(raw);
@@ -309,12 +312,40 @@ async function buildBriefingContent(
   };
   points = points?.map(resolve) ?? null;
   action = action ? resolve(action) : null;
+
+  // Fallback déterministe : le briefing n'est JAMAIS vide — les mêmes faits,
+  // pré-rédigés par le moteur (badge « Calculé » via narrative_source).
+  if (!points) {
+    narrativeSource = "deterministic";
+    const refToPrenom = new Map(chauffeurs.map((c) => [c.driver_ref, c.driver_name.split(" ")[0]]));
+    const det = buildDeterministicBriefing({
+      paliers: paliers.map((p) => ({
+        prenom: refToPrenom.get(p.chauffeur) ?? "Chauffeur",
+        palier_fcfa: p.palier_fcfa,
+        manque_total_fcfa: p.manque_total_fcfa,
+        rythme_actuel_fcfa_par_jour: p.rythme_actuel_fcfa_par_jour,
+        besoin_fcfa_par_jour_pour_palier: p.besoin_fcfa_par_jour_pour_palier,
+        effort_supplementaire_fcfa_par_jour: p.effort_supplementaire_fcfa_par_jour,
+        jours_restants: p.jours_restants,
+        atteignable: p.atteignable,
+      })),
+      mouvements: topExpenseMovements(win.expenses, cur.from, cur.to, prev.from, prev.to),
+      netProjete: projections.net_projete_fcfa,
+      joursRestantsMois: joursRestants,
+    });
+    if (det.points.length) {
+      points = det.points;
+      action = det.action;
+    }
+  }
+
   const narrative = points ? [...points, action].filter(Boolean).join(" ") : null;
 
   return {
     narrative_fr: narrative,
     narrative_points: points,
     action_fr: action,
+    narrative_source: points ? narrativeSource : null,
     degraded_message_fr: narrative ? null
       : "Analyse narrative indisponible — les chiffres calculés restent affichés.",
     kpis,
