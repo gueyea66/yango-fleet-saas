@@ -10,6 +10,8 @@ import React, { useEffect, useState } from "react";
 import { Sparkles, Calculator, ChevronDown, ChevronUp, CheckCircle2, XCircle } from "lucide-react";
 
 const fmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
+// Les anciens contenus stockés peuvent contenir du markdown brut (**) — nettoyé à l'affichage
+const stripMd = (s: string) => s.replace(/\*\*/g, "").trim();
 
 const KPI_LABELS: Record<string, string> = {
   net_operationnel: "Net opérationnel (7 j)",
@@ -47,6 +49,8 @@ interface Briefing {
   is_today?: boolean;
   content_json: {
     narrative_fr: string | null;
+    narrative_points?: string[] | null;
+    action_fr?: string | null;
     degraded_message_fr: string | null;
     kpis: Array<{ kpi_name: string; value: number; unit: string; delta_pct_wow: number | null }>;
     projections: { net_projete_fcfa: number; jours_restants_mois: number };
@@ -130,12 +134,29 @@ export default function AiBriefingSection() {
           </p>
         )}
 
-        {c?.narrative_fr && (
+        {/* Briefing structuré : points courts + action mise en avant */}
+        {c?.narrative_points?.length ? (
+          <div className="mt-2 space-y-1.5">
+            {c.narrative_points.map((p, i) => (
+              <p key={i} className="text-sm leading-relaxed text-white/80 flex gap-2">
+                <span className="text-amber-400/70 shrink-0">›</span>
+                <span>{stripMd(p)}</span>
+              </p>
+            ))}
+            <span className="inline-block"><AiBadge /></span>
+            {c.action_fr && (
+              <div className="mt-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-amber-400">Action du jour</span>
+                <p className="text-sm text-white/90">{stripMd(c.action_fr)}</p>
+              </div>
+            )}
+          </div>
+        ) : c?.narrative_fr ? (
           <p className="mt-2 text-sm leading-relaxed text-white/80">
-            {c.narrative_fr} <AiBadge />
+            {stripMd(c.narrative_fr)} <AiBadge />
           </p>
-        )}
-        {c && !c.narrative_fr && c.degraded_message_fr && (
+        ) : null}
+        {c && !c.narrative_fr && !c.narrative_points?.length && c.degraded_message_fr && (
           <p className="mt-2 text-xs text-white/50">{c.degraded_message_fr}</p>
         )}
 
@@ -179,7 +200,7 @@ export default function AiBriefingSection() {
                 {ins.causes.length > 0 && (openInsight === ins.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />)}
               </button>
               {ins.narrative_fr && (
-                <p className="mt-1 text-xs text-white/60">{ins.narrative_fr} <AiBadge /></p>
+                <p className="mt-1 text-xs text-white/60">{stripMd(ins.narrative_fr)} <AiBadge /></p>
               )}
               {openInsight === ins.id && ins.causes.length > 0 && (
                 <div className="mt-2 space-y-1">

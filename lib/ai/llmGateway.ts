@@ -11,13 +11,15 @@ Règles ABSOLUES :
 - Tu n'inventes JAMAIS un chiffre. Tu ne peux citer que les montants présents dans le JSON fourni, à l'identique.
 - Tu ne fais AUCUN calcul (pas d'addition, de pourcentage, de conversion).
 - Les chauffeurs sont désignés par leur référence (ex: drv_ab12) — recopie-les telles quelles, elles seront remplacées par les prénoms.
-- Français simple et direct, 120 mots maximum, pas de titres, pas de listes à puces, 2 à 4 phrases.
+- AUCUN markdown : pas d'astérisques, pas de titres, pas de puces (le texte est affiché brut).
+- Français simple et direct, 120 mots maximum, 2 à 4 phrases.
 - Termine par la phrase la plus actionnable du jour.`;
 
 export interface LlmOptions {
   model?: string | null;   // override ai_config.llm_model_override
   timeoutMs?: number;      // défaut 10 000 (batch nocturne)
   maxTokens?: number;
+  system?: string;         // prompt système alternatif (ex: briefing JSON structuré)
 }
 
 const DEFAULT_ANTHROPIC_MODEL = "claude-haiku-4-5-20251001";
@@ -44,7 +46,7 @@ export async function narrate(payloadJson: string, opts: LlmOptions = {}): Promi
           body: JSON.stringify({
             model: opts.model || process.env.AI_LLM_MODEL || DEFAULT_ANTHROPIC_MODEL,
             max_tokens: maxTokens,
-            system: SYSTEM_FR,
+            system: opts.system ?? SYSTEM_FR,
             messages: [{ role: "user", content: user }],
           }),
         });
@@ -63,7 +65,7 @@ export async function narrate(payloadJson: string, opts: LlmOptions = {}): Promi
             model: opts.model || process.env.AI_LLM_MODEL || DEFAULT_OPENAI_MODEL,
             max_tokens: maxTokens,
             messages: [
-              { role: "system", content: SYSTEM_FR },
+              { role: "system", content: opts.system ?? SYSTEM_FR },
               { role: "user", content: user },
             ],
           }),
@@ -105,4 +107,20 @@ export function narrativeCitesOnlyKnownNumbers(narrative: string, payloadJson: s
   );
   const cited = narrative.replace(/[  \s]/g, "").match(/\d{4,}/g) ?? [];
   return cited.every((c) => known.has(c) || known.has(String(Number(c))));
+}
+
+/**
+ * Extrait le premier objet JSON d'une réponse LLM (tolère les fences ```json).
+ * Retourne null si illisible — l'appelant bascule en mode dégradé.
+ */
+export function extractJsonObject(text: string): Record<string, unknown> | null {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end <= start) return null;
+  try {
+    const parsed = JSON.parse(text.slice(start, end + 1));
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }

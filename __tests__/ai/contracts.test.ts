@@ -98,3 +98,27 @@ describe("Agrégats — net opérationnel et confiance dérivés des seules donn
     expect(c).toBeLessThanOrEqual(1);
   });
 });
+
+describe("Briefing palpable — faits calculés et parsing JSON", () => {
+  const { topExpenseMovements } = require("@/lib/ai/dataReader");
+  const { extractJsonObject } = require("@/lib/ai/llmGateway");
+
+  it("topExpenseMovements identifie le poste qui dérape (hors Carburant/Solde)", () => {
+    const exp = (cat: string, amount: number, date: string) =>
+      ({ driver_id: "d1", category: cat, amount, expense_date: date, status: null });
+    const expenses = [
+      exp("Entretien", 80_000, "2026-07-25"), exp("Entretien", 10_000, "2026-07-18"),
+      exp("Lavage", 2_000, "2026-07-25"), exp("Lavage", 2_500, "2026-07-18"),
+      exp("Carburant", 500_000, "2026-07-25"), // exclu
+    ];
+    const out = topExpenseMovements(expenses, "2026-07-22", "2026-07-28", "2026-07-15", "2026-07-21");
+    expect(out).toHaveLength(1); // Lavage sous minDelta, Carburant exclu
+    expect(out[0]).toEqual({ poste: "Entretien", delta_fcfa: 70_000, sens: "hausse" });
+  });
+
+  it("extractJsonObject tolère les fences et rejette l'illisible", () => {
+    expect(extractJsonObject('```json\n{"points":["a"],"action":"b"}\n```')).toEqual({ points: ["a"], action: "b" });
+    expect(extractJsonObject("pas de json ici")).toBeNull();
+    expect(extractJsonObject('{"cassé": ')).toBeNull();
+  });
+});
