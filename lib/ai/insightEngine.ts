@@ -57,6 +57,36 @@ export function decomposeNetDelta(cur: PeriodAggregates, prev: PeriodAggregates)
 }
 
 /**
+ * Description en clair d'une cause pour le LLM — le SENS (hausse/baisse) est
+ * calculé ici, en dur, pour que le modèle n'ait jamais à interpréter un signe
+ * (delta_fcfa est une contribution au net : négatif = pèse sur le net).
+ */
+export function describeCauses(causes: KpiCause[]): Array<{
+  poste: string; evolution: string; contribution_nette_fcfa: number; contribution_pct: number;
+}> {
+  const LABELS: Record<KpiCause["component"], string> = {
+    recettes: "Recettes",
+    solde_consomme: "Solde Yango consommé",
+    carburant_consomme: "Carburant consommé",
+    depenses_ope: "Dépenses opérationnelles",
+  };
+  const fmt = (v: number) => new Intl.NumberFormat("fr-FR").format(Math.abs(Math.round(v)));
+  return causes.map((c) => {
+    // Pour les recettes : contribution positive = recettes en hausse.
+    // Pour les postes de coût : contribution négative = coût en HAUSSE.
+    const isRevenue = c.component === "recettes";
+    const up = isRevenue ? c.delta_fcfa > 0 : c.delta_fcfa < 0;
+    const effect = c.delta_fcfa < 0 ? "pèse sur le net" : "améliore le net";
+    return {
+      poste: LABELS[c.component],
+      evolution: `en ${up ? "hausse" : "baisse"} de ${fmt(c.delta_fcfa)} FCFA (${effect})`,
+      contribution_nette_fcfa: c.delta_fcfa,
+      contribution_pct: c.contribution_pct,
+    };
+  });
+}
+
+/**
  * Produit les insights dont le seuil est franchi. Ne renvoie JAMAIS un chiffre
  * non issu des agrégats. Un insight net_operationnel embarque sa décomposition.
  */
