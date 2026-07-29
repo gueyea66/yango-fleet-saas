@@ -50,7 +50,14 @@ export type RuleId =
   | "palier_a_risque"
   | "carburant_derive"
   | "rapport_manquant"
-  | "avance_solde_gonflee";
+  | "avance_solde_gonflee"
+  // Phase 1.1 — règles d'optimisation (analyse croisée 29/07)
+  | "panier_moyen"
+  | "efficience_carburant"
+  | "jour_optimal_repos"
+  | "reconciliation_solde"
+  | "utilisation_vehicule"
+  | "frais_evitables";
 
 export interface AiRecommendation {
   id: string;

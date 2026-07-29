@@ -24,7 +24,19 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
   const [pushEnabled, setPushEnabled] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Sur mobile, la barre d'en-tête défile horizontalement : un panneau en
+  // absolute ancré sur la cloche sort de l'écran (vu le 29/07). → position
+  // fixed pleine largeur sous le header.
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 640px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   const fetchNotifs = useCallback(async () => {
     const res = await fetch("/api/notifications?limit=20");
@@ -123,7 +135,10 @@ export default function NotificationBell() {
 
       {open && (
         <div style={{
-          position: "absolute", right: 0, top: "36px", width: "320px", zIndex: 1000,
+          ...(isMobile
+            ? { position: "fixed" as const, left: 8, right: 8, top: 72, width: "auto" }
+            : { position: "absolute" as const, right: 0, top: "36px", width: "320px" }),
+          zIndex: 1000,
           background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderRadius: "16px",
           boxShadow: "0 8px 32px rgba(0,0,0,.6)", overflow: "hidden",
         }}>
