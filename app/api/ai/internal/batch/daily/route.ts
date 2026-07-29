@@ -22,8 +22,10 @@ async function handle(req: NextRequest) {
     return NextResponse.json({ skipped: true, reason: "ai_layer_disabled" });
   }
 
-  const onlyTenant = new URL(req.url).searchParams.get("tenantId") ?? undefined;
-  const results = await runDailyBatch(onlyTenant);
+  const params = new URL(req.url).searchParams;
+  const onlyTenant = params.get("tenantId") ?? undefined;
+  const forceWeekly = params.get("weekly") === "1"; // force les règles hebdo hors dimanche
+  const results = await runDailyBatch(onlyTenant, { forceWeekly });
   return NextResponse.json({ ran: results.length, results });
 }
 

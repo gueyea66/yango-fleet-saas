@@ -14,6 +14,7 @@ import {
 } from "./dataReader";
 import { buildKpiInsights, describeCauses, paramsHash } from "./insightEngine";
 import { runRules } from "./recommendationEngine";
+import { runAdvancedRules } from "./advancedRules";
 import { extractJsonObject, foreignNumbers, narrate, narrativeCitesOnlyKnownNumbers } from "./llmGateway";
 import { buildDeterministicBriefing } from "./briefingFallback";
 import { AI_CALC_VERSION, BriefingContent, BriefingDriver, BriefingKpi } from "./types";
@@ -33,7 +34,10 @@ export interface BatchResult {
 }
 
 /** Lance le batch pour tous les tenants en rollout (ou un tenant précis). */
-export async function runDailyBatch(onlyTenantId?: string): Promise<BatchResult[]> {
+export async function runDailyBatch(
+  onlyTenantId?: string,
+  batchOpts: { forceWeekly?: boolean } = {}
+): Promise<BatchResult[]> {
   if (!(await isAiEnabled())) return [];
 
   const admin = aiAdmin();
@@ -49,6 +53,7 @@ export async function runDailyBatch(onlyTenantId?: string): Promise<BatchResult[
       results.push(await runTenantBatch(cfg.tenant_id, {
         thresholds: { ...DEFAULT_THRESHOLDS, ...(cfg.thresholds ?? {}) },
         llmModel: cfg.llm_model_override ?? null,
+        forceWeekly: batchOpts.forceWeekly,
       }));
     } catch (err) {
       console.error(`[ai/batch] tenant ${cfg.tenant_id}:`, err);
@@ -63,7 +68,7 @@ export async function runDailyBatch(onlyTenantId?: string): Promise<BatchResult[
 
 async function runTenantBatch(
   tenantId: string,
-  opts: { thresholds: typeof DEFAULT_THRESHOLDS; llmModel: string | null }
+  opts: { thresholds: typeof DEFAULT_THRESHOLDS; llmModel: string | null; forceWeekly?: boolean }
 ): Promise<BatchResult> {
   const admin = aiAdmin();
   const now = Date.now();
@@ -127,8 +132,30 @@ async function runTenantBatch(
     tenantId, today, win, salaryTiers: tiers,
     thresholds: { carburant_km_delta_pct: opts.thresholds.carburant_km_delta_pct },
   });
+
+  // Phase 1.1 — règles avancées (analyse croisée 29/07). Les croisements lourds
+  // (panier, carburant comparé, jour de repos, utilisation véhicule) tournent
+  // en cadence HEBDO (dimanche) ; réconciliation & frais évitables au quotidien.
+  const weekly = opts.forceWeekly === true || new Date(now).getUTCDay() === 0;
+  const { count: vehiclesCount } = await admin.from("vehicles")
+    .select("id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId).eq("status", "active");
+  recos.push(...runAdvancedRules(
+    { tenantId, today, win, activeVehicles: vehiclesCount ?? 0 },
+    { weekly }
+  ));
+
+  // Anti-répétition inter-jours : une même règle (même chauffeur) déjà active
+  // depuis moins de 6 jours n'est pas reproposée.
+  const { data: recentRecos } = await admin.from("ai_recommendations")
+    .select("rule_id, driver_id")
+    .eq("tenant_id", tenantId).eq("status", "active")
+    .gte("created_at", new Date(now - 6 * DAY).toISOString());
+  const recentKeys = new Set((recentRecos ?? []).map((r) => `${r.rule_id}|${r.driver_id ?? ""}`));
+
   let recoCount = 0;
   for (const r of recos) {
+    if (recentKeys.has(`${r.rule_id}|${r.driver_id ?? ""}`)) continue;
     const { error } = await admin.from("ai_recommendations").insert({
       tenant_id: tenantId, driver_id: r.driver_id, rule_id: r.rule_id,
       priority: r.priority, impact_fcfa: r.impact_fcfa,
@@ -166,12 +193,20 @@ async function runTenantBatch(
     } else {
       const adminId = await getTenantAdminId(tenantId);
       if (adminId) {
-        await sendNotification(
-          tenantId, adminId, "report_reminder",
-          "Briefing du jour",
-          buildPushSummary(content) ?? "Votre briefing quotidien est prêt.",
-          { url: "/admin" }
-        ).catch(() => {}); // best-effort — le briefing reste consultable dans l'app
+        // Dédup : une seule notif « Briefing du jour » par tenant et par jour,
+        // même si le batch est relancé (vu en prod : 5 notifs identiques le 29/07)
+        const { count: alreadyNotified } = await admin.from("notifications")
+          .select("id", { count: "exact", head: true })
+          .eq("tenant_id", tenantId).eq("title", "Briefing du jour")
+          .gte("created_at", today + "T00:00:00Z");
+        if (!alreadyNotified) {
+          await sendNotification(
+            tenantId, adminId, "report_reminder",
+            "Briefing du jour",
+            buildPushSummary(content) ?? "Votre briefing quotidien est prêt.",
+            { url: "/admin" }
+          ).catch(() => {}); // best-effort — le briefing reste consultable dans l'app
+        }
       }
     }
   }

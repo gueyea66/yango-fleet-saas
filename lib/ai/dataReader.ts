@@ -17,6 +17,9 @@ export interface RawReport {
   off_yango_revenue: number | null;
   solde_yango: number | null;
   end_odometer: number | null;
+  yango_trip_count?: number | null;
+  off_yango_trip_count?: number | null;
+  commission_amount?: number | null; // commissions déclarées (réconciliation solde)
 }
 
 export interface RawExpense {
@@ -55,7 +58,7 @@ export async function fetchTenantWindow(tenantId: string, days = 70): Promise<Te
       .select("id, full_name, account_type, active, salary_model")
       .eq("tenant_id", tenantId).eq("role", "driver"),
     admin.from("daily_reports")
-      .select("driver_id, date, status, yango_gross, yango_bonus, off_yango_revenue, solde_yango, end_odometer")
+      .select("driver_id, date, status, yango_gross, yango_bonus, off_yango_revenue, solde_yango, end_odometer, yango_trip_count, off_yango_trip_count, commission_amount")
       .eq("tenant_id", tenantId)
       .or("source.eq.saas,source.is.null")
       .gte("date", from)
