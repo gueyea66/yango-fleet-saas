@@ -124,6 +124,20 @@ export default function SuperAdminPage() {
     load();
   }
 
+  // Génération en lot : mois précédent, stockage + notification aux admins clients.
+  // Sans tenantIds → tous les clients activés ; avec → seulement ceux-là (si activés).
+  const [generating, setGenerating] = useState(false);
+  async function generateReports(tenantIds?: string[]) {
+    setGenerating(true);
+    try {
+      const d = await apiPost("/api/superadmin/generate-reports", tenantIds ? { tenantIds } : {});
+      if (d.error) return notify(d.error, false);
+      const nOk = (d.generated || []).length;
+      const nKo = (d.errors || []).length;
+      notify(`✓ ${nOk} rapport(s) généré(s) et poussé(s) (${d.period?.dateFrom} → ${d.period?.dateTo})${nKo ? ` · ${nKo} échec(s)` : ""}`, nKo === 0);
+    } finally { setGenerating(false); }
+  }
+
   useEffect(() => {
     if (authed) {
       load();
@@ -507,8 +521,15 @@ export default function SuperAdminPage() {
 
         {/* Tenant list */}
         <div style={{ marginBottom: 40 }}>
-          <div style={{ fontSize: 11, color: "#f5a623", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 16 }}>
-            Clients ({tenants.length})
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+            <div style={{ fontSize: 11, color: "#f5a623", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+              Clients ({tenants.length})
+            </div>
+            <button onClick={() => generateReports()} disabled={generating || reportAddon.size === 0}
+              title="Génère le rapport du mois précédent pour tous les clients dont l'add-on Rapport est activé, le pousse dans leur interface admin et les notifie"
+              style={{ marginLeft: "auto", background: "#f5a62312", border: "0.5px solid #f5a62340", borderRadius: 8, padding: "6px 14px", color: "#f5a623", cursor: "pointer", fontSize: 11, fontWeight: 700, opacity: generating || reportAddon.size === 0 ? 0.5 : 1 }}>
+              {generating ? "Génération…" : `📊 Générer les rapports du mois précédent (${reportAddon.size} client${reportAddon.size > 1 ? "s" : ""} activé${reportAddon.size > 1 ? "s" : ""})`}
+            </button>
           </div>
 
           {loading ? <p style={{ color: "#6b7280" }}>Chargement...</p> : tenants.map(t => {
@@ -557,6 +578,13 @@ export default function SuperAdminPage() {
                     }}>
                     📊 Rapport {reportAddon.has(t.id) ? "ON" : "OFF"}
                   </button>
+                  {reportAddon.has(t.id) && (
+                    <button onClick={() => generateReports([t.id])} disabled={generating}
+                      title="Générer le rapport du mois précédent pour CE client et le pousser dans son interface admin"
+                      style={{ background: "var(--sk-surface)", border: "none", borderRadius: 8, padding: "5px 10px", color: "#9ca3af", cursor: "pointer", fontSize: 11, opacity: generating ? 0.5 : 1 }}>
+                      Générer
+                    </button>
+                  )}
 
                   <button onClick={() => toggleActive(t.id, t.active)}
                     style={{ background: "var(--sk-surface)", border: "none", borderRadius: 8, padding: "5px 10px", color: "#9ca3af", cursor: "pointer", fontSize: 11 }}>
