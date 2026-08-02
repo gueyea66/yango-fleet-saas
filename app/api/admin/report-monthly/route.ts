@@ -25,10 +25,13 @@ const esc = (s: string) =>
 interface DriverAgg {
   name: string;
   technical: boolean;
+  hire: string | null;
+  end: string | null;
   jours: number;
+  repos: number;
   premier: string | null;
   brut: number; bonus: number; hors: number; comm: number; svc: number;
-  net: number; dep: number; sal: number; courses: number;
+  net: number; dep: number; sal: number; aco: number; courses: number;
 }
 
 export async function GET(req: NextRequest) {
@@ -51,18 +54,23 @@ export async function GET(req: NextRequest) {
     const dateTo = searchParams.get("dateTo") || now.toISOString().slice(0, 10);
 
     const [{ data: profiles }, repsQ, expsQ, paysQ] = await Promise.all([
-      admin.from("profiles").select("id, driver_id, full_name, account_type")
+      admin.from("profiles").select("id, driver_id, full_name, account_type, hire_date, contract_end_date")
         .eq("tenant_id", tenantId),
       admin.from("daily_reports")
-        .select("date,driver_id,yango_gross,yango_bonus,off_yango_revenue,commission_amount,service_supplementaire,net_after_expenses,yango_trip_count,status")
+        .select("date,driver_id,yango_gross,yango_bonus,off_yango_revenue,commission_amount,service_supplementaire,net_after_expenses,yango_trip_count,status,comment")
         .eq("tenant_id", tenantId).or("source.eq.saas,source.is.null")
         .gte("date", dateFrom).lte("date", dateTo).limit(20000),
       admin.from("expenses").select("driver_id,category,amount,expense_date")
         .eq("tenant_id", tenantId).gte("expense_date", dateFrom).lte("expense_date", dateTo).limit(20000),
-      admin.from("payments").select("driver_id,amount,payment_date,salary_month")
+      admin.from("payments").select("driver_id,amount,payment_date,salary_month,type")
         .eq("tenant_id", tenantId).limit(20000),
     ]);
-    const reports = repsQ.data || [];
+    // Repos déclarés = rapports [REPOS] — exclus des calculs financiers,
+    // comptés à part (même règle que le pilotage).
+    const isRepos = (r: { comment?: string | null }) => String(r.comment || "").startsWith("[REPOS]");
+    const allReports = repsQ.data || [];
+    const reposReports = allReports.filter(isRepos);
+    const reports = allReports.filter((r) => !isRepos(r));
     const expenses = expsQ.data || [];
     const salaryDate = (p: { salary_month?: string | null; payment_date?: string | null }) =>
       (p.salary_month ? String(p.salary_month).slice(0, 10) : p.payment_date) || "";
@@ -73,6 +81,8 @@ export async function GET(req: NextRequest) {
 
     const nameOf = new Map((profiles || []).map((p) => [p.id, p.full_name || p.driver_id || "?"]));
     const isTechnical = new Set((profiles || []).filter((p) => p.account_type === "technical").map((p) => p.id));
+    const hireOf = new Map((profiles || []).map((p) => [p.id, p.hire_date || null]));
+    const endOf = new Map((profiles || []).map((p) => [p.id, p.contract_end_date || null]));
 
     const approved = reports.filter((r) => r.status === "approved");
     const pending = reports.length - approved.length;
@@ -82,8 +92,9 @@ export async function GET(req: NextRequest) {
       if (!acc.has(id)) {
         acc.set(id, {
           name: nameOf.get(id) || String(id).slice(0, 8), technical: isTechnical.has(id),
-          jours: 0, premier: null, brut: 0, bonus: 0, hors: 0, comm: 0, svc: 0,
-          net: 0, dep: 0, sal: 0, courses: 0,
+          hire: hireOf.get(id) || null, end: endOf.get(id) || null,
+          jours: 0, repos: 0, premier: null, brut: 0, bonus: 0, hors: 0, comm: 0, svc: 0,
+          net: 0, dep: 0, sal: 0, aco: 0, courses: 0,
         });
       }
       return acc.get(id)!;
@@ -97,35 +108,58 @@ export async function GET(req: NextRequest) {
       a.svc += r.service_supplementaire || 0; a.net += r.net_after_expenses || 0;
       a.courses += r.yango_trip_count || 0;
     }
+    for (const r of reposReports) get(r.driver_id).repos += 1;
     const depCat = new Map<string, number>();
     for (const e of expenses) {
       if (e.driver_id) get(e.driver_id).dep += e.amount || 0;
       depCat.set(e.category || "Autre", (depCat.get(e.category || "Autre") || 0) + (e.amount || 0));
     }
-    for (const p of payments) if (p.driver_id) get(p.driver_id).sal += p.amount || 0;
+    // Rémunération versée = salaires + ACOMPTES (règle Abdou : un acompte est
+    // de la rémunération du mois), rattachés par salary_month sinon payment_date.
+    for (const p of payments) {
+      if (!p.driver_id) continue;
+      if ((p.type || "salaire") === "acompte") get(p.driver_id).aco += p.amount || 0;
+      else get(p.driver_id).sal += p.amount || 0;
+    }
 
     const drivers = Array.from(acc.values()).sort((a, b) => (b.brut + b.bonus + b.hors) - (a.brut + a.bonus + a.hors));
     const tot = drivers.reduce((t, a) => ({
-      jours: t.jours + a.jours, brut: t.brut + a.brut, bonus: t.bonus + a.bonus,
+      jours: t.jours + a.jours, repos: t.repos + a.repos, brut: t.brut + a.brut, bonus: t.bonus + a.bonus,
       hors: t.hors + a.hors, comm: t.comm + a.comm + a.svc, net: t.net + a.net,
-      dep: t.dep + a.dep, sal: t.sal + a.sal, courses: t.courses + a.courses,
-    }), { jours: 0, brut: 0, bonus: 0, hors: 0, comm: 0, net: 0, dep: 0, sal: 0, courses: 0 });
+      dep: t.dep + a.dep, sal: t.sal + a.sal, aco: t.aco + a.aco, courses: t.courses + a.courses,
+    }), { jours: 0, repos: 0, brut: 0, bonus: 0, hors: 0, comm: 0, net: 0, dep: 0, sal: 0, aco: 0, courses: 0 });
     const recette = tot.brut + tot.bonus + tot.hors;
-    const netFinal = tot.net - tot.dep - tot.sal;
+    const remu = tot.sal + tot.aco;
+    const netFinal = tot.net - tot.dep - remu;
 
     // ── règles déterministes « à retenir » ──
     const periodDays = Math.round((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / 86400000) + 1;
+    const fr = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
     const insights: { cls: string; text: string }[] = [];
+    let endedCount = 0;
     for (const a of drivers) {
       if (a.technical || a.jours === 0) continue;
       const share = pct(a.brut + a.bonus + a.hors, recette);
-      if (periodDays >= 28 && a.jours >= periodDays) {
-        insights.push({ cls: "warn", text: `<b>${esc(a.name)} n'a pris aucun jour de repos (${a.jours}/${periodDays} jours)</b> et porte ${share} % de la recette — risque fatigue à surveiller.` });
-      } else if (a.premier && a.premier > dateFrom) {
-        insights.push({ cls: "", text: `<b>${esc(a.name)} a démarré le ${a.premier.slice(8, 10)}/${a.premier.slice(5, 7)}</b> (${a.jours} j) — ses ratios peuvent inclure une période promo Yango : non comparables ce mois-ci.` });
-      } else if (periodDays >= 28 && a.jours < 14) {
-        insights.push({ cls: "warn", text: `<b>${esc(a.name)} : ${a.jours} jours rapportés seulement</b> sur la période — arrêt réel ou trous de saisie ? À éclaircir, la recette est sous-évaluée sinon.` });
+      const endedInPeriod = !!(a.end && a.end >= dateFrom && a.end <= dateTo);
+      const hiredInPeriod = !!(a.hire && a.hire > dateFrom && a.hire <= dateTo);
+      if (endedInPeriod) {
+        endedCount += 1;
+        insights.push({ cls: "", text: `<b>${esc(a.name)} : contrat terminé le ${fr(a.end!)}</b>${hiredInPeriod ? ` (embauché le ${fr(a.hire!)})` : ""} — ${a.jours} jours travaillés, rémunération versée ${fmt(a.sal + a.aco)} F.` });
+      } else if (hiredInPeriod) {
+        insights.push({ cls: "", text: `<b>${esc(a.name)} a démarré le ${fr(a.hire!)}</b> (${a.jours} j) — ses ratios peuvent inclure une période promo Yango : non comparables ce mois-ci.` });
+      } else if (periodDays >= 28) {
+        // Rythme visé : 1 repos/semaine (règle 6/7 de calc.ts).
+        const expectedRest = Math.round(periodDays / 7);
+        if (a.jours + a.repos >= periodDays && a.repos < expectedRest) {
+          insights.push({ cls: "warn", text: `<b>${esc(a.name)} : ${a.repos || "aucun"} repos déclaré${a.repos > 1 ? "s" : ""} sur ~${expectedRest} attendus</b> (rythme visé 1/semaine) pour ${a.jours} jours travaillés — il porte ${share} % de la recette, risque fatigue.` });
+        } else if (a.jours < 14) {
+          insights.push({ cls: "warn", text: `<b>${esc(a.name)} : ${a.jours} jours rapportés seulement</b> sans fin de contrat déclarée — arrêt réel ou trous de saisie ? À éclaircir.` });
+        }
       }
+    }
+    if (endedCount > 0) {
+      const remaining = drivers.filter((a) => !a.technical && a.jours > 0 && !(a.end && a.end <= dateTo)).length;
+      insights.push({ cls: remaining <= 1 ? "alert" : "warn", text: `<b>${endedCount} contrat(s) terminé(s) sur la période — ${remaining} chauffeur(s) encore actif(s) ensuite.</b> Anticiper le recrutement pour ne pas laisser de véhicule à l'arrêt.` });
     }
     const carb = depCat.get("Carburant") || 0;
     if (recette > 0 && carb > 0) {
@@ -151,13 +185,16 @@ export async function GET(req: NextRequest) {
       const rec = a.brut + a.bonus + a.hors;
       const panier = a.courses > 0 ? Math.round(a.brut / a.courses) : null;
       const caJ = a.jours > 0 ? Math.round(rec / a.jours) : null;
-      const netF = a.net - a.dep - a.sal;
+      const aRemu = a.sal + a.aco;
+      const netF = a.net - a.dep - aRemu;
+      const endedInPeriod = !!(a.end && a.end >= dateFrom && a.end <= dateTo);
       const tag = a.technical ? '<span class="tag navy">compte technique</span>'
-        : a.premier && a.premier > dateFrom ? '<span class="tag navy">nouveau</span>'
-        : periodDays >= 28 && a.jours >= periodDays ? '<span class="tag amber">0 repos</span>'
-        : periodDays >= 28 && a.jours > 0 && a.jours < 14 ? '<span class="tag amber">partiel</span>' : "";
+        : endedInPeriod ? `<span class="tag amber">contrat fini ${fr(a.end!)}</span>`
+        : a.hire && a.hire > dateFrom ? `<span class="tag navy">embauché ${fr(a.hire)}</span>` : "";
       const d = (v: number | null) => (v == null ? "—" : fmt(v));
-      return `<tr><td><b>${esc(a.name)}</b> ${tag}</td><td class="r">${a.jours || "—"}</td><td class="r">${a.technical ? "—" : fmt(rec)}</td><td class="r">${a.technical ? "—" : fmt(a.comm + a.svc)}</td><td class="r">${fmt(a.dep)}</td><td class="r">${a.sal ? fmt(a.sal) : "—"}</td><td class="r"><b>${fmt(netF)}</b></td><td class="r">${d(panier)}</td><td class="r">${d(caJ)}</td></tr>`;
+      const joursCell = a.jours ? `${a.jours}${a.repos ? ` <span style="color:var(--ink3)">+${a.repos}r</span>` : ""}` : "—";
+      const remuCell = aRemu ? `${fmt(aRemu)}${a.aco ? ` <span style="color:var(--ink3);font-size:8pt">dont ${fmt(a.aco)} ac.</span>` : ""}` : "—";
+      return `<tr><td><b>${esc(a.name)}</b> ${tag}</td><td class="r">${joursCell}</td><td class="r">${a.technical ? "—" : fmt(rec)}</td><td class="r">${a.technical ? "—" : fmt(a.comm + a.svc)}</td><td class="r">${fmt(a.dep)}</td><td class="r">${remuCell}</td><td class="r"><b>${fmt(netF)}</b></td><td class="r">${d(panier)}</td><td class="r">${d(caJ)}</td></tr>`;
     }).join("\n");
 
     const period = `${dateFrom.slice(8, 10)}/${dateFrom.slice(5, 7)}/${dateFrom.slice(0, 4)} → ${dateTo.slice(8, 10)}/${dateTo.slice(5, 7)}/${dateTo.slice(0, 4)}`;
@@ -207,20 +244,20 @@ footer{margin-top:26px;padding-top:12px;border-top:1px solid var(--border);font-
   <div style="font-size:9pt;color:var(--ink3)">Rapport d'activité flotte</div>
   <div class="meta"><b style="color:#A88859;font-size:11pt">${esc(period)}</b><br>Généré le ${now.toLocaleDateString("fr-FR")} · M3A Fleet SaaS</div>
 </div>
-<div class="tldr"><b>L'essentiel.</b> La période dégage <b>${fmt(netFinal)} F de net final</b> sur <b>${fmt(recette)} F de recette brute</b>${recette > 0 ? ` (marge nette ${pct(netFinal, recette)} %)` : ""}. ${fmt(tot.courses)} courses Yango sur ${tot.jours} jours-chauffeur rapportés. Dépenses : ${fmt(tot.dep)} F · Salaires versés : ${fmt(tot.sal)} F.</div>
+<div class="tldr"><b>L'essentiel.</b> La période dégage <b>${fmt(netFinal)} F de net final</b> sur <b>${fmt(recette)} F de recette brute</b>${recette > 0 ? ` (marge nette ${pct(netFinal, recette)} %)` : ""}. ${fmt(tot.courses)} courses Yango sur ${tot.jours} jours travaillés${tot.repos ? ` (+${tot.repos} repos déclarés)` : ""}. Dépenses : ${fmt(tot.dep)} F · Rémunération versée : ${fmt(remu)} F${tot.aco ? ` (dont ${fmt(tot.aco)} F d'acomptes)` : ""}.</div>
 <div class="heroes">
   <div class="hero gold"><div class="lbl">Recette brute</div><div class="val">${fmt(recette)} F</div><div class="sub">Yango ${fmt(tot.brut)} + bonus ${fmt(tot.bonus)} + hors ${fmt(tot.hors)}</div></div>
   <div class="hero gold"><div class="lbl">Net final</div><div class="val">${fmt(netFinal)} F</div><div class="sub">${recette > 0 ? pct(netFinal, recette) + " % de la recette" : "—"}</div></div>
   <div class="hero"><div class="lbl">Dépenses</div><div class="val">${fmt(tot.dep)} F</div><div class="sub">${recette > 0 ? pct(tot.dep, recette) + " % de la recette" : "—"}</div></div>
-  <div class="hero"><div class="lbl">Activité</div><div class="val">${fmt(tot.courses)} courses</div><div class="sub">${tot.jours} jours rapportés</div></div>
+  <div class="hero"><div class="lbl">Activité</div><div class="val">${fmt(tot.courses)} courses</div><div class="sub">${tot.jours} jours travaillés${tot.repos ? ` · ${tot.repos} repos` : ""}</div></div>
 </div>
 <h2>Résultats par chauffeur</h2>
-<table><thead><tr><th>Chauffeur</th><th class="r">Jours</th><th class="r">Recette brute</th><th class="r">Commissions</th><th class="r">Dépenses</th><th class="r">Salaire</th><th class="r">Net final</th><th class="r">Panier moy.</th><th class="r">CA / jour</th></tr></thead>
+<table><thead><tr><th>Chauffeur</th><th class="r">Jours</th><th class="r">Recette brute</th><th class="r">Commissions</th><th class="r">Dépenses</th><th class="r">Rému. versée</th><th class="r">Net final</th><th class="r">Panier moy.</th><th class="r">CA / jour</th></tr></thead>
 <tbody>
 ${driverRows}
-<tr class="total"><td>TOTAL</td><td class="r">${tot.jours}</td><td class="r">${fmt(recette)}</td><td class="r">${fmt(tot.comm)}</td><td class="r">${fmt(tot.dep)}</td><td class="r">${fmt(tot.sal)}</td><td class="r">${fmt(netFinal)}</td><td class="r"></td><td class="r"></td></tr>
+<tr class="total"><td>TOTAL</td><td class="r">${tot.jours}</td><td class="r">${fmt(recette)}</td><td class="r">${fmt(tot.comm)}</td><td class="r">${fmt(tot.dep)}</td><td class="r">${fmt(remu)}</td><td class="r">${fmt(netFinal)}</td><td class="r"></td><td class="r"></td></tr>
 </tbody></table>
-<div class="note">Montants en FCFA. Net final = net après commissions − dépenses − salaires versés (formule du récap comptable). Un chauffeur « nouveau » peut inclure une période promo Yango : ratios non comparables.</div>
+<div class="note">Montants en FCFA. « Jours » = jours travaillés (+Nr = repos déclarés, exclus des calculs). Rému. versée = salaires + acomptes rattachés au mois. Net final = net après commissions − dépenses − rémunération versée. Un chauffeur embauché en cours de mois peut inclure une période promo Yango : ratios non comparables.</div>
 ${depCat.size > 0 ? `<h2>Dépenses par catégorie</h2>\n${depRows}` : ""}
 ${insights.length > 0 ? `<h2>Ce qu'il faut retenir</h2>\n${insights.map((i, n) => `<div class="insight ${i.cls}"><b>${n + 1}.</b> ${i.text}</div>`).join("\n")}` : ""}
 <footer><div>${esc(tenant?.name || "M3A GROUP")} — Rapport d'activité flotte</div><div>Chiffres calculés par le moteur — règles déterministes, aucun montant recalculé.</div></footer>
