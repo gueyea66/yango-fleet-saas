@@ -4036,6 +4036,13 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
     ["payments", "Paiements / salaires"],
   ];
 
+  // Rapport d'activité imprimable (HTML brandé, généré côté serveur avec les
+  // mêmes formules que le récap) — ouvert dans un onglet, Ctrl+P pour le PDF.
+  const openReport = () => {
+    window.open(`/api/admin/report-monthly?dateFrom=${dateFrom}&dateTo=${dateTo}`, "_blank");
+    setOpen(false);
+  };
+
   return (
     <div className="relative">
       <button onClick={() => { setOpen((o) => !o); setErr(null); }}
@@ -4046,6 +4053,11 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
       {open && (
         <div className="absolute right-0 mt-1.5 z-50 rounded-xl overflow-hidden min-w-[210px]"
           style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-border)", boxShadow: "0 12px 32px rgba(0,0,0,.45)" }}>
+          <button onClick={openReport}
+            className="w-full text-left text-sm px-4 py-2.5 font-semibold"
+            style={{ color: "var(--sk-t1)", borderBottom: "1px solid var(--sk-surface)" }}>
+            📊 Rapport d&apos;activité (imprimable)
+          </button>
           {items.map(([r, label]) => (
             <button key={r} onClick={() => download(r)} disabled={!!busy}
               className="w-full text-left text-sm px-4 py-2.5 disabled:opacity-50"
