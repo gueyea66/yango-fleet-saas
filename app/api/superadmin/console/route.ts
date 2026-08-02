@@ -32,10 +32,16 @@ export async function POST(req: NextRequest) {
     switch (op) {
       /* ── Liste des clients enrichie (page → load) ── */
       case "tenants-full": {
-        const [{ data: tenants }, { data: profiles }] = await Promise.all([
+        const [{ data: tenants }, { data: profiles }, { data: addonRow }] = await Promise.all([
           admin.from("tenants").select("*, settings:tenant_settings(*), remuneration:remuneration_config(*)").order("created_at", { ascending: false }),
           admin.from("profiles").select("id, email, full_name, tenant_id").eq("role", "admin"),
+          admin.from("superadmin_settings").select("value").eq("key", "report_addon_tenants").maybeSingle(),
         ]);
+        let reportAddonTenants: string[] = [];
+        try {
+          const v = JSON.parse(addonRow?.value || "[]");
+          if (Array.isArray(v)) reportAddonTenants = v;
+        } catch { /* liste illisible → vide */ }
         const byTenant: Record<string, any[]> = {};
         (profiles || []).forEach((p: any) => {
           (byTenant[p.tenant_id] ||= []).push({ id: p.id, email: p.email, full_name: p.full_name });
@@ -46,7 +52,7 @@ export async function POST(req: NextRequest) {
           remuneration: Array.isArray(t.remuneration) ? t.remuneration[0] : t.remuneration,
           admins: byTenant[t.id] || [],
         }));
-        return NextResponse.json({ tenants: list });
+        return NextResponse.json({ tenants: list, reportAddonTenants });
       }
 
       /* ── Réglages globaux (page → loadGlobalSettings) ── */
