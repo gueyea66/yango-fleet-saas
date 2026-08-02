@@ -1,7 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminAuth } from "@/lib/auth/server";
-import { getPlanLimits } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 
@@ -39,10 +38,18 @@ export async function GET(req: NextRequest) {
     const { tenantId } = await requireAdminAuth();
 
     const { data: tenant } = await admin.from("tenants").select("name, plan").eq("id", tenantId).single();
-    const limits = getPlanLimits(tenant?.plan || "standard");
-    if (!limits.canExportCSV) {
+    // Service complémentaire : activé PAR TENANT depuis la console super admin
+    // (superadmin_settings.report_addon_tenants) — indépendant du plan.
+    const { data: addonRow } = await admin.from("superadmin_settings")
+      .select("value").eq("key", "report_addon_tenants").maybeSingle();
+    let addonTenants: string[] = [];
+    try {
+      const v = JSON.parse(addonRow?.value || "[]");
+      if (Array.isArray(v)) addonTenants = v;
+    } catch { /* liste illisible = service désactivé */ }
+    if (!addonTenants.includes(tenantId)) {
       return NextResponse.json(
-        { error: "Le rapport mensuel est réservé au plan Pro." },
+        { error: "Le rapport d'activité est un service complémentaire non activé sur ce compte. Contactez M3A Group pour l'activer." },
         { status: 403 }
       );
     }

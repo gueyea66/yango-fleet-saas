@@ -4037,10 +4037,23 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
   ];
 
   // Rapport d'activité imprimable (HTML brandé, généré côté serveur avec les
-  // mêmes formules que le récap) — ouvert dans un onglet, Ctrl+P pour le PDF.
-  const openReport = () => {
-    window.open(`/api/admin/report-monthly?dateFrom=${dateFrom}&dateTo=${dateTo}`, "_blank");
-    setOpen(false);
+  // mêmes formules que le récap) — service complémentaire activé par tenant.
+  // fetch d'abord : un refus (403) s'affiche dans le menu au lieu d'un onglet JSON.
+  const openReport = async () => {
+    setBusy("report"); setErr(null);
+    try {
+      const res = await fetch(`/api/admin/report-monthly?dateFrom=${dateFrom}&dateTo=${dateTo}`);
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({} as any));
+        setErr(j.error || "Rapport indisponible.");
+        return;
+      }
+      const blob = await res.blob();
+      window.open(URL.createObjectURL(blob), "_blank");
+      setOpen(false);
+    } catch {
+      setErr("Erreur réseau pendant la génération du rapport.");
+    } finally { setBusy(null); }
   };
 
   return (
@@ -4053,10 +4066,10 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
       {open && (
         <div className="absolute right-0 mt-1.5 z-50 rounded-xl overflow-hidden min-w-[210px]"
           style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-border)", boxShadow: "0 12px 32px rgba(0,0,0,.45)" }}>
-          <button onClick={openReport}
-            className="w-full text-left text-sm px-4 py-2.5 font-semibold"
+          <button onClick={openReport} disabled={!!busy}
+            className="w-full text-left text-sm px-4 py-2.5 font-semibold disabled:opacity-50"
             style={{ color: "var(--sk-t1)", borderBottom: "1px solid var(--sk-surface)" }}>
-            📊 Rapport d&apos;activité (imprimable)
+            {busy === "report" ? "Génération…" : "📊 Rapport d'activité (imprimable)"}
           </button>
           {items.map(([r, label]) => (
             <button key={r} onClick={() => download(r)} disabled={!!busy}

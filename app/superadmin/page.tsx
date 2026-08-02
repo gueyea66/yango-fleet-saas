@@ -36,6 +36,7 @@ export default function SuperAdminPage() {
   const [authError, setAuthError] = useState("");
   const [activeTab, setActiveTab] = useState<"dashboard" | "clients" | "payments" | "imports" | "settings">("dashboard");
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [reportAddon, setReportAddon] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -111,7 +112,16 @@ export default function SuperAdminPage() {
     const d = await apiPost("/api/superadmin/console", { op: "tenants-full" });
     if (d.error) { notify(d.error, false); setLoading(false); return; }
     setTenants(d.tenants || []);
+    setReportAddon(new Set(d.reportAddonTenants || []));
     setLoading(false);
+  }
+
+  // Add-on « Rapport d'activité » — service complémentaire payant, par tenant.
+  async function toggleReportAddon(tenantId: string, current: boolean) {
+    const d = await apiPost("/api/superadmin/update-plan", { tenantId, report_addon: !current });
+    if (d.error) return notify(d.error, false);
+    notify(!current ? "✓ Rapport d'activité ACTIVÉ pour ce client" : "⏸ Rapport d'activité désactivé");
+    load();
   }
 
   useEffect(() => {
@@ -535,6 +545,18 @@ export default function SuperAdminPage() {
                   <span style={{ background: t.active ? "#22c55e12" : "#ef444412", color: t.active ? "#22c55e" : "#ef4444", border: `0.5px solid ${t.active ? "#22c55e30" : "#ef444430"}`, borderRadius: 20, padding: "4px 10px", fontSize: 11 }}>
                     {t.active ? "Actif" : "Suspendu"}
                   </span>
+
+                  {/* Add-on Rapport d'activité (service complémentaire payant) */}
+                  <button onClick={() => toggleReportAddon(t.id, reportAddon.has(t.id))}
+                    title="Service complémentaire : rapport d'activité imprimable dans l'admin"
+                    style={{
+                      background: reportAddon.has(t.id) ? "#22c55e12" : "var(--sk-surface)",
+                      border: `0.5px solid ${reportAddon.has(t.id) ? "#22c55e30" : "transparent"}`,
+                      borderRadius: 20, padding: "4px 10px", fontSize: 11, cursor: "pointer",
+                      color: reportAddon.has(t.id) ? "#22c55e" : "#6b7280",
+                    }}>
+                    📊 Rapport {reportAddon.has(t.id) ? "ON" : "OFF"}
+                  </button>
 
                   <button onClick={() => toggleActive(t.id, t.active)}
                     style={{ background: "var(--sk-surface)", border: "none", borderRadius: 8, padding: "5px 10px", color: "#9ca3af", cursor: "pointer", fontSize: 11 }}>
