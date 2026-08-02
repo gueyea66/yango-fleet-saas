@@ -4006,6 +4006,23 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Rapports poussés par M3A (génération auto/lot) — listés depuis le stockage.
+  const [received, setReceived] = useState<{ name: string; created_at: string | null }[] | null>(null);
+
+  const loadReceived = async () => {
+    if (received !== null) { setReceived(null); return; }
+    try {
+      const res = await fetch("/api/admin/reports-list");
+      const j = await res.json().catch(() => ({} as any));
+      setReceived(j.reports || []);
+    } catch { setReceived([]); }
+  };
+
+  // "rapport_2026-07-01_2026-07-31.html" → "01/07/2026 → 31/07/2026"
+  const periodOf = (name: string) => {
+    const m = name.match(/rapport_(\d{4})-(\d{2})-(\d{2})_(\d{4})-(\d{2})-(\d{2})/);
+    return m ? `${m[3]}/${m[2]}/${m[1]} → ${m[6]}/${m[5]}/${m[4]}` : name.replace(".html", "");
+  };
 
   const download = async (resource: string) => {
     setBusy(resource); setErr(null);
@@ -4071,6 +4088,26 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
             style={{ color: "var(--sk-t1)", borderBottom: "1px solid var(--sk-surface)" }}>
             {busy === "report" ? "Génération…" : "📊 Rapport d'activité (imprimable)"}
           </button>
+          <button onClick={loadReceived}
+            className="w-full text-left text-sm px-4 py-2.5 font-semibold"
+            style={{ color: "var(--sk-t1)", borderBottom: "1px solid var(--sk-surface)" }}>
+            📁 Rapports reçus {received !== null ? "▲" : "▼"}
+          </button>
+          {received !== null && (
+            received.length === 0 ? (
+              <div className="text-xs px-4 py-2" style={{ color: "var(--sk-t3)", borderBottom: "1px solid var(--sk-surface)" }}>
+                Aucun rapport poussé pour l'instant.
+              </div>
+            ) : received.map((r) => (
+              <button key={r.name}
+                onClick={() => { window.open(`/api/admin/report-file?name=${encodeURIComponent(r.name)}`, "_blank"); }}
+                className="w-full text-left text-xs px-4 py-2"
+                style={{ color: "var(--sk-t2)", borderBottom: "1px solid var(--sk-surface)" }}>
+                📄 {periodOf(r.name)}
+                {r.created_at && <span style={{ color: "var(--sk-t4)" }}> · reçu le {new Date(r.created_at).toLocaleDateString("fr-FR")}</span>}
+              </button>
+            ))
+          )}
           {items.map(([r, label]) => (
             <button key={r} onClick={() => download(r)} disabled={!!busy}
               className="w-full text-left text-sm px-4 py-2.5 disabled:opacity-50"
