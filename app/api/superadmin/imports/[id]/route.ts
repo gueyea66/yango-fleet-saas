@@ -94,31 +94,60 @@ export async function POST(
   // Construire les daily_reports à insérer (ignorer les doublons).
   // Mapping vers le schéma RÉEL de fleet.daily_reports :
   //  - driver_id = UUID du profil (driver_profile_id), PAS le code chauffeur
-  //  - ca_brut → yango_gross + gross_earnings ; le net est recalculé par les
-  //    moteurs de reporting (calc.ts) à l'affichage — on stocke le brut tel quel
-  //  - km_parcourus/notes → comment (pas de colonne « km du jour »)
+  //  - template enrichi « éléments réels » (mêmes règles que la déclaration V3) :
+  //    brut = espèces + carte quand fournis ; si des commissions réelles sont
+  //    présentes, net = éléments tels quels (zéro calcul de taux)
+  //  - km_parcourus/notes → comment (pas de colonne « km du jour ») ;
+  //    compteur_km → end_odometer
   //  - marqueur historique = source 'legacy' (convention existante)
+  const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
   const toInsert = validRows
     .filter((r) => !r.is_duplicate && r.driver_profile_id)
-    .map((r) => ({
-      tenant_id: batch.tenant_id,
-      driver_id: r.driver_profile_id as string,
-      date: r.date as string,
-      gross_earnings: r.ca_brut as number,
-      yango_gross: r.ca_brut as number,
-      net_after_expenses: r.ca_brut as number, // brut tel quel — net recalculé par les moteurs
-      yango_trip_count: (r.nombre_courses as number | null) ?? null,
-      comment:
-        [
-          (r.notes as string) || null,
-          r.km_parcourus != null ? `KM parcourus: ${r.km_parcourus}` : null,
-        ]
-          .filter(Boolean)
-          .join(" · ") || null,
-      expense_count: r.frais_carburant != null && (r.frais_carburant as number) > 0 ? 1 : 0,
-      status: "approved",
-      source: "legacy",
-    }));
+    .map((r) => {
+      const especes = num(r.especes);
+      const carte = num(r.carte);
+      const bonus = num(r.bonus);
+      const commY = num(r.commission_yango);
+      const commP = num(r.commission_partenaire);
+      const servSupp = num(r.services_supplementaires);
+      const horsYango = num(r.hors_yango);
+      const modeReel = commY !== null || commP !== null;
+
+      const brutYango = especes !== null ? especes + (carte ?? 0) : (r.ca_brut as number);
+      const netReel = modeReel
+        ? brutYango + (bonus ?? 0) - (commY ?? 0) - (commP ?? 0) - (servSupp ?? 0) + (horsYango ?? 0)
+        : (r.ca_brut as number);
+
+      return {
+        tenant_id: batch.tenant_id,
+        driver_id: r.driver_profile_id as string,
+        date: r.date as string,
+        gross_earnings: brutYango + (bonus ?? 0) + (horsYango ?? 0),
+        yango_gross: brutYango,
+        yango_cash: especes,
+        yango_card: carte,
+        yango_bonus: bonus ?? 0,
+        off_yango_revenue: horsYango ?? 0,
+        solde_yango: num(r.solde),
+        commission_yango_reelle: commY,
+        commission_partenaire_reelle: commP,
+        commission_amount: modeReel ? (commY ?? 0) + (commP ?? 0) : 0,
+        service_supplementaire: servSupp ?? 0,
+        end_odometer: num(r.compteur_km) ?? 0,
+        net_after_expenses: netReel,
+        yango_trip_count: num(r.nombre_courses),
+        comment:
+          [
+            (r.notes as string) || null,
+            r.km_parcourus != null ? `KM parcourus: ${r.km_parcourus}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || null,
+        expense_count: num(r.frais_carburant) && (r.frais_carburant as number) > 0 ? 1 : 0,
+        status: "approved",
+        source: "legacy",
+      };
+    });
 
   let injectedCount = 0;
   const errors: string[] = [];
