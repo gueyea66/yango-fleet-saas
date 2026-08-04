@@ -115,6 +115,10 @@ export async function POST(req: NextRequest) {
     // ── Upload Storage (bucket privé existant) + traçage ai_uploads_ref ──
     const storage = adminStorage();
     const uploadRefIds: string[] = [];
+    // Chemins storage des photos : renvoyés au client pour qu'il les rattache
+    // au rapport (fleet.uploads, ref_id) à la soumission — mêmes pièces
+    // jointes que le flux existant, sans second upload.
+    const storedFiles: { path: string; size: number; mime: string }[] = [];
     for (const { buffer, mime } of buffers) {
       const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
       const path = `${tenantId}/ai-extractions/${date}/${crypto.randomUUID()}.${ext}`;
@@ -125,6 +129,7 @@ export async function POST(req: NextRequest) {
         console.error("[ai/extract] upload storage:", upErr.message);
         continue; // l'extraction peut se faire même si l'archivage échoue
       }
+      storedFiles.push({ path, size: buffer.byteLength, mime });
       const { data: ref } = await aiAdmin()
         .from("ai_uploads_ref")
         .insert({
@@ -191,6 +196,7 @@ export async function POST(req: NextRequest) {
       coherence_alerts: alerts,
       fallback_triggered: result.fallbackTriggered,
       model_used: result.modelUsed,
+      stored_files: storedFiles,
     });
   } catch (err) {
     const e = err as Error & { status?: number };
