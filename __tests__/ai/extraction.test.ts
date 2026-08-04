@@ -1,6 +1,8 @@
 /**
  * Tests de la couche extraction vision — parsing, normalisation, garde-fous.
- * Zéro appel réseau : tout est pur (extractionParser) ou simulé (env).
+ * v2 : schéma « éléments réels Yango » calibré sur de vraies captures
+ * (Espèces/Carte/Bonus/Commissions/Services + net affiché en contre-vérif).
+ * Zéro appel réseau : tout est pur (extractionParser, checkNetCoherence).
  */
 import {
   computeAverageConfidence,
@@ -9,42 +11,66 @@ import {
   emptyExtractionOutput,
   parseExtractionOutput,
   parseValidatedValues,
+  ExtractedFields,
 } from "@/lib/ai/extractionParser";
-import { buildVisionPrompt, EXTRACTION_FIELDS } from "@/lib/ai/visionPrompt";
+import { checkNetCoherence } from "@/lib/ai/coherenceChecks";
+import { buildVisionPrompt, EXTRACTION_FIELDS, FORM_FIELDS } from "@/lib/ai/visionPrompt";
 import { envEnabled } from "@/lib/ai/killSwitch";
 
-describe("parseExtractionOutput — parsing nominal", () => {
+// Capture réelle du 03/08/2026 (vue Comparatif) : 20 commandes, net 33 990,
+// Espèces 41 900, Bonus 200, Commission service -6 254, Services supp -605,
+// Commissions partenaire -1 251. 41900+200-6254-605-1251 = 33990. Pas de carte.
+const realCapture = {
+  end_odometer: null, yango_cash: 41900, yango_card: null, yango_bonus: 200,
+  commission_yango: 6254, commission_partenaire: 1251, services_supplementaires: 605,
+  solde_yango: null, yango_trip_count: 20, net_affiche: 33990,
+};
+const highConf = Object.fromEntries(EXTRACTION_FIELDS.map((f) => [f, 0.95]));
+
+describe("parseExtractionOutput — parsing nominal (capture réelle 03/08)", () => {
   const nominal = JSON.stringify({
-    fields: { end_odometer: 187432, yango_gross: 4800, yango_bonus: 500, solde_yango: 2150, yango_trip_count: 12 },
-    confidences: { end_odometer: 0.91, yango_gross: 0.95, yango_bonus: 0.95, solde_yango: 0.92, yango_trip_count: 0.97 },
-    source_type: "mixed",
+    fields: realCapture,
+    confidences: highConf,
+    source_type: "yango_pro_screenshot",
     conflicts: [],
   });
 
-  it("parse un JSON propre", () => {
+  it("parse la capture réelle", () => {
     const out = parseExtractionOutput(nominal);
     expect(out).not.toBeNull();
-    expect(out!.fields.end_odometer).toBe(187432);
-    expect(out!.fields.yango_gross).toBe(4800);
-    expect(out!.confidences.yango_trip_count).toBe(0.97);
-    expect(out!.source_type).toBe("mixed");
+    expect(out!.fields.yango_cash).toBe(41900);
+    expect(out!.fields.yango_card).toBeNull();
+    expect(out!.fields.commission_yango).toBe(6254);
+    expect(out!.fields.commission_partenaire).toBe(1251);
+    expect(out!.fields.services_supplementaires).toBe(605);
+    expect(out!.fields.yango_trip_count).toBe(20);
+    expect(out!.fields.net_affiche).toBe(33990);
+    expect(out!.source_type).toBe("yango_pro_screenshot");
   });
 
   it("tolère le texte parasite autour du JSON (fences, préambule)", () => {
     const noisy = "Voici le résultat :\n```json\n" + nominal + "\n```\nFin.";
-    const out = parseExtractionOutput(noisy);
-    expect(out).not.toBeNull();
-    expect(out!.fields.yango_gross).toBe(4800);
+    expect(parseExtractionOutput(noisy)!.fields.yango_cash).toBe(41900);
   });
 
-  it("arrondit les valeurs non entières (FCFA/km entiers)", () => {
+  it("commissions renvoyées en NÉGATIF (affichage Yango) → valeur absolue", () => {
     const out = parseExtractionOutput(JSON.stringify({
-      fields: { end_odometer: 187432.7, yango_gross: 4800.2, yango_bonus: null, solde_yango: null, yango_trip_count: null },
-      confidences: { end_odometer: 0.9, yango_gross: 0.9, yango_bonus: 0, solde_yango: 0, yango_trip_count: 0 },
-      source_type: "odometer_photo",
+      fields: { ...realCapture, commission_yango: -6254, commission_partenaire: -1251, services_supplementaires: -605 },
+      confidences: highConf,
+      source_type: "yango_pro_screenshot",
     }));
-    expect(out!.fields.end_odometer).toBe(187433);
-    expect(out!.fields.yango_gross).toBe(4800);
+    expect(out!.fields.commission_yango).toBe(6254);
+    expect(out!.fields.commission_partenaire).toBe(1251);
+    expect(out!.fields.services_supplementaires).toBe(605);
+  });
+
+  it("valeur négative sur un champ non-déduction (espèces) → null (aberrant)", () => {
+    const out = parseExtractionOutput(JSON.stringify({
+      fields: { ...realCapture, yango_cash: -41900 },
+      confidences: highConf,
+      source_type: "yango_pro_screenshot",
+    }));
+    expect(out!.fields.yango_cash).toBeNull();
   });
 });
 
@@ -56,67 +82,79 @@ describe("parseExtractionOutput — sorties dégradées et garde-fous", () => {
 
   it("champ manquant → null avec confiance 0", () => {
     const out = parseExtractionOutput(JSON.stringify({
-      fields: { yango_gross: 4800 },
-      confidences: { yango_gross: 0.9 },
+      fields: { yango_cash: 41900 },
+      confidences: { yango_cash: 0.9 },
       source_type: "yango_pro_screenshot",
     }));
     expect(out!.fields.end_odometer).toBeNull();
     expect(out!.confidences.end_odometer).toBe(0);
-    expect(out!.fields.yango_gross).toBe(4800);
+    expect(out!.fields.yango_cash).toBe(41900);
   });
 
   it("confiance < 0.60 → valeur forcée à null (règle null-if-uncertain)", () => {
     const out = parseExtractionOutput(JSON.stringify({
-      fields: { end_odometer: 187432, yango_gross: null, yango_bonus: null, solde_yango: null, yango_trip_count: null },
-      confidences: { end_odometer: 0.42, yango_gross: 0, yango_bonus: 0, solde_yango: 0, yango_trip_count: 0 },
+      fields: { ...emptyExtractionOutput().fields, end_odometer: 187432 },
+      confidences: { ...emptyExtractionOutput().confidences, end_odometer: 0.42 },
       source_type: "odometer_photo",
     }));
     expect(out!.fields.end_odometer).toBeNull();
     expect(out!.confidences.end_odometer).toBe(0);
   });
 
-  it("valeur négative → null (solde négatif, lecture aberrante)", () => {
-    const out = parseExtractionOutput(JSON.stringify({
-      fields: { end_odometer: null, yango_gross: null, yango_bonus: null, solde_yango: -3500, yango_trip_count: null },
-      confidences: { end_odometer: 0, yango_gross: 0, yango_bonus: 0, solde_yango: 0.9, yango_trip_count: 0 },
-      source_type: "yango_pro_screenshot",
-    }));
-    expect(out!.fields.solde_yango).toBeNull();
-  });
-
   it("confiance hors bornes → clampée dans [0,1]", () => {
     const out = parseExtractionOutput(JSON.stringify({
-      fields: { end_odometer: 100000, yango_gross: null, yango_bonus: null, solde_yango: null, yango_trip_count: null },
-      confidences: { end_odometer: 1.7, yango_gross: -2, yango_bonus: 0, solde_yango: 0, yango_trip_count: 0 },
+      fields: { ...emptyExtractionOutput().fields, yango_cash: 100000 },
+      confidences: { ...emptyExtractionOutput().confidences, yango_cash: 1.7, yango_card: -2 },
       source_type: "unknown",
     }));
-    expect(out!.confidences.end_odometer).toBe(1);
-    expect(out!.confidences.yango_gross).toBe(0);
+    expect(out!.confidences.yango_cash).toBe(1);
+    expect(out!.confidences.yango_card).toBe(0);
   });
 
   it("source_type inconnu → 'unknown'", () => {
-    const out = parseExtractionOutput(JSON.stringify({
-      fields: {}, confidences: {}, source_type: "invoice_scan",
-    }));
+    const out = parseExtractionOutput(JSON.stringify({ fields: {}, confidences: {}, source_type: "invoice_scan" }));
     expect(out!.source_type).toBe("unknown");
   });
 });
 
+describe("checkNetCoherence — contre-vérification arithmétique (jamais LLM)", () => {
+  it("capture réelle : les éléments recoupent le net → aucune alerte", () => {
+    expect(checkNetCoherence(realCapture as ExtractedFields)).toBeNull();
+  });
+
+  it("lecture fausse (espèces 44900 au lieu de 41900) → alerte net_mismatch", () => {
+    const alert = checkNetCoherence({ ...realCapture, yango_cash: 44900 } as ExtractedFields);
+    expect(alert).not.toBeNull();
+    expect(alert!.type).toBe("net_mismatch");
+    // toLocaleString("fr-FR") sépare les milliers par une espace fine insécable
+    expect(alert!.message).toMatch(/36\s990/); // reconstitué
+    expect(alert!.message).toMatch(/33\s990/); // net affiché
+  });
+
+  it("avec carte : espèces + carte comptent dans la reconstitution", () => {
+    const withCard = { ...realCapture, yango_card: 5000, net_affiche: 38990 };
+    expect(checkNetCoherence(withCard as ExtractedFields)).toBeNull();
+  });
+
+  it("tolérance d'arrondi ±5 FCFA", () => {
+    expect(checkNetCoherence({ ...realCapture, net_affiche: 33987 } as ExtractedFields)).toBeNull();
+    expect(checkNetCoherence({ ...realCapture, net_affiche: 33980 } as ExtractedFields)).not.toBeNull();
+  });
+
+  it("net absent ou espèces absentes → pas de contrôle (pas de faux positif)", () => {
+    expect(checkNetCoherence({ ...realCapture, net_affiche: null } as ExtractedFields)).toBeNull();
+    expect(checkNetCoherence({ ...realCapture, yango_cash: null } as ExtractedFields)).toBeNull();
+  });
+});
+
 describe("computeAverageConfidence — déclencheur de fallback", () => {
-  it("image dégradée (exemple D.5 de la spec) → sous le seuil 0.75", () => {
-    const out = parseExtractionOutput(JSON.stringify({
-      fields: { end_odometer: null, yango_gross: null, yango_bonus: null, solde_yango: null, yango_trip_count: null },
-      confidences: { end_odometer: 0.42, yango_gross: 0, yango_bonus: 0, solde_yango: 0, yango_trip_count: 0 },
-      source_type: "odometer_photo",
-    }));
-    expect(computeAverageConfidence(out!.confidences)).toBeLessThan(0.75);
+  it("image dégradée → sous le seuil 0.75", () => {
+    const conf = { ...emptyExtractionOutput().confidences, end_odometer: 0.42 };
+    expect(computeAverageConfidence(conf)).toBeLessThan(0.75);
   });
-
   it("extraction nette → au-dessus du seuil", () => {
-    const conf = { end_odometer: 0.91, yango_gross: 0.95, yango_bonus: 0.95, solde_yango: 0.92, yango_trip_count: 0.97 };
-    expect(computeAverageConfidence(conf)).toBeGreaterThan(0.75);
+    expect(computeAverageConfidence(highConf as Record<(typeof EXTRACTION_FIELDS)[number], number>)).toBeGreaterThan(0.75);
   });
-
   it("sortie vide → 0", () => {
     expect(computeAverageConfidence(emptyExtractionOutput().confidences)).toBe(0);
   });
@@ -144,11 +182,12 @@ describe("detectImageMime — magic bytes serveur (jamais file.type client)", ()
 });
 
 describe("feedback loop — validated_values et correction_delta", () => {
-  it("parseValidatedValues normalise et arrondit", () => {
-    const v = parseValidatedValues({ validated_values: { end_odometer: 48900.6, yango_gross: 4800, yango_bonus: null, solde_yango: "abc", yango_trip_count: 12 } });
+  it("parseValidatedValues normalise, arrondit, ignore net_affiche", () => {
+    const v = parseValidatedValues({ validated_values: { yango_cash: 41900.6, yango_card: null, commission_yango: 6254, net_affiche: 99999, solde_yango: "abc" } });
     expect(v).not.toBeNull();
-    expect(v!.end_odometer).toBe(48901);
-    expect(v!.solde_yango).toBeNull(); // string invalide → null
+    expect(v!.yango_cash).toBe(41901);
+    expect(v!.solde_yango).toBeNull();
+    expect("net_affiche" in v!).toBe(false);
   });
 
   it("body invalide → null", () => {
@@ -157,16 +196,17 @@ describe("feedback loop — validated_values et correction_delta", () => {
     expect(parseValidatedValues({ validated_values: "x" })).toBeNull();
   });
 
-  it("correction_delta ne liste que les champs corrigés", () => {
-    const proposed = { end_odometer: 48900, yango_gross: 4800, yango_bonus: 500, solde_yango: null, yango_trip_count: 12 };
-    const validated = { end_odometer: 48910, yango_gross: 4800, yango_bonus: 500, solde_yango: 2000, yango_trip_count: 12 };
+  it("correction_delta ne liste que les champs corrigés (net_affiche exclu)", () => {
+    const proposed = { ...realCapture } as ExtractedFields;
+    const validated: Record<string, number | null> = { ...realCapture, yango_cash: 42000 };
+    delete validated.net_affiche;
     const delta = computeCorrectionDelta(proposed, validated);
-    expect(Object.keys(delta).sort()).toEqual(["end_odometer", "solde_yango"]);
-    expect(delta.end_odometer).toEqual({ proposed: 48900, validated: 48910 });
+    expect(Object.keys(delta)).toEqual(["yango_cash"]);
+    expect(delta.yango_cash).toEqual({ proposed: 41900, validated: 42000 });
   });
 
   it("extraction parfaite → delta vide", () => {
-    const vals = { end_odometer: 1, yango_gross: 2, yango_bonus: 3, solde_yango: 4, yango_trip_count: 5 };
+    const vals = { ...realCapture } as ExtractedFields;
     expect(computeCorrectionDelta(vals, { ...vals })).toEqual({});
   });
 });
@@ -183,16 +223,22 @@ describe("kill-switch — contrat flag OFF (zéro impact)", () => {
   });
 });
 
-describe("prompt vision — invariants de sécurité", () => {
+describe("prompt vision v2 — invariants", () => {
   it("statique : seule la date (contrôlée serveur) est interpolée", () => {
     const p1 = buildVisionPrompt("2026-08-04");
     const p2 = buildVisionPrompt("2026-08-05");
-    expect(p1.replace("2026-08-04", "X")).toBe(p2.replace("2026-08-05", "X"));
+    expect(p1.replace(/2026-08-04/g, "X")).toBe(p2.replace(/2026-08-05/g, "X"));
   });
-  it("contient les 5 champs attendus et la règle null-si-illisible", () => {
+  it("contient les 10 champs, l'ancrage par libellés et la règle null-si-illisible", () => {
     const p = buildVisionPrompt("2026-08-04");
     for (const f of EXTRACTION_FIELDS) expect(p).toContain(f);
-    expect(p).toContain("null");
+    expect(p).toContain("Espèces");
+    expect(p).toContain("Commission du service");
+    expect(p).toContain("LIBELLÉS");
     expect(p).toContain("NE CALCULES PAS");
+  });
+  it("FORM_FIELDS = tous les champs sauf net_affiche", () => {
+    expect(FORM_FIELDS).not.toContain("net_affiche");
+    expect(FORM_FIELDS.length).toBe(EXTRACTION_FIELDS.length - 1);
   });
 });

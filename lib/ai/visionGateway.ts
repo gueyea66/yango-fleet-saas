@@ -14,6 +14,7 @@
 import {
   ExtractionOutput,
   computeAverageConfidence,
+  emptyExtractionOutput,
   parseExtractionOutput,
 } from "./extractionParser";
 import { buildVisionPrompt } from "./visionPrompt";
@@ -148,19 +149,7 @@ export async function extractVision(
   const openaiKey = (process.env.OPENAI_API_KEY ?? "").trim();
 
   const degraded = (modelUsed: string, fallbackTriggered: boolean): VisionExtractionResult => ({
-    // import circulaire évité : emptyExtractionOutput vit dans extractionParser
-    output: {
-      fields: {
-        end_odometer: null, yango_gross: null, yango_bonus: null,
-        solde_yango: null, yango_trip_count: null,
-      },
-      confidences: {
-        end_odometer: 0, yango_gross: 0, yango_bonus: 0,
-        solde_yango: 0, yango_trip_count: 0,
-      },
-      source_type: "unknown",
-      conflicts: [],
-    },
+    output: emptyExtractionOutput(),
     modelUsed,
     fallbackTriggered,
     durationMs: Date.now() - started,
