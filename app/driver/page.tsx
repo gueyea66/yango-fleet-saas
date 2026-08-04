@@ -10,7 +10,8 @@ import { useTenant } from "@/lib/tenant/context";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import NotificationBell from "@/components/NotificationBell";
 import { resolveRates, computeCommissions } from "@/lib/calc";
-import { Home, ClipboardList, Wallet, BedDouble, History, Target, LogOut, Gauge, CheckCircle2, AlertTriangle, Paperclip, Calendar, Car, HandCoins } from "lucide-react";
+import { compressImageToJpeg } from "@/lib/ai/imageCompressor";
+import { Home, ClipboardList, Wallet, BedDouble, History, Target, LogOut, Gauge, CheckCircle2, AlertTriangle, Paperclip, Calendar, Car, HandCoins, ScanLine } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import type { RemunerationConfig } from "@/lib/tenant/types";
@@ -421,6 +422,107 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
 }
 
 // ─── REPORT ──────────────────────────────────────────
+// ── Extraction vision (couche IA additive) ────────────────────────────────
+// Le bloc ne se monte QUE si /api/ai/extract-declaration répond 200 à la
+// sonde GET (kill-switch 3 étages). OFF → null : écran identique à avant.
+// Le LLM lit les valeurs affichées ; calc.ts reste seul à calculer.
+type AiFields = { end_odometer: number | null; yango_gross: number | null; yango_bonus: number | null; solde_yango: number | null; yango_trip_count: number | null };
+type AiScanResult = { extraction_id: string; fields: AiFields; confidences: Record<string, number>; coherence_alerts: { field: string; type: string; message: string }[]; status: string };
+
+const AI_FIELD_LABELS: Record<string, string> = {
+  end_odometer: "Km compteur", yango_gross: "Brut Yango", yango_bonus: "Bonus",
+  solde_yango: "Solde", yango_trip_count: "Courses",
+};
+
+function confColor(c: number) { return c >= 0.85 ? "#22c55e" : c >= 0.6 ? "#f5a623" : "#ef4444"; }
+
+function AiScanBlock({ date, disabled, onExtracted }: { date: string; disabled: boolean; onExtracted: (r: AiScanResult) => void }) {
+  const [enabled, setEnabled] = useState(false);
+  const [phase, setPhase] = useState<"idle" | "working" | "done" | "error">("idle");
+  const [message, setMessage] = useState("");
+  const [result, setResult] = useState<AiScanResult | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/ai/extract-declaration", { method: "GET" })
+      .then((r) => { if (alive && r.status === 200) setEnabled(true); })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  if (!enabled) return null;
+
+  const scan = async (fileList: FileList | null) => {
+    if (!fileList || fileList.length === 0 || phase === "working") return;
+    const files = Array.from(fileList).slice(0, 3);
+    setPhase("working"); setMessage("Compression des images..."); setResult(null);
+    try {
+      const fd = new FormData();
+      fd.append("date", date);
+      for (const f of files) {
+        const jpeg = await compressImageToJpeg(f);
+        fd.append("files", new File([jpeg], "scan.jpg", { type: "image/jpeg" }));
+      }
+      setMessage("Lecture en cours (quelques secondes)...");
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 45_000);
+      const res = await fetch("/api/ai/extract-declaration", { method: "POST", body: fd, signal: ctrl.signal });
+      clearTimeout(timer);
+      if (res.status === 204) { setEnabled(false); return; }
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { setPhase("error"); setMessage(j.error || "Lecture impossible — saisis manuellement."); return; }
+      const r = j as AiScanResult;
+      const readCount = Object.values(r.fields).filter((v) => v !== null).length;
+      if (readCount === 0) {
+        setPhase("error");
+        setMessage("Aucune valeur lisible sur ces images — vérifie la netteté ou saisis manuellement.");
+        return;
+      }
+      setResult(r); setPhase("done"); setMessage("");
+      onExtracted(r);
+    } catch {
+      setPhase("error"); setMessage("Lecture impossible (réseau ?) — le formulaire manuel reste disponible.");
+    }
+  };
+
+  return (
+    <div className="rounded-2xl p-4 mb-1" style={{ background: "rgba(34,197,94,.04)", border: "1px solid rgba(34,197,94,.18)" }}>
+      <div className="flex items-center gap-1.5 text-xs font-semibold mb-2" style={{ color: "#22c55e" }}>
+        <ScanLine size={13} strokeWidth={2} />Pré-remplissage par photo
+      </div>
+      <div className="text-xs mb-3" style={{ color: "var(--sk-t3)" }}>
+        Ajoute tes captures Yango Pro et/ou une photo du compteur : les champs se remplissent seuls, tu vérifies et tu corriges si besoin.
+      </div>
+      <label className="block w-full py-2.5 rounded-xl text-xs font-bold text-center cursor-pointer"
+        style={{ background: phase === "working" ? "rgba(34,197,94,.15)" : "linear-gradient(135deg,#22c55e,#16a34a)", color: phase === "working" ? "#22c55e" : "#04110a", opacity: disabled ? 0.5 : 1 }}>
+        {phase === "working" ? "⏳ " + (message || "Lecture...") : "📸 Scanner mes captures (1 à 3 images)"}
+        <input type="file" accept="image/*" multiple className="hidden" disabled={disabled || phase === "working"}
+          onChange={(e) => { void scan(e.target.files); e.target.value = ""; }} />
+      </label>
+      {phase === "error" && (
+        <div className="text-xs mt-2" style={{ color: "#f5a623" }}>⚠ {message}</div>
+      )}
+      {phase === "done" && result && (
+        <div className="mt-3">
+          <div className="text-xs mb-1.5" style={{ color: "var(--sk-t3)" }}>Valeurs lues — vérifie chaque champ avant de soumettre :</div>
+          <div className="flex flex-wrap gap-1.5">
+            {Object.entries(result.fields).filter(([, v]) => v !== null).map(([k, v]) => (
+              <span key={k} className="text-xs px-2 py-1 rounded-lg font-mono" style={{ background: "var(--sk-deep)", border: `1px solid ${confColor(result.confidences[k] ?? 0)}44`, color: "var(--sk-t2)" }}>
+                <span style={{ color: confColor(result.confidences[k] ?? 0) }}>●</span> {AI_FIELD_LABELS[k] ?? k} : {Number(v).toLocaleString("fr-FR")}
+              </span>
+            ))}
+          </div>
+          {result.coherence_alerts?.length > 0 && result.coherence_alerts.map((a, i) => (
+            <div key={i} className="text-xs mt-2 rounded-lg p-2" style={{ background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.25)", color: "#f87171" }}>
+              ⚠ {a.message}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => void; cfg: Cfg }) {
   const today = new Date().toISOString().split("T")[0];
   const [form, setForm] = useState({ date: today, end_odometer: "", yango_gross: "", yango_bonus: "", off_yango_revenue: "", solde_yango: "", yango_trip_count: "", off_yango_trip_count: "", service_supplementaire: "", comment: "" });
@@ -430,9 +532,24 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
   const [vehicle, setVehicle] = useState<any>(null);
   const [reportId, setReportId] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [aiExtractionId, setAiExtractionId] = useState<string | null>(null);
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const n = (s: string) => parseFloat(s) || 0;
   const addFiles = (files: FileList | null) => { if (files) setPendingFiles((prev) => [...prev, ...Array.from(files)]); };
+
+  // Pré-remplissage depuis l'extraction vision : seules les valeurs LUES
+  // remplacent le champ ; le chauffeur vérifie et corrige avant de soumettre.
+  const applyExtraction = (r: AiScanResult) => {
+    setAiExtractionId(r.extraction_id);
+    setForm((f) => ({
+      ...f,
+      end_odometer: r.fields.end_odometer !== null ? String(r.fields.end_odometer) : f.end_odometer,
+      yango_gross: r.fields.yango_gross !== null ? String(r.fields.yango_gross) : f.yango_gross,
+      yango_bonus: r.fields.yango_bonus !== null ? String(r.fields.yango_bonus) : f.yango_bonus,
+      solde_yango: r.fields.solde_yango !== null ? String(r.fields.solde_yango) : f.solde_yango,
+      yango_trip_count: r.fields.yango_trip_count !== null ? String(r.fields.yango_trip_count) : f.yango_trip_count,
+    }));
+  };
 
   useEffect(() => {
     (async () => {
@@ -531,6 +648,23 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
           entity_type: "daily_report", entity_id: newReport.id, action: "submitted",
           metadata: { date: form.date, net: calc.netTotal },
         });
+        // Feedback loop extraction vision : valeurs finales validées par le
+        // chauffeur (mesure de précision). Best-effort — n'affecte jamais le rapport.
+        if (aiExtractionId) {
+          void fetch(`/api/ai/extraction/${aiExtractionId}/validate`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              validated_values: {
+                end_odometer: form.end_odometer ? Math.round(n(form.end_odometer)) : null,
+                yango_gross: form.yango_gross ? Math.round(n(form.yango_gross)) : null,
+                yango_bonus: form.yango_bonus ? Math.round(n(form.yango_bonus)) : null,
+                solde_yango: form.solde_yango ? Math.round(n(form.solde_yango)) : null,
+                yango_trip_count: form.yango_trip_count ? Math.round(n(form.yango_trip_count)) : null,
+              },
+            }),
+          }).catch(() => {});
+        }
       }
       setSubmitted(true);
     } catch (err: any) { alert("Erreur : " + err.message); }
@@ -567,6 +701,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         </div>
       )}
       <div className="space-y-4">
+        {canEdit && <AiScanBlock date={form.date} disabled={saving} onExtracted={applyExtraction} />}
         <Field label="Date">
           <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} disabled={!canEdit} max={today}
             className="w-full rounded-xl px-4 py-3 text-sm outline-none"
