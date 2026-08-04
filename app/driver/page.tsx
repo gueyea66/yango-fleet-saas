@@ -10,6 +10,7 @@ import { useTenant } from "@/lib/tenant/context";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import NotificationBell from "@/components/NotificationBell";
 import { resolveRates, computeCommissions } from "@/lib/calc";
+import { computeElementsReels, hasElementsReels } from "@/lib/calcReel";
 import { compressImageToJpeg } from "@/lib/ai/imageCompressor";
 import { Home, ClipboardList, Wallet, BedDouble, History, Target, LogOut, Gauge, CheckCircle2, AlertTriangle, Paperclip, Calendar, Car, HandCoins, ScanLine } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -432,7 +433,7 @@ type AiFields = {
   services_supplementaires: number | null; solde_yango: number | null;
   yango_trip_count: number | null; net_affiche: number | null;
 };
-type AiScanResult = { extraction_id: string; fields: AiFields; confidences: Record<string, number>; coherence_alerts: { field: string; type: string; message: string }[]; status: string };
+type AiScanResult = { extraction_id: string; fields: AiFields; confidences: Record<string, number>; coherence_alerts: { field: string; type: string; message: string }[]; status: string; stored_files?: { path: string; size: number; mime: string }[] };
 
 const AI_FIELD_LABELS: Record<string, string> = {
   end_odometer: "Km compteur", yango_cash: "Espèces", yango_card: "Carte",
@@ -540,6 +541,10 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
   const [reportId, setReportId] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [aiExtractionId, setAiExtractionId] = useState<string | null>(null);
+  // Photos scannées déjà uploadées par la route d'extraction : rattachées au
+  // rapport à la soumission (fleet.uploads) — mêmes pièces jointes qu'un
+  // upload manuel, sans renvoyer les fichiers.
+  const [aiStoredFiles, setAiStoredFiles] = useState<{ path: string; size: number; mime: string }[]>([]);
   const n = (s: string) => parseFloat(s) || 0;
   // Brut Yango = Espèces + Carte (éléments réels de l'app). Dès qu'un des deux
   // est renseigné, le brut est dérivé automatiquement ; sinon il reste saisi
@@ -560,6 +565,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
   // le brut est dérivé, jamais lu ni calculé par le LLM.
   const applyExtraction = (r: AiScanResult) => {
     setAiExtractionId(r.extraction_id);
+    setAiStoredFiles(r.stored_files ?? []);
     setForm((f) => {
       const next = {
         ...f,
@@ -623,6 +629,25 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
     horsYango: n(form.off_yango_revenue), rates,
     serviceSupplementaire: n(form.service_supplementaire),
   });
+
+  // MODE RÉEL : dès qu'une commission réelle (lue dans l'app Yango) est
+  // renseignée, plus AUCUN calcul de commission — les éléments affichés sont
+  // pris tels quels et le net est leur simple somme (lib/calcReel, pur).
+  // Sans éléments réels : mode théorique historique (calc.ts) inchangé.
+  const modeReel = hasElementsReels({
+    commissionYango: form.commission_yango_reelle ? n(form.commission_yango_reelle) : null,
+    commissionPartenaire: form.commission_partenaire_reelle ? n(form.commission_partenaire_reelle) : null,
+  });
+  const reel = computeElementsReels({
+    yangoCash: n(form.yango_cash),
+    yangoCard: n(form.yango_card),
+    bonus: n(form.yango_bonus),
+    commissionYango: n(form.commission_yango_reelle),
+    commissionPartenaire: n(form.commission_partenaire_reelle),
+    servicesSupplementaires: n(form.service_supplementaire),
+    horsYango: n(form.off_yango_revenue),
+  });
+  const netTotalEffectif = modeReel ? reel.netTotal : calc.netTotal;
   const canEdit = !todayReport || todayReport.status === "rejected";
 
   const submit = async () => {
@@ -632,7 +657,9 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
       const supabase = createClient() as any;
       const payload = {
         end_odometer: n(form.end_odometer),
-        gross_earnings: calc.base + n(form.off_yango_revenue),
+        gross_earnings: modeReel
+          ? reel.brutYango + n(form.yango_bonus) + n(form.off_yango_revenue)
+          : calc.base + n(form.off_yango_revenue),
         yango_gross: n(form.yango_gross),
         // Éléments réels Yango (app) — colonnes additives nullables (036)
         yango_cash: form.yango_cash ? n(form.yango_cash) : null,
@@ -645,10 +672,15 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         yango_trip_count: form.yango_trip_count ? n(form.yango_trip_count) : null,
         off_yango_trip_count: form.off_yango_trip_count ? n(form.off_yango_trip_count) : null,
         commission_rate: rates.yangoPct / 100,
-        commission_amount: calc.commYango + calc.commPartner,
+        // Mode réel : la commission STOCKÉE est celle lue dans l'app Yango
+        // (déclaratif), plus la théorique. Les taux restent tracés à titre
+        // de configuration au moment de la soumission.
+        commission_amount: modeReel
+          ? n(form.commission_yango_reelle) + n(form.commission_partenaire_reelle)
+          : calc.commYango + calc.commPartner,
         partner_rate: rates.partnerPct / 100,
         service_supplementaire: n(form.service_supplementaire),
-        net_after_expenses: calc.netTotal,
+        net_after_expenses: netTotalEffectif,
         vehicle_id: vehicle?.id ?? null,
         expense_count: 0,
         status: "submitted",
@@ -679,10 +711,21 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
           // L'API force le préfixe tenantId : on stocke le chemin réel retourné
           await supabase.from("uploads").insert({ driver_id: profile.id, tenant_id: profile.tenant_id, file_name: file.name, file_path: upRes.path || path, file_type: "report", file_size: file.size, ref_id: newReport.id });
         }
+        // Photos scannées (déjà dans le bucket via la route d'extraction) →
+        // rattachées au rapport comme pièces jointes classiques.
+        for (let i = 0; i < aiStoredFiles.length; i++) {
+          const f = aiStoredFiles[i];
+          const ext = f.mime === "image/png" ? "png" : f.mime === "image/webp" ? "webp" : "jpg";
+          await supabase.from("uploads").insert({
+            driver_id: profile.id, tenant_id: profile.tenant_id,
+            file_name: `scan-declaration-${i + 1}.${ext}`, file_path: f.path,
+            file_type: "report", file_size: f.size, ref_id: newReport.id,
+          });
+        }
         void supabase.from("action_logs").insert({
           tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
           entity_type: "daily_report", entity_id: newReport.id, action: "submitted",
-          metadata: { date: form.date, net: calc.netTotal },
+          metadata: { date: form.date, net: netTotalEffectif, mode: modeReel ? "elements_reels" : "theorique" },
         });
         // Feedback loop extraction vision : valeurs finales validées par le
         // chauffeur (mesure de précision). Best-effort — n'affecte jamais le rapport.
@@ -770,7 +813,34 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
           <Field label="Comm. partenaire (lue)"><InpText type="number" placeholder="0" value={form.commission_partenaire_reelle} onChange={(v) => set("commission_partenaire_reelle", v)} disabled={!canEdit} /></Field>
         </div>
 
-        {(n(form.yango_gross) > 0 || n(form.yango_bonus) > 0 || n(form.off_yango_revenue) > 0) && (
+        {modeReel ? (
+          // MODE RÉEL — éléments lus dans l'app Yango, pris tels quels.
+          // Aucune commission calculée : le net est la simple somme des éléments.
+          <div className="rounded-2xl p-4" style={{ background: "rgba(34,197,94,.04)", border: "1px solid rgba(34,197,94,.15)" }}>
+            <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "#22c55e" }}>Éléments réels Yango</div>
+            {[
+              ...(n(form.yango_cash) > 0 ? [["Espèces", n(form.yango_cash), false]] : []),
+              ...(n(form.yango_card) > 0 ? [["Carte", n(form.yango_card), false]] : []),
+              ["Brut Yango (espèces + carte)", reel.brutYango, false],
+              ["Bonus", n(form.yango_bonus), false],
+              ["Commission Yango (app)", n(form.commission_yango_reelle), true],
+              ...(n(form.service_supplementaire) > 0 ? [["Services supplémentaires (app)", n(form.service_supplementaire), true]] : []),
+              ["Comm. partenaire (app)", n(form.commission_partenaire_reelle), true],
+              ["Net Yango", reel.netYango, false],
+              ...(n(form.off_yango_revenue) > 0 ? [["Hors Yango", n(form.off_yango_revenue), false]] : []),
+              ...(n(form.solde_yango) > 0 ? [["Solde wallet", n(form.solde_yango), false]] : []),
+            ].map(([l, v, neg]) => (
+              <div key={String(l)} className="flex justify-between text-xs py-1.5" style={{ borderBottom: "1px solid rgba(34,197,94,.07)" }}>
+                <span style={{ color: "var(--sk-t3)" }}>{l}</span>
+                <span className="font-mono font-semibold" style={{ color: neg ? "#ef4444" : "var(--sk-t2)" }}>{neg ? "- " : ""}{xof(Math.abs(Number(v)))}</span>
+              </div>
+            ))}
+            <div className="flex justify-between text-sm font-bold pt-2">
+              <span className="text-white">NET TOTAL</span>
+              <span className="font-mono" style={{ color: "#22c55e" }}>{xof(reel.netTotal)}</span>
+            </div>
+          </div>
+        ) : (n(form.yango_gross) > 0 || n(form.yango_bonus) > 0 || n(form.off_yango_revenue) > 0) && (
           <div className="rounded-2xl p-4" style={{ background: "rgba(245,166,35,.04)", border: "1px solid rgba(245,166,35,.15)" }}>
             <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "#f5a623" }}>Aperçu calcul</div>
             {[["Base Yango", calc.base, false], [`Commission Yango (${rates.yangoPct}%)`, calc.commYango, true], [`Comm. partenaire (${rates.partnerPct.toFixed(2)}%)`, calc.commPartner, true], ...(calc.serviceSupp > 0 ? [["Service supplémentaire", calc.serviceSupp, true]] : []), ["Net Yango", calc.netYango, false], ["Hors Yango", n(form.off_yango_revenue), false], ...(n(form.solde_yango) > 0 ? [["Solde wallet", n(form.solde_yango), false]] : [])].map(([l, v, neg]) => (
