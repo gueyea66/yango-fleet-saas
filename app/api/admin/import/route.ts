@@ -155,8 +155,9 @@ export async function POST(req: NextRequest) {
       const fuel = idx("frais_carburant") >= 0 ? parseNumber(row[idx("frais_carburant")] ?? "") : null;
       const notes = idx("notes") >= 0 ? (row[idx("notes")] ?? "").trim() : "";
 
-      // Détection doublon
-      const isDuplicate = !!(driver && isValidDate(date) && existingSet.has(`${driver.driver_id}__${date}`));
+      // Détection doublon — daily_reports.driver_id est l'UUID du profil :
+      // comparer avec driver.id (pas le code chauffeur driver.driver_id)
+      const isDuplicate = !!(driver && isValidDate(date) && existingSet.has(`${driver.id}__${date}`));
 
       parsedRows.push({
         row: rowNum,
