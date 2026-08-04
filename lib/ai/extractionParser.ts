@@ -6,7 +6,7 @@
  */
 
 import { extractJsonObject } from "./llmGateway";
-import { EXTRACTION_FIELDS, ExtractionField } from "./visionPrompt";
+import { EXTRACTION_FIELDS, FORM_FIELDS, ExtractionField } from "./visionPrompt";
 
 export type ExtractedFields = Record<ExtractionField, number | null>;
 export type FieldConfidences = Record<ExtractionField, number>;
@@ -20,8 +20,17 @@ export interface ExtractionOutput {
 
 const SOURCE_TYPES = new Set(["yango_pro_screenshot", "odometer_photo", "mixed", "unknown"]);
 
-/** Champs où une valeur négative n'a pas de sens métier → null. */
-const NON_NEGATIVE_FIELDS: ReadonlySet<ExtractionField> = new Set(EXTRACTION_FIELDS);
+/**
+ * Champs affichés en NÉGATIF par Yango Pro (déductions) : le prompt demande la
+ * valeur absolue, mais si le LLM renvoie quand même -6254, on normalise en
+ * abs() plutôt que de perdre la lecture. Les autres champs négatifs = lecture
+ * aberrante → null.
+ */
+const ABS_FIELDS: ReadonlySet<ExtractionField> = new Set([
+  "commission_yango",
+  "commission_partenaire",
+  "services_supplementaires",
+]);
 
 function asFiniteNumber(v: unknown): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
@@ -51,8 +60,9 @@ export function parseExtractionOutput(rawText: string): ExtractionOutput | null 
     if (value !== null) {
       // Les montants FCFA et km sont des entiers ; les courses aussi.
       value = Math.round(value);
-      // Valeur négative = lecture aberrante (solde négatif → null par règle métier)
-      if (NON_NEGATIVE_FIELDS.has(f) && value < 0) value = null;
+      // Déductions Yango affichées en négatif → valeur absolue ;
+      // ailleurs, une valeur négative = lecture aberrante → null.
+      if (value < 0) value = ABS_FIELDS.has(f) ? Math.abs(value) : null;
     }
     // Cohérence null ↔ confiance : un champ non lu ne porte pas de confiance,
     // et une confiance < 0.60 signifie "trop incertain" → null (règle prompt).
@@ -113,12 +123,16 @@ export function detectImageMime(buffer: Buffer): "image/jpeg" | "image/png" | "i
 }
 
 // ── Validation du body de /api/ai/extraction/:id/validate ────────────────────
-export function parseValidatedValues(body: unknown): ExtractedFields | null {
+// FORM_FIELDS uniquement : net_affiche est une contre-vérification, pas un
+// champ du formulaire — il n'est ni validé ni compté dans le delta.
+export type ValidatedFields = Partial<ExtractedFields>;
+
+export function parseValidatedValues(body: unknown): ValidatedFields | null {
   if (!body || typeof body !== "object") return null;
   const raw = (body as { validated_values?: unknown }).validated_values;
   if (!raw || typeof raw !== "object") return null;
-  const out = {} as ExtractedFields;
-  for (const f of EXTRACTION_FIELDS) {
+  const out: ValidatedFields = {};
+  for (const f of FORM_FIELDS) {
     const v = asFiniteNumber((raw as Record<string, unknown>)[f]);
     out[f] = v === null ? null : Math.round(v);
   }
@@ -128,12 +142,13 @@ export function parseValidatedValues(body: unknown): ExtractedFields | null {
 /** Delta proposé → validé par champ (mesure de précision réelle du modèle). */
 export function computeCorrectionDelta(
   proposed: ExtractedFields,
-  validated: ExtractedFields
+  validated: ValidatedFields
 ): Record<string, { proposed: number | null; validated: number | null }> {
   const delta: Record<string, { proposed: number | null; validated: number | null }> = {};
-  for (const f of EXTRACTION_FIELDS) {
-    if (proposed[f] !== validated[f]) {
-      delta[f] = { proposed: proposed[f], validated: validated[f] };
+  for (const f of FORM_FIELDS) {
+    const v = validated[f] ?? null;
+    if (proposed[f] !== v) {
+      delta[f] = { proposed: proposed[f], validated: v };
     }
   }
   return delta;

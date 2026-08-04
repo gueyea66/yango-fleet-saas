@@ -426,12 +426,19 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
 // Le bloc ne se monte QUE si /api/ai/extract-declaration répond 200 à la
 // sonde GET (kill-switch 3 étages). OFF → null : écran identique à avant.
 // Le LLM lit les valeurs affichées ; calc.ts reste seul à calculer.
-type AiFields = { end_odometer: number | null; yango_gross: number | null; yango_bonus: number | null; solde_yango: number | null; yango_trip_count: number | null };
+type AiFields = {
+  end_odometer: number | null; yango_cash: number | null; yango_card: number | null;
+  yango_bonus: number | null; commission_yango: number | null; commission_partenaire: number | null;
+  services_supplementaires: number | null; solde_yango: number | null;
+  yango_trip_count: number | null; net_affiche: number | null;
+};
 type AiScanResult = { extraction_id: string; fields: AiFields; confidences: Record<string, number>; coherence_alerts: { field: string; type: string; message: string }[]; status: string };
 
 const AI_FIELD_LABELS: Record<string, string> = {
-  end_odometer: "Km compteur", yango_gross: "Brut Yango", yango_bonus: "Bonus",
-  solde_yango: "Solde", yango_trip_count: "Courses",
+  end_odometer: "Km compteur", yango_cash: "Espèces", yango_card: "Carte",
+  yango_bonus: "Bonus", commission_yango: "Comm. Yango", commission_partenaire: "Comm. partenaire",
+  services_supplementaires: "Services supp.", solde_yango: "Solde",
+  yango_trip_count: "Courses", net_affiche: "Net affiché",
 };
 
 function confColor(c: number) { return c >= 0.85 ? "#22c55e" : c >= 0.6 ? "#f5a623" : "#ef4444"; }
@@ -525,7 +532,7 @@ function AiScanBlock({ date, disabled, onExtracted }: { date: string; disabled: 
 
 function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => void; cfg: Cfg }) {
   const today = new Date().toISOString().split("T")[0];
-  const [form, setForm] = useState({ date: today, end_odometer: "", yango_gross: "", yango_bonus: "", off_yango_revenue: "", solde_yango: "", yango_trip_count: "", off_yango_trip_count: "", service_supplementaire: "", comment: "" });
+  const [form, setForm] = useState({ date: today, end_odometer: "", yango_cash: "", yango_card: "", yango_gross: "", yango_bonus: "", off_yango_revenue: "", solde_yango: "", yango_trip_count: "", off_yango_trip_count: "", service_supplementaire: "", commission_yango_reelle: "", commission_partenaire_reelle: "", comment: "" });
   const [todayReport, setTodayReport] = useState<any>(null);
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -533,22 +540,42 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
   const [reportId, setReportId] = useState<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [aiExtractionId, setAiExtractionId] = useState<string | null>(null);
-  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
   const n = (s: string) => parseFloat(s) || 0;
+  // Brut Yango = Espèces + Carte (éléments réels de l'app). Dès qu'un des deux
+  // est renseigné, le brut est dérivé automatiquement ; sinon il reste saisi
+  // à la main (rétro-compatibilité avec l'ancien flux).
+  const deriveGross = (f: { yango_cash: string; yango_card: string; yango_gross: string }) =>
+    f.yango_cash || f.yango_card ? String(n(f.yango_cash) + n(f.yango_card)) : f.yango_gross;
+  const set = (k: string, v: string) =>
+    setForm((f) => {
+      const next = { ...f, [k]: v };
+      if (k === "yango_cash" || k === "yango_card") next.yango_gross = deriveGross(next);
+      return next;
+    });
   const addFiles = (files: FileList | null) => { if (files) setPendingFiles((prev) => [...prev, ...Array.from(files)]); };
 
   // Pré-remplissage depuis l'extraction vision : seules les valeurs LUES
   // remplacent le champ ; le chauffeur vérifie et corrige avant de soumettre.
+  // Les éléments sont pris TELS QUELS (espèces, carte, commissions réelles) —
+  // le brut est dérivé, jamais lu ni calculé par le LLM.
   const applyExtraction = (r: AiScanResult) => {
     setAiExtractionId(r.extraction_id);
-    setForm((f) => ({
-      ...f,
-      end_odometer: r.fields.end_odometer !== null ? String(r.fields.end_odometer) : f.end_odometer,
-      yango_gross: r.fields.yango_gross !== null ? String(r.fields.yango_gross) : f.yango_gross,
-      yango_bonus: r.fields.yango_bonus !== null ? String(r.fields.yango_bonus) : f.yango_bonus,
-      solde_yango: r.fields.solde_yango !== null ? String(r.fields.solde_yango) : f.solde_yango,
-      yango_trip_count: r.fields.yango_trip_count !== null ? String(r.fields.yango_trip_count) : f.yango_trip_count,
-    }));
+    setForm((f) => {
+      const next = {
+        ...f,
+        end_odometer: r.fields.end_odometer !== null ? String(r.fields.end_odometer) : f.end_odometer,
+        yango_cash: r.fields.yango_cash !== null ? String(r.fields.yango_cash) : f.yango_cash,
+        yango_card: r.fields.yango_card !== null ? String(r.fields.yango_card) : f.yango_card,
+        yango_bonus: r.fields.yango_bonus !== null ? String(r.fields.yango_bonus) : f.yango_bonus,
+        solde_yango: r.fields.solde_yango !== null ? String(r.fields.solde_yango) : f.solde_yango,
+        yango_trip_count: r.fields.yango_trip_count !== null ? String(r.fields.yango_trip_count) : f.yango_trip_count,
+        service_supplementaire: r.fields.services_supplementaires !== null ? String(r.fields.services_supplementaires) : f.service_supplementaire,
+        commission_yango_reelle: r.fields.commission_yango !== null ? String(r.fields.commission_yango) : f.commission_yango_reelle,
+        commission_partenaire_reelle: r.fields.commission_partenaire !== null ? String(r.fields.commission_partenaire) : f.commission_partenaire_reelle,
+      };
+      next.yango_gross = deriveGross(next);
+      return next;
+    });
   };
 
   useEffect(() => {
@@ -565,6 +592,8 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
           setForm({
             date: rep.date || today,
             end_odometer: rep.end_odometer ? String(rep.end_odometer) : "",
+            yango_cash: rep.yango_cash ? String(rep.yango_cash) : "",
+            yango_card: rep.yango_card ? String(rep.yango_card) : "",
             yango_gross: rep.yango_gross ? String(rep.yango_gross) : "",
             yango_bonus: rep.yango_bonus ? String(rep.yango_bonus) : "",
             off_yango_revenue: rep.off_yango_revenue ? String(rep.off_yango_revenue) : "",
@@ -572,6 +601,8 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
             yango_trip_count: rep.yango_trip_count ? String(rep.yango_trip_count) : "",
             off_yango_trip_count: rep.off_yango_trip_count ? String(rep.off_yango_trip_count) : "",
             service_supplementaire: rep.service_supplementaire ? String(rep.service_supplementaire) : "",
+            commission_yango_reelle: rep.commission_yango_reelle ? String(rep.commission_yango_reelle) : "",
+            commission_partenaire_reelle: rep.commission_partenaire_reelle ? String(rep.commission_partenaire_reelle) : "",
             comment: rep.comment || "",
           });
         }
@@ -603,6 +634,11 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         end_odometer: n(form.end_odometer),
         gross_earnings: calc.base + n(form.off_yango_revenue),
         yango_gross: n(form.yango_gross),
+        // Éléments réels Yango (app) — colonnes additives nullables (036)
+        yango_cash: form.yango_cash ? n(form.yango_cash) : null,
+        yango_card: form.yango_card ? n(form.yango_card) : null,
+        commission_yango_reelle: form.commission_yango_reelle ? n(form.commission_yango_reelle) : null,
+        commission_partenaire_reelle: form.commission_partenaire_reelle ? n(form.commission_partenaire_reelle) : null,
         yango_bonus: n(form.yango_bonus),
         off_yango_revenue: n(form.off_yango_revenue),
         solde_yango: form.solde_yango ? n(form.solde_yango) : null,
@@ -657,8 +693,12 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
             body: JSON.stringify({
               validated_values: {
                 end_odometer: form.end_odometer ? Math.round(n(form.end_odometer)) : null,
-                yango_gross: form.yango_gross ? Math.round(n(form.yango_gross)) : null,
+                yango_cash: form.yango_cash ? Math.round(n(form.yango_cash)) : null,
+                yango_card: form.yango_card ? Math.round(n(form.yango_card)) : null,
                 yango_bonus: form.yango_bonus ? Math.round(n(form.yango_bonus)) : null,
+                commission_yango: form.commission_yango_reelle ? Math.round(n(form.commission_yango_reelle)) : null,
+                commission_partenaire: form.commission_partenaire_reelle ? Math.round(n(form.commission_partenaire_reelle)) : null,
+                services_supplementaires: form.service_supplementaire ? Math.round(n(form.service_supplementaire)) : null,
                 solde_yango: form.solde_yango ? Math.round(n(form.solde_yango)) : null,
                 yango_trip_count: form.yango_trip_count ? Math.round(n(form.yango_trip_count)) : null,
               },
@@ -709,7 +749,13 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         </Field>
         <Field label="Compteur km fin de journée" icon={Gauge}><InpText type="number" placeholder="ex: 48900" value={form.end_odometer} onChange={(v) => set("end_odometer", v)} disabled={!canEdit} /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Brut Yango *"><InpText type="number" placeholder="0" value={form.yango_gross} onChange={(v) => set("yango_gross", v)} disabled={!canEdit} /></Field>
+          <Field label="Espèces (app Yango)"><InpText type="number" placeholder="0" value={form.yango_cash} onChange={(v) => set("yango_cash", v)} disabled={!canEdit} /></Field>
+          <Field label="Carte (si affiché)"><InpText type="number" placeholder="0" value={form.yango_card} onChange={(v) => set("yango_card", v)} disabled={!canEdit} /></Field>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={form.yango_cash || form.yango_card ? "Brut Yango (= espèces + carte)" : "Brut Yango *"}>
+            <InpText type="number" placeholder="0" value={form.yango_gross} onChange={(v) => set("yango_gross", v)} disabled={!canEdit || !!(form.yango_cash || form.yango_card)} />
+          </Field>
           <Field label="Bonus Yango"><InpText type="number" placeholder="0" value={form.yango_bonus} onChange={(v) => set("yango_bonus", v)} disabled={!canEdit} /></Field>
         </div>
         <Field label="Hors Yango (XOF)"><InpText type="number" placeholder="0" value={form.off_yango_revenue} onChange={(v) => set("off_yango_revenue", v)} disabled={!canEdit} /></Field>
@@ -719,6 +765,10 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
           <Field label="Courses hors"><InpText type="number" placeholder="0" value={form.off_yango_trip_count} onChange={(v) => set("off_yango_trip_count", v)} disabled={!canEdit} /></Field>
         </div>
         <Field label="➕ Service supplémentaire Yango (optionnel)"><InpText type="number" placeholder="0" value={form.service_supplementaire} onChange={(v) => set("service_supplementaire", v)} disabled={!canEdit} /></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Comm. Yango (lue dans l'app)"><InpText type="number" placeholder="0" value={form.commission_yango_reelle} onChange={(v) => set("commission_yango_reelle", v)} disabled={!canEdit} /></Field>
+          <Field label="Comm. partenaire (lue)"><InpText type="number" placeholder="0" value={form.commission_partenaire_reelle} onChange={(v) => set("commission_partenaire_reelle", v)} disabled={!canEdit} /></Field>
+        </div>
 
         {(n(form.yango_gross) > 0 || n(form.yango_bonus) > 0 || n(form.off_yango_revenue) > 0) && (
           <div className="rounded-2xl p-4" style={{ background: "rgba(245,166,35,.04)", border: "1px solid rgba(245,166,35,.15)" }}>
