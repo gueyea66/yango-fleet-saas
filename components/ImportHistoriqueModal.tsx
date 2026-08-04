@@ -43,10 +43,16 @@ const fmtXOF = (n: number | null) =>
   n == null ? "—" : new Intl.NumberFormat("fr-FR").format(n) + " XOF";
 
 /* ─── Template CSV ─────────────────────────────────────── */
+// Colonnes minimales : date, chauffeur, ca_brut (ou especes).
+// Colonnes optionnelles « éléments réels Yango » (mêmes champs que la
+// déclaration) : especes, carte, bonus, commission_yango,
+// commission_partenaire, services_supplementaires, solde, compteur_km,
+// hors_yango. Quand especes est renseigné, ca_brut peut rester vide
+// (brut = espèces + carte). Les colonnes inconnues sont ignorées.
 const CSV_TEMPLATE =
-  "date,chauffeur,ca_brut,km_parcourus,nombre_courses,frais_carburant,notes\n" +
-  "2026-01-15,Ibrahim Diallo,185000,220,12,25000,\n" +
-  "2026-01-16,Mamadou Sow,210000,245,14,28000,Journée chargée\n";
+  "date,chauffeur,ca_brut,especes,carte,bonus,commission_yango,commission_partenaire,services_supplementaires,solde,compteur_km,hors_yango,km_parcourus,nombre_courses,frais_carburant,notes\n" +
+  "2026-01-15,Ibrahim Diallo,,41900,,200,6254,1251,605,95333,105850,0,,20,,Journée complète (éléments réels app Yango)\n" +
+  "2026-01-16,Mamadou Sow,210000,,,,,,,,,,245,14,28000,Ancien format minimal — toujours accepté\n";
 
 function downloadTemplate() {
   const blob = new Blob([CSV_TEMPLATE], { type: "text/csv;charset=utf-8;" });

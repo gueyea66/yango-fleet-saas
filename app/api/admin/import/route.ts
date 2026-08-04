@@ -143,17 +143,33 @@ export async function POST(req: NextRequest) {
         driversFound.add(chauffeur);
       }
 
-      // Validation CA brut
-      const caBrut = parseNumber(caBrutRaw);
-      if (caBrut === null || caBrut < 0) {
-        validationErrors.push({ row: rowNum, field: "ca_brut", message: `CA brut invalide "${caBrutRaw}" (nombre entier attendu)` });
-      }
-
-      // Champs optionnels
+      // Champs optionnels historiques
       const km = idx("km_parcourus") >= 0 ? parseNumber(row[idx("km_parcourus")] ?? "") : null;
       const rides = idx("nombre_courses") >= 0 ? parseNumber(row[idx("nombre_courses")] ?? "") : null;
       const fuel = idx("frais_carburant") >= 0 ? parseNumber(row[idx("frais_carburant")] ?? "") : null;
       const notes = idx("notes") >= 0 ? (row[idx("notes")] ?? "").trim() : "";
+
+      // Champs optionnels « éléments réels Yango » (mêmes colonnes que la
+      // déclaration V3) — tous facultatifs, l'ancien template minimal reste valide.
+      const opt = (name: string) => (idx(name) >= 0 ? parseNumber(row[idx(name)] ?? "") : null);
+      const especes = opt("especes");
+      const carte = opt("carte");
+      const bonus = opt("bonus");
+      const commissionYango = opt("commission_yango");
+      const commissionPartenaire = opt("commission_partenaire");
+      const servicesSupp = opt("services_supplementaires");
+      const solde = opt("solde");
+      const compteurKm = opt("compteur_km");
+      const horsYango = opt("hors_yango");
+
+      // Validation CA brut : requis SAUF si espèces fourni (brut = espèces + carte)
+      let caBrut = parseNumber(caBrutRaw);
+      if (caBrut === null && especes !== null) {
+        caBrut = especes + (carte ?? 0);
+      }
+      if (caBrut === null || caBrut < 0) {
+        validationErrors.push({ row: rowNum, field: "ca_brut", message: `CA brut invalide "${caBrutRaw}" (nombre attendu, ou renseignez la colonne especes)` });
+      }
 
       // Détection doublon — daily_reports.driver_id est l'UUID du profil :
       // comparer avec driver.id (pas le code chauffeur driver.driver_id)
@@ -170,6 +186,15 @@ export async function POST(req: NextRequest) {
         nombre_courses: rides,
         frais_carburant: fuel,
         notes,
+        especes,
+        carte,
+        bonus,
+        commission_yango: commissionYango,
+        commission_partenaire: commissionPartenaire,
+        services_supplementaires: servicesSupp,
+        solde,
+        compteur_km: compteurKm,
+        hors_yango: horsYango,
         is_duplicate: isDuplicate,
         has_error: !isValidDate(date) || !driver || caBrut === null || caBrut < 0,
       });
