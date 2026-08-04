@@ -3,7 +3,7 @@
  * Contrat flag OFF : 204 sans corps (l'UI ne monte rien, ne logge pas d'erreur).
  */
 import { NextRequest } from "next/server";
-import { requireAdminAuth } from "@/lib/auth/server";
+import { requireAdminAuth, requireAnyAuth } from "@/lib/auth/server";
 import { checkSuperadminKey, getClientIp, resolveSuperadminKey } from "@/lib/auth/server";
 import { aiAdmin } from "./adminClient";
 import { getTenantAiAccess, TenantAiAccess } from "./killSwitch";
@@ -34,6 +34,19 @@ export interface AiRouteContext {
  */
 export async function requireAiAccess(req: NextRequest): Promise<AiRouteContext | null> {
   const { userId, tenantId } = await requireAdminAuth();
+  const isSuperadmin = await verifySuperadmin(req).catch(() => false);
+  const access = await getTenantAiAccess(tenantId, { isSuperadmin });
+  if (!access.enabled) return null;
+  return { tenantId, userId, access };
+}
+
+/**
+ * Variante CHAUFFEUR (extraction vision) : auth admin OU driver.
+ * Même contrat kill-switch : null → répondre AI_OFF() (204 sans corps).
+ * Le stage "shadow" reste invisible pour un chauffeur (superadmin only).
+ */
+export async function requireAiAccessAny(req: NextRequest): Promise<AiRouteContext | null> {
+  const { userId, tenantId } = await requireAnyAuth();
   const isSuperadmin = await verifySuperadmin(req).catch(() => false);
   const access = await getTenantAiAccess(tenantId, { isSuperadmin });
   if (!access.enabled) return null;
