@@ -91,21 +91,33 @@ export async function POST(
     return NextResponse.json({ error: "Aucune ligne valide à injecter" }, { status: 400 });
   }
 
-  // Construire les daily_reports à insérer (ignorer les doublons)
+  // Construire les daily_reports à insérer (ignorer les doublons).
+  // Mapping vers le schéma RÉEL de fleet.daily_reports :
+  //  - driver_id = UUID du profil (driver_profile_id), PAS le code chauffeur
+  //  - ca_brut → yango_gross + gross_earnings ; le net est recalculé par les
+  //    moteurs de reporting (calc.ts) à l'affichage — on stocke le brut tel quel
+  //  - km_parcourus/notes → comment (pas de colonne « km du jour »)
+  //  - marqueur historique = source 'legacy' (convention existante)
   const toInsert = validRows
-    .filter((r) => !r.is_duplicate)
+    .filter((r) => !r.is_duplicate && r.driver_profile_id)
     .map((r) => ({
       tenant_id: batch.tenant_id,
-      driver_id: r.driver_id as string,
+      driver_id: r.driver_profile_id as string,
       date: r.date as string,
       gross_earnings: r.ca_brut as number,
-      net_earnings: r.ca_brut as number, // sera recalculé par le moteur de rémunération
-      km_driven: r.km_parcourus ?? null,
-      rides_count: r.nombre_courses ?? null,
-      fuel_cost: r.frais_carburant ?? null,
-      notes: r.notes ?? "",
+      yango_gross: r.ca_brut as number,
+      net_after_expenses: r.ca_brut as number, // brut tel quel — net recalculé par les moteurs
+      yango_trip_count: (r.nombre_courses as number | null) ?? null,
+      comment:
+        [
+          (r.notes as string) || null,
+          r.km_parcourus != null ? `KM parcourus: ${r.km_parcourus}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ") || null,
+      expense_count: r.frais_carburant != null && (r.frais_carburant as number) > 0 ? 1 : 0,
       status: "approved",
-      imported: true, // marqueur d'import historique
+      source: "legacy",
     }));
 
   let injectedCount = 0;
@@ -125,6 +137,30 @@ export async function POST(
     } else {
       injectedCount += inserted?.length ?? 0;
     }
+  }
+
+  // Frais carburant du template → vraies dépenses (catégorie Carburant),
+  // approuvées, taguées legacy — visibles dans le module dépenses et les KPIs.
+  const fuelExpenses = validRows
+    .filter((r) => !r.is_duplicate && r.driver_profile_id && r.frais_carburant != null && (r.frais_carburant as number) > 0)
+    .map((r) => ({
+      tenant_id: batch.tenant_id,
+      driver_id: r.driver_profile_id as string,
+      category: "Carburant",
+      amount: r.frais_carburant as number,
+      description: "Import historique (template CSV)",
+      expense_date: r.date as string,
+      status: "approved",
+      source: "legacy",
+    }));
+
+  for (let i = 0; i < fuelExpenses.length; i += 50) {
+    const chunk = fuelExpenses.slice(i, i + 50);
+    const { error: expErr } = await serviceClient
+      .schema("fleet")
+      .from("expenses")
+      .insert(chunk);
+    if (expErr) errors.push(`Dépenses batch ${i / 50 + 1}: ${expErr.message}`);
   }
 
   // Mettre à jour le statut du batch
