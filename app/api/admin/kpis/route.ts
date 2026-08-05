@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
 
     const tQ = (q: any) => q.eq("tenant_id", tenantId);
     const dQ = (q: any) => driverId ? q.eq("driver_id", driverId) : q;
-    const srcQ = (q: any) => q.or("source.eq.saas,source.is.null");
+    const srcQ = (q: any) => q;
 
     const today = new Date().toISOString().split("T")[0];
     const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];

@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
     const tQ = (q: any) => q.eq("tenant_id", tenantId);
     const dQ = (q: any) => driverId ? q.eq("driver_id", driverId) : q;
-    const srcQ = (q: any) => q.or("source.eq.saas,source.is.null");
+    const srcQ = (q: any) => q;
 
     const [{ data: reps }, { data: exps }, { data: pays }, { data: profs }, { data: vehs }] = await Promise.all([
       srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).gte("date", sixAgo).neq("status", "rejected").order("date"),

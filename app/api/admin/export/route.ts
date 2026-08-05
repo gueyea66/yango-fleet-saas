@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
     if (resource === "reports") {
       let q = admin.from("daily_reports")
         .select("date,driver_id,vehicle_id,end_odometer,yango_gross,yango_bonus,off_yango_revenue,commission_amount,net_after_expenses,solde_yango,yango_trip_count,off_yango_trip_count,status,comment")
-        .eq("tenant_id", tenantId).or("source.eq.saas,source.is.null")
+        .eq("tenant_id", tenantId)
         .order("date", { ascending: false }).limit(10000);
       if (dateFrom) q = q.gte("date", dateFrom) as any;
       if (dateTo) q = q.lte("date", dateTo) as any;
@@ -129,7 +129,7 @@ export async function GET(req: NextRequest) {
       // Récap comptable consolidé : une ligne par chauffeur (totaux de la période) + TOTAL.
       let repQ = admin.from("daily_reports")
         .select("driver_id,yango_gross,yango_bonus,off_yango_revenue,commission_amount,net_after_expenses")
-        .eq("tenant_id", tenantId).eq("status", "approved").or("source.eq.saas,source.is.null").limit(20000);
+        .eq("tenant_id", tenantId).eq("status", "approved").limit(20000);
       if (dateFrom) repQ = repQ.gte("date", dateFrom) as any;
       if (dateTo) repQ = repQ.lte("date", dateTo) as any;
       let expQ = admin.from("expenses").select("driver_id,amount,expense_date").eq("tenant_id", tenantId).limit(20000);

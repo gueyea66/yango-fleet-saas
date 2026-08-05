@@ -152,7 +152,10 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         try { tid = await getTenantId(); } catch { /* no tenant context */ }
         const repQ = (q: any) => tid ? q.eq("tenant_id", tid) : q;
         const drvQ = (q: any) => filterDriverId ? q.eq("driver_id", filterDriverId) : q;
-        const saasQ = (q: any) => q.or("source.eq.saas,source.is.null");
+        // source='legacy' = imports historiques INTENTIONNELS (module d'import) :
+        // ils comptent dans les KPIs comme promis par le module. Plus aucun
+        // masquage par source — vérifié 05/08/2026 : zéro ligne legacy parasite.
+        const saasQ = (q: any) => q;
         const [r1, r2, r3, r4, r5, r6] = await Promise.all([
           saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).gte("date", periodStart).lte("date", periodEnd).order("date"),
           saasQ(drvQ(repQ(supabase.from("expenses").select("*")))),

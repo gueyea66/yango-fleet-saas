@@ -69,7 +69,7 @@ export async function buildReportHtml(
       .eq("tenant_id", tenantId),
     admin.from("daily_reports")
       .select("date,driver_id,yango_gross,yango_bonus,off_yango_revenue,commission_amount,service_supplementaire,net_after_expenses,yango_trip_count,status,comment")
-      .eq("tenant_id", tenantId).or("source.eq.saas,source.is.null")
+      .eq("tenant_id", tenantId)
       .gte("date", dateFrom).lte("date", dateTo).limit(20000),
     admin.from("expenses").select("driver_id,category,amount,expense_date")
       .eq("tenant_id", tenantId).gte("expense_date", dateFrom).lte("expense_date", dateTo).limit(20000),
