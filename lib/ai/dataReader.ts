@@ -60,13 +60,13 @@ export async function fetchTenantWindow(tenantId: string, days = 70): Promise<Te
     admin.from("daily_reports")
       .select("driver_id, date, status, yango_gross, yango_bonus, off_yango_revenue, solde_yango, end_odometer, yango_trip_count, off_yango_trip_count, commission_amount")
       .eq("tenant_id", tenantId)
-      .or("source.eq.saas,source.is.null")
+      
       .gte("date", from)
       .order("date", { ascending: true }),
     admin.from("expenses")
       .select("driver_id, category, amount, expense_date, status")
       .eq("tenant_id", tenantId)
-      .or("source.eq.saas,source.is.null")
+      
       .gte("expense_date", from),
   ]);
 
