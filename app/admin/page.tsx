@@ -24,6 +24,7 @@ import { useDashboardKPIs } from "@/lib/hooks/useDashboardKPIs";
 import NotificationBell from "@/components/NotificationBell";
 import ImportHistoriqueModal from "@/components/ImportHistoriqueModal";
 import { useTenant } from "@/lib/tenant/context";
+import SimpleModeAdmin from "@/components/SimpleModeAdmin";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import TrialBanner from "@/components/TrialBanner";
 import AiBriefingSection from "@/components/ai/AiBriefingSection";
@@ -100,6 +101,11 @@ export default function AdminPage() {
   const [allDrivers, setAllDrivers] = useState<any[]>([]); // { id, full_name, driver_id, plate }
   const [adminTenantId, setAdminTenantId] = useState<string | null>(null);
   const [remunCfg, setRemunCfg] = useState<any>(null);
+  // Mode simple (tenant ui_mode='simple') : bascule locale vers l'UI complète.
+  const [uiAdvanced, setUiAdvanced] = useState(false);
+  useEffect(() => { setUiAdvanced(localStorage.getItem("m3a_ui_advanced") === "1"); }, []);
+  const toggleUiAdvanced = (v: boolean) => { setUiAdvanced(v); localStorage.setItem("m3a_ui_advanced", v ? "1" : "0"); };
+  const simpleModeActive = settings.ui_mode === "simple" && !uiAdvanced;
 
   // Get tenant_id from the admin's own profile FIRST, then load filtered data
   // Ensure storage bucket exists (idempotent)
@@ -206,6 +212,26 @@ export default function AdminPage() {
     return null;
   }
 
+  // ── MODE SIMPLE : vue épurée propriétaire (Accueil / Pilotage / Équipe).
+  //    L'UI complète historique reste intacte derrière la bascule « Mode avancé ».
+  if (simpleModeActive) {
+    if (!adminTenantId) {
+      return (
+        <div className="flex min-h-screen items-center justify-center">
+          <p className="text-lg text-gray-600">Chargement...</p>
+        </div>
+      );
+    }
+    return (
+      <SimpleModeAdmin
+        tenantId={adminTenantId}
+        appName={settings.app_name}
+        onSwitchToFull={() => toggleUiAdvanced(true)}
+        onSignOut={signOut}
+      />
+    );
+  }
+
   const tabGroups = [
     {
       label: "Opérations",
@@ -301,6 +327,15 @@ export default function AdminPage() {
               )}
             </div>
           );})}
+
+          {/* Retour au mode simple (tenants ui_mode='simple' passés en avancé) */}
+          {settings.ui_mode === "simple" && (
+            <button onClick={() => toggleUiAdvanced(false)}
+              className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2.5 mt-2"
+              style={{ color: "var(--sk-t3)", border: "1px dashed var(--sk-surface)" }}>
+              ← Revenir au mode simple
+            </button>
+          )}
         </nav>
 
         {/* User + logout */}
@@ -355,6 +390,13 @@ export default function AdminPage() {
             ))}
           </React.Fragment>
         ))}
+        {settings.ui_mode === "simple" && (
+          <button onClick={() => toggleUiAdvanced(false)}
+            className="flex-shrink-0 px-3 py-2 text-[10px] font-semibold"
+            style={{ color: "var(--sk-t3)" }}>
+            ← Simple
+          </button>
+        )}
       </div>
 
       {/* ── MAIN CONTENT ── */}
