@@ -3,7 +3,7 @@
 // Mode simple — vue épurée pour propriétaires de véhicules non initiés.
 // Couche ADDITIVE : aucun calcul propre, tout vient de useDashboardKPIs et des
 // APIs existantes (calc.ts reste la source de vérité). Activé par
-// tenant_settings.ui_mode = 'simple' (migration 035) ; la bascule « Mode
+// tenant_settings.ui_mode = 'simple' (migration 037) ; la bascule « Mode
 // avancé » rend l'UI complète historique sans rien perdre.
 
 import React, { useState, useEffect, useCallback } from "react";

@@ -9,7 +9,7 @@ s'ils sont justifiés (contrainte technique ou métier) et documentés ici.
 ## Chantier : Mode simple propriétaire (`feat/ui-mode-simple`) — 2026-08-10
 
 **Maquette validée** : artifact « M3A Fleet — Mode Simple » v2 (treemap + KPI ops).
-**Activation** : `tenant_settings.ui_mode = 'simple'` (migration 035) — défaut `full`, zéro changement pour les tenants existants.
+**Activation** : `tenant_settings.ui_mode = 'simple'` (migration 037) — défaut `full`, zéro changement pour les tenants existants.
 
 ### Accueil
 | Élément maquette | Implémenté | Écart / justification |
@@ -41,5 +41,5 @@ s'ils sont justifiés (contrainte technique ou métier) et documentés ici.
 ### Garanties zéro risque
 - [x] Couche additive : `ui_mode` défaut `'full'` → UI historique strictement inchangée
 - [x] Aucun calcul métier dupliqué : lecture seule de `useDashboardKPIs` / APIs existantes
-- [x] Migration 035 idempotente (`ADD COLUMN IF NOT EXISTS`)
+- [x] Migration 037 idempotente (`ADD COLUMN IF NOT EXISTS`)
 - [x] Build production + 143 tests verts

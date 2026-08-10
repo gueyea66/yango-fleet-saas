@@ -162,13 +162,13 @@ export async function POST(req: NextRequest) {
       if (skinErr) console.warn("[branding] skin non enregistré (migration 031 requise ?):", skinErr.message);
     }
 
-    // ui_mode : même pattern best-effort que skin (migration 035 requise).
+    // ui_mode : même pattern best-effort que skin (migration 037 requise).
     if (uiModeVal) {
       const { error: uiErr } = await adminClient
         .from("tenant_settings")
         .update({ ui_mode: uiModeVal, updated_at: new Date().toISOString() })
         .eq("tenant_id", tenantId);
-      if (uiErr) console.warn("[branding] ui_mode non enregistré (migration 035 requise ?):", uiErr.message);
+      if (uiErr) console.warn("[branding] ui_mode non enregistré (migration 037 requise ?):", uiErr.message);
     }
 
     return NextResponse.json({ ok: true, updated: { ...patch, ...(skinVal ? { skin: skinVal } : {}), ...(uiModeVal ? { ui_mode: uiModeVal } : {}) } });

@@ -1,4 +1,4 @@
--- Migration 035 — 2026-08-10
+-- Migration 037 — 2026-08-10
 -- Mode d'interface par tenant : 'full' (défaut, UI actuelle intacte) | 'simple'
 -- (vue épurée pour propriétaires non initiés : Accueil / Pilotage / Équipe,
 -- le reste derrière une bascule « Mode avancé »). Additive et idempotente —
