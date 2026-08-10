@@ -93,6 +93,9 @@ export async function POST(req: NextRequest) {
     const skinRaw = formData.get("skin");
     const skinVal = (typeof skinRaw === "string" && ["midnight", "slate", "graphite"].includes(skinRaw)) ? skinRaw : null;
 
+    const uiModeRaw = formData.get("ui_mode");
+    const uiModeVal = (typeof uiModeRaw === "string" && ["full", "simple"].includes(uiModeRaw)) ? uiModeRaw : null;
+
     const currency = formData.get("currency");
     if (typeof currency === "string" && currency.trim()) patch.currency = currency.trim().toUpperCase().slice(0, 5);
 
@@ -135,7 +138,7 @@ export async function POST(req: NextRequest) {
       patch.logo_url = null;
     }
 
-    if (Object.keys(patch).length === 0 && !skinVal) {
+    if (Object.keys(patch).length === 0 && !skinVal && !uiModeVal) {
       return NextResponse.json({ error: "Aucune modification fournie" }, { status: 400 });
     }
 
@@ -159,7 +162,16 @@ export async function POST(req: NextRequest) {
       if (skinErr) console.warn("[branding] skin non enregistré (migration 031 requise ?):", skinErr.message);
     }
 
-    return NextResponse.json({ ok: true, updated: { ...patch, ...(skinVal ? { skin: skinVal } : {}) } });
+    // ui_mode : même pattern best-effort que skin (migration 035 requise).
+    if (uiModeVal) {
+      const { error: uiErr } = await adminClient
+        .from("tenant_settings")
+        .update({ ui_mode: uiModeVal, updated_at: new Date().toISOString() })
+        .eq("tenant_id", tenantId);
+      if (uiErr) console.warn("[branding] ui_mode non enregistré (migration 035 requise ?):", uiErr.message);
+    }
+
+    return NextResponse.json({ ok: true, updated: { ...patch, ...(skinVal ? { skin: skinVal } : {}), ...(uiModeVal ? { ui_mode: uiModeVal } : {}) } });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: err.status ?? 500 });
   }

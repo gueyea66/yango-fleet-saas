@@ -24,6 +24,7 @@ const DEFAULT_SETTINGS = {
   timezone: "Africa/Dakar",
   operator_name: null,
   skin: "midnight",
+  ui_mode: "full",
 };
 
 const DEFAULT_REMUNERATION = {
