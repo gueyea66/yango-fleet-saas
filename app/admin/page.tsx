@@ -25,6 +25,7 @@ import NotificationBell from "@/components/NotificationBell";
 import ImportHistoriqueModal from "@/components/ImportHistoriqueModal";
 import { useTenant } from "@/lib/tenant/context";
 import SimpleModeAdmin from "@/components/SimpleModeAdmin";
+import { setPlatformLabel, platLabel, displayLabel } from "@/lib/tenant/platformLabel";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import TrialBanner from "@/components/TrialBanner";
 import AiBriefingSection from "@/components/ai/AiBriefingSection";
@@ -107,10 +108,13 @@ export default function AdminPage() {
   // et retomberait silencieusement sur les réglages par défaut ('full').
   const [uiAdvanced, setUiAdvanced] = useState(false);
   const [tenantUiMode, setTenantUiMode] = useState<string | null>(null);
+  const [tenantPlatformLabel, setTenantPlatformLabel] = useState<string | null>(null);
   useEffect(() => { setUiAdvanced(localStorage.getItem("m3a_ui_advanced") === "1"); }, []);
   const toggleUiAdvanced = (v: boolean) => { setUiAdvanced(v); localStorage.setItem("m3a_ui_advanced", v ? "1" : "0"); };
   const resolvedUiMode = tenantUiMode ?? settings.ui_mode ?? "full";
   const simpleModeActive = resolvedUiMode === "simple" && !uiAdvanced;
+  // Libellé plateforme (migration 038) : remplace le mot « Yango » dans l'UI.
+  const plat = tenantPlatformLabel ?? settings.platform_label ?? "Yango";
 
   // Get tenant_id from the admin's own profile FIRST, then load filtered data
   // Ensure storage bucket exists (idempotent)
@@ -130,9 +134,11 @@ export default function AdminPage() {
         supabase.from("profiles").select("*").eq("role", "driver").eq("tenant_id", tenantId).order("full_name"),
         supabase.from("vehicles").select("driver_id, plate").eq("tenant_id", tenantId),
         supabase.from("remuneration_config").select("*").eq("tenant_id", tenantId).maybeSingle(),
-        supabase.from("tenant_settings").select("ui_mode").eq("tenant_id", tenantId).maybeSingle(),
+        // select * : tolère l'absence des colonnes optionnelles (migrations 037/038 non appliquées)
+        supabase.from("tenant_settings").select("*").eq("tenant_id", tenantId).maybeSingle(),
       ]);
       if (ts?.ui_mode) setTenantUiMode(ts.ui_mode);
+      if (ts?.platform_label) { setPlatformLabel(ts.platform_label); setTenantPlatformLabel(ts.platform_label); }
       const plateMap = Object.fromEntries((vehs || []).map((v: any) => [v.driver_id, v.plate]));
       setAllDrivers((profs || []).map((p: any) => ({ ...p, plate: plateMap[p.id] || null })));
       if (rc) setRemunCfg(rc);
@@ -233,6 +239,7 @@ export default function AdminPage() {
       <SimpleModeAdmin
         tenantId={adminTenantId}
         appName={settings.app_name}
+        platformLabel={plat}
         onSwitchToFull={() => toggleUiAdvanced(true)}
         onSignOut={signOut}
       />
@@ -528,9 +535,9 @@ export default function AdminPage() {
                     ]} />
                   <HeroCard label="Total Recettes" value={kpis.brutYango + kpis.horsYango} color="#f5a623"
                     prev={kpis.prevRecettes}
-                    sub="brut · Yango + hors-app"
+                    sub={`brut · ${plat} + hors-app`}
                     breakdown={[
-                      { label: "Yango", value: kpis.brutYango, color: "#f5a623" },
+                      { label: plat, value: kpis.brutYango, color: "#f5a623" },
                       { label: "Hors-app", value: kpis.horsYango, color: "#a855f7" },
                     ]} />
                   <HeroCard label="Trésorerie Nette" value={kpis.tresorerie} color={kpis.tresorerie >= 0 ? "#22c55e" : "#ef4444"}
@@ -549,7 +556,7 @@ export default function AdminPage() {
 
                 {/* ── Audit UI — ACTIVITÉ (graphique-first, comme la maquette) ── */}
                 {kpis.dailyRows.length > 0 && (
-                  <AccordionSection title="Activité — Recettes par jour" subtitle="Brut Yango · Hors Yango · Net final — la vue de lecture principale" defaultOpen>
+                  <AccordionSection title="Activité — Recettes par jour" subtitle={`Brut ${plat} · Hors ${plat} · Net final — la vue de lecture principale`} defaultOpen>
                     <ResponsiveContainer width="100%" height={260}>
                       <BarChart data={kpis.dailyRows} barGap={2}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--sk-surface)" vertical={false} />
@@ -558,8 +565,8 @@ export default function AdminPage() {
                         <Tooltip contentStyle={{ backgroundColor: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderRadius: 8, fontSize: 12 }}
                           formatter={(v: any) => [Number(v).toLocaleString("fr-FR") + " XOF"]} />
                         <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                        <Bar dataKey="brutYango" fill="#f5a623" name="Brut Yango" radius={[3,3,0,0]} />
-                        <Bar dataKey="horsYango" fill="#a855f7" name="Hors Yango" radius={[3,3,0,0]} />
+                        <Bar dataKey="brutYango" fill="#f5a623" name={`Brut ${plat}`} radius={[3,3,0,0]} />
+                        <Bar dataKey="horsYango" fill="#a855f7" name={`Hors ${plat}`} radius={[3,3,0,0]} />
                         <Bar dataKey="netFinal" fill="#22c55e" name="Net final" radius={[3,3,0,0]} />
                       </BarChart>
                     </ResponsiveContainer>
@@ -569,9 +576,9 @@ export default function AdminPage() {
                 {/* ── PÉRIODE SÉLECTIONNÉE ── */}
                 <AccordionSection title="Période — Recettes vs Charges" subtitle="Détail des postes — replié par défaut (le hero suffit pour la lecture 5 s)">
                   <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-4">
-                    <KPICard label="Brut Yango" value={kpis.brutYango} color="#f5a623" sub={`Moy/jour: ${Math.round(kpis.avgBrutPerDay).toLocaleString("fr-FR")} XOF`} />
-                    <KPICard label="Net Yango" value={kpis.netYango} color="#3b82f6" sub="Après commission" />
-                    <KPICard label="Hors Yango" value={kpis.horsYango} color="#a855f7" sub="Recettes off-platform" />
+                    <KPICard label={`Brut ${plat}`} value={kpis.brutYango} color="#f5a623" sub={`Moy/jour: ${Math.round(kpis.avgBrutPerDay).toLocaleString("fr-FR")} XOF`} />
+                    <KPICard label={`Net ${plat}`} value={kpis.netYango} color="#3b82f6" sub="Après commission" />
+                    <KPICard label={`Hors ${plat}`} value={kpis.horsYango} color="#a855f7" sub="Recettes off-platform" />
                     <KPICard label="Total Recettes (net)" value={kpis.totalBrut} color="#22c55e" sub={`Moy/jour: ${Math.round(kpis.avgNetPerDay).toLocaleString("fr-FR")} XOF`} />
                     <KPICard label="Total Dépenses" value={kpis.totalDepenses} color="#ef4444" negative sub={`Moy/jour: ${Math.round(kpis.avgDepensesPerDay).toLocaleString("fr-FR")} XOF`} />
                     <KPICard label="NET FINAL" value={kpis.netFinal} color={kpis.netFinal >= 0 ? "#22c55e" : "#ef4444"} big sub={`${kpis.monthMarginPercent.toFixed(1)}% de marge`} />
@@ -2020,7 +2027,7 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
       <div className="w-full max-w-md rounded-2xl" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
         <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: "var(--sk-surface)" }}>
           <div>
-            <div className="font-bold text-white">{expense.category}</div>
+            <div className="font-bold text-white">{displayLabel(expense.category || "")}</div>
             <div className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>
               {expense.profiles?.full_name || expense.driver_id?.slice(0, 8)} · {expense.expense_date || expense.created_at?.slice(0, 10)}
             </div>
@@ -2036,7 +2043,7 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
                 <select value={editCategory} onChange={(e) => setEditCategory(e.target.value)}
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
                   style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }}>
-                  {expenseTypes.map((t) => <option key={t}>{t}</option>)}
+                  {expenseTypes.map((t) => <option key={t} value={t}>{displayLabel(t)}</option>)}
                 </select>
               </div>
               <div>
@@ -2252,13 +2259,13 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
   };
 
   const rows = [
-    ["Brut Yango", xof(report.yango_gross)],
-    ["Bonus Yango", xof(report.yango_bonus)],
-    ["Hors Yango", xof(report.off_yango_revenue)],
+    [`Brut ${platLabel()}`, xof(report.yango_gross)],
+    [`Bonus ${platLabel()}`, xof(report.yango_bonus)],
+    [`Hors ${platLabel()}`, xof(report.off_yango_revenue)],
     ["Solde wallet", xof(report.solde_yango)],
     ["Commission", `- ${xof(report.commission_amount)}`],
     ...(report.service_supplementaire > 0 ? [["Service supp.", `- ${xof(report.service_supplementaire)}`]] : []),
-    ["Courses Yango", report.yango_trip_count ?? "—"],
+    [`Courses ${platLabel()}`, report.yango_trip_count ?? "—"],
     ["Courses hors", report.off_yango_trip_count ?? "—"],
     ["Km fin", report.end_odometer ? `${report.end_odometer} km` : "—"],
   ];
@@ -2320,22 +2327,22 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
                     return new Intl.NumberFormat("fr-FR").format(Math.round(net)) + " XOF";
                   })()}
                 </div>
-                <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>Brut − 15% Yango − 0,75% part. + hors Yango</div>
+                <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>{`Brut − 15% ${platLabel()} − 0,75% part. + hors ${platLabel()}`}</div>
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Brut Yango</label>
+                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>{`Brut ${platLabel()}`}</label>
                 <input type="number" value={yangoGrossEdit} onChange={(e) => setYangoGrossEdit(e.target.value)}
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
                   style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "var(--sk-t1)" }} />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Bonus Yango</label>
+                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>{`Bonus ${platLabel()}`}</label>
                 <input type="number" value={yangoBonus} onChange={(e) => setYangoBonus(e.target.value)}
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
                   style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "var(--sk-t1)" }} />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Hors Yango</label>
+                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>{`Hors ${platLabel()}`}</label>
                 <input type="number" value={horsYangoEdit} onChange={(e) => setHorsYangoEdit(e.target.value)}
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
                   style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "#a855f7" }} />
@@ -2354,14 +2361,14 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
                   style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "#3b82f6" }} />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Courses Yango</label>
+                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>{`Courses ${platLabel()}`}</label>
                 <input type="number" value={yangoTripsEdit} onChange={(e) => setYangoTripsEdit(e.target.value)}
                   placeholder="Nb de courses"
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
                   style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "var(--sk-t1)" }} />
               </div>
               <div>
-                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Courses hors Yango</label>
+                <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>{`Courses hors ${platLabel()}`}</label>
                 <input type="number" value={offYangoTripsEdit} onChange={(e) => setOffYangoTripsEdit(e.target.value)}
                   placeholder="Nb de courses"
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
@@ -2369,9 +2376,9 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
               </div>
             </div>
             <div>
-              <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>➕ Service supplémentaire Yango</label>
+              <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>{`➕ Service supplémentaire ${platLabel()}`}</label>
               <input type="number" value={serviceSuppEdit} onChange={(e) => setServiceSuppEdit(e.target.value)}
-                placeholder="Charge Yango add. (optionnel)"
+                placeholder={`Charge ${platLabel()} add. (optionnel)`}
                 className="w-full rounded-xl px-3 py-2 text-sm outline-none"
                 style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "#ef4444" }} />
             </div>
@@ -2473,8 +2480,8 @@ function DailyTable({ data, periodFrom, periodTo }: { data: any[]; periodFrom: s
 
   const cols = [
     { k: "date", label: "Date", fmt: (v: any) => v, color: () => "var(--sk-t1)" },
-    { k: "brutYango", label: "Brut Yango", fmt: xof, color: () => "#f5a623" },
-    { k: "horsYango", label: "Hors Yango", fmt: xof, color: () => "#a855f7" },
+    { k: "brutYango", label: `Brut ${platLabel()}`, fmt: xof, color: () => "#f5a623" },
+    { k: "horsYango", label: `Hors ${platLabel()}`, fmt: xof, color: () => "#a855f7" },
     { k: "netRecettes", label: "Net recettes", fmt: xof, color: () => "#3b82f6" },
     { k: "depenses", label: "Dépenses", fmt: (v: number) => v > 0 ? `- ${xof(v)}` : "—", color: () => "#ef4444" },
     { k: "netFinal", label: "NET FINAL", fmt: xof, color: (v: number) => v >= 0 ? "#22c55e" : "#ef4444" },
@@ -3722,10 +3729,10 @@ function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
         <div className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: "var(--sk-t4)" }}>Commissions plateformes</div>
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className={lbl} style={{ color: "var(--sk-t3)" }}>Commission Yango (%)</label>
+            <label className={lbl} style={{ color: "var(--sk-t3)" }}>{`Commission ${platLabel()} (%)`}</label>
             <input type="number" value={cfg.comm_yango} onChange={(e) => set("comm_yango", parseFloat(e.target.value) || 0)}
               className={inp} style={inpStyle} step="0.1" />
-            <div className="text-[10px] mt-1" style={{ color: "var(--sk-t4)" }}>Prélevée par Yango sur le brut</div>
+            <div className="text-[10px] mt-1" style={{ color: "var(--sk-t4)" }}>{`Prélevée par ${platLabel()} sur le brut`}</div>
           </div>
           <div>
             <label className={lbl} style={{ color: "var(--sk-t3)" }}>Commission Partenaire (%)</label>

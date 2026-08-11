@@ -14,6 +14,7 @@ import {
   ResponsiveContainer, Treemap,
 } from "recharts";
 import { Home, Gauge, Users, LogOut, Car, Plus } from "lucide-react";
+import { displayLabel } from "@/lib/tenant/platformLabel";
 
 const EXPENSE_COLORS = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#a855f7"];
 
@@ -78,11 +79,13 @@ function periodRange(key: PeriodKey): { from: string; to: string; label: string 
 interface Props {
   tenantId: string;
   appName: string;
+  platformLabel?: string; // mot affiché à la place de « Yango » (migration 038)
   onSwitchToFull: () => void;
   onSignOut: () => void;
 }
 
-export default function SimpleModeAdmin({ tenantId, appName, onSwitchToFull, onSignOut }: Props) {
+export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSwitchToFull, onSignOut }: Props) {
+  const plat = platformLabel || "Yango";
   const [tab, setTab] = useState<"accueil" | "pilotage" | "equipe">("accueil");
   const [periodKey, setPeriodKey] = useState<PeriodKey>("month");
   const period = periodRange(periodKey);
@@ -366,9 +369,9 @@ export default function SimpleModeAdmin({ tenantId, appName, onSwitchToFull, onS
                       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12px] font-mono rounded-xl p-3 mb-2.5"
                         style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
                         {[
-                          ["Brut Yango", xof(r.yango_gross || 0)],
-                          ["Bonus Yango", xof(r.yango_bonus || 0)],
-                          ["Hors Yango", xof(r.off_yango_revenue || 0)],
+                          [`Brut ${plat}`, xof(r.yango_gross || 0)],
+                          [`Bonus ${plat}`, xof(r.yango_bonus || 0)],
+                          [`Hors ${plat}`, xof(r.off_yango_revenue || 0)],
                           ["Commission", `− ${xof(r.commission_amount || 0)}`],
                           ["Net", xof(r.net_after_expenses || 0)],
                           ["Solde wallet", xof(r.solde_yango || 0)],
@@ -407,7 +410,7 @@ export default function SimpleModeAdmin({ tenantId, appName, onSwitchToFull, onS
                     className="w-full flex items-center gap-3 py-2.5 text-left">
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold truncate">
-                        Dépense · {e.category || "Autre"} · {driverNames[e.driver_id] || e._profile?.full_name || "Chauffeur"}
+                        Dépense · {displayLabel(e.category || "Autre")} · {driverNames[e.driver_id] || e._profile?.full_name || "Chauffeur"}
                       </div>
                       <div className="text-[11.5px] font-mono" style={{ color: "var(--sk-t3)" }}>
                         {xof(e.amount || 0)} XOF · {e.expense_date || e.created_at?.slice(0, 10)}
@@ -454,8 +457,8 @@ export default function SimpleModeAdmin({ tenantId, appName, onSwitchToFull, onS
                     <YAxis stroke="var(--sk-t3)" tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
                     <Tooltip contentStyle={chartTooltip} formatter={(v: any) => [Number(v).toLocaleString("fr-FR") + " XOF"]} />
                     <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                    <Bar dataKey="brutYango" fill="#f5a623" name="Brut Yango" radius={[3, 3, 0, 0]} />
-                    <Bar dataKey="horsYango" fill="#a855f7" name="Hors Yango" radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="brutYango" fill="#f5a623" name={`Brut ${plat}`} radius={[3, 3, 0, 0]} />
+                    <Bar dataKey="horsYango" fill="#a855f7" name={`Hors ${plat}`} radius={[3, 3, 0, 0]} />
                     <Bar dataKey="netFinal" fill="#22c55e" name="Net final" radius={[3, 3, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
@@ -468,7 +471,7 @@ export default function SimpleModeAdmin({ tenantId, appName, onSwitchToFull, onS
                 <div className="rounded-2xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
                   <ResponsiveContainer width="100%" height={240}>
                     <Treemap
-                      data={kpis.expenseBreakdown.map((cat) => ({ name: cat.type, size: cat.amount, percent: cat.percent }))}
+                      data={kpis.expenseBreakdown.map((cat) => ({ name: displayLabel(cat.type), size: cat.amount, percent: cat.percent }))}
                       dataKey="size" aspectRatio={16 / 9} isAnimationActive={false}
                       content={<TreemapCell />}>
                       <Tooltip contentStyle={chartTooltip}

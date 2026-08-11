@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/tenant/context";
+import { setPlatformLabel, platLabel, displayLabel } from "@/lib/tenant/platformLabel";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import NotificationBell from "@/components/NotificationBell";
 import { resolveRates, computeCommissions } from "@/lib/calc";
@@ -74,6 +75,9 @@ export default function DriverApp() {
   const [cfg, setCfg] = useState<Cfg>(DEFAULT_CFG);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
+  // Libellé plateforme (migration 038) : lu depuis le tenant du profil (RLS),
+  // le branding par hostname n'étant pas fiable sur le domaine vercel.app.
+  const [plat, setPlat] = useState<string>(settings.platform_label || "Yango");
 
   useEffect(() => {
     if (!loading && !user) router.push("/auth/login");
@@ -97,6 +101,9 @@ export default function DriverApp() {
         setProfile(data);
         // Load remuneration config for this tenant
         if (data.tenant_id) {
+          // Libellé plateforme du tenant (select * : tolère migration 038 absente)
+          void supabase.from("tenant_settings").select("*").eq("tenant_id", data.tenant_id).maybeSingle()
+            .then(({ data: ts }: any) => { if (ts?.platform_label) { setPlatformLabel(ts.platform_label); setPlat(ts.platform_label); } });
           const { data: remun } = await supabase
             .from("remuneration_config")
             .select("*")
@@ -499,7 +506,7 @@ function AiScanBlock({ date, disabled, onExtracted }: { date: string; disabled: 
         <ScanLine size={13} strokeWidth={2} />Pré-remplissage par photo
       </div>
       <div className="text-xs mb-3" style={{ color: "var(--sk-t3)" }}>
-        Ajoute tes captures Yango Pro et/ou une photo du compteur : les champs se remplissent seuls, tu vérifies et tu corriges si besoin.
+        {`Ajoute tes captures ${platLabel()} Pro et/ou une photo du compteur : les champs se remplissent seuls, tu vérifies et tu corriges si besoin.`}
       </div>
       <label className="block w-full py-2.5 rounded-xl text-xs font-bold text-center cursor-pointer"
         style={{ background: phase === "working" ? "rgba(34,197,94,.15)" : "linear-gradient(135deg,#22c55e,#16a34a)", color: phase === "working" ? "#22c55e" : "#04110a", opacity: disabled ? 0.5 : 1 }}>
@@ -516,7 +523,7 @@ function AiScanBlock({ date, disabled, onExtracted }: { date: string; disabled: 
           <div className="flex flex-wrap gap-1.5">
             {Object.entries(result.fields).filter(([, v]) => v !== null).map(([k, v]) => (
               <span key={k} className="text-xs px-2 py-1 rounded-lg font-mono" style={{ background: "var(--sk-deep)", border: `1px solid ${confColor(result.confidences[k] ?? 0)}44`, color: "var(--sk-t2)" }}>
-                <span style={{ color: confColor(result.confidences[k] ?? 0) }}>●</span> {AI_FIELD_LABELS[k] ?? k} : {Number(v).toLocaleString("fr-FR")}
+                <span style={{ color: confColor(result.confidences[k] ?? 0) }}>●</span> {displayLabel(AI_FIELD_LABELS[k] ?? k)} : {Number(v).toLocaleString("fr-FR")}
               </span>
             ))}
           </div>
@@ -651,7 +658,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
   const canEdit = !todayReport || todayReport.status === "rejected";
 
   const submit = async () => {
-    if (!form.yango_gross && !form.off_yango_revenue) { alert("Renseignez au moins un montant (Yango ou Hors Yango)"); return; }
+    if (!form.yango_gross && !form.off_yango_revenue) { alert(`Renseignez au moins un montant (${platLabel()} ou Hors ${platLabel()})`); return; }
     setSaving(true);
     try {
       const supabase = createClient() as any;
@@ -792,24 +799,24 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         </Field>
         <Field label="Compteur km fin de journée" icon={Gauge}><InpText type="number" placeholder="ex: 48900" value={form.end_odometer} onChange={(v) => set("end_odometer", v)} disabled={!canEdit} /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Espèces (app Yango)"><InpText type="number" placeholder="0" value={form.yango_cash} onChange={(v) => set("yango_cash", v)} disabled={!canEdit} /></Field>
+          <Field label={`Espèces (app ${platLabel()})`}><InpText type="number" placeholder="0" value={form.yango_cash} onChange={(v) => set("yango_cash", v)} disabled={!canEdit} /></Field>
           <Field label="Carte (si affiché)"><InpText type="number" placeholder="0" value={form.yango_card} onChange={(v) => set("yango_card", v)} disabled={!canEdit} /></Field>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <Field label={form.yango_cash || form.yango_card ? "Brut Yango (= espèces + carte)" : "Brut Yango *"}>
+          <Field label={form.yango_cash || form.yango_card ? `Brut ${platLabel()} (= espèces + carte)` : `Brut ${platLabel()} *`}>
             <InpText type="number" placeholder="0" value={form.yango_gross} onChange={(v) => set("yango_gross", v)} disabled={!canEdit || !!(form.yango_cash || form.yango_card)} />
           </Field>
-          <Field label="Bonus Yango"><InpText type="number" placeholder="0" value={form.yango_bonus} onChange={(v) => set("yango_bonus", v)} disabled={!canEdit} /></Field>
+          <Field label={`Bonus ${platLabel()}`}><InpText type="number" placeholder="0" value={form.yango_bonus} onChange={(v) => set("yango_bonus", v)} disabled={!canEdit} /></Field>
         </div>
-        <Field label="Hors Yango (XOF)"><InpText type="number" placeholder="0" value={form.off_yango_revenue} onChange={(v) => set("off_yango_revenue", v)} disabled={!canEdit} /></Field>
-        <Field label="Solde Yango (wallet fin de journée)" icon={Wallet}><InpText type="number" placeholder="ex: 15 000" value={form.solde_yango} onChange={(v) => set("solde_yango", v)} disabled={!canEdit} /></Field>
+        <Field label={`Hors ${platLabel()} (XOF)`}><InpText type="number" placeholder="0" value={form.off_yango_revenue} onChange={(v) => set("off_yango_revenue", v)} disabled={!canEdit} /></Field>
+        <Field label={`Solde ${platLabel()} (wallet fin de journée)`} icon={Wallet}><InpText type="number" placeholder="ex: 15 000" value={form.solde_yango} onChange={(v) => set("solde_yango", v)} disabled={!canEdit} /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Courses Yango"><InpText type="number" placeholder="0" value={form.yango_trip_count} onChange={(v) => set("yango_trip_count", v)} disabled={!canEdit} /></Field>
+          <Field label={`Courses ${platLabel()}`}><InpText type="number" placeholder="0" value={form.yango_trip_count} onChange={(v) => set("yango_trip_count", v)} disabled={!canEdit} /></Field>
           <Field label="Courses hors"><InpText type="number" placeholder="0" value={form.off_yango_trip_count} onChange={(v) => set("off_yango_trip_count", v)} disabled={!canEdit} /></Field>
         </div>
-        <Field label="➕ Service supplémentaire Yango (optionnel)"><InpText type="number" placeholder="0" value={form.service_supplementaire} onChange={(v) => set("service_supplementaire", v)} disabled={!canEdit} /></Field>
+        <Field label={`➕ Service supplémentaire ${platLabel()} (optionnel)`}><InpText type="number" placeholder="0" value={form.service_supplementaire} onChange={(v) => set("service_supplementaire", v)} disabled={!canEdit} /></Field>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Comm. Yango (lue dans l'app)"><InpText type="number" placeholder="0" value={form.commission_yango_reelle} onChange={(v) => set("commission_yango_reelle", v)} disabled={!canEdit} /></Field>
+          <Field label={`Comm. ${platLabel()} (lue dans l'app)`}><InpText type="number" placeholder="0" value={form.commission_yango_reelle} onChange={(v) => set("commission_yango_reelle", v)} disabled={!canEdit} /></Field>
           <Field label="Comm. partenaire (lue)"><InpText type="number" placeholder="0" value={form.commission_partenaire_reelle} onChange={(v) => set("commission_partenaire_reelle", v)} disabled={!canEdit} /></Field>
         </div>
 
@@ -817,17 +824,17 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
           // MODE RÉEL — éléments lus dans l'app Yango, pris tels quels.
           // Aucune commission calculée : le net est la simple somme des éléments.
           <div className="rounded-2xl p-4" style={{ background: "rgba(34,197,94,.04)", border: "1px solid rgba(34,197,94,.15)" }}>
-            <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "#22c55e" }}>Éléments réels Yango</div>
+            <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "#22c55e" }}>{`Éléments réels ${platLabel()}`}</div>
             {[
               ...(n(form.yango_cash) > 0 ? [["Espèces", n(form.yango_cash), false]] : []),
               ...(n(form.yango_card) > 0 ? [["Carte", n(form.yango_card), false]] : []),
-              ["Brut Yango (espèces + carte)", reel.brutYango, false],
+              [`Brut ${platLabel()} (espèces + carte)`, reel.brutYango, false],
               ["Bonus", n(form.yango_bonus), false],
-              ["Commission Yango (app)", n(form.commission_yango_reelle), true],
+              [`Commission ${platLabel()} (app)`, n(form.commission_yango_reelle), true],
               ...(n(form.service_supplementaire) > 0 ? [["Services supplémentaires (app)", n(form.service_supplementaire), true]] : []),
               ["Comm. partenaire (app)", n(form.commission_partenaire_reelle), true],
-              ["Net Yango", reel.netYango, false],
-              ...(n(form.off_yango_revenue) > 0 ? [["Hors Yango", n(form.off_yango_revenue), false]] : []),
+              [`Net ${platLabel()}`, reel.netYango, false],
+              ...(n(form.off_yango_revenue) > 0 ? [[`Hors ${platLabel()}`, n(form.off_yango_revenue), false]] : []),
               ...(n(form.solde_yango) > 0 ? [["Solde wallet", n(form.solde_yango), false]] : []),
             ].map(([l, v, neg]) => (
               <div key={String(l)} className="flex justify-between text-xs py-1.5" style={{ borderBottom: "1px solid rgba(34,197,94,.07)" }}>
@@ -843,7 +850,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         ) : (n(form.yango_gross) > 0 || n(form.yango_bonus) > 0 || n(form.off_yango_revenue) > 0) && (
           <div className="rounded-2xl p-4" style={{ background: "rgba(245,166,35,.04)", border: "1px solid rgba(245,166,35,.15)" }}>
             <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: "#f5a623" }}>Aperçu calcul</div>
-            {[["Base Yango", calc.base, false], [`Commission Yango (${rates.yangoPct}%)`, calc.commYango, true], [`Comm. partenaire (${rates.partnerPct.toFixed(2)}%)`, calc.commPartner, true], ...(calc.serviceSupp > 0 ? [["Service supplémentaire", calc.serviceSupp, true]] : []), ["Net Yango", calc.netYango, false], ["Hors Yango", n(form.off_yango_revenue), false], ...(n(form.solde_yango) > 0 ? [["Solde wallet", n(form.solde_yango), false]] : [])].map(([l, v, neg]) => (
+            {[[`Base ${platLabel()}`, calc.base, false], [`Commission ${platLabel()} (${rates.yangoPct}%)`, calc.commYango, true], [`Comm. partenaire (${rates.partnerPct.toFixed(2)}%)`, calc.commPartner, true], ...(calc.serviceSupp > 0 ? [["Service supplémentaire", calc.serviceSupp, true]] : []), [`Net ${platLabel()}`, calc.netYango, false], [`Hors ${platLabel()}`, n(form.off_yango_revenue), false], ...(n(form.solde_yango) > 0 ? [["Solde wallet", n(form.solde_yango), false]] : [])].map(([l, v, neg]) => (
               <div key={String(l)} className="flex justify-between text-xs py-1.5" style={{ borderBottom: "1px solid rgba(245,166,35,.07)" }}>
                 <span style={{ color: "var(--sk-t3)" }}>{l}</span>
                 <span className="font-mono font-semibold" style={{ color: neg ? "#ef4444" : "var(--sk-t2)" }}>{neg ? "- " : ""}{xof(Math.abs(Number(v)))}</span>
@@ -1083,7 +1090,7 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
           <select value={form.type} onChange={(e) => set("type", e.target.value)}
             className="w-full rounded-xl px-4 py-3 text-sm outline-none"
             style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }}>
-            {expenseTypes.map((t) => <option key={t}>{t}</option>)}
+            {expenseTypes.map((t) => <option key={t} value={t}>{displayLabel(t)}</option>)}
           </select>
         </Field>
         <Field label="Montant (XOF) *"><InpText type="number" placeholder="ex: 8 000" value={form.amount} onChange={(v) => set("amount", v)} /></Field>
@@ -1305,11 +1312,11 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
             <div className="pt-2 space-y-1 text-xs" style={{ color: "var(--sk-t3)" }}>
               {[
                 ["Km fin de journée", report.end_odometer ? `${report.end_odometer} km` : null],
-                ["Brut Yango", report.yango_gross ? xof(report.yango_gross) : null],
-                ["Bonus Yango", report.yango_bonus ? xof(report.yango_bonus) : null],
-                ["Hors Yango", report.off_yango_revenue ? xof(report.off_yango_revenue) : null],
+                [`Brut ${platLabel()}`, report.yango_gross ? xof(report.yango_gross) : null],
+                [`Bonus ${platLabel()}`, report.yango_bonus ? xof(report.yango_bonus) : null],
+                [`Hors ${platLabel()}`, report.off_yango_revenue ? xof(report.off_yango_revenue) : null],
                 ["Solde wallet", report.solde_yango ? xof(report.solde_yango) : null],
-                ["Courses Yango", report.yango_trip_count],
+                [`Courses ${platLabel()}`, report.yango_trip_count],
                 ["Courses hors", report.off_yango_trip_count],
                 ["Net total", report.net_after_expenses ? xof(report.net_after_expenses) : null],
               ].map(([l, v]) => v != null ? (
@@ -1328,11 +1335,11 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
               <div className="grid grid-cols-2 gap-2">
                 {[
                   ["Km fin journée", "end_odometer"],
-                  ["Brut Yango", "yango_gross"],
-                  ["Bonus Yango", "yango_bonus"],
-                  ["Hors Yango", "off_yango_revenue"],
+                  [`Brut ${platLabel()}`, "yango_gross"],
+                  [`Bonus ${platLabel()}`, "yango_bonus"],
+                  [`Hors ${platLabel()}`, "off_yango_revenue"],
                   ["Solde wallet", "solde_yango"],
-                  ["Courses Yango", "yango_trip_count"],
+                  [`Courses ${platLabel()}`, "yango_trip_count"],
                   ["Courses hors", "off_yango_trip_count"],
                 ].map(([label, key]) => (
                   <div key={key}>
@@ -1444,7 +1451,7 @@ function ExpenseCard({ expense, driverId, profile, onRefresh }: { expense: any; 
       <div className="flex items-start justify-between p-4">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <div className="font-semibold text-sm text-white">{expense.category}</div>
+            <div className="font-semibold text-sm text-white">{displayLabel(expense.category || "")}</div>
             {statusBadge(expense.status || "submitted")}
           </div>
           <div className="flex items-center gap-1 text-xs mt-0.5" style={{ color: "var(--sk-t4)" }}>
@@ -2095,7 +2102,7 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
         <div className="text-[10px] mb-2" style={{ color: "var(--sk-t4)" }}>
           {cfg.model === "location"
             ? `= CA projeté − loyer mensuel (${cfg.daily_rent.toLocaleString("fr-FR")} XOF/j × ${stats.daysInMonth}j)`
-            : `= Brut Yango − comm. Yango (${cfg.comm_yango}%) − comm. partenaire (${cfg.comm_partner}%)`}
+            : `= Brut ${platLabel()} − comm. ${platLabel()} (${cfg.comm_yango}%) − comm. partenaire (${cfg.comm_partner}%)`}
         </div>
         {cfg.model === "tiered" && (
           <div className="text-sm" style={{ color: "var(--sk-t3)" }}>Palier projeté : <span className="font-bold" style={{ color: "#f5a623" }}>{stats.tier.label}</span> → salaire <span className="font-mono font-bold" style={{ color: "#22c55e" }}>{xof(stats.tier.total_salary)}</span></div>
@@ -2165,7 +2172,7 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
               <div className="rounded-xl p-3" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
                 <div className="text-[10px] mb-1" style={{ color: "var(--sk-t4)" }}>Commissions/jour</div>
                 <div className="text-sm font-mono font-bold" style={{ color: "#ef4444" }}>{xof(Math.round(stats.avgDailyWalletBurn))}</div>
-                <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Yango + partenaire + frais</div>
+                <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>{`${platLabel()} + partenaire + frais`}</div>
               </div>
             )}
             {stats.avgPricePerLiter != null && (

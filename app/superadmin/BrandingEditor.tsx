@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 interface Props {
   tenantId: string;
   superadminKey: string;
-  initial: { app_name?: string; primary_color?: string; operator_name?: string; logo_url?: string | null; skin?: string | null; ui_mode?: string | null };
+  initial: { app_name?: string; primary_color?: string; operator_name?: string; logo_url?: string | null; skin?: string | null; ui_mode?: string | null; platform_label?: string | null };
   notify: (text: string, ok?: boolean) => void;
   onSaved: () => void;
 }
@@ -20,6 +20,7 @@ export default function BrandingEditor({ tenantId, superadminKey, initial, notif
   const [color, setColor] = useState(initial.primary_color || "#f5a623");
   const [skin, setSkin] = useState(initial.skin || "midnight");
   const [uiMode, setUiMode] = useState(initial.ui_mode || "full");
+  const [platformLabel, setPlatformLabel] = useState(initial.platform_label || "Yango");
   const [operator, setOperator] = useState(initial.operator_name || "");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(initial.logo_url || null);
@@ -46,6 +47,7 @@ export default function BrandingEditor({ tenantId, superadminKey, initial, notif
       if (color) fd.set("primary_color", color);
       fd.set("skin", skin);
       fd.set("ui_mode", uiMode);
+      if (platformLabel.trim()) fd.set("platform_label", platformLabel.trim());
       fd.set("operator_name", operator);
       if (logoFile) fd.set("logo", logoFile);
       if (removeLogo && !logoFile) fd.set("removeLogo", "1");
@@ -122,6 +124,10 @@ export default function BrandingEditor({ tenantId, superadminKey, initial, notif
               <option value="slate">Slate (bleuté)</option>
               <option value="graphite">Graphite (neutre)</option>
             </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 10, color: "#6b7280", display: "block", marginBottom: 3 }}>Libellé plateforme (ex : Yango, App, Courses)</label>
+            <input value={platformLabel} onChange={e => setPlatformLabel(e.target.value)} placeholder="Yango" style={inputStyle} />
           </div>
           <div>
             <label style={{ fontSize: 10, color: "#6b7280", display: "block", marginBottom: 3 }}>Interface admin</label>
