@@ -86,13 +86,20 @@ export default function SimpleModeAdmin({ tenantId, appName, onSwitchToFull, onS
   const [tab, setTab] = useState<"accueil" | "pilotage" | "equipe">("accueil");
   const [periodKey, setPeriodKey] = useState<PeriodKey>("month");
   const period = periodRange(periodKey);
-  const kpis = useDashboardKPIs(period.from, period.to, tenantId);
+  // refreshTick force un rechargement des KPIs après une validation : "" et
+  // undefined sont équivalents pour le filtre chauffeur (aucun), mais changent
+  // les deps du hook → refetch sans dupliquer sa logique.
+  const [refreshTick, setRefreshTick] = useState(0);
+  const kpis = useDashboardKPIs(period.from, period.to, tenantId, refreshTick % 2 === 0 ? "" : undefined);
 
-  // ── Soumissions en attente (la validation reste visible : sans elle le
-  //    dashboard du propriétaire resterait vide) ──
+  // ── Flux de validation complet (rapports + dépenses) : le mode simple doit
+  //    se suffire à lui-même, sans passer par le mode avancé. Mêmes écritures
+  //    que l'UI complète : statut + action_logs + notification push chauffeur.
   const [pending, setPending] = useState<any[]>([]);
+  const [pendingExp, setPendingExp] = useState<any[]>([]);
   const [driverNames, setDriverNames] = useState<Record<string, string>>({});
-  const [approving, setApproving] = useState<string | null>(null);
+  const [acting, setActing] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const loadPending = useCallback(async () => {
     try {
@@ -105,20 +112,56 @@ export default function SimpleModeAdmin({ tenantId, appName, onSwitchToFull, onS
       if (!res.ok) return;
       const json = await res.json();
       setPending((json.reports || []).filter((r: any) => r.status === "submitted"));
+      setPendingExp((json.expenses || []).filter((e: any) => e.status === "submitted"));
     } catch { /* silencieux — le bloc s'affiche vide */ }
   }, [tenantId]);
 
   useEffect(() => { loadPending(); }, [loadPending]);
 
-  const approveReport = async (id: string) => {
-    setApproving(id);
+  const afterAction = async () => {
+    await loadPending();
+    setRefreshTick((t) => t + 1); // les hero/graphes reflètent la validation
+  };
+
+  const reportAction = async (r: any, status: "approved" | "rejected") => {
+    setActing(r.id);
     try {
       const supabase = createClient() as any;
-      const { error } = await supabase.from("daily_reports").update({ status: "approved" }).eq("id", id);
-      if (!error) { await loadPending(); }
-      else alert("Erreur lors de la validation");
+      const { error } = await supabase.from("daily_reports").update({ status }).eq("id", r.id);
+      if (error) throw error;
+      void supabase.from("action_logs").insert({
+        tenant_id: r.tenant_id, actor_role: "admin",
+        entity_type: "daily_report", entity_id: r.id, action: status,
+        metadata: { date: r.date, net: r.net_after_expenses },
+      });
+      void fetch("/api/notifications/trigger", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: `report_${status}`, tenantId: r.tenant_id, driverId: r.driver_id, data: { date: r.date } }),
+      });
+      await afterAction();
+    } catch (err: any) {
+      alert("Erreur : " + (err.message || "validation impossible"));
     } finally {
-      setApproving(null);
+      setActing(null);
+    }
+  };
+
+  const expenseAction = async (e: any, status: "approved" | "rejected") => {
+    setActing(e.id);
+    try {
+      const supabase = createClient() as any;
+      const { error } = await supabase.from("expenses").update({ status }).eq("id", e.id);
+      if (error) throw error;
+      void supabase.from("action_logs").insert({
+        tenant_id: e.tenant_id, actor_role: "admin",
+        entity_type: "expense", entity_id: e.id, action: status,
+        metadata: { category: e.category, amount: e.amount },
+      });
+      await afterAction();
+    } catch (err: any) {
+      alert("Erreur : " + (err.message || "validation impossible"));
+    } finally {
+      setActing(null);
     }
   };
 
@@ -296,29 +339,106 @@ export default function SimpleModeAdmin({ tenantId, appName, onSwitchToFull, onS
               <KpiCard label="Dépenses" value={`− ${xof(kpis.totalDepenses)}`} color="#ef4444" sub="carburant · solde · autres" />
             </div>
 
-            {/* À valider */}
-            {pending.length > 0 && (
-              <div className="rounded-2xl p-4 mt-3 border-l-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderLeft: "4px solid #f5a623" }}>
-                <div className="text-[11px] uppercase tracking-widest font-bold mb-1" style={{ color: "var(--sk-t3)" }}>
-                  À valider ({pending.length})
-                </div>
-                {pending.slice(0, 8).map((r: any) => (
-                  <div key={r.id} className="flex items-center gap-3 py-2.5 border-t first:border-t-0" style={{ borderColor: "var(--sk-surface)" }}>
+            {/* À valider — rapports + dépenses, détails dépliables, valider/rejeter */}
+            <div className="rounded-2xl p-4 mt-3 border-l-4"
+              style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderLeft: `4px solid ${pending.length + pendingExp.length > 0 ? "#f5a623" : "#22c55e"}` }}>
+              <div className="text-[11px] uppercase tracking-widest font-bold mb-1" style={{ color: "var(--sk-t3)" }}>
+                À valider {pending.length + pendingExp.length > 0 ? `(${pending.length + pendingExp.length})` : ""}
+              </div>
+              {pending.length + pendingExp.length === 0 && (
+                <div className="text-sm py-1.5" style={{ color: "var(--sk-t2)" }}>Rien en attente — tout est validé ✓</div>
+              )}
+
+              {pending.map((r: any) => (
+                <div key={r.id} className="border-t first:border-t-0" style={{ borderColor: "var(--sk-surface)" }}>
+                  <button onClick={() => setExpanded(expanded === r.id ? null : r.id)}
+                    className="w-full flex items-center gap-3 py-2.5 text-left">
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold truncate">{driverNames[r.driver_id] || r.driver_name || "Chauffeur"} · {r.date}</div>
+                      <div className="text-sm font-semibold truncate">{driverNames[r.driver_id] || "Chauffeur"} · {r.date}</div>
                       <div className="text-[11.5px] font-mono" style={{ color: "var(--sk-t3)" }}>
                         Brut {xof((r.yango_gross || 0) + (r.yango_bonus || 0) + (r.off_yango_revenue || 0))} · Net {xof(r.net_after_expenses || 0)} XOF
                       </div>
                     </div>
-                    <button onClick={() => approveReport(r.id)} disabled={approving === r.id}
-                      className="text-xs px-3.5 py-2 rounded-xl font-bold"
-                      style={{ background: "#22c55e", color: "#06130a", opacity: approving === r.id ? 0.6 : 1 }}>
-                      {approving === r.id ? "…" : "Valider"}
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+                    <span className="text-xs" style={{ color: "var(--sk-t3)", transform: expanded === r.id ? "rotate(180deg)" : "none" }}>▾</span>
+                  </button>
+                  {expanded === r.id && (
+                    <div className="pb-3">
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12px] font-mono rounded-xl p-3 mb-2.5"
+                        style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
+                        {[
+                          ["Brut Yango", xof(r.yango_gross || 0)],
+                          ["Bonus Yango", xof(r.yango_bonus || 0)],
+                          ["Hors Yango", xof(r.off_yango_revenue || 0)],
+                          ["Commission", `− ${xof(r.commission_amount || 0)}`],
+                          ["Net", xof(r.net_after_expenses || 0)],
+                          ["Solde wallet", xof(r.solde_yango || 0)],
+                          ["Compteur", r.end_odometer ? `${xof(r.end_odometer)} km` : "—"],
+                          ["Courses", String((r.yango_trip_count || 0) + (r.off_yango_trip_count || 0) || "—")],
+                        ].map(([l, v]) => (
+                          <div key={l as string} className="flex justify-between gap-2">
+                            <span style={{ color: "var(--sk-t3)" }}>{l}</span>
+                            <span className="text-white">{v}</span>
+                          </div>
+                        ))}
+                        {r.comment && (
+                          <div className="col-span-2 font-sans text-[11.5px] pt-1" style={{ color: "var(--sk-t2)" }}>💬 {r.comment}</div>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => reportAction(r, "approved")} disabled={acting === r.id}
+                          className="flex-1 text-xs px-3.5 py-2.5 rounded-xl font-bold"
+                          style={{ background: "#22c55e", color: "#06130a", opacity: acting === r.id ? 0.6 : 1 }}>
+                          {acting === r.id ? "…" : "✓ Valider"}
+                        </button>
+                        <button onClick={() => reportAction(r, "rejected")} disabled={acting === r.id}
+                          className="text-xs px-3.5 py-2.5 rounded-xl font-bold"
+                          style={{ background: "rgba(239,68,68,.14)", color: "#ef4444", border: "1px solid rgba(239,68,68,.3)", opacity: acting === r.id ? 0.6 : 1 }}>
+                          ✗ Rejeter
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {pendingExp.map((e: any) => (
+                <div key={e.id} className="border-t" style={{ borderColor: "var(--sk-surface)" }}>
+                  <button onClick={() => setExpanded(expanded === e.id ? null : e.id)}
+                    className="w-full flex items-center gap-3 py-2.5 text-left">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold truncate">
+                        Dépense · {e.category || "Autre"} · {driverNames[e.driver_id] || e._profile?.full_name || "Chauffeur"}
+                      </div>
+                      <div className="text-[11.5px] font-mono" style={{ color: "var(--sk-t3)" }}>
+                        {xof(e.amount || 0)} XOF · {e.expense_date || e.created_at?.slice(0, 10)}
+                      </div>
+                    </div>
+                    <span className="text-xs" style={{ color: "var(--sk-t3)", transform: expanded === e.id ? "rotate(180deg)" : "none" }}>▾</span>
+                  </button>
+                  {expanded === e.id && (
+                    <div className="pb-3">
+                      {e.description && (
+                        <div className="text-[12px] rounded-xl p-3 mb-2.5" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t2)" }}>
+                          {e.description}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <button onClick={() => expenseAction(e, "approved")} disabled={acting === e.id}
+                          className="flex-1 text-xs px-3.5 py-2.5 rounded-xl font-bold"
+                          style={{ background: "#22c55e", color: "#06130a", opacity: acting === e.id ? 0.6 : 1 }}>
+                          {acting === e.id ? "…" : "✓ Valider"}
+                        </button>
+                        <button onClick={() => expenseAction(e, "rejected")} disabled={acting === e.id}
+                          className="text-xs px-3.5 py-2.5 rounded-xl font-bold"
+                          style={{ background: "rgba(239,68,68,.14)", color: "#ef4444", border: "1px solid rgba(239,68,68,.3)", opacity: acting === e.id ? 0.6 : 1 }}>
+                          ✗ Rejeter
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
 
             <SectionTitle>Recettes par jour</SectionTitle>
             <div className="rounded-2xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
