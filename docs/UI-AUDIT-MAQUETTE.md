@@ -15,7 +15,7 @@ s'ils sont justifiés (contrainte technique ou métier) et documentés ici.
 | Élément maquette | Implémenté | Écart / justification |
 |---|---|---|
 | Hero : Net final (grand) + Recettes brutes + Dépenses | ✅ | Chiffres issus de `useDashboardKPIs` (calc.ts source de vérité) |
-| Bloc « À valider » avec bouton Valider par déclaration | ✅ | Même flux d'approbation que l'onglet Soumissions (update `daily_reports.status`) |
+| Bloc « À valider » avec bouton Valider par déclaration | ✅ | Complété le 11/08 (retour Abdou : « on doit pouvoir y vivre sans le mode avancé ») : rapports ET dépenses en attente, détails dépliables (brut, bonus, commission, net, solde, compteur, courses, commentaire), Valider/Rejeter, mêmes écritures que l'UI complète (statut + action_logs + notification push chauffeur), refresh des KPIs après action |
 | Graphe Recettes par jour (Brut ambre / Hors-app violet / Net vert) | ✅ | Recharts, couleurs identiques à l'UI complète |
 | Treemap « Dépenses par catégorie » (modèle appli originale) | ✅ | Cellule et couleurs `EXPENSE_COLORS` reprises à l'identique |
 | KPI opérationnels : KM/jour · Solde conso/jour · Coût au km · Net moyen/jour | ✅ | Coût/km = (solde consommé + carburant consommé) / km total |
