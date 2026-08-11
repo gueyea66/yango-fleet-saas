@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
 import { usePilotage, DEFAULT_PARAMS, xofFmt, type PilotageParams } from "@/lib/hooks/usePilotage";
 import { useTenant } from "@/lib/tenant/context";
+import { setPlatformLabel, platLabel, displayLabel } from "@/lib/tenant/platformLabel";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
@@ -71,6 +72,18 @@ export default function PilotagePage() {
   useEffect(() => { setShowFilters(localStorage.getItem("m3a_filters_on") !== "0"); }, []);
   const toggleFilters = (v: boolean) => { setShowFilters(v); localStorage.setItem("m3a_filters_on", v ? "1" : "0"); };
 
+  // Libellé plateforme (migration 038) : lu depuis tenant_settings, le tick
+  // force un re-render pour que platLabel() soit relu dans toute la page.
+  const [, setPlatTick] = useState(0);
+  useEffect(() => {
+    if (!tenantId) return;
+    (async () => {
+      const sb = createClient() as any;
+      const { data: ts } = await sb.from("tenant_settings").select("*").eq("tenant_id", tenantId).maybeSingle();
+      if (ts?.platform_label) { setPlatformLabel(ts.platform_label); setPlatTick((t) => t + 1); }
+    })();
+  }, [tenantId]);
+
   // Resolve tenantId + load driver/vehicle lists once on mount
   useEffect(() => {
     if (!user) return;
@@ -112,7 +125,7 @@ export default function PilotagePage() {
      <div className="space-y-4">
        <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#f5a623" }}>Paramètres du modèle</div>
        {([
-         ["commYango",               "Comm. Yango",       "%"] as const,
+         ["commYango",               `Comm. ${platLabel()}`, "%"] as const,
          ["commPartner",             "Comm. Partenaire",  "%"] as const,
          ["workingDaysPerMonth",     "Jours / mois",      "j"] as const,
          ["targetMonthlyNet",        "Objectif net",      "XOF"] as const,
@@ -448,7 +461,7 @@ function PnLDetailed({ data }: { data: ReturnType<typeof usePilotage> }) {
               <PnLRow label="📈 Chiffre d'affaires net" values={all.map((m) => m.revenue)} color="#f5a623" bold />
               {/* Expense categories */}
               {allCats.map((cat, ci) => (
-                <PnLRow key={cat} label={`  ${cat}`} color={CAT_COLORS[ci % CAT_COLORS.length]}
+                <PnLRow key={cat} label={`  ${displayLabel(cat)}`} color={CAT_COLORS[ci % CAT_COLORS.length]}
                   values={all.map((m) => -(m.expensesByCategory.find((e) => e.category === cat)?.amount ?? 0))} />
               ))}
               <PnLRow label="Sous-total dépenses" values={all.map((m) => -m.totalExpenses)} color="#ef4444" sub />
@@ -489,7 +502,7 @@ function PnLDetailed({ data }: { data: ReturnType<typeof usePilotage> }) {
                 {data.globalExpBreakdown.map((e, i) => (
                   <div key={e.category} className="flex items-center gap-2 text-xs">
                     <div className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ background: CAT_COLORS[i % CAT_COLORS.length] }} />
-                    <span className="flex-1 truncate" style={{ color: "var(--sk-t2)" }}>{e.category}</span>
+                    <span className="flex-1 truncate" style={{ color: "var(--sk-t2)" }}>{displayLabel(e.category)}</span>
                     <span className="font-mono font-bold text-white">{pct(e.pct)}</span>
                     <span className="font-mono text-xs" style={{ color: "var(--sk-t4)" }}>{xof(e.amount)}</span>
                   </div>
@@ -556,7 +569,7 @@ function CashFlowSection({ data, params }: { data: ReturnType<typeof usePilotage
           const rows = [
             { label: "CA net", value: cf.revenue, color: "#f5a623", positive: true },
             { label: `⛽ Carburant (~${params.fuelPctOfRevenue}%)`, value: cf.fuel, color: "#ef4444" },
-            { label: `💳 Solde Yango (~${params.soldePctOfRevenue}%)`, value: cf.solde, color: "#f97316" },
+            { label: `💳 Solde ${platLabel()} (~${params.soldePctOfRevenue}%)`, value: cf.solde, color: "#f97316" },
             { label: "📦 Autres dépenses", value: cf.other, color: "var(--sk-t2)" },
             { label: "🔧 Maintenance", value: cf.maintenance, color: "var(--sk-t3)" },
             { label: "💵 Salaires", value: cf.salaries, color: "#f97316" },
@@ -617,7 +630,7 @@ function DriversSection({ data, params }: { data: ReturnType<typeof usePilotage>
 
   return (
     <div className="space-y-6">
-      <SH title="🚗 Pilotage Conducteurs" sub="Tous les montants en NET après commissions Yango (15%) + Partenaire (0,75%) · Rapports validés uniquement" />
+      <SH title="🚗 Pilotage Conducteurs" sub={`Tous les montants en NET après commissions ${platLabel()} (15%) + Partenaire (0,75%) · Rapports validés uniquement`} />
       {data.drivers.map((d) => {
         const mtdPct = params.targetMonthlyNet > 0 ? Math.min(100, (d.mtdNet / params.targetMonthlyNet) * 100) : 0;
         const projPct = params.targetMonthlyNet > 0 ? Math.min(100, (d.projectedMonthNet / params.targetMonthlyNet) * 100) : 0;
@@ -653,7 +666,7 @@ function DriversSection({ data, params }: { data: ReturnType<typeof usePilotage>
                 <div className="h-3 rounded-full overflow-hidden relative" style={{ background: "var(--sk-surface)" }}>
                   <div className="h-full rounded-full" style={{ width: `${mtdPct}%`, background: "linear-gradient(90deg,#f5a623,#fbbf24)" }} />
                 </div>
-                <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t3)" }}>Réalisé: {mtdPct.toFixed(0)}% · <span style={{ color: "var(--sk-t4)" }}>net après comm. Yango+partenaire</span></div>
+                <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t3)" }}>Réalisé: {mtdPct.toFixed(0)}% · <span style={{ color: "var(--sk-t4)" }}>{`net après comm. ${platLabel()}+partenaire`}</span></div>
               </div>
               <div>
                 <div className="flex justify-between text-xs mb-1">
@@ -870,8 +883,8 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
           { icon: "🚗", label: "Courses / jour", value: hasCourses ? data.avgDailyMetrics.avgCourses.toFixed(1) : "—", sub: hasFare ? `Prix moy: ${xof(data.avgDailyMetrics.avgFare)} XOF` : "Déclarez via rapport", color: "#22c55e" },
           { icon: "📍", label: "KM / jour", value: hasKm ? data.avgDailyMetrics.avgKm.toFixed(0) + " km" : "—", sub: hasKm && revenuePerKm > 0 ? `${xof(revenuePerKm)} XOF/km` : "Renseignez l'odomètre", color: "var(--sk-t2)" },
           { icon: "⛽", label: "Carburant / jour", value: xof(data.avgDailyMetrics.fuelRawDailyAvg), sub: data.avgDailyMetrics.fuelPricePerLiter > 0 ? `${xof(data.avgDailyMetrics.fuelPricePerLiter)} XOF/L · ${data.avgDailyMetrics.totalLiters.toFixed(0)}L` : "Ajoutez les litres en description", color: "#f97316" },
-          { icon: "💳", label: "Solde Yango / jour", value: xof(data.avgDailyMetrics.solde), sub: "Wallet moyen déclaré", color: "#3b82f6" },
-          { icon: "🎯", label: "Prix moyen course", value: hasFare ? xof(data.avgDailyMetrics.avgFare) + " XOF" : "—", sub: "Brut Yango ÷ nb courses", color: "#a855f7" },
+          { icon: "💳", label: `Solde ${platLabel()} / jour`, value: xof(data.avgDailyMetrics.solde), sub: "Wallet moyen déclaré", color: "#3b82f6" },
+          { icon: "🎯", label: "Prix moyen course", value: hasFare ? xof(data.avgDailyMetrics.avgFare) + " XOF" : "—", sub: `Brut ${platLabel()} ÷ nb courses`, color: "#a855f7" },
           { icon: "🔧", label: "Coût / km", value: hasKm && costPerKm > 0 ? xof(costPerKm) + " XOF" : "—", sub: "(Fuel + Solde) ÷ KM", color: "#ef4444" },
           { icon: "📊", label: "Taux net / brut", value: data.avgDailyMetrics.revenue > 0 ? ((data.avgDailyMetrics.net / data.avgDailyMetrics.revenue) * 100).toFixed(0) + "%" : "—", sub: "Net après dépenses ÷ brut", color: "#22c55e" },
         ].map((k, i) => (

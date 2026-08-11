@@ -25,6 +25,7 @@ const DEFAULT_SETTINGS = {
   operator_name: null,
   skin: "midnight",
   ui_mode: "full",
+  platform_label: "Yango",
 };
 
 const DEFAULT_REMUNERATION = {

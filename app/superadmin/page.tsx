@@ -18,7 +18,7 @@ interface AdminUser { id: string; email: string; full_name: string; }
 interface Tenant {
   id: string; slug: string; name: string; plan: string; active: boolean; created_at: string;
   trial_ends_at: string | null; plan_expires_at: string | null; notifications_sent: Record<string, string>;
-  settings?: { app_name: string; primary_color: string; operator_name?: string; logo_url?: string | null; skin?: string | null; ui_mode?: string | null };
+  settings?: { app_name: string; primary_color: string; operator_name?: string; logo_url?: string | null; skin?: string | null; ui_mode?: string | null; platform_label?: string | null };
   remuneration?: { model: string; base_amount: number; commission_rate: number };
   admins?: AdminUser[];
 }
@@ -709,6 +709,7 @@ export default function SuperAdminPage() {
                         logo_url: t.settings?.logo_url,
                         skin: t.settings?.skin,
                         ui_mode: t.settings?.ui_mode,
+                        platform_label: t.settings?.platform_label,
                       }}
                       notify={notify}
                       onSaved={load}

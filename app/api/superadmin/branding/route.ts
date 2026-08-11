@@ -96,6 +96,9 @@ export async function POST(req: NextRequest) {
     const uiModeRaw = formData.get("ui_mode");
     const uiModeVal = (typeof uiModeRaw === "string" && ["full", "simple"].includes(uiModeRaw)) ? uiModeRaw : null;
 
+    const platformRaw = formData.get("platform_label");
+    const platformVal = (typeof platformRaw === "string" && platformRaw.trim()) ? platformRaw.trim().slice(0, 30) : null;
+
     const currency = formData.get("currency");
     if (typeof currency === "string" && currency.trim()) patch.currency = currency.trim().toUpperCase().slice(0, 5);
 
@@ -138,7 +141,7 @@ export async function POST(req: NextRequest) {
       patch.logo_url = null;
     }
 
-    if (Object.keys(patch).length === 0 && !skinVal && !uiModeVal) {
+    if (Object.keys(patch).length === 0 && !skinVal && !uiModeVal && !platformVal) {
       return NextResponse.json({ error: "Aucune modification fournie" }, { status: 400 });
     }
 
@@ -171,7 +174,16 @@ export async function POST(req: NextRequest) {
       if (uiErr) console.warn("[branding] ui_mode non enregistré (migration 037 requise ?):", uiErr.message);
     }
 
-    return NextResponse.json({ ok: true, updated: { ...patch, ...(skinVal ? { skin: skinVal } : {}), ...(uiModeVal ? { ui_mode: uiModeVal } : {}) } });
+    // platform_label : même pattern best-effort (migration 038 requise).
+    if (platformVal) {
+      const { error: platErr } = await adminClient
+        .from("tenant_settings")
+        .update({ platform_label: platformVal, updated_at: new Date().toISOString() })
+        .eq("tenant_id", tenantId);
+      if (platErr) console.warn("[branding] platform_label non enregistré (migration 038 requise ?):", platErr.message);
+    }
+
+    return NextResponse.json({ ok: true, updated: { ...patch, ...(skinVal ? { skin: skinVal } : {}), ...(uiModeVal ? { ui_mode: uiModeVal } : {}), ...(platformVal ? { platform_label: platformVal } : {}) } });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: err.status ?? 500 });
   }

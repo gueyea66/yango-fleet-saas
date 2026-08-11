@@ -19,6 +19,7 @@ export interface TenantSettings {
   operator_name: string | null;
   skin?: string | null; // ambiance des surfaces (midnight | slate | graphite) — accent inchangé
   ui_mode?: string | null; // 'full' (défaut) | 'simple' — vue épurée propriétaire
+  platform_label?: string | null; // mot affiché à la place de « Yango » dans l'UI (défaut 'Yango')
 }
 
 export type RemunerationModel = "fixed" | "tiered" | "percent" | "hybrid" | "location";
