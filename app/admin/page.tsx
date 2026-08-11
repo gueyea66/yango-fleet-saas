@@ -102,10 +102,15 @@ export default function AdminPage() {
   const [adminTenantId, setAdminTenantId] = useState<string | null>(null);
   const [remunCfg, setRemunCfg] = useState<any>(null);
   // Mode simple (tenant ui_mode='simple') : bascule locale vers l'UI complète.
+  // ui_mode est lu depuis le tenant du PROFIL admin (RLS) et non du branding par
+  // hostname : sur le domaine vercel.app la résolution par sous-domaine échoue
+  // et retomberait silencieusement sur les réglages par défaut ('full').
   const [uiAdvanced, setUiAdvanced] = useState(false);
+  const [tenantUiMode, setTenantUiMode] = useState<string | null>(null);
   useEffect(() => { setUiAdvanced(localStorage.getItem("m3a_ui_advanced") === "1"); }, []);
   const toggleUiAdvanced = (v: boolean) => { setUiAdvanced(v); localStorage.setItem("m3a_ui_advanced", v ? "1" : "0"); };
-  const simpleModeActive = settings.ui_mode === "simple" && !uiAdvanced;
+  const resolvedUiMode = tenantUiMode ?? settings.ui_mode ?? "full";
+  const simpleModeActive = resolvedUiMode === "simple" && !uiAdvanced;
 
   // Get tenant_id from the admin's own profile FIRST, then load filtered data
   // Ensure storage bucket exists (idempotent)
@@ -121,11 +126,13 @@ export default function AdminPage() {
       const tenantId = adminProfile?.tenant_id;
       if (!tenantId) return;
       setAdminTenantId(tenantId);
-      const [{ data: profs }, { data: vehs }, { data: rc }] = await Promise.all([
+      const [{ data: profs }, { data: vehs }, { data: rc }, { data: ts }] = await Promise.all([
         supabase.from("profiles").select("*").eq("role", "driver").eq("tenant_id", tenantId).order("full_name"),
         supabase.from("vehicles").select("driver_id, plate").eq("tenant_id", tenantId),
         supabase.from("remuneration_config").select("*").eq("tenant_id", tenantId).maybeSingle(),
+        supabase.from("tenant_settings").select("ui_mode").eq("tenant_id", tenantId).maybeSingle(),
       ]);
+      if (ts?.ui_mode) setTenantUiMode(ts.ui_mode);
       const plateMap = Object.fromEntries((vehs || []).map((v: any) => [v.driver_id, v.plate]));
       setAllDrivers((profs || []).map((p: any) => ({ ...p, plate: plateMap[p.id] || null })));
       if (rc) setRemunCfg(rc);
@@ -329,7 +336,7 @@ export default function AdminPage() {
           );})}
 
           {/* Retour au mode simple (tenants ui_mode='simple' passés en avancé) */}
-          {settings.ui_mode === "simple" && (
+          {resolvedUiMode === "simple" && (
             <button onClick={() => toggleUiAdvanced(false)}
               className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2.5 mt-2"
               style={{ color: "var(--sk-t3)", border: "1px dashed var(--sk-surface)" }}>
@@ -390,7 +397,7 @@ export default function AdminPage() {
             ))}
           </React.Fragment>
         ))}
-        {settings.ui_mode === "simple" && (
+        {resolvedUiMode === "simple" && (
           <button onClick={() => toggleUiAdvanced(false)}
             className="flex-shrink-0 px-3 py-2 text-[10px] font-semibold"
             style={{ color: "var(--sk-t3)" }}>
