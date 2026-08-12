@@ -15,7 +15,7 @@ async function verifySuperadmin(req: NextRequest): Promise<boolean> {
       .schema("fleet")
       .from("superadmin_settings")
       .select("value")
-      .eq("key", "superadmin_key")
+      .eq("key", "access_key")
       .single();
     return data?.value ?? null;
   });

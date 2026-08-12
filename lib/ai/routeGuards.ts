@@ -16,7 +16,7 @@ export async function verifySuperadmin(req: NextRequest): Promise<boolean> {
   const ip = getClientIp(req);
   const storedKey = await resolveSuperadminKey(async () => {
     const { data } = await aiAdmin()
-      .from("superadmin_settings").select("value").eq("key", "superadmin_key").single();
+      .from("superadmin_settings").select("value").eq("key", "access_key").single();
     return data?.value ?? null;
   });
   return checkSuperadminKey(key, storedKey, ip);

@@ -41,7 +41,37 @@ export async function requireAdminAuth(): Promise<AuthedAdmin> {
     throw err;
   }
 
+  // Gating abonnement (fix audit V5) : mêmes règles que le middleware pages,
+  // appliquées aussi à l'API — un tenant suspendu/expiré ne doit pas garder
+  // un accès complet via des appels directs qui contournent /locked.
+  await assertTenantActive(supabase, profile.tenant_id);
+
   return { userId: user.id, tenantId: profile.tenant_id, role: profile.role };
+}
+
+/**
+ * Lève 402 si le tenant est suspendu (active=false) ou expiré
+ * (plan_expires_at prioritaire, sinon trial_ends_at). Fail-open sur erreur
+ * de lecture pour ne jamais bloquer à tort en cas d'incident base.
+ */
+export async function assertTenantActive(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  tenantId: string,
+): Promise<void> {
+  const { data: tenant, error } = await supabase
+    .from("tenants")
+    .select("active, trial_ends_at, plan_expires_at")
+    .eq("id", tenantId)
+    .single();
+  if (error || !tenant) return; // fail-open : ne pas bloquer sur incident
+  const deny = (reason: string) => {
+    const err = new Error(`TENANT_LOCKED: ${reason}`) as Error & { status: number };
+    err.status = 402;
+    throw err;
+  };
+  if (tenant.active === false) deny("inactive");
+  const expiresAt = tenant.plan_expires_at ?? tenant.trial_ends_at;
+  if (expiresAt && new Date(expiresAt).getTime() < Date.now()) deny("expired");
 }
 
 /**

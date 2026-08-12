@@ -21,16 +21,36 @@ const NOTIF_META: Record<string, { title: string; body: (d: any) => string; url:
   plan_expiring:     { title: "⚠️ Abonnement bientôt expiré", body: (d) => `Votre abonnement expire dans ${d.days} jours`,      url: "/admin/billing",  recipient: "admin" },
 };
 
+// Types qu'un chauffeur a le droit de déclencher (fix audit V7) : uniquement
+// ceux qui le concernent lui-même et sont destinés à SON gestionnaire. Tout le
+// reste (avance approuvée, rapport validé/rejeté…) est réservé aux admins —
+// sinon un chauffeur pouvait forger « votre avance de 900 000 FCFA est acceptée »
+// à destination d'un collègue.
+const DRIVER_ALLOWED_TYPES = new Set(["report_submitted", "advance_requested"]);
+
 export async function POST(req: NextRequest) {
   try {
     // Auth requise — le tenantId vient de la session, jamais du client
-    const { tenantId } = await requireAnyAuth();
+    const { tenantId, userId, role } = await requireAnyAuth();
 
     const { type, driverId, data } = await req.json();
     if (!type) return NextResponse.json({ error: "type requis" }, { status: 400 });
 
     const meta = NOTIF_META[type as string];
     if (!meta) return NextResponse.json({ error: "type inconnu" }, { status: 400 });
+
+    // Autorisation par rôle : un chauffeur ne peut émettre que des types le
+    // concernant, destinés à l'admin. Les types à destinataire "driver" sont
+    // strictement réservés aux admins.
+    const safeData = { ...(data ?? {}) };
+    if (role !== "admin") {
+      if (!DRIVER_ALLOWED_TYPES.has(type as string) || meta.recipient !== "admin") {
+        return NextResponse.json({ error: "Action non autorisée" }, { status: 403 });
+      }
+      // Le chauffeur ne peut pas usurper le nom d'un tiers : on force le sien.
+      const { data: me } = await admin.from("profiles").select("full_name").eq("id", userId).single();
+      if (me?.full_name) safeData.driverName = me.full_name;
+    }
 
     let recipientId: string | null = null;
 
@@ -50,8 +70,8 @@ export async function POST(req: NextRequest) {
 
     if (!recipientId) return NextResponse.json({ ok: true, skipped: "no recipient" });
 
-    const body = meta.body(data ?? {});
-    await sendNotification(tenantId, recipientId, type as NotifType, meta.title, body, { url: meta.url, ...data });
+    const body = meta.body(safeData);
+    await sendNotification(tenantId, recipientId, type as NotifType, meta.title, body, { url: meta.url, ...safeData });
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {

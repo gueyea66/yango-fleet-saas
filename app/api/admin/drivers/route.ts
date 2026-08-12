@@ -51,6 +51,11 @@ export async function POST(request: Request) {
       if (!driverId || !fullName || !password) {
         return Response.json({ error: "Champs requis manquants" }, { status: 400 });
       }
+      // Politique de mot de passe (fix audit V10) : les identifiants chauffeurs
+      // sont énumérables (driver-<ID>@…), un mot de passe faible = compte devinable.
+      if (String(password).length < 8) {
+        return Response.json({ error: "Mot de passe trop court (8 caractères minimum)" }, { status: 400 });
+      }
 
       // Vérification du quota de plan
       const [{ data: tenant }, { count: driverCount }] = await Promise.all([
@@ -192,8 +197,8 @@ export async function POST(request: Request) {
 
     if (action === "reset_password") {
       const { driverProfileId, password } = body;
-      if (!driverProfileId || !password || String(password).length < 6) {
-        return Response.json({ error: "Mot de passe requis (6 caractères minimum)" }, { status: 400 });
+      if (!driverProfileId || !password || String(password).length < 8) {
+        return Response.json({ error: "Mot de passe requis (8 caractères minimum)" }, { status: 400 });
       }
       // Le chauffeur doit appartenir au tenant de l'admin
       const { data: prof } = await adminClient.from("profiles").select("id, tenant_id").eq("id", driverProfileId).single();

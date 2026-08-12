@@ -2,8 +2,10 @@ const { createClient } = require('@supabase/supabase-js');
 const fs = require('fs');
 const path = require('path');
 
-const supabaseUrl = 'https://rwadhbebylicjxdroyw.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ3amFkaGJlYnlsaWNqeGRyb3l3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3MDI5NTksImV4cCI6MjA5NDI3ODk1OX0.3_mLtRhLBJyml9LxdfbayjPdsNi5_ngCjRi7cT-eu6Y';
+// Secrets retirés du code (fix audit V2). Fournir via l'environnement.
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+if (!supabaseUrl || !supabaseKey) throw new Error("NEXT_PUBLIC_SUPABASE_URL et une clé Supabase requis");
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
