@@ -7,12 +7,16 @@ if (!supabaseUrl || !supabaseServiceKey) throw new Error("NEXT_PUBLIC_SUPABASE_U
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+// Mots de passe de test hors du code (fix audit V11). Fournir via env, sinon
+// un mot de passe aléatoire est généré (jamais de valeur devinable committée).
+const TEST_PASSWORD = process.env.TEST_USER_PASSWORD || require("crypto").randomBytes(12).toString("base64url");
+
 async function createTestUsers() {
   try {
     // Create admin user
     const adminUser = await supabase.auth.admin.createUser({
       email: "admin@yango.sn",
-      password: "password123",
+      password: TEST_PASSWORD,
       email_confirm: true,
       user_metadata: {
         full_name: "Admin User",
@@ -29,7 +33,7 @@ async function createTestUsers() {
     // Create driver user
     const driverUser = await supabase.auth.admin.createUser({
       email: "driver@yango.sn",
-      password: "password123",
+      password: TEST_PASSWORD,
       email_confirm: true,
       user_metadata: {
         full_name: "Driver User",
