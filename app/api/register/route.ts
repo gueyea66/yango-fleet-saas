@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { getClientIp } from "@/lib/auth/server";
+import { getClientIp, rateLimitOk } from "@/lib/auth/server";
 import { TRIAL_DAYS } from "@/lib/plans";
 import { tenantLoginUrl } from "@/lib/config";
 
@@ -37,7 +37,9 @@ function slugify(name: string): string {
 
 export async function POST(req: NextRequest) {
   const ip = getClientIp(req);
-  if (!checkRateLimit(ip)) {
+  // Rate-limit persistant (fix V4) partagé entre instances + garde mémoire.
+  const persistOk = await rateLimitOk("register", ip, 3, 3_600);
+  if (!persistOk || !checkRateLimit(ip)) {
     return NextResponse.json({ error: "Trop de tentatives. Réessayez dans 1 heure." }, { status: 429 });
   }
 

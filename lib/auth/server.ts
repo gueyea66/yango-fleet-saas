@@ -1,6 +1,41 @@
 import { createClient } from "@/lib/supabase/server";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
+
+/**
+ * Rate-limit PERSISTANT (fix audit V4) — partagé entre toutes les instances
+ * serverless via Postgres (fonction atomique fleet.rate_limit_hit, migration
+ * 041). Retourne true si la requête est autorisée. FAIL-OPEN : si la fonction
+ * n'existe pas encore ou en cas d'erreur, on n'échoue jamais côté sécurité
+ * critique (le déploiement du code avant la migration reste sûr).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _rlClient: any = null;
+function rlClient() {
+  if (!_rlClient) {
+    _rlClient = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { db: { schema: "fleet" } },
+    );
+  }
+  return _rlClient;
+}
+
+export async function rateLimitOk(
+  bucket: string, ip: string, max: number, windowSec: number,
+): Promise<boolean> {
+  try {
+    const { data, error } = await rlClient().rpc("rate_limit_hit", {
+      p_bucket: `${bucket}:${ip}`, p_max: max, p_window_sec: windowSec,
+    });
+    if (error) return true; // fail-open (migration 041 non appliquée, etc.)
+    return data !== false;
+  } catch {
+    return true;
+  }
+}
 
 export interface AuthedAdmin {
   userId: string;

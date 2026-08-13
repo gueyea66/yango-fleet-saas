@@ -12,27 +12,34 @@ const adminStorage = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-function sanitizePath(rawPath: string, tenantId: string): string | null {
-  // Le path doit commencer par le tenantId pour isoler les documents par tenant
+// Construit un chemin de stockage sûr (fix audit V8).
+//  - Isolation tenant : le chemin commence TOUJOURS par le tenantId.
+//  - Isolation intra-tenant pour les chauffeurs : on force `tenantId/<userId>/…`,
+//    quel que soit le chemin envoyé par le client. Un chauffeur ne peut donc
+//    plus écrire (ni écraser) le document d'un collègue.
+//  - Les admins restent libres dans leur tenant (ils gèrent les KYC de leurs
+//    chauffeurs), mais jamais hors de leur tenant.
+function sanitizePath(rawPath: string, tenantId: string, opts: { role: string; userId: string }): string | null {
   const normalized = rawPath.replace(/\\/g, "/").replace(/\.{2,}/g, "");
   const segments = normalized.split("/").filter(Boolean);
-
   if (segments.length < 2) return null;
 
-  // Forcer que le premier segment soit le tenantId
-  segments[0] = tenantId;
+  // Le 1er segment fourni par le client (propriétaire ou catégorie) n'est pas
+  // fiable : on le remplace par un préfixe dérivé de l'identité authentifiée.
+  const rest = segments.slice(1);
+  const prefix = opts.role === "admin" ? [tenantId] : [tenantId, opts.userId];
+  const finalSegments = [...prefix, ...rest];
 
-  // Vérifier que chaque segment est safe (alphanumérique, tirets, underscores, points)
-  const safe = segments.every(s => /^[\w.\-]+$/.test(s));
+  const safe = finalSegments.every(s => /^[\w.\-]+$/.test(s));
   if (!safe) return null;
 
-  return segments.join("/");
+  return finalSegments.join("/");
 }
 
 export async function POST(req: NextRequest) {
   try {
     // Vérifie que l'utilisateur est authentifié (admin ou driver)
-    const { tenantId } = await requireAnyAuth();
+    const { tenantId, userId, role } = await requireAnyAuth();
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
@@ -60,8 +67,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Fichier trop volumineux (max 10 MB)" }, { status: 400 });
     }
 
-    // Sanitisation du path — garantit l'isolation par tenant
-    const safePath = sanitizePath(rawPath, tenantId);
+    // Sanitisation du path — isolation tenant + intra-tenant (chauffeur)
+    const safePath = sanitizePath(rawPath, tenantId, { role, userId });
     if (!safePath) {
       return NextResponse.json({ error: "Chemin de fichier invalide" }, { status: 400 });
     }
