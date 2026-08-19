@@ -20,7 +20,17 @@ export interface RawReport {
   yango_trip_count?: number | null;
   off_yango_trip_count?: number | null;
   commission_amount?: number | null; // commissions déclarées (réconciliation solde)
+  comment?: string | null;    // "[REPOS]…" = jour de repos déclaré
 }
+
+/**
+ * Jour de repos déclaré (convention "[REPOS]" en tête de commentaire, comme
+ * usePilotage/reportHtml). Ces rapports comptent comme SOUMIS (le chauffeur a
+ * bien déclaré sa journée) mais sont exclus des moyennes et des jours attendus
+ * pour ne pas biaiser les calculs. Leur odomètre reste utilisé (km physiques).
+ */
+export const isReposReport = (r: Pick<RawReport, "comment">): boolean =>
+  String(r.comment ?? "").startsWith("[REPOS]");
 
 export interface RawExpense {
   driver_id: string | null;
@@ -58,7 +68,7 @@ export async function fetchTenantWindow(tenantId: string, days = 70): Promise<Te
       .select("id, full_name, account_type, active, salary_model")
       .eq("tenant_id", tenantId).eq("role", "driver"),
     admin.from("daily_reports")
-      .select("driver_id, date, status, yango_gross, yango_bonus, off_yango_revenue, solde_yango, end_odometer, yango_trip_count, off_yango_trip_count, commission_amount")
+      .select("driver_id, date, status, yango_gross, yango_bonus, off_yango_revenue, solde_yango, end_odometer, yango_trip_count, off_yango_trip_count, commission_amount, comment")
       .eq("tenant_id", tenantId)
       
       .gte("date", from)
@@ -150,7 +160,11 @@ export function soldeConsommePeriode(
   return total;
 }
 
-/** Km parcourus (diff d'odomètre entre rapports consécutifs, par chauffeur). */
+/**
+ * Km parcourus (diff d'odomètre entre rapports consécutifs, par chauffeur).
+ * Les rapports [REPOS] restent DANS la chaîne : un odomètre est une mesure
+ * physique — l'exclure casserait le delta du lendemain de repos.
+ */
 export function kmPeriode(reports: RawReport[], from: string, to: string): number {
   const byDriver = new Map<string, RawReport[]>();
   for (const r of reports) {
@@ -216,8 +230,9 @@ export interface PeriodAggregates {
   netOperationnel: number;
   km: number;
   coutCarburantParKm: number; // ratio historique appliqué (FCFA/km)
-  reportsApproved: number;
-  reportsAttendus: number;    // chauffeurs actifs × jours de la période
+  reportsApproved: number;    // rapports travaillés (hors [REPOS])
+  reportsAttendus: number;    // chauffeurs actifs × jours − repos déclarés
+  reposDeclares: number;      // jours de repos déclarés ([REPOS]) sur la période
   tauxSoumission: number;     // %
 }
 
@@ -242,11 +257,15 @@ export function computePeriodAggregates(
     depensesOperationnelles: depensesOpe, salaires: 0,
   });
 
-  const activeDrivers = win.drivers.filter((d) => d.active !== false).length;
+  const activeIds = new Set(win.drivers.filter((d) => d.active !== false).map((d) => d.id));
   const days = Math.max(1, Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000) + 1);
-  const attendus = activeDrivers * days;
-  const approvedCount = win.reports.filter((r) =>
-    (r.status === "approved" || r.status === "submitted") && inPeriod(r.date, from, to)).length;
+  const periodReps = win.reports.filter((r) =>
+    (r.status === "approved" || r.status === "submitted") && inPeriod(r.date, from, to));
+  // Jours de repos déclarés (chauffeurs actifs) : retirés des jours attendus —
+  // un repos posé n'est pas un rapport manquant et ne doit pas biaiser le taux.
+  const reposDeclares = periodReps.filter((r) => isReposReport(r) && activeIds.has(r.driver_id)).length;
+  const attendus = Math.max(0, activeIds.size * days - reposDeclares);
+  const approvedCount = periodReps.filter((r) => !isReposReport(r)).length;
 
   return {
     from, to,
@@ -259,14 +278,21 @@ export function computePeriodAggregates(
     coutCarburantParKm: Math.round(ratio * 100) / 100,
     reportsApproved: approvedCount,
     reportsAttendus: attendus,
+    reposDeclares,
     tauxSoumission: attendus > 0 ? Math.round((approvedCount / attendus) * 1000) / 10 : 0,
   };
 }
 
-/** Snapshot de fraîcheur : driver_id → date du dernier rapport connu. */
+/**
+ * Snapshot de fraîcheur : driver_id → date du dernier rapport connu.
+ * Chauffeurs ACTIFS uniquement — un chauffeur parti a mécaniquement de vieilles
+ * dates et polluerait le briefing (fausse alerte « chauffeur silencieux »).
+ */
 export function freshnessSnapshot(win: TenantWindow): Record<string, string> {
+  const activeIds = new Set(win.drivers.filter((d) => d.active !== false).map((d) => d.id));
   const snap: Record<string, string> = {};
   for (const r of win.reports) {
+    if (!activeIds.has(r.driver_id)) continue;
     if (!snap[r.driver_id] || r.date > snap[r.driver_id]) snap[r.driver_id] = r.date;
   }
   return snap;

@@ -12,7 +12,7 @@
 import { AI_CALC_VERSION, RuleId } from "./types";
 import type { RawReport, TenantWindow } from "./dataReader";
 import {
-  achatsCarburantPeriode, depensesOpePeriode, kmPeriode, soldeConsommePeriode,
+  achatsCarburantPeriode, depensesOpePeriode, isReposReport, kmPeriode, soldeConsommePeriode,
 } from "./dataReader";
 import { coutCarburantParKm } from "@/lib/calc";
 import { paramsHash } from "./insightEngine";
@@ -24,6 +24,9 @@ const n = (v: unknown): number => {
 };
 const fmt = (v: number) => new Intl.NumberFormat("fr-FR").format(Math.round(v));
 const ok = (r: RawReport) => r.status === "approved" || r.status === "submitted";
+// Jour réellement travaillé : soumis/approuvé ET pas un repos déclaré —
+// les [REPOS] (CA nul par nature) biaiseraient toutes les moyennes.
+const worked = (r: RawReport) => ok(r) && !isReposReport(r);
 const ca = (r: RawReport) => n(r.yango_gross) + n(r.yango_bonus) + n(r.off_yango_revenue);
 const shiftDays = (iso: string, d: number) => new Date(Date.parse(iso) + d * 86_400_000).toISOString().slice(0, 10);
 
@@ -63,7 +66,7 @@ function driverStats30(ctx: AdvancedCtx, mature: Set<string>): DriverStat[] {
   return ctx.win.drivers
     .filter((d) => d.active !== false && mature.has(d.id))
     .map((d) => {
-      const rr = ctx.win.reports.filter((r) => r.driver_id === d.id && ok(r) && r.date >= from && r.date <= ctx.today);
+      const rr = ctx.win.reports.filter((r) => r.driver_id === d.id && worked(r) && r.date >= from && r.date <= ctx.today);
       const caTotal = rr.reduce((s, r) => s + ca(r), 0);
       const trips = rr.reduce((s, r) => s + n(r.yango_trip_count) + n(r.off_yango_trip_count), 0);
       const km = kmPeriode(ctx.win.reports.filter((r) => r.driver_id === d.id), from, ctx.today);
@@ -140,7 +143,11 @@ export function ruleEfficienceCarburant(ctx: AdvancedCtx, mature: Set<string>): 
 /* ── R7 : jour_optimal_repos — saisonnalité hebdo (hebdomadaire) ─────── */
 export function ruleJourOptimalRepos(ctx: AdvancedCtx, mature: Set<string>): RecoDraft[] {
   const WD = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
-  const reps = ctx.win.reports.filter((r) => ok(r) && mature.has(r.driver_id));
+  // Chauffeurs ACTIFS uniquement, jours TRAVAILLÉS uniquement : un [REPOS]
+  // (CA 0) posé toujours le même jour rendrait ce jour artificiellement
+  // « creux » — la règle recommanderait le repos… à cause du repos.
+  const activeIds = new Set(ctx.win.drivers.filter((d) => d.active !== false).map((d) => d.id));
+  const reps = ctx.win.reports.filter((r) => worked(r) && mature.has(r.driver_id) && activeIds.has(r.driver_id));
   const byDay: number[][] = Array.from({ length: 7 }, () => []);
   for (const r of reps) byDay[new Date(r.date + "T00:00:00Z").getUTCDay()].push(ca(r));
   const avgs = byDay.map((v) => (v.length >= 6 ? v.reduce((s, x) => s + x, 0) / v.length : null));
@@ -212,7 +219,12 @@ export function ruleUtilisationVehicule(ctx: AdvancedCtx): RecoDraft[] {
     idle += Math.max(0, ctx.activeVehicles - (byDate.get(ds) ?? 0));
   }
   if (idle <= 2) return []; // tolérance : repos normaux
-  const caMoyen = reps.reduce((s, r) => s + ca(r), 0) / reps.length;
+  // CA moyen sur les jours TRAVAILLÉS uniquement — les rapports [REPOS] (CA 0)
+  // restent comptés comme activité déclarée (pas d'immobilisation injustifiée)
+  // mais tireraient la moyenne vers le bas.
+  const workedReps = reps.filter((r) => !isReposReport(r));
+  if (!workedReps.length) return [];
+  const caMoyen = workedReps.reduce((s, r) => s + ca(r), 0) / workedReps.length;
   const impact = Math.round(idle * caMoyen);
   return [{
     rule_id: "utilisation_vehicule" as RuleId,

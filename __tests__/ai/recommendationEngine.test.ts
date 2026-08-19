@@ -99,6 +99,27 @@ describe("ruleRapportManquant", () => {
     expect(ruleRapportManquant(ctx({ win: win(reports) }))).toHaveLength(0);
   });
 
+  it("un [REPOS] déclaré à J-1 n'est PAS un rapport manquant", () => {
+    const reports = [
+      ...Array.from({ length: 5 }, (_, i) =>
+        report({ date: `2026-07-${String(13 + i).padStart(2, "0")}`, yango_gross: 35_000 })),
+      report({ date: "2026-07-19", yango_gross: 0, comment: "[REPOS] jour de repos" }),
+    ];
+    expect(ruleRapportManquant(ctx({ win: win(reports) }))).toHaveLength(0);
+  });
+
+  it("l'estimation du CA perdu ignore les [REPOS] (CA 0) de la fenêtre (retour Abdou 19/08)", () => {
+    const reports = [
+      ...Array.from({ length: 6 }, (_, i) =>
+        report({ date: `2026-07-${String(12 + i).padStart(2, "0")}`, yango_gross: 35_000 })),
+      report({ date: "2026-07-18", yango_gross: 0, comment: "[REPOS] repos" }),
+      // aucun rapport le 19/07 (J-1)
+    ];
+    const out = ruleRapportManquant(ctx({ win: win(reports) }));
+    expect(out).toHaveLength(1);
+    expect(out[0].impact_fcfa).toBe(35_000); // moyenne des jours TRAVAILLÉS, pas diluée par le repos
+  });
+
   it("silencieux pour un chauffeur sans historique (onboarding)", () => {
     expect(ruleRapportManquant(ctx({ win: win([]) }))).toHaveLength(0);
   });
