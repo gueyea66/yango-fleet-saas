@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -32,7 +34,22 @@ export const metadata: Metadata = {
 
 const surface = { background: "var(--sk-surface)", border: "1px solid var(--sk-border)" };
 
-export default function Home() {
+// La vitrine M3A Fleet n'a de sens que sur le domaine racine (m3afleet.com).
+// Un sous-domaine client (slug.m3afleet.com — même détection que
+// lib/tenant/loader.ts::detectSlug) doit continuer à renvoyer vers sa page de
+// connexion, jamais afficher le branding M3A ("vos clients ne voient jamais M3A").
+async function isClientSubdomain(): Promise<boolean> {
+  const host = (await headers()).get("host") || "";
+  const hostname = host.split(":")[0];
+  if (hostname === "localhost" || hostname === "127.0.0.1") return false;
+  return hostname.split(".").length >= 3;
+}
+
+export default async function Home() {
+  if (await isClientSubdomain()) {
+    redirect("/auth/login");
+  }
+
   return (
     <div style={{ background: "var(--sk-bg)", color: "var(--sk-t1)" }}>
       {/* ── HEADER ─────────────────────────────────────────────── */}
