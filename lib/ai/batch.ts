@@ -10,7 +10,7 @@ import { isAiEnabled } from "./killSwitch";
 import { DEFAULT_THRESHOLDS } from "./killSwitch";
 import {
   computePeriodAggregates, confidenceFromCoverage, fetchTenantWindow, freshnessSnapshot,
-  topExpenseMovements,
+  isReposReport, topExpenseMovements,
 } from "./dataReader";
 import { buildKpiInsights, describeCauses, paramsHash } from "./insightEngine";
 import { runRules } from "./recommendationEngine";
@@ -235,11 +235,28 @@ async function buildBriefingContent(
   const monthEnd = `${today.slice(0, 8)}${String(daysInMonth).padStart(2, "0")}`;
   const joursRestants = daysInMonth - Number(today.slice(8, 10));
 
+  // Rapports du mois (chauffeurs actifs) : les [REPOS] déclarés sortent des
+  // jours ouvrés écoulés — sinon le rythme/jour est sous-estimé et la
+  // projection fin de mois avec (retour Abdou 19/08).
+  const activeIds = new Set(win.drivers.filter((d) => d.active !== false).map((d) => d.id));
+  const monthReps = win.reports.filter((r) =>
+    (r.status === "approved" || r.status === "submitted") && activeIds.has(r.driver_id)
+    && r.date >= monthStart && r.date <= today);
+  const workedDates = new Set(monthReps.filter((r) => !isReposReport(r)).map((r) => r.date));
+  // Repos « flotte entière » : au moins un repos déclaré ce jour-là et aucun
+  // chauffeur actif n'a travaillé — seule configuration où le jour ne compte pas.
+  const reposFleetDates = [...new Set(monthReps.filter(isReposReport).map((r) => r.date))]
+    .filter((d) => !workedDates.has(d));
+  const reposByDriver = new Map<string, string[]>();
+  for (const r of monthReps.filter(isReposReport)) {
+    reposByDriver.set(r.driver_id, [...(reposByDriver.get(r.driver_id) ?? []), r.date]);
+  }
+
   // Projection fin de mois : net opérationnel MTD projeté sur les jours ouvrés
   const mtd = computePeriodAggregates(win, monthStart, today, iso(Date.parse(today) - 30 * DAY));
   const netProjete = projeterResultat({
     resultatRealise: mtd.netOperationnel,
-    joursOuvresEcoules: Math.max(1, joursOuvresRealises(monthStart, today, [])),
+    joursOuvresEcoules: Math.max(1, joursOuvresRealises(monthStart, today, reposFleetDates)),
     joursOuvresCible: joursOuvresProjetes(monthStart, monthEnd),
   });
 
@@ -250,17 +267,22 @@ async function buildBriefingContent(
     { kpi_name: "taux_soumission", value: cur.tauxSoumission, unit: "%", delta_pct_wow: deltaPct(cur.tauxSoumission, prev.tauxSoumission), badge: "calculated" },
   ];
 
-  // Chauffeurs : CA MTD + projection + palier (pseudonymisés pour le LLM)
+  // Chauffeurs : CA MTD + projection + palier (pseudonymisés pour le LLM).
+  // Rythme = CA / jours OUVRÉS écoulés du chauffeur (démarrage réel dans le
+  // mois, repos déclarés déduits) — pas / jours calendaires, qui écrasait le
+  // rythme des chauffeurs au repos ou arrivés en cours de mois.
   const sortedTiers = [...tiers].sort((a, b) => a.min_net - b.min_net);
-  const dayOfMonth = Math.max(1, Number(today.slice(8, 10)));
+  const joursOuvresRestants = joursRestants > 0
+    ? joursOuvresProjetes(iso(Date.parse(today) + DAY), monthEnd) : 0;
   const chauffeurs: BriefingDriver[] = win.drivers
     .filter((d) => d.active !== false)
     .map((d) => {
-      const ca = win.reports
-        .filter((r) => r.driver_id === d.id && (r.status === "approved" || r.status === "submitted")
-          && r.date >= monthStart && r.date <= today)
-        .reduce((s, r) => s + (r.yango_gross ?? 0) + (r.yango_bonus ?? 0) + (r.off_yango_revenue ?? 0), 0);
-      const projete = Math.round(ca + (ca / dayOfMonth) * joursRestants);
+      const rr = monthReps.filter((r) => r.driver_id === d.id);
+      const ca = rr.reduce((s, r) => s + (r.yango_gross ?? 0) + (r.yango_bonus ?? 0) + (r.off_yango_revenue ?? 0), 0);
+      const debut = rr.length ? rr.reduce((min, r) => (r.date < min ? r.date : min), today) : monthStart;
+      const joursTravailles = Math.max(
+        1, joursOuvresRealises(debut, today, reposByDriver.get(d.id) ?? []));
+      const projete = Math.round(ca + (ca / joursTravailles) * joursOuvresRestants);
       const cible = sortedTiers.find((t) => t.min_net > projete && t.min_net > 0);
       return {
         driver_id: d.id,
@@ -268,6 +290,7 @@ async function buildBriefingContent(
         driver_name: d.full_name ?? "Chauffeur",
         ca_mtd_fcfa: Math.round(ca),
         ca_projete_fcfa: projete,
+        jours_travailles_mtd: joursTravailles,
         palier_cible_fcfa: cible?.min_net ?? null,
         a_risque: !!cible && cible.min_net - projete <= cible.min_net * 0.15,
       };
@@ -283,11 +306,13 @@ async function buildBriefingContent(
   // ── Faits calculés « palpables » : ce que les cartes KPI ne montrent PAS ──
   // (retour terrain 29/07 : la narration répétait les chiffres déjà affichés)
   const paliers = chauffeurs
-    .filter((c) => c.palier_cible_fcfa && joursRestants > 0)
+    .filter((c) => c.palier_cible_fcfa && joursRestants > 0 && joursOuvresRestants > 0)
     .map((c) => {
       const manque = Math.max(0, (c.palier_cible_fcfa ?? 0) - c.ca_mtd_fcfa);
-      const rythme = Math.round(c.ca_mtd_fcfa / dayOfMonth);
-      const besoin = Math.ceil(manque / joursRestants);
+      // Rythme et besoin par jour OUVRÉ (repos exclus des deux côtés) :
+      // comparer un rythme hors repos à un besoin calendaire gonflait l'écart.
+      const rythme = Math.round(c.ca_mtd_fcfa / Math.max(1, c.jours_travailles_mtd ?? 1));
+      const besoin = Math.ceil(manque / joursOuvresRestants);
       // Tous les écarts sont PRÉ-CALCULÉS : le LLM n'a jamais à faire une
       // soustraction (cause du rejet anti-hallucination du 29/07).
       return {
@@ -297,7 +322,7 @@ async function buildBriefingContent(
         rythme_actuel_fcfa_par_jour: rythme,
         besoin_fcfa_par_jour_pour_palier: besoin,
         effort_supplementaire_fcfa_par_jour: Math.max(0, besoin - rythme),
-        jours_restants: joursRestants,
+        jours_ouvres_restants: joursOuvresRestants,
         atteignable: besoin <= rythme * 2,
       };
     })
@@ -361,7 +386,7 @@ async function buildBriefingContent(
         rythme_actuel_fcfa_par_jour: p.rythme_actuel_fcfa_par_jour,
         besoin_fcfa_par_jour_pour_palier: p.besoin_fcfa_par_jour_pour_palier,
         effort_supplementaire_fcfa_par_jour: p.effort_supplementaire_fcfa_par_jour,
-        jours_restants: p.jours_restants,
+        jours_ouvres_restants: p.jours_ouvres_restants,
         atteignable: p.atteignable,
       })),
       mouvements: topExpenseMovements(win.expenses, cur.from, cur.to, prev.from, prev.to),

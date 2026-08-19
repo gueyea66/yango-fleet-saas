@@ -172,6 +172,12 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
 
       // Only approved reports count in real figures
       const reps: any[] = (allReps || []).filter((r: any) => r.status === "approved");
+      // Jours de repos déclarés ([REPOS], même convention que usePilotage) :
+      // CA nul par nature → exclus des jours actifs et des moyennes /jour et
+      // /chauffeur pour ne pas les biaiser. Ils restent dans `reps` (totaux,
+      // tableau journalier, chaîne d'odomètre).
+      const isRepos = (r: any) => String(r.comment || "").startsWith("[REPOS]");
+      const workedReps: any[] = reps.filter((r: any) => !isRepos(r));
       const repsAll: any[] = allReps || []; // all (including pending) for pending display
       const todayReps: any[] = (todayRep || []).filter((r: any) => r.status === "approved");
       const weekReps: any[] = (weekRep || []).filter((r: any) => r.status === "approved");
@@ -338,7 +344,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         .map(([driver_id, d]) => ({ driver_id: d.name, earnings: d.earnings, expenses: d.expenses, margin: d.earnings - d.expenses }))
         .sort((a, b) => b.earnings - a.earnings).slice(0, 5);
 
-      const activeDays = new Set(reps.map((r) => r.date)).size || 1;
+      const activeDays = new Set(workedReps.map((r) => r.date)).size || 1;
 
       // ── PER-DRIVER ALLOCATIONS (approved + submitted, non-rejected) ──
       const allActive: any[] = (allReps || []).filter((r: any) => r.status === "approved" || r.status === "submitted");
@@ -385,7 +391,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       // ── TODAY / WEEK (approved only) ──
       const todayExpenses = (allExps || []).filter((e: any) => getED(e) === today && (!e.status || e.status === "approved")).reduce((s: number, e: any) => s + e.amount, 0);
       const weekExpAmt = (allExps || []).filter((e: any) => getED(e) >= weekAgo && getED(e) <= today && (!e.status || e.status === "approved")).reduce((s: number, e: any) => s + e.amount, 0);
-      const weekActiveDays = new Set(weekReps.map((r: any) => r.date)).size || 1;
+      const weekActiveDays = new Set(weekReps.filter((r: any) => !isRepos(r)).map((r: any) => r.date)).size || 1;
 
       setKPIs({
         brutYango, netYango, horsYango, totalBrut, totalDepenses, netFinal,
@@ -402,7 +408,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         todayRevenue: todayReps.reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0),
         todayExpenses,
         todayNetMargin: todayReps.reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0) - todayExpenses,
-        activeDriversToday: new Set(todayReps.map((r: any) => r.driver_id)).size,
+        activeDriversToday: new Set(todayReps.filter((r: any) => !isRepos(r)).map((r: any) => r.driver_id)).size,
         weekRevenue: weekReps.reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0),
         weekExpenses: weekExpAmt,
         weekNetMargin: weekReps.reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0) - weekExpAmt,
@@ -413,7 +419,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         totalFuelCost: totalExpenses > 0 ? exps.filter((e: any) => e.category === "Carburant").reduce((s: number, e: any) => s + e.amount, 0) : 0,
         totalDrivers: activeDrivers.length,
         // Moyenne par chauffeur AYANT PRODUIT sur la période (pas l'effectif actuel)
-        avgRevenuePerDriver: (() => { const n = new Set(reps.map((r: any) => r.driver_id)).size; return n ? Math.round(totalBrut / n) : 0; })(),
+        avgRevenuePerDriver: (() => { const n = new Set(workedReps.map((r: any) => r.driver_id)).size; return n ? Math.round(totalBrut / n) : 0; })(),
         dailyRows, expenseBreakdown, dailyExpByCategory, dailyTrendData, topDrivers, driverAllocations,
         loading: false, error: null,
       });

@@ -114,6 +114,37 @@ describe("ruleJourOptimalRepos — saisonnalité hebdo", () => {
     expect(out[0].title_fr).toContain("lundi");
     expect(out[0].impact_fcfa).toBeGreaterThan(0);
   });
+
+  it("les [REPOS] (CA 0) ne fabriquent PAS un faux jour creux (retour Abdou 19/08)", () => {
+    // CA constant tous les jours travaillés, mais repos déclaré chaque jeudi :
+    // sans exclusion, le jeudi paraîtrait « creux » à cause du CA 0 du repos.
+    const reports: RawReport[] = [];
+    for (let i = 1; i <= 60; i++) {
+      const d = day(i);
+      const wd = new Date(d + "T00:00:00Z").getUTCDay();
+      reports.push(wd === 4
+        ? rep(D1, d, { yango_gross: 0, comment: "[REPOS] jeudi" })
+        : rep(D1, d, { yango_gross: 55_000 }));
+    }
+    const win: TenantWindow = { drivers: [driver(D1, "Emile")], reports, expenses: [] };
+    expect(ruleJourOptimalRepos(ctx(win), matureDriverIds(win, TODAY))).toHaveLength(0);
+  });
+
+  it("ignore les rapports d'un chauffeur inactif (parti)", () => {
+    const reports: RawReport[] = [];
+    for (let i = 1; i <= 60; i++) {
+      const d = day(i);
+      const wd = new Date(d + "T00:00:00Z").getUTCDay();
+      // Seul l'ex-chauffeur D2 avait des lundis faibles
+      reports.push(rep(D1, d, { yango_gross: 55_000 }));
+      reports.push(rep(D2, d, { yango_gross: wd === 1 ? 5_000 : 55_000 }));
+    }
+    const win: TenantWindow = {
+      drivers: [driver(D1, "Emile"), { ...driver(D2, "Ahmadou"), active: false }],
+      reports, expenses: [],
+    };
+    expect(ruleJourOptimalRepos(ctx(win), matureDriverIds(win, TODAY))).toHaveLength(0);
+  });
 });
 
 describe("ruleReconciliationSolde — consommé vs déclaré", () => {

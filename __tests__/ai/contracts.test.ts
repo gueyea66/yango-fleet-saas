@@ -97,6 +97,23 @@ describe("Agrégats — net opérationnel et confiance dérivés des seules donn
     expect(c).toBeGreaterThan(0);
     expect(c).toBeLessThanOrEqual(1);
   });
+
+  it("un repos déclaré [REPOS] sort des attendus ET des soumis (retour Abdou 19/08)", () => {
+    const winRepos: TenantWindow = {
+      ...win,
+      reports: [
+        ...win.reports,
+        { driver_id: "d1", date: "2026-07-23", status: "approved", yango_gross: null, yango_bonus: null, off_yango_revenue: null, solde_yango: null, end_odometer: null, comment: "[REPOS] jeudi" },
+      ],
+    };
+    const agg = computePeriodAggregates(winRepos, "2026-07-21", "2026-07-27", "2026-07-01");
+    // 1 chauffeur × 7 j − 1 repos déclaré = 6 attendus ; 2 rapports travaillés
+    expect(agg.reposDeclares).toBe(1);
+    expect(agg.reportsAttendus).toBe(6);
+    expect(agg.reportsApproved).toBe(2);
+    // Le repos ne change PAS les montants (CA nul par nature)
+    expect(agg.recettes).toBe(105_000);
+  });
 });
 
 describe("Briefing palpable — faits calculés et parsing JSON", () => {
@@ -130,7 +147,7 @@ describe("Fallback déterministe du briefing — jamais vide", () => {
   const palier = (over: Record<string, unknown> = {}) => ({
     prenom: "Daouda", palier_fcfa: 1_000_000, manque_total_fcfa: 507_224,
     rythme_actuel_fcfa_par_jour: 17_000, besoin_fcfa_par_jour_pour_palier: 253_612,
-    effort_supplementaire_fcfa_par_jour: 236_612, jours_restants: 2, atteignable: false,
+    effort_supplementaire_fcfa_par_jour: 236_612, jours_ouvres_restants: 2, atteignable: false,
     ...over,
   });
 
@@ -145,7 +162,7 @@ describe("Fallback déterministe du briefing — jamais vide", () => {
 
   it("palier atteignable → action chiffrée de suivi", () => {
     const out = buildDeterministicBriefing({
-      paliers: [palier({ atteignable: true, effort_supplementaire_fcfa_par_jour: 6_300, jours_restants: 15 })],
+      paliers: [palier({ atteignable: true, effort_supplementaire_fcfa_par_jour: 6_300, jours_ouvres_restants: 15 })],
       mouvements: [{ poste: "Entretien", delta_fcfa: 70_000, sens: "hausse" }],
       netProjete: 900_000, joursRestantsMois: 15,
     });

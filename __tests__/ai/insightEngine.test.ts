@@ -8,7 +8,7 @@ const agg = (over: Partial<PeriodAggregates>): PeriodAggregates => ({
   recettes: 500_000, soldeConsomme: 80_000, carburantConsomme: 90_000,
   depensesOpe: 30_000, netOperationnel: 300_000, km: 700,
   coutCarburantParKm: 128.5, reportsApproved: 12, reportsAttendus: 14,
-  tauxSoumission: 85.7,
+  reposDeclares: 0, tauxSoumission: 85.7,
   ...over,
 });
 

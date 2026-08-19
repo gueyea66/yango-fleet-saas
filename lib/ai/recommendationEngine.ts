@@ -7,8 +7,8 @@
  */
 import { AI_CALC_VERSION, RuleId } from "./types";
 import type { RawDriver, RawExpense, RawReport, TenantWindow } from "./dataReader";
-import { achatsCarburantPeriode, kmPeriode, provisionsSoldePeriode, soldeConsommePeriode } from "./dataReader";
-import { coutCarburantParKm, joursCalendaires } from "@/lib/calc";
+import { achatsCarburantPeriode, isReposReport, kmPeriode, provisionsSoldePeriode, soldeConsommePeriode } from "./dataReader";
+import { coutCarburantParKm, joursCalendaires, joursOuvresProjetes, joursOuvresRealises } from "@/lib/calc";
 import type { SalaryTier } from "@/lib/tenant/types";
 import { paramsHash } from "./insightEngine";
 
@@ -63,11 +63,19 @@ export function rulePalierARisque(ctx: RecoContext): RecoDraft[] {
   const tiers = [...ctx.salaryTiers].sort((a, b) => a.min_net - b.min_net);
   const out: RecoDraft[] = [];
 
+  const joursOuvresRestants = joursOuvresProjetes(shiftDays(ctx.today, 1), `${ctx.today.slice(0, 8)}${String(daysInMonth).padStart(2, "0")}`);
   for (const d of ctx.win.drivers) {
     if (d.active === false) continue;
     const mtd = caDriver(ctx.win.reports, d.id, monthStart, ctx.today);
     if (mtd <= 0) continue;
-    const projete = Math.round(mtd + (mtd / daysElapsed) * daysRemaining);
+    // Rythme sur jours OUVRÉS écoulés du chauffeur (démarrage réel, repos
+    // [REPOS] déduits) : les jours calendaires écrasaient la projection.
+    const rr = ctx.win.reports.filter((r) => r.driver_id === d.id && approved(r)
+      && r.date >= monthStart && r.date <= ctx.today);
+    const debut = rr.length ? rr.reduce((min, r) => (r.date < min ? r.date : min), ctx.today) : monthStart;
+    const reposDates = rr.filter(isReposReport).map((r) => r.date);
+    const joursTravailles = Math.max(1, joursOuvresRealises(debut, ctx.today, reposDates));
+    const projete = Math.round(mtd + (mtd / joursTravailles) * joursOuvresRestants);
 
     // Palier cible = premier palier strictement au-dessus de la projection,
     // considéré "à risque mais atteignable" si le manque ≤ 15% du palier.
@@ -86,7 +94,7 @@ export function rulePalierARisque(ctx: RecoContext): RecoDraft[] {
       impact_fcfa: Math.max(perteSalaire, 0),
       title_fr: `${d.full_name ?? "Chauffeur"} risque de manquer le palier « ${cible.label} » de ${fmt(manque)} FCFA`,
       detail_fr:
-        `CA du mois : ${fmt(mtd)} FCFA en ${daysElapsed} j. Projection fin de mois : ${fmt(projete)} FCFA ` +
+        `CA du mois : ${fmt(mtd)} FCFA en ${joursTravailles} j travaillés. Projection fin de mois : ${fmt(projete)} FCFA ` +
         `pour un palier à ${fmt(cible.min_net)} FCFA. Il reste ${daysRemaining} j pour combler ${fmt(manque)} FCFA ` +
         `(≈ ${fmt(manque / daysRemaining)} FCFA/j de plus).`,
       action_context: {
@@ -145,8 +153,10 @@ export function ruleRapportManquant(ctx: RecoContext): RecoDraft[] {
     const hasReport = ctx.win.reports.some((r) => r.driver_id === d.id && r.date === j1);
     if (hasReport) continue;
 
+    // Moyenne sur les 7 derniers jours TRAVAILLÉS : un [REPOS] (CA 0) dans la
+    // fenêtre sous-estimerait le CA « perdu » du rapport manquant.
     const last7 = ctx.win.reports
-      .filter((r) => r.driver_id === d.id && approved(r) && r.date < j1)
+      .filter((r) => r.driver_id === d.id && approved(r) && !isReposReport(r) && r.date < j1)
       .slice(-7);
     if (!last7.length) continue; // jamais rapporté → onboarding, pas une anomalie
 

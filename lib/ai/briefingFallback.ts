@@ -12,7 +12,8 @@ export interface PalierFact {
   rythme_actuel_fcfa_par_jour: number;
   besoin_fcfa_par_jour_pour_palier: number;
   effort_supplementaire_fcfa_par_jour: number;
-  jours_restants: number;
+  /** Jours OUVRÉS restants (règle 6/7 — repos exclus), cohérent avec le besoin/j. */
+  jours_ouvres_restants: number;
   atteignable: boolean;
 }
 
@@ -37,7 +38,7 @@ export function buildDeterministicBriefing(facts: {
     if (p.atteignable) {
       points.push(
         `${p.prenom} est à ${fmt(p.rythme_actuel_fcfa_par_jour)} FCFA/j ; il lui faut ` +
-        `${fmt(p.besoin_fcfa_par_jour_pour_palier)} FCFA/j sur ${p.jours_restants} j pour le palier ` +
+        `${fmt(p.besoin_fcfa_par_jour_pour_palier)} FCFA/j sur ${p.jours_ouvres_restants} j travaillés pour le palier ` +
         `de ${fmt(p.palier_fcfa)} FCFA (soit +${fmt(p.effort_supplementaire_fcfa_par_jour)} FCFA/j).`
       );
     } else {
@@ -62,7 +63,7 @@ export function buildDeterministicBriefing(facts: {
   const cible = facts.paliers.find((p) => p.atteignable && p.effort_supplementaire_fcfa_par_jour > 0);
   if (cible) {
     action = `Suivre ${cible.prenom} aujourd'hui : +${fmt(cible.effort_supplementaire_fcfa_par_jour)} FCFA/j ` +
-      `pendant ${cible.jours_restants} j pour décrocher le palier.`;
+      `pendant ${cible.jours_ouvres_restants} j travaillés pour décrocher le palier.`;
   } else if (m && m.sens === "hausse") {
     action = `Vérifier les justificatifs du poste « ${m.poste} » (+${fmt(Math.abs(m.delta_fcfa))} FCFA en 7 j).`;
   }

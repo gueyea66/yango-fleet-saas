@@ -91,6 +91,8 @@ export interface BriefingDriver {
   driver_name: string;       // JAMAIS envoyé au LLM — résolution serveur
   ca_mtd_fcfa: number;
   ca_projete_fcfa: number;
+  /** Jours réellement travaillés MTD (repos [REPOS] exclus) — base des rythmes. */
+  jours_travailles_mtd?: number;
   palier_cible_fcfa: number | null;
   a_risque: boolean;
 }
