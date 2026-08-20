@@ -119,8 +119,18 @@ const PONCTUELLES = new Set(["Amende", "Contrôle routier"]);
 const isRecurrentOther = (cat: string) => cat !== "Carburant" && cat !== "Solde Yango" && !PONCTUELLES.has(cat);
 
 function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: string | null): Omit<PilotageData, "loading" | "fetching" | "error" | "refresh"> {
+  // Comptes techniques (décaissements, ex. « Founder ») : exclus de l'effectif et de
+  // la masse salariale — même règle que useDashboardKPIs.ts. Leurs déclarations et
+  // dépenses restent comptées dans les totaux (comportement intentionnel existant,
+  // cf. commentaire équivalent dans useDashboardKPIs.ts) : on ne filtre donc PAS
+  // `reports`/`expenses`, seulement `profiles` (effectif) et `payments` (salaires).
+  const { expenses, payments: rawPayments, profiles: rawProfiles } = raw;
+  const technicalIds = new Set(
+    rawProfiles.filter((p: any) => p.account_type === "technical").map((p: any) => p.id)
+  );
+  const profiles = rawProfiles.filter((p: any) => !technicalIds.has(p.id));
+  const payments = rawPayments.filter((p: any) => !technicalIds.has(p.driver_id));
   // Exclure les jours de repos des calculs financiers
-  const { expenses, payments, profiles } = raw;
   const reports = raw.reports.filter((r: any) => !String(r.comment || "").startsWith("[REPOS]"));
   const today = new Date();
   const todayStr = today.toISOString().split("T")[0];
@@ -455,7 +465,10 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
     const prevDays = new Set(prevReps.map((r) => r.date)).size || 1;
     const distanceToTiers = sorted.map((r) => ({ label: r.label, needed: Math.max(0, r.min_net - projNet), salary: r.total_salary, reachable: r.min_net <= projNet + dailyAvg * driverWorkDaysRemaining * 1.2 }));
     const daysElapsed = today.getDate();
-    return { driverId: prof.driver_id, name: prof.full_name, mtdNet, mtdDays, dailyAvg, neededDailyAvg: Math.max(0, needed), projectedMonthNet: projNet, projectedSalary: projTier.total_salary, projectedTier: projTier.label, currentTier: curTier.label, paceAlert: dailyAvg < needed * 0.85, daysElapsed, daysRemaining: driverWorkDaysRemaining, daysInMonth: workingDaysTotal, progressToCurrentTierMax: progress, distanceToTiers, prevMonthNet: prevNet, prevDailyAvg: prevNet / prevDays };
+    // Prorata d'entrée (hire_date) : un chauffeur arrivé en cours de mois ne touche pas
+    // le salaire plein palier — même ratio que la masse salariale agrégée ci-dessus.
+    const salaryRatio = activeRatioForMonth(prof, curMonthStr);
+    return { driverId: prof.driver_id, name: prof.full_name, mtdNet, mtdDays, dailyAvg, neededDailyAvg: Math.max(0, needed), projectedMonthNet: projNet, projectedSalary: Math.round(projTier.total_salary * salaryRatio), projectedTier: projTier.label, currentTier: curTier.label, paceAlert: dailyAvg < needed * 0.85, daysElapsed, daysRemaining: driverWorkDaysRemaining, daysInMonth: workingDaysTotal, progressToCurrentTierMax: progress, distanceToTiers, prevMonthNet: prevNet, prevDailyAvg: prevNet / prevDays };
   });
 
   // ── CASH FLOW ─────────────────────────────────────

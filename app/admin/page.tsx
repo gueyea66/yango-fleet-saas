@@ -2671,14 +2671,23 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
     hybrid: "Fixe + bonus", location: "Loyer journalier",
   };
 
+  // Masse salariale RÉELLE : somme des allocations par chauffeur (déjà proratisées
+  // par sa date d'entrée, cf. DriverAllocationsBlock/calcDriverSalary) — pas une
+  // moyenne × effectif, qui surestime dès qu'un chauffeur est entré en cours de mois.
+  const allocations: any[] = Array.isArray(kpis.driverAllocations) ? kpis.driverAllocations : [];
+  const realMasseSalariale = allocations.reduce((sum: number, d: any) => {
+    const effCfg = { ...cfg, model: d.salary_model || cfg.model, base_amount: d.base_amount ?? cfg.base_amount };
+    return sum + calcDriverSalary(d.netDeclared, effCfg, d.prorataFactor);
+  }, 0);
+
   // Compute estimates per model
   let items: { label: string; value: string; color: string; sub?: string }[] = [];
 
   if (model === "fixed") {
-    const masseSalariale = (cfg.base_amount || 0) * (kpis.totalDrivers || 1);
+    const masseSalariale = realMasseSalariale;
     items = [
       { label: "Salaire/driver", value: xof(cfg.base_amount), color: "#f5a623" },
-      { label: "Masse salariale totale", value: xof(masseSalariale), color: "#ef4444", sub: `${kpis.totalDrivers} drivers` },
+      { label: "Masse salariale totale", value: xof(masseSalariale), color: "#ef4444", sub: `${kpis.totalDrivers} drivers, prorata inclus` },
       { label: "CA net période", value: xof(kpis.totalBrut), color: "#22c55e" },
       { label: "Marge après salaires", value: xof(kpis.totalBrut - masseSalariale), color: kpis.totalBrut - masseSalariale >= 0 ? "#22c55e" : "#ef4444" },
     ];
@@ -2688,11 +2697,11 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
     const avgPerDriver = kpis.totalDrivers > 0 ? kpis.totalBrut / kpis.totalDrivers : 0;
     const estTier = sorted.find((t) => avgPerDriver >= t.min_net) ?? sorted[sorted.length - 1];
     const estSalaire = estTier?.total_salary ?? cfg.base_amount ?? 0;
-    const masseSalariale = estSalaire * (kpis.totalDrivers || 1);
+    const masseSalariale = realMasseSalariale;
     items = [
-      { label: "CA net moy/driver", value: xof(avgPerDriver), color: "#f5a623", sub: "Base estimation palier" },
-      { label: "Palier estimé", value: estTier?.label ?? "—", color: "var(--sk-t2)", sub: `→ ${xof(estSalaire)}/driver` },
-      { label: "Masse salariale estimée", value: xof(masseSalariale), color: "#ef4444", sub: `${kpis.totalDrivers} drivers` },
+      { label: "CA net moy/driver", value: xof(avgPerDriver), color: "#f5a623", sub: "Indicatif (hors prorata)" },
+      { label: "Palier estimé", value: estTier?.label ?? "—", color: "var(--sk-t2)", sub: `→ ${xof(estSalaire)}/driver plein mois` },
+      { label: "Masse salariale estimée", value: xof(masseSalariale), color: "#ef4444", sub: `${kpis.totalDrivers} drivers, prorata inclus` },
       { label: "Marge après salaires", value: xof(kpis.totalBrut - masseSalariale), color: kpis.totalBrut - masseSalariale >= 0 ? "#22c55e" : "#ef4444" },
     ];
   } else if (model === "percent") {
@@ -2707,11 +2716,11 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
   } else if (model === "hybrid") {
     const avgPerDriver = kpis.totalDrivers > 0 ? kpis.totalBrut / kpis.totalDrivers : 0;
     const bonusDrivers = cfg.bonus_threshold > 0 && avgPerDriver >= cfg.bonus_threshold ? kpis.totalDrivers : 0;
-    const masseSalariale = (cfg.base_amount || 0) * (kpis.totalDrivers || 1) + bonusDrivers * (cfg.bonus_amount || 0) + kpis.totalBrut * (cfg.commission_rate || 0);
+    const masseSalariale = realMasseSalariale;
     items = [
-      { label: "Masse fixe", value: xof((cfg.base_amount || 0) * (kpis.totalDrivers || 1)), color: "#f5a623", sub: `${kpis.totalDrivers} × ${xof(cfg.base_amount)}` },
+      { label: "Masse fixe (plein mois, indicatif)", value: xof((cfg.base_amount || 0) * (kpis.totalDrivers || 1)), color: "#f5a623", sub: `${kpis.totalDrivers} × ${xof(cfg.base_amount)}` },
       { label: "Bonus estimés", value: xof(bonusDrivers * (cfg.bonus_amount || 0)), color: "#a855f7", sub: bonusDrivers > 0 ? `${bonusDrivers} drivers ont atteint le seuil` : `Seuil : ${xof(cfg.bonus_threshold)}` },
-      { label: "Masse salariale totale", value: xof(masseSalariale), color: "#ef4444" },
+      { label: "Masse salariale totale", value: xof(masseSalariale), color: "#ef4444", sub: "Prorata inclus (réel)" },
       { label: "Marge après salaires", value: xof(kpis.totalBrut - masseSalariale), color: kpis.totalBrut - masseSalariale >= 0 ? "#22c55e" : "#ef4444" },
     ];
   } else if (model === "location") {

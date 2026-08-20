@@ -73,20 +73,21 @@ export default async function Home() {
             <a href="#securite" className="hover:opacity-80 transition-opacity">Sécurité</a>
             <a href="#contact" className="hover:opacity-80 transition-opacity">Contact</a>
           </nav>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/auth/login"
-              className="hidden sm:block text-sm font-medium hover:opacity-80 transition-opacity"
+              className="text-sm font-medium hover:opacity-80 transition-opacity whitespace-nowrap"
               style={{ color: "var(--sk-t2)" }}
             >
               Se connecter
             </Link>
             <a
               href="#contact"
-              className="rounded-lg px-4 py-2 text-sm font-semibold cursor-pointer transition-opacity hover:opacity-90"
+              className="rounded-lg px-3 sm:px-4 py-2 text-sm font-semibold cursor-pointer transition-opacity hover:opacity-90 whitespace-nowrap"
               style={{ background: "#f5a623", color: "#080a0f" }}
             >
-              Demander une démo
+              <span className="hidden sm:inline">Demander une démo</span>
+              <span className="sm:hidden">Démo</span>
             </a>
           </div>
         </div>

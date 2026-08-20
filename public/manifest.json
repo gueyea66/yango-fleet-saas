@@ -3,7 +3,7 @@
   "short_name": "M3A Fleet",
   "description": "Gestion de flotte Yango — rapports journaliers, dépenses, rémunération",
   "id": "/",
-  "start_url": "/",
+  "start_url": "/auth/login",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
