@@ -347,15 +347,28 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       const activeDays = new Set(workedReps.map((r) => r.date)).size || 1;
 
       // ── PER-DRIVER ALLOCATIONS (approved + submitted, non-rejected) ──
+      // N'affiche que les chauffeurs ACTIFS sur la période sélectionnée (même
+      // convention de chevauchement [hire_date → contract_end_date] que
+      // usePilotage.ts::activeRatioForMonth) — un chauffeur désactivé ou parti
+      // avant/après la période n'encombre plus le bloc d'allocation.
+      const isActiveForPeriod = (d: any): boolean => {
+        if (d.account_type === "technical") return false;
+        if (d.active === false && !d.contract_end_date) return false;
+        let from = periodStart, to = periodEnd;
+        if (d.hire_date && d.hire_date > from) from = d.hire_date;
+        if (d.contract_end_date && d.contract_end_date < to) to = d.contract_end_date;
+        return to >= from;
+      };
       const allActive: any[] = (allReps || []).filter((r: any) => r.status === "approved" || r.status === "submitted");
       const driverAllocationMap = new Map<string, { name: string; netApproved: number; netPending: number; nbApproved: number; nbPending: number }>();
-      // Seed with all driver profiles so zero-report drivers still appear
-      drivers.forEach((d) => {
+      // Seed avec les chauffeurs actifs sur la période (les chauffeurs à zéro rapport restent visibles)
+      drivers.filter(isActiveForPeriod).forEach((d) => {
         driverAllocationMap.set(d.id, { name: d.full_name || d.driver_id || d.id.slice(0, 8), netApproved: 0, netPending: 0, nbApproved: 0, nbPending: 0 });
       });
       allActive.forEach((r: any) => {
         if (!driverAllocationMap.has(r.driver_id)) {
           const p = drivers.find((d) => d.id === r.driver_id);
+          if (p && !isActiveForPeriod(p)) return; // profil connu mais pas actif sur la période → pas affiché
           driverAllocationMap.set(r.driver_id, { name: p?.full_name || p?.driver_id || r.driver_id?.slice(0, 8), netApproved: 0, netPending: 0, nbApproved: 0, nbPending: 0 });
         }
         const entry = driverAllocationMap.get(r.driver_id)!;
