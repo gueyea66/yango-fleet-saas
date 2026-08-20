@@ -68,8 +68,8 @@ export default function ContactForm() {
           Demande envoyée
         </h3>
         <p style={{ color: "var(--sk-t2)" }}>
-          Merci ! Un membre de l&apos;équipe M3A Fleet vous recontacte sous peu pour organiser
-          votre démonstration.
+          Merci ! Un membre de l&apos;équipe M3A Fleet revient vers vous très vite pour
+          organiser votre démonstration.
         </p>
       </div>
     );
@@ -145,7 +145,7 @@ export default function ContactForm() {
       </div>
 
       <p className="text-xs -mt-2" style={{ color: "var(--sk-t3)" }}>
-        Téléphone ou email requis, pour vous recontacter.
+        Téléphone ou email : de quoi vous recontacter.
       </p>
 
       <div>

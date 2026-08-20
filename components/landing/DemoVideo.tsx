@@ -54,7 +54,7 @@ export default function DemoVideo({ poster, src }: { poster: string; src: string
         className="absolute bottom-4 left-4 right-4 flex items-center justify-between text-sm"
         style={{ color: "var(--sk-t1)" }}
       >
-        <span className="font-medium">Voir la démonstration — 4 min</span>
+        <span className="font-medium">Lancer la démonstration — 4 min</span>
         <span style={{ color: "var(--sk-t2)" }}>Écrans réels, données fictives</span>
       </div>
     </button>

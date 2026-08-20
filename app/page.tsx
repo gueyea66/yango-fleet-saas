@@ -27,9 +27,9 @@ import DemoVideo from "@/components/landing/DemoVideo";
 import ContactForm from "@/components/landing/ContactForm";
 
 export const metadata: Metadata = {
-  title: "M3A Fleet — La réalité du terrain, transformée en vérité financière",
+  title: "M3A Fleet — Le terrain, transformé en vérité financière",
   description:
-    "M3A Fleet transforme la réalité du terrain en vérité financière, chaque jour : déclaration chauffeur en 2 minutes, validation gestionnaire, pilotage en temps réel par véhicule. Demandez une démonstration.",
+    "M3A Fleet transforme la réalité du terrain en vérité financière, chaque jour : déclaration en deux minutes, validation du gestionnaire, pilotage en temps réel, véhicule par véhicule. Demandez une démonstration.",
 };
 
 const surface = { background: "var(--sk-surface)", border: "1px solid var(--sk-border)" };
@@ -100,15 +100,16 @@ export default async function Home() {
               className="inline-block text-xs font-semibold tracking-wide uppercase rounded-full px-3 py-1 mb-6"
               style={{ background: "rgba(245,166,35,0.12)", color: "#f5a623" }}
             >
-              Gestion de flotte &amp; opérations chauffeurs
+              Pilotage de flotte &amp; opérations chauffeurs
             </span>
             <h1 className="text-4xl sm:text-5xl font-bold tracking-tight leading-[1.1] mb-6">
               Chaque véhicule, chaque chauffeur, chaque franc — visible, validé, traçable.
             </h1>
             <p className="text-lg leading-relaxed mb-9" style={{ color: "var(--sk-t2)" }}>
               M3A Fleet transforme la réalité du terrain en vérité financière, chaque jour.
-              Fini les recettes sur cahier, les dépenses sur WhatsApp et l&apos;Excel jamais à
-              jour : une seule plateforme, du chauffeur à la direction.
+              Le cahier de recettes, les dépenses envoyées sur WhatsApp, le tableur jamais à
+              jour : tout converge enfin vers une seule plateforme, du chauffeur jusqu&apos;à
+              la direction.
             </p>
             <div className="flex flex-wrap gap-4">
               <a
@@ -165,8 +166,9 @@ export default async function Home() {
             n&apos;arrive jamais proprement jusqu&apos;à la direction.</span>
           </p>
           <p className="mt-4" style={{ color: "var(--sk-t2)" }}>
-            Recettes, kilomètres, carburant, dépenses — erreurs, litiges, pertes, et zéro
-            vision de la rentabilité réelle.
+            Recettes, kilomètres, carburant, dépenses : tout transite par le papier et les
+            messages, avec son lot d&apos;erreurs, de litiges et de pertes — sans jamais
+            révéler si la flotte est réellement rentable.
           </p>
         </div>
       </section>
@@ -178,8 +180,8 @@ export default async function Home() {
             La donnée du terrain, en trois mouvements
           </h2>
           <p style={{ color: "var(--sk-t2)" }}>
-            Peu importe le métier — transport de personnes, fret, logistique, flotte de
-            service — le cycle est le même : déclarer, valider, savoir.
+            Transport de personnes, fret, logistique, flotte de service : quel que soit le
+            métier, le cycle ne change pas. Déclarer. Valider. Savoir.
           </p>
         </div>
 
@@ -188,7 +190,7 @@ export default async function Home() {
           icon={ScanLine}
           title="CAPTER"
           tagline="La donnée naît là où elle se passe."
-          description="Le chauffeur déclare sa journée en 2 minutes depuis son téléphone : recettes, kilométrage, carburant, dépenses avec photo du justificatif. Fonctionne sur Android modeste, en 3G. Sur les plateformes compatibles, il photographie simplement son écran et le compteur — l'IA remplit les champs, il vérifie et soumet."
+          description="En deux minutes, depuis son téléphone, le chauffeur déclare sa journée : recettes, kilométrage, carburant, dépenses — justificatif photographié à l'appui. Aucune connexion rapide requise : l'application tient sur un Android modeste, même en 3G. Sur les plateformes compatibles, il lui suffit de photographier son écran et le compteur : l'intelligence artificielle remplit les champs à sa place, il vérifie, il valide."
           image="/landing/img/driver-mobile.png"
           imageWidth={390}
           imageHeight={844}
@@ -199,7 +201,7 @@ export default async function Home() {
           icon={ShieldCheck}
           title="CONTRÔLER"
           tagline="Pas de chiffre sans preuve, pas d'action sans trace."
-          description="Rien n'entre dans les chiffres sans validation du gestionnaire. Le moteur de calcul applique le modèle de rémunération configuré et affiche le net. Chaque validation, rejet ou modification est journalisé : qui, quoi, quand."
+          description="Aucun chiffre n'entre dans le système sans le regard du gestionnaire. Le moteur de calcul applique le modèle de rémunération choisi et affiche le net à la seconde. Chaque validation, chaque rejet, chaque modification laisse une trace : qui, quoi, quand."
           image="/landing/img/validation-modal.png"
           imageWidth={1440}
           imageHeight={900}
@@ -210,7 +212,7 @@ export default async function Home() {
           icon={BarChart3}
           title="PILOTER"
           tagline="Chaque véhicule devient un centre de profit visible."
-          description="Net réel par jour, par véhicule, par chauffeur. Coût au kilomètre. Rémunérations calculées automatiquement. Alertes sur les déclarations manquantes, rentabilité et projections pour la direction."
+          description="Le net réel, jour après jour, véhicule par véhicule, chauffeur par chauffeur. Le coût au kilomètre. Les rémunérations calculées sans intervention. Une alerte dès qu'une déclaration manque, une projection dès que la direction en a besoin."
           image="/landing/img/dashboard-desktop.png"
           imageWidth={1440}
           imageHeight={900}
@@ -227,8 +229,8 @@ export default async function Home() {
               La solution en action
             </h2>
             <p style={{ color: "var(--sk-t2)" }}>
-              Le flux complet, du chauffeur à la direction — écrans réels, données de
-              démonstration.
+              Du chauffeur à la direction : le flux complet, en écrans réels, sur un jeu de
+              données de démonstration.
             </p>
           </div>
           <div className="aspect-video">
@@ -244,8 +246,8 @@ export default async function Home() {
             À chacun son bénéfice
           </h2>
           <p style={{ color: "var(--sk-t2)" }}>
-            L&apos;interface s&apos;adapte à son utilisateur — mode simple pour un responsable
-            non technique, mode avancé pour un contrôleur de gestion.
+            L&apos;interface épouse son utilisateur : mode simple pour un responsable non
+            technique, mode avancé pour un contrôleur de gestion.
           </p>
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -257,22 +259,22 @@ export default async function Home() {
           <BenefitCard
             icon={Wallet}
             title="Direction financière"
-            text="Des chiffres tracés et auditables, des justificatifs centralisés, des exports comptables."
+            text="Des chiffres tracés, auditables, prêts pour l'export comptable — et des justificatifs enfin centralisés."
           />
           <BenefitCard
             icon={ClipboardCheck}
             title="Responsable d'exploitation"
-            text="Fin de la collecte manuelle : validation en un geste, alertes sur les déclarations manquantes, litiges réglés par les preuves."
+            text="La collecte manuelle, c'est terminé : valider d'un geste, être alerté dès qu'une déclaration manque, trancher chaque litige avec des preuves plutôt que des suppositions."
           />
           <BenefitCard
             icon={Users}
             title="Chauffeurs"
-            text="Transparence totale sur leur activité et leur net à percevoir — moins de contestations, plus de confiance."
+            text="Une transparence totale sur leur activité et sur ce qu'ils vont réellement toucher : moins de contestations, davantage de confiance."
           />
           <BenefitCard
             icon={Lock}
             title="DSI"
-            text="Une solution isolée par entreprise, chiffrée, journalisée, réversible — dossier sécurité dédié disponible."
+            text="Une solution isolée par entreprise, chiffrée de bout en bout, journalisée, réversible : le dossier sécurité complet est transmis sur simple demande."
           />
           <BenefitCard
             icon={Palette}
@@ -294,17 +296,17 @@ export default async function Home() {
             <Differentiator
               icon={Sprout}
               title="Né du terrain"
-              text="Construit d'abord pour la propre flotte de M3A Group à Dakar, puis industrialisé. Chaque écran répond à un problème réellement vécu."
+              text="Conçu d'abord pour la flotte de M3A Group, à Dakar, avant d'être industrialisé : chaque écran répond à un problème réellement vécu sur le terrain, pas imaginé dans un cahier des charges."
             />
             <Differentiator
               icon={Calculator}
               title="Rigueur des calculs"
-              text="Un moteur de calcul unique et testé (140+ tests automatisés) fait foi pour commissions, rémunérations et résultats. Modèles paramétrables par chauffeur."
+              text="Un moteur de calcul unique fait foi pour les commissions, les rémunérations, les résultats — plus de 140 tests automatisés le vérifient à chaque mise à jour. Chaque chauffeur peut avoir son propre modèle de rémunération."
             />
             <Differentiator
               icon={ShieldCheck}
               title="Sécurité de niveau entreprise"
-              text="Isolation stricte des données par client, chiffrement, journaux d'audit, validation des fichiers — dossier sécurité disponible sur demande."
+              text="Isolation stricte des données par client, chiffrement, journaux d'audit, contrôle systématique des fichiers : le dossier sécurité est transmis sur simple demande."
             />
             <Differentiator
               icon={FileCheck2}
@@ -320,16 +322,17 @@ export default async function Home() {
         <div className="grid lg:grid-cols-2 gap-14 items-center">
           <div>
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-5">
-              Une interface qui s&apos;adapte à son utilisateur
+              Une interface qui épouse son utilisateur
             </h2>
             <p className="mb-4" style={{ color: "var(--sk-t2)" }}>
-              <strong style={{ color: "var(--sk-t1)" }}>Mode simple</strong> pour un propriétaire
-              non technique : 3 écrans, la file « à valider » et le net — rien d&apos;autre.
+              <strong style={{ color: "var(--sk-t1)" }}>Mode simple</strong>, pour le propriétaire
+              qui n&apos;a pas de temps à perdre : trois écrans, la file à valider, le net du
+              mois. Rien de plus.
             </p>
             <p style={{ color: "var(--sk-t2)" }}>
-              <strong style={{ color: "var(--sk-t1)" }}>Mode avancé</strong> pour un contrôleur
-              de gestion : compte de résultat opérationnel, analyses, exports. La bascule se
-              fait à tout moment, par client.
+              <strong style={{ color: "var(--sk-t1)" }}>Mode avancé</strong>, pour le contrôleur
+              de gestion qui veut tout voir : compte de résultat opérationnel, analyses fines,
+              exports. Le passage de l&apos;un à l&apos;autre se fait à tout moment, par client.
             </p>
           </div>
           <div className="rounded-2xl overflow-hidden shadow-xl" style={{ border: "1px solid var(--sk-border)" }}>
@@ -352,7 +355,7 @@ export default async function Home() {
               Sécurité de niveau entreprise
             </h2>
             <p style={{ color: "var(--sk-t2)" }}>
-              En production continue depuis 2026, avec des flottes réelles à Dakar.
+              En production continue depuis 2026, au contact de flottes réelles à Dakar.
             </p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -362,8 +365,9 @@ export default async function Home() {
             <TrustItem icon={ShieldCheck} text="140+ tests automatisés, supervision d'erreurs 24/7" />
           </div>
           <p className="text-center text-sm mt-10" style={{ color: "var(--sk-t3)" }}>
-            Conformité loi sénégalaise 2008-12 (CDP), principes alignés RGPD. Dossier Sécurité
-            &amp; Protection des données transmis sur demande.
+            Conforme à la loi sénégalaise 2008-12 sur les données personnelles, alignée sur
+            les principes du RGPD. Le dossier Sécurité &amp; Protection des données est
+            transmis sur simple demande.
           </p>
         </div>
       </section>
@@ -375,8 +379,8 @@ export default async function Home() {
             Deux façons de démarrer
           </h2>
           <p style={{ color: "var(--sk-t2)" }}>
-            Les conditions financières font l&apos;objet d&apos;une proposition adaptée à votre
-            périmètre — on en discute lors de la démonstration.
+            Les conditions financières s&apos;ajustent à votre périmètre : elles se discutent
+            lors de la démonstration, pas avant.
           </p>
         </div>
         <div className="grid sm:grid-cols-2 gap-6">
@@ -412,9 +416,9 @@ export default async function Home() {
             </h2>
           </div>
           <div className="grid sm:grid-cols-3 gap-6">
-            <ProcessStep n={1} title="Démonstration" text="30 minutes, en ligne ou à Dakar, sur un environnement de démonstration." />
-            <ProcessStep n={2} title="Pilote" text="30 jours sur un sous-ensemble de véhicules, avec vos données réelles." />
-            <ProcessStep n={3} title="Déploiement" text="Selon le mode choisi, avec formation des gestionnaires et des chauffeurs." />
+            <ProcessStep n={1} title="Démonstration" text="Trente minutes, en ligne ou à Dakar, sur un environnement de démonstration prêt à l'emploi." />
+            <ProcessStep n={2} title="Pilote" text="Trente jours. Un sous-ensemble de véhicules. Vos données réelles." />
+            <ProcessStep n={3} title="Déploiement" text="Selon le mode choisi, avec la formation des gestionnaires et des chauffeurs — jusqu'au dernier détail." />
           </div>
         </div>
       </section>
@@ -427,8 +431,8 @@ export default async function Home() {
               Parlons de votre flotte
             </h2>
             <p className="mb-8" style={{ color: "var(--sk-t2)" }}>
-              Laissez-nous vos coordonnées, nous revenons vers vous pour organiser une
-              démonstration adaptée à votre activité.
+              Laissez-nous vos coordonnées : nous revenons vers vous pour organiser une
+              démonstration taillée pour votre activité.
             </p>
             <div className="space-y-4 text-sm" style={{ color: "var(--sk-t2)" }}>
               <a href="tel:+221787600330" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
