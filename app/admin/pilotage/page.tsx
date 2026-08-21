@@ -749,59 +749,98 @@ function DriversSection({ data, params }: { data: ReturnType<typeof usePilotage>
 
 // ── SIMULATION ────────────────────────────────────────
 function SimulationSection({ data, params }: { data: ReturnType<typeof usePilotage>; params: PilotageParams }) {
+  const maxExtra = data.vehicleSimulations.length - 1;
+  const [extra, setExtra] = useState(0);
+  const sim = data.vehicleSimulations[Math.min(extra, maxExtra)] ?? data.vehicleSimulations[0];
+  const [showCurve, setShowCurve] = useState(false);
+
+  if (!sim) return null;
+
   return (
     <div className="space-y-6">
-      <SH title="🔮 Simulation Flotte" sub={`Impact de l'ajout de véhicules · Maintenance ${xofFmt(params.maintenanceCostPerMonth)} XOF/véhicule/mois incluse · Salaires ajustés par palier`} />
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {data.vehicleSimulations.map((sim, i) => (
-          <Card key={i} glow={i === 0 ? "var(--sk-surface)" : i === 1 ? "#f5a623" : "#22c55e"}>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <div className="text-[10px] uppercase tracking-wider" style={{ color: "var(--sk-t3)" }}>{i === 0 ? "Situation actuelle" : `Scénario +${i} véhicule${i > 1 ? "s" : ""}`}</div>
-                <div className="text-2xl font-bold text-white">{sim.nVehicles} <span className="text-sm font-normal" style={{ color: "var(--sk-t3)" }}>véh.</span></div>
-              </div>
-              <div className="text-right">
-                {i > 0 && <div className="text-xs font-semibold mb-0.5" style={{ color: sim.deltaEbitda > 0 ? "#22c55e" : "#ef4444" }}>
-                  {sim.deltaEbitda > 0 ? "+" : ""}{xof(sim.deltaEbitda)} XOF EBITDA
-                </div>}
-                <div className="text-lg font-bold" style={{ color: sim.marginPct >= 0 ? "#22c55e" : "#ef4444" }}>{pct(sim.marginPct)}</div>
-                <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>marge</div>
-              </div>
-            </div>
-            {[
-              { l: "CA mensuel projeté", v: sim.revenue, c: "#f5a623" },
-              { l: "Dépenses opé.", v: -sim.expenses, c: "#ef4444" },
-              { l: "Maintenance", v: -sim.maintenance, c: "var(--sk-t2)" },
-              { l: "Salaires", v: -sim.salaries, c: "#f97316" },
-              { l: "EBITDA mensuel", v: sim.ebitda, c: sim.ebitda >= 0 ? "#22c55e" : "#ef4444" },
-            ].map((r) => (
-              <div key={r.l} className="flex justify-between py-1.5 text-xs" style={{ borderBottom: "1px solid var(--sk-bg)" }}>
-                <span style={{ color: "var(--sk-t3)" }}>{r.l}</span>
-                <span className="font-mono font-bold" style={{ color: r.v >= 0 ? r.c : "#ef4444" }}>
-                  {r.v < 0 ? `- ${xof(Math.abs(r.v))}` : xof(r.v)} XOF
-                </span>
-              </div>
-            ))}
-          </Card>
-        ))}
-      </div>
+      <SH title="🔮 Simulation Flotte" sub={`Situation actuelle + impact d'un ajout de véhicules · Maintenance ${xofFmt(params.maintenanceCostPerMonth)} XOF/véhicule/mois incluse · Salaires ajustés par palier`} />
 
-      {/* Line chart */}
+      {/* Sélecteur — un seul scénario affiché à la fois */}
       <Card>
-        <div className="text-sm font-bold text-white mb-4">Courbes de projection — CA · EBITDA en fonction de la flotte</div>
-        <ResponsiveContainer width="100%" height={240}>
-          <LineChart data={data.vehicleSimulations.map((s) => ({ véhicules: s.nVehicles, CA: s.revenue, EBITDA: s.ebitda, Salaires: s.salaries, Maintenance: s.maintenance }))}>
-            <CartesianGrid strokeDasharray="2 4" stroke="var(--sk-surface)" />
-            <XAxis dataKey="véhicules" tick={{ fontSize: 11, fill: "var(--sk-t3)" }} />
-            <YAxis tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(v) => (v / 1000000).toFixed(1) + "M"} />
-            <Tooltip content={<ChartTooltip />} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Line type="monotone" dataKey="CA" stroke="#f5a623" strokeWidth={2} dot={{ fill: "#f5a623", r: 4 }} />
-            <Line type="monotone" dataKey="EBITDA" stroke="#22c55e" strokeWidth={2} dot={{ fill: "#22c55e", r: 4 }} />
-            <Line type="monotone" dataKey="Salaires" stroke="#f97316" strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
-            <Line type="monotone" dataKey="Maintenance" stroke="var(--sk-t2)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
-          </LineChart>
-        </ResponsiveContainer>
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <div className="text-[10px] uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>Véhicules supplémentaires à simuler</div>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setExtra((v) => Math.max(0, v - 1))} disabled={extra === 0}
+                className="w-9 h-9 rounded-lg font-bold text-lg disabled:opacity-30 cursor-pointer"
+                style={{ background: "var(--sk-surface)", color: "var(--sk-t1)" }}>−</button>
+              <div className="text-2xl font-bold text-white w-8 text-center">{extra}</div>
+              <button onClick={() => setExtra((v) => Math.min(maxExtra, v + 1))} disabled={extra === maxExtra}
+                className="w-9 h-9 rounded-lg font-bold text-lg disabled:opacity-30 cursor-pointer"
+                style={{ background: "var(--sk-surface)", color: "var(--sk-t1)" }}>+</button>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: "var(--sk-t3)" }}>Flotte simulée</div>
+            <div className="text-2xl font-bold text-white">{sim.nVehicles} <span className="text-sm font-normal" style={{ color: "var(--sk-t3)" }}>véh.</span></div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Résultat du scénario sélectionné — un seul bloc, pas 4 en même temps */}
+      <Card glow={extra === 0 ? "var(--sk-surface)" : sim.deltaEbitda >= 0 ? "#22c55e" : "#ef4444"}>
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div className="text-[10px] uppercase tracking-wider" style={{ color: "var(--sk-t3)" }}>
+            {extra === 0 ? "Situation actuelle (mois en cours)" : `Avec +${extra} véhicule${extra > 1 ? "s" : ""}`}
+          </div>
+          {extra > 0 && (
+            <div className="text-xs font-semibold" style={{ color: sim.deltaEbitda >= 0 ? "#22c55e" : "#ef4444" }}>
+              {sim.deltaEbitda >= 0 ? "+" : ""}{xof(sim.deltaEbitda)} XOF d'EBITDA vs la situation actuelle
+            </div>
+          )}
+        </div>
+        {[
+          { l: "CA mensuel projeté", v: sim.revenue, c: "#f5a623" },
+          { l: "Dépenses opé.", v: -sim.expenses, c: "#ef4444" },
+          { l: "Maintenance", v: -sim.maintenance, c: "var(--sk-t2)" },
+          { l: "Salaires", v: -sim.salaries, c: "#f97316" },
+        ].map((r) => (
+          <div key={r.l} className="flex justify-between py-1.5 text-xs" style={{ borderBottom: "1px solid var(--sk-bg)" }}>
+            <span style={{ color: "var(--sk-t3)" }}>{r.l}</span>
+            <span className="font-mono font-bold" style={{ color: r.v >= 0 ? r.c : "#ef4444" }}>
+              {r.v < 0 ? `- ${xof(Math.abs(r.v))}` : xof(r.v)} XOF
+            </span>
+          </div>
+        ))}
+        <div className="flex items-center justify-between pt-3 mt-1" style={{ borderTop: "1px solid var(--sk-surface)" }}>
+          <span className="text-sm font-semibold" style={{ color: "var(--sk-t2)" }}>EBITDA mensuel</span>
+          <span className="text-xl font-mono font-bold" style={{ color: sim.ebitda >= 0 ? "#22c55e" : "#ef4444" }}>{xof(sim.ebitda)} XOF</span>
+        </div>
+        <div className="flex justify-between pt-1">
+          <span className="text-xs" style={{ color: "var(--sk-t3)" }}>Marge</span>
+          <span className="text-sm font-bold" style={{ color: sim.marginPct >= 0 ? "#22c55e" : "#ef4444" }}>{pct(sim.marginPct)}</span>
+        </div>
+      </Card>
+
+      {/* Courbe — repliée par défaut, visible sur clic */}
+      <Card>
+        <button onClick={() => setShowCurve((v) => !v)}
+          className="w-full flex items-center justify-between cursor-pointer">
+          <span className="text-sm font-bold text-white">Courbes de projection — CA · EBITDA selon la taille de flotte</span>
+          <span className="text-xs" style={{ color: "#f5a623" }}>{showCurve ? "Masquer ▲" : "Afficher ▼"}</span>
+        </button>
+        {showCurve && (
+          <div className="mt-4">
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart data={data.vehicleSimulations.map((s) => ({ véhicules: s.nVehicles, CA: s.revenue, EBITDA: s.ebitda, Salaires: s.salaries, Maintenance: s.maintenance }))}>
+                <CartesianGrid strokeDasharray="2 4" stroke="var(--sk-surface)" />
+                <XAxis dataKey="véhicules" tick={{ fontSize: 11, fill: "var(--sk-t3)" }} />
+                <YAxis tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(v) => (v / 1000000).toFixed(1) + "M"} />
+                <Tooltip content={<ChartTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 11 }} />
+                <Line type="monotone" dataKey="CA" stroke="#f5a623" strokeWidth={2} dot={{ fill: "#f5a623", r: 4 }} />
+                <Line type="monotone" dataKey="EBITDA" stroke="#22c55e" strokeWidth={2} dot={{ fill: "#22c55e", r: 4 }} />
+                <Line type="monotone" dataKey="Salaires" stroke="#f97316" strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
+                <Line type="monotone" dataKey="Maintenance" stroke="var(--sk-t2)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </Card>
     </div>
   );

@@ -491,21 +491,27 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   });
 
   // ── VEHICLE SIMULATION ────────────────────────────
-  // Moyennes HISTORIQUES par véhicule : diviser par les chauffeurs AYANT PRODUIT
-  // sur la fenêtre (pas l'effectif actif actuel — sinon moyennes ≈ totaux après désactivations).
+  // Le point de départ (extra=0) EST la projection réelle du mois en cours
+  // (mêmes revenue/expenses/salaries/ebitda que `currentProjection` ci-dessus) —
+  // jamais une moyenne historique recalculée à part, sinon la page affiche deux
+  // "EBITDA du mois" différents (piège vécu : simulation à +989k XOF quand la
+  // vraie projection du mois est négative, simplement parce que les mois passés
+  // étaient meilleurs que le mois en cours). Seuls les véhicules ADDITIONNELS
+  // simulés (qui n'existent pas encore) utilisent la moyenne historique par
+  // véhicule, faute de données réelles.
   const contributorsCount = Math.max(new Set(reports.map((r: any) => r.driver_id)).size, 1);
   const revPerVehicle = avgMonthRev / (filtered ? 1 : contributorsCount);
   const expPerVehicle = revPerVehicle * avgExpRatio;
-  const maintPerVehicle = params.maintenanceCostPerMonth / nVehicles; // provision globale ramenée au véhicule
-  const vehicleSimulations: SimulationResult[] = [0, 1, 2, 3].map((extra) => {
+  const maintPerVehicle = nVehicles > 0 ? params.maintenanceCostPerMonth / nVehicles : params.maintenanceCostPerMonth;
+  const SIMULATION_MAX_EXTRA = 10;
+  const vehicleSimulations: SimulationResult[] = Array.from({ length: SIMULATION_MAX_EXTRA + 1 }, (_, extra) => {
     const n = nVehicles + extra;
-    const rev = revPerVehicle * n;
-    const exp = expPerVehicle * n;
-    const maint = maintPerVehicle * n;
-    const sal = tier(rev / n, params.salaryRules).total_salary * n;
+    const rev = projRevenue + revPerVehicle * extra;
+    const exp = projTotalExp + expPerVehicle * extra;
+    const maint = projMaintenance + maintPerVehicle * extra;
+    const sal = projectedTotalSalary + tier(revPerVehicle, params.salaryRules).total_salary * extra;
     const ebitda = rev - exp - maint - sal;
-    const base = revPerVehicle * nVehicles - expPerVehicle * nVehicles - params.maintenanceCostPerMonth - tier(revPerVehicle, params.salaryRules).total_salary * nVehicles;
-    return { nVehicles: n, revenue: rev, expenses: exp, maintenance: maint, salaries: sal, ebitda, marginPct: rev > 0 ? (ebitda / rev) * 100 : 0, deltaEbitda: extra === 0 ? 0 : ebitda - base };
+    return { nVehicles: n, revenue: rev, expenses: exp, maintenance: maint, salaries: sal, ebitda, marginPct: rev > 0 ? (ebitda / rev) * 100 : 0, deltaEbitda: extra === 0 ? 0 : ebitda - projEbitda };
   });
 
   // ── INSIGHTS ──────────────────────────────────────

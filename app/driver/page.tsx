@@ -289,7 +289,9 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
       const [{ data: m }, { data: mp }, { data: t }, { data: p }, { data: rej }] = await Promise.all([
         supabase.from("daily_reports").select("net_after_expenses").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).gte("date", monthStart).in("status", ["approved", "submitted"]),
         supabase.from("daily_reports").select("net_after_expenses").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).gte("date", monthStart).eq("status", "approved"),
-        supabase.from("daily_reports").select("status").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("date", today).maybeSingle(),
+        // Rapport ACTIF du jour uniquement (un rejeté ne doit ni s'afficher ici ni casser
+        // .maybeSingle() si une resoumission coexiste avec le rejet pour la même date).
+        supabase.from("daily_reports").select("status").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("date", today).in("status", ["submitted", "approved"]).limit(1).maybeSingle(),
         supabase.from("daily_reports").select("id").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("status", "submitted"),
         supabase.from("daily_reports").select("id, date").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("status", "rejected"),
       ]);
@@ -311,7 +313,7 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
           {todayStatus ? "✓ Rapport soumis aujourd'hui" : "⚠ Aucun rapport aujourd'hui"}
         </div>
         <div className="text-sm" style={{ color: "var(--sk-t3)" }}>
-          {todayStatus === "submitted" ? "En attente de validation" : todayStatus === "approved" ? "Validé ✓" : todayStatus === "rejected" ? "Rejeté ✗" : "Soumettez votre rapport en fin de journée"}
+          {todayStatus === "submitted" ? "En attente de validation" : todayStatus === "approved" ? "Validé ✓" : "Soumettez votre rapport en fin de journée"}
         </div>
       </div>
 
@@ -541,7 +543,8 @@ function AiScanBlock({ date, disabled, onExtracted }: { date: string; disabled: 
 function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => void; cfg: Cfg }) {
   const today = new Date().toISOString().split("T")[0];
   const [form, setForm] = useState({ date: today, end_odometer: "", yango_cash: "", yango_card: "", yango_gross: "", yango_bonus: "", off_yango_revenue: "", solde_yango: "", yango_trip_count: "", off_yango_trip_count: "", service_supplementaire: "", commission_yango_reelle: "", commission_partenaire_reelle: "", comment: "" });
-  const [todayReport, setTodayReport] = useState<any>(null);
+  const [todayReport, setTodayReport] = useState<any>(null); // rapport ACTIF (submitted/approved) du jour, s'il existe
+  const [rejectedToday, setRejectedToday] = useState<any>(null); // dernier rapport rejeté du jour, pour affichage/pré-remplissage uniquement
   const [submitted, setSubmitted] = useState(false);
   const [saving, setSaving] = useState(false);
   const [vehicle, setVehicle] = useState<any>(null);
@@ -594,31 +597,39 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
   useEffect(() => {
     (async () => {
       const supabase = createClient() as any;
-      const [{ data: rep }, { data: veh }] = await Promise.all([
-        supabase.from("daily_reports").select("*").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("date", today).maybeSingle(),
+      // Plusieurs rapports peuvent exister pour la même date (un rejeté + une
+      // resoumission) : on ne prend plus .maybeSingle() sur la date seule, on
+      // charge tout puis on distingue le rapport ACTIF (bloque une nouvelle
+      // saisie) du dernier rapport REJETÉ (affiché à titre informatif, sert
+      // seulement à pré-remplir — la resoumission crée une nouvelle ligne).
+      const [{ data: reps }, { data: veh }] = await Promise.all([
+        supabase.from("daily_reports").select("*").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("date", today).order("created_at", { ascending: false }),
         supabase.from("vehicles").select("id,plate,partner_rate,yango_rate").eq("driver_id", profile.id).maybeSingle(),
       ]);
-      if (rep) {
-        setTodayReport(rep);
-        // Pré-remplir le formulaire si rapport rejeté → permet modification avant resoumission
-        if (rep.status === "rejected") {
-          setForm({
-            date: rep.date || today,
-            end_odometer: rep.end_odometer ? String(rep.end_odometer) : "",
-            yango_cash: rep.yango_cash ? String(rep.yango_cash) : "",
-            yango_card: rep.yango_card ? String(rep.yango_card) : "",
-            yango_gross: rep.yango_gross ? String(rep.yango_gross) : "",
-            yango_bonus: rep.yango_bonus ? String(rep.yango_bonus) : "",
-            off_yango_revenue: rep.off_yango_revenue ? String(rep.off_yango_revenue) : "",
-            solde_yango: rep.solde_yango ? String(rep.solde_yango) : "",
-            yango_trip_count: rep.yango_trip_count ? String(rep.yango_trip_count) : "",
-            off_yango_trip_count: rep.off_yango_trip_count ? String(rep.off_yango_trip_count) : "",
-            service_supplementaire: rep.service_supplementaire ? String(rep.service_supplementaire) : "",
-            commission_yango_reelle: rep.commission_yango_reelle ? String(rep.commission_yango_reelle) : "",
-            commission_partenaire_reelle: rep.commission_partenaire_reelle ? String(rep.commission_partenaire_reelle) : "",
-            comment: rep.comment || "",
-          });
-        }
+      const active = (reps || []).find((r: any) => r.status === "submitted" || r.status === "approved") || null;
+      const lastRejected = (reps || []).find((r: any) => r.status === "rejected") || null;
+      setTodayReport(active);
+      setRejectedToday(lastRejected);
+      // Pré-remplir le formulaire depuis le dernier rapport rejeté (aucun rapport
+      // actif) → permet de corriger avant resoumission, sans écraser l'original.
+      if (!active && lastRejected) {
+        const rep = lastRejected;
+        setForm({
+          date: rep.date || today,
+          end_odometer: rep.end_odometer ? String(rep.end_odometer) : "",
+          yango_cash: rep.yango_cash ? String(rep.yango_cash) : "",
+          yango_card: rep.yango_card ? String(rep.yango_card) : "",
+          yango_gross: rep.yango_gross ? String(rep.yango_gross) : "",
+          yango_bonus: rep.yango_bonus ? String(rep.yango_bonus) : "",
+          off_yango_revenue: rep.off_yango_revenue ? String(rep.off_yango_revenue) : "",
+          solde_yango: rep.solde_yango ? String(rep.solde_yango) : "",
+          yango_trip_count: rep.yango_trip_count ? String(rep.yango_trip_count) : "",
+          off_yango_trip_count: rep.off_yango_trip_count ? String(rep.off_yango_trip_count) : "",
+          service_supplementaire: rep.service_supplementaire ? String(rep.service_supplementaire) : "",
+          commission_yango_reelle: rep.commission_yango_reelle ? String(rep.commission_yango_reelle) : "",
+          commission_partenaire_reelle: rep.commission_partenaire_reelle ? String(rep.commission_partenaire_reelle) : "",
+          comment: rep.comment || "",
+        });
       }
       if (veh) setVehicle(veh);
     })();
@@ -655,7 +666,9 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
     horsYango: n(form.off_yango_revenue),
   });
   const netTotalEffectif = modeReel ? reel.netTotal : calc.netTotal;
-  const canEdit = !todayReport || todayReport.status === "rejected";
+  // todayReport ne contient désormais QUE le rapport actif (submitted/approved) ;
+  // un rapport rejeté n'y figure jamais, donc plus besoin de le tester ici.
+  const canEdit = !todayReport;
 
   const submit = async () => {
     if (!form.yango_gross && !form.off_yango_revenue) { alert(`Renseignez au moins un montant (${platLabel()} ou Hors ${platLabel()})`); return; }
@@ -693,18 +706,18 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
         status: "submitted",
         comment: form.comment || null,
       };
-      // UPDATE si rapport rejeté existant, INSERT sinon
-      let newReport: any, error: any;
-      if (todayReport?.id) {
-        ({ data: newReport, error } = await supabase.from("daily_reports")
-          .update({ ...payload, rejection_reason: null })
-          .eq("id", todayReport.id)
-          .select("id").single());
-      } else {
-        ({ data: newReport, error } = await supabase.from("daily_reports")
-          .insert({ driver_id: profile.id, tenant_id: profile.tenant_id, date: form.date, source: "saas", ...payload })
-          .select("id").single());
-      }
+      // Toujours un nouvel enregistrement — y compris après un rejet : le rapport
+      // rejeté reste tel quel (historique + motif consultables), la resoumission
+      // est une ligne différente. Seul contrôle : pas 2 rapports ACTIFS le même
+      // jour (un rapport rejeté n'en est pas un — voir updateStatus côté admin
+      // pour le verrou symétrique à la validation).
+      const { data: dup } = await supabase.from("daily_reports")
+        .select("id").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id)
+        .eq("date", form.date).in("status", ["submitted", "approved"]).limit(1).maybeSingle();
+      if (dup) { alert("Un rapport est déjà soumis ou validé pour cette date."); setSaving(false); return; }
+      const { data: newReport, error } = await supabase.from("daily_reports")
+        .insert({ driver_id: profile.id, tenant_id: profile.tenant_id, date: form.date, source: "saas", ...payload })
+        .select("id").single();
       if (error) throw error;
       if (newReport?.id) {
         setReportId(newReport.id);
@@ -780,14 +793,14 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
   return (
     <div className="p-4">
       <BackHeader title="Rapport journalier" onBack={onBack} />
-      {todayReport && todayReport.status !== "rejected" && <StatusBanner type="ok">Rapport déjà soumis · {todayReport.status === "submitted" ? "En attente" : "Validé ✓"}</StatusBanner>}
-      {todayReport?.status === "rejected" && (
+      {todayReport && <StatusBanner type="ok">Rapport déjà soumis · {todayReport.status === "submitted" ? "En attente" : "Validé ✓"}</StatusBanner>}
+      {!todayReport && rejectedToday && (
         <div className="rounded-xl p-3 mb-2" style={{ background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.25)" }}>
-          <div className="text-sm font-semibold" style={{ color: "#ef4444" }}>⚠ Rapport rejeté</div>
-          {todayReport.rejection_reason && (
-            <div className="text-xs mt-1" style={{ color: "#f87171" }}>Motif : {todayReport.rejection_reason}</div>
+          <div className="text-sm font-semibold" style={{ color: "#ef4444" }}>⚠ Un précédent rapport pour cette date a été rejeté</div>
+          {rejectedToday.rejection_reason && (
+            <div className="text-xs mt-1" style={{ color: "#f87171" }}>Motif : {rejectedToday.rejection_reason}</div>
           )}
-          <div className="text-xs mt-1" style={{ color: "#9ca3af" }}>Modifiez les champs si nécessaire puis resoumettre.</div>
+          <div className="text-xs mt-1" style={{ color: "#9ca3af" }}>Les champs sont pré-remplis avec cette ancienne saisie — corrigez et soumettez : ça crée un nouveau rapport, l'ancien reste consultable dans l'historique.</div>
         </div>
       )}
       <div className="space-y-4">

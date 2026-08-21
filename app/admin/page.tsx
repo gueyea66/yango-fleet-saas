@@ -15,7 +15,7 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard, Inbox, History, Calendar, Banknote, HandCoins, Gauge,
   Car, Users, BadgeCheck, Briefcase, BookText, Upload, Settings, BarChart3, Download, BellRing,
-  AlertTriangle, Info, TrendingUp, Fuel, Coins, Wallet, FileText, BedDouble, Paperclip, Trash2, type LucideIcon,
+  AlertTriangle, Info, TrendingUp, Fuel, Coins, Wallet, FileText, BedDouble, Paperclip, Trash2, ChevronRight, type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { useRouter } from "next/navigation";
@@ -2789,6 +2789,77 @@ function InsightsPanel({ kpis }: { kpis: any }) {
   );
 }
 
+// ─── GROUPEMENT PAR MOIS (Paiements + Avances) ────────
+const MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+
+function groupByMonth<T extends { payment_date?: string }>(items: T[]): { key: string; label: string; items: T[]; total: number }[] {
+  const map = new Map<string, T[]>();
+  for (const it of items) {
+    const key = (it.payment_date || "").slice(0, 7) || "sans-date";
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(it);
+  }
+  return Array.from(map.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([key, groupItems]) => {
+      const [y, m] = key.split("-");
+      const mIdx = parseInt(m, 10) - 1;
+      const label = key !== "sans-date" && mIdx >= 0 && mIdx < 12 ? `${MOIS_FR[mIdx]} ${y}` : "Sans date";
+      const total = groupItems.reduce((s: number, it: any) => s + (it.amount || 0), 0);
+      return { key, label, items: groupItems, total };
+    });
+}
+
+// Accordéon : chaque mois est replié par défaut, seul le plus récent (index 0) est ouvert.
+function MonthAccordion({
+  groups,
+  xof,
+  renderItem,
+  emptyLabel = "entrée",
+}: {
+  groups: { key: string; label: string; items: any[]; total: number }[];
+  xof: (n: number) => string;
+  renderItem: (item: any) => React.ReactNode;
+  emptyLabel?: string;
+}) {
+  const [openKey, setOpenKey] = useState<string | null>(groups[0]?.key ?? null);
+
+  return (
+    <div className="space-y-2">
+      {groups.map((g) => {
+        const isOpen = openKey === g.key;
+        return (
+          <div key={g.key} className="rounded-xl overflow-hidden" style={{ border: "1px solid var(--sk-surface)" }}>
+            <button
+              onClick={() => setOpenKey(isOpen ? null : g.key)}
+              className="w-full flex items-center justify-between px-4 py-3 text-left cursor-pointer"
+              style={{ background: "var(--sk-bg)" }}
+            >
+              <div className="flex items-center gap-3">
+                <ChevronRight
+                  size={16}
+                  strokeWidth={2}
+                  style={{ color: "var(--sk-t3)", transform: isOpen ? "rotate(90deg)" : "none", transition: "transform .15s" }}
+                />
+                <span className="text-sm font-semibold text-white capitalize">{g.label}</span>
+                <span className="text-xs" style={{ color: "var(--sk-t4)" }}>
+                  {g.items.length} {g.items.length > 1 ? `${emptyLabel}s` : emptyLabel}
+                </span>
+              </div>
+              <span className="font-mono font-bold text-sm" style={{ color: "#22c55e" }}>{xof(g.total)} XOF</span>
+            </button>
+            {isOpen && (
+              <div className="px-3 pb-3 pt-1 space-y-2" style={{ background: "var(--sk-deep)" }}>
+                {g.items.map(renderItem)}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── PAYMENTS TAB ─────────────────────────────────────
 function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: string; tenantId: string }) {
   const [payments, setPayments] = useState<any[]>([]);
@@ -2962,17 +3033,18 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
         </div>
       )}
 
-      {/* List */}
+      {/* List — regroupée par mois, repliée sauf le mois le plus récent */}
       {loading ? (
         <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Chargement...</div>
       ) : filteredPayments.length === 0 ? (
         <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Aucun paiement enregistré</div>
       ) : (
-        <div className="space-y-2">
-          {filteredPayments.map((p) => (
-            <PaymentRow key={p.id} payment={p} onDelete={() => deletePayment(p.id)} typeBadge={typeBadge} xof={xof} />
-          ))}
-        </div>
+        <MonthAccordion
+          groups={groupByMonth(filteredPayments)}
+          xof={xof}
+          emptyLabel="paiement"
+          renderItem={(p) => <PaymentRow key={p.id} payment={p} onDelete={() => deletePayment(p.id)} typeBadge={typeBadge} xof={xof} />}
+        />
       )}
     </div>
   );
@@ -3244,47 +3316,67 @@ function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string
         </div>
       )}
 
-      {/* Detail list */}
+      {/* Detail list — regroupée par mois, repliée sauf le mois le plus récent */}
       {loading ? (
         <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Chargement...</div>
       ) : advances.length === 0 ? (
         <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Aucune avance enregistrée</div>
       ) : (
-        <div className="space-y-2">
-          {advances.map((a) => (
-            <div key={a.id} className="rounded-xl px-4 py-3 flex items-center justify-between"
-              style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
-              <div>
-                <div className="text-sm font-semibold text-white">
-                  {a.profiles?.full_name || "—"}
-                  <span className="ml-2 text-xs" style={{ color: "var(--sk-t4)" }}>{a.profiles?.driver_id}</span>
-                </div>
-                <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap" style={{ color: "var(--sk-t3)" }}>
-                  <span>{a.payment_date}</span>
-                  {a.notes && <span className="truncate max-w-[200px]">{a.notes}</span>}
-                  {a.is_deducted
-                    ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: "#22c55e", background: "rgba(34,197,94,.1)" }}>✓ Déduit {a.deducted_at || ""}</span>
-                    : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: "#f5a623", background: "rgba(245,166,35,.1)" }}>En attente</span>
-                  }
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="font-mono font-bold" style={{ color: a.is_deducted ? "var(--sk-t3)" : "#f5a623" }}>
-                  {xof(a.amount)} XOF
-                </div>
-                {!a.is_deducted && (
-                  <button onClick={() => markDeducted(a.id)}
-                    className="text-[10px] px-2 py-1 rounded-lg font-semibold"
-                    style={{ background: "rgba(34,197,94,.1)", color: "#22c55e" }}>
-                    Marquer déduit
-                  </button>
-                )}
-                <button onClick={() => deleteAdvance(a.id)} className="text-xs" style={{ color: "var(--sk-t4)" }}><Trash2 size={13} strokeWidth={2} /></button>
-              </div>
-            </div>
-          ))}
-        </div>
+        <MonthAccordion
+          groups={groupByMonth(advances)}
+          xof={xof}
+          emptyLabel="avance"
+          renderItem={(a) => (
+            <AdvanceRow key={a.id} advance={a} onMarkDeducted={() => markDeducted(a.id)} onDelete={() => deleteAdvance(a.id)} xof={xof} />
+          )}
+        />
       )}
+    </div>
+  );
+}
+
+// ─── ADVANCE ROW ──────────────────────────────────────
+function AdvanceRow({
+  advance: a,
+  onMarkDeducted,
+  onDelete,
+  xof,
+}: {
+  advance: any;
+  onMarkDeducted: () => void;
+  onDelete: () => void;
+  xof: (n: number) => string;
+}) {
+  return (
+    <div className="rounded-xl px-4 py-3 flex items-center justify-between"
+      style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+      <div>
+        <div className="text-sm font-semibold text-white">
+          {a.profiles?.full_name || "—"}
+          <span className="ml-2 text-xs" style={{ color: "var(--sk-t4)" }}>{a.profiles?.driver_id}</span>
+        </div>
+        <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap" style={{ color: "var(--sk-t3)" }}>
+          <span>{a.payment_date}</span>
+          {a.notes && <span className="truncate max-w-[200px]">{a.notes}</span>}
+          {a.is_deducted
+            ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: "#22c55e", background: "rgba(34,197,94,.1)" }}>✓ Déduit {a.deducted_at || ""}</span>
+            : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: "#f5a623", background: "rgba(245,166,35,.1)" }}>En attente</span>
+          }
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <div className="font-mono font-bold" style={{ color: a.is_deducted ? "var(--sk-t3)" : "#f5a623" }}>
+          {xof(a.amount)} XOF
+        </div>
+        {!a.is_deducted && (
+          <button onClick={onMarkDeducted}
+            className="text-[10px] px-2 py-1 rounded-lg font-semibold cursor-pointer"
+            style={{ background: "rgba(34,197,94,.1)", color: "#22c55e" }}>
+            Marquer déduit
+          </button>
+        )}
+        <button onClick={onDelete} className="text-xs cursor-pointer" style={{ color: "var(--sk-t4)" }}><Trash2 size={13} strokeWidth={2} /></button>
+      </div>
     </div>
   );
 }
