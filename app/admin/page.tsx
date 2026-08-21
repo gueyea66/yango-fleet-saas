@@ -2219,10 +2219,25 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
     setSaving(true);
     try {
       const supabase = createClient() as any;
+      if (status === "approved") {
+        // Un seul rapport ACTIF par chauffeur et par date : si un autre rapport
+        // est déjà validé pour cette date, on bloque plutôt que de créer un doublon.
+        const { data: dup } = await supabase.from("daily_reports")
+          .select("id").eq("driver_id", report.driver_id).eq("tenant_id", report.tenant_id)
+          .eq("date", report.date).eq("status", "approved").neq("id", report.id).limit(1).maybeSingle();
+        if (dup) {
+          alert("Un autre rapport est déjà validé pour ce chauffeur à cette date. Annulez-le d'abord (bouton « Annuler ») si tu veux valider celui-ci à la place.");
+          setSaving(false);
+          return;
+        }
+      }
       const { error } = await supabase.from("daily_reports").update({
         status,
         net_after_expenses: parseFloat(netEdit) || report.net_after_expenses,
         ...(note ? { comment: note } : {}),
+        // Motif de rejet — colonne dédiée lue par l'écran chauffeur (report.rejection_reason),
+        // distincte de `comment` : sans ça, le motif n'était jamais montré au chauffeur.
+        ...(status === "rejected" ? { rejection_reason: note || null } : {}),
       }).eq("id", report.id);
       if (error) throw error;
       // Log action (fire-and-forget — non-critical)

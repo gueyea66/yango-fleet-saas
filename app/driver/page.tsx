@@ -333,9 +333,9 @@ function HomeTab({ profile, onNav, cfg }: { profile: Profile; onNav: (t: Tab) =>
 
       <div className="grid grid-cols-2 gap-3">
         <button onClick={() => onNav("report")} className="rounded-2xl p-4 flex flex-col items-center justify-center gap-2 text-xs font-semibold transition-all"
-          style={{ background: todayStatus && todayStatus !== "rejected" ? "var(--sk-bg)" : "linear-gradient(135deg,#f5a623,#e8951a)", color: todayStatus && todayStatus !== "rejected" ? "var(--sk-t4)" : "#000", border: todayStatus && todayStatus !== "rejected" ? "1px solid var(--sk-surface)" : "none" }}>
+          style={{ background: todayStatus ? "var(--sk-bg)" : "linear-gradient(135deg,#f5a623,#e8951a)", color: todayStatus ? "var(--sk-t4)" : "#000", border: todayStatus ? "1px solid var(--sk-surface)" : "none" }}>
           <ClipboardList size={22} strokeWidth={2.2} />
-          <span>{todayStatus && todayStatus !== "rejected" ? "Rapport soumis" : "Faire le rapport"}</span>
+          <span>{todayStatus ? "Rapport soumis" : "Faire le rapport"}</span>
         </button>
         <button onClick={() => onNav("expense")} className="rounded-2xl p-4 flex flex-col items-center justify-center gap-2 text-xs font-semibold"
           style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", color: "var(--sk-t2)" }}>
@@ -1247,7 +1247,18 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
     setSaving(true);
     try {
       const supabase = createClient() as any;
-      const { error } = await supabase.from("daily_reports").update({
+      // Le rapport rejeté n'est plus jamais écrasé : il reste consultable tel
+      // quel (motif inclus). La resoumission crée une NOUVELLE ligne pour la
+      // même date. Garde-fou : pas de resoumission si un rapport actif
+      // (submitted/approved) existe déjà pour cette date (ex. déjà corrigé
+      // depuis un autre écran).
+      const { data: dup } = await supabase.from("daily_reports")
+        .select("id").eq("driver_id", report.driver_id).eq("tenant_id", report.tenant_id)
+        .eq("date", report.date).in("status", ["submitted", "approved"]).limit(1).maybeSingle();
+      if (dup) { alert("Un rapport actif existe déjà pour cette date."); setSaving(false); return; }
+      const { data: newReport, error } = await supabase.from("daily_reports").insert({
+        driver_id: report.driver_id, tenant_id: report.tenant_id, date: report.date,
+        source: report.source || "saas", status: "submitted",
         end_odometer: n(editForm.end_odometer),
         yango_gross: n(editForm.yango_gross),
         yango_bonus: n(editForm.yango_bonus),
@@ -1257,14 +1268,21 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
         off_yango_trip_count: n(editForm.off_yango_trip_count) || null,
         comment: editForm.comment || null,
         gross_earnings: n(editForm.yango_gross) + n(editForm.off_yango_revenue),
-        status: "submitted",
-        rejection_reason: null,
-      }).eq("id", report.id);
+        // Champs non ré-éditables ici — repris tels quels de l'original,
+        // même comportement que l'ancienne UPDATE qui ne les touchait pas.
+        yango_cash: report.yango_cash, yango_card: report.yango_card,
+        commission_yango_reelle: report.commission_yango_reelle,
+        commission_partenaire_reelle: report.commission_partenaire_reelle,
+        commission_rate: report.commission_rate, partner_rate: report.partner_rate,
+        commission_amount: report.commission_amount, net_after_expenses: report.net_after_expenses,
+        service_supplementaire: report.service_supplementaire,
+        vehicle_id: report.vehicle_id ?? null, expense_count: report.expense_count ?? 0,
+      }).select("id").single();
       if (error) throw error;
       void supabase.from("action_logs").insert({
         tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
-        entity_type: "daily_report", entity_id: report.id, action: "submitted",
-        metadata: { date: report.date, resubmission: true },
+        entity_type: "daily_report", entity_id: newReport?.id, action: "submitted",
+        metadata: { date: report.date, resubmission: true, original_report_id: report.id },
       });
       setEditing(false);
       onRefresh();
@@ -1856,9 +1874,11 @@ function ReposTab({ profile, onBack }: { profile: Profile; onBack: () => void })
     setSaving(true);
     try {
       const supabase = createClient() as any;
-      // Check if already declared for this date
+      // Bloque seulement s'il existe déjà un rapport ACTIF (submitted/approved) pour
+      // cette date — un rapport rejeté ne doit pas empêcher une nouvelle saisie.
       const { data: exists } = await supabase.from("daily_reports")
-        .select("id").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("date", date).maybeSingle();
+        .select("id").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("date", date)
+        .in("status", ["submitted", "approved"]).limit(1).maybeSingle();
       if (exists) { alert("Un rapport existe déjà pour cette date."); setSaving(false); return; }
       const { error } = await supabase.from("daily_reports").insert({
         driver_id: profile.id,
