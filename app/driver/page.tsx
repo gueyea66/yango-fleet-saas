@@ -597,43 +597,51 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
   useEffect(() => {
     (async () => {
       const supabase = createClient() as any;
-      // Plusieurs rapports peuvent exister pour la même date (un rejeté + une
-      // resoumission) : on ne prend plus .maybeSingle() sur la date seule, on
-      // charge tout puis on distingue le rapport ACTIF (bloque une nouvelle
-      // saisie) du dernier rapport REJETÉ (affiché à titre informatif, sert
-      // seulement à pré-remplir — la resoumission crée une nouvelle ligne).
-      const [{ data: reps }, { data: veh }] = await Promise.all([
-        supabase.from("daily_reports").select("*").eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id).eq("date", today).order("created_at", { ascending: false }),
-        supabase.from("vehicles").select("id,plate,partner_rate,yango_rate").eq("driver_id", profile.id).maybeSingle(),
-      ]);
+      const { data: veh } = await supabase.from("vehicles").select("id,plate,partner_rate,yango_rate").eq("driver_id", profile.id).maybeSingle();
+      if (veh) setVehicle(veh);
+    })();
+  }, [profile.id]);
+
+  // Rapport(s) existants pour la date SÉLECTIONNÉE dans le formulaire (pas
+  // figé sur "aujourd'hui") — re-vérifié à chaque changement de date, pour
+  // pouvoir choisir une date antérieure même si le rapport du jour est déjà
+  // actif. Plusieurs rapports peuvent exister pour la même date (un rejeté +
+  // une resoumission) : on ne prend plus .maybeSingle() sur la date seule, on
+  // charge tout puis on distingue le rapport ACTIF (bloque l'édition des
+  // autres champs) du dernier rapport REJETÉ (affiché à titre informatif,
+  // sert seulement à pré-remplir — la resoumission crée une nouvelle ligne).
+  useEffect(() => {
+    (async () => {
+      const supabase = createClient() as any;
+      const { data: reps } = await supabase.from("daily_reports").select("*")
+        .eq("driver_id", profile.id).eq("tenant_id", profile.tenant_id)
+        .eq("date", form.date).order("created_at", { ascending: false });
       const active = (reps || []).find((r: any) => r.status === "submitted" || r.status === "approved") || null;
       const lastRejected = (reps || []).find((r: any) => r.status === "rejected") || null;
       setTodayReport(active);
       setRejectedToday(lastRejected);
-      // Pré-remplir le formulaire depuis le dernier rapport rejeté (aucun rapport
-      // actif) → permet de corriger avant resoumission, sans écraser l'original.
-      if (!active && lastRejected) {
-        const rep = lastRejected;
-        setForm({
-          date: rep.date || today,
-          end_odometer: rep.end_odometer ? String(rep.end_odometer) : "",
-          yango_cash: rep.yango_cash ? String(rep.yango_cash) : "",
-          yango_card: rep.yango_card ? String(rep.yango_card) : "",
-          yango_gross: rep.yango_gross ? String(rep.yango_gross) : "",
-          yango_bonus: rep.yango_bonus ? String(rep.yango_bonus) : "",
-          off_yango_revenue: rep.off_yango_revenue ? String(rep.off_yango_revenue) : "",
-          solde_yango: rep.solde_yango ? String(rep.solde_yango) : "",
-          yango_trip_count: rep.yango_trip_count ? String(rep.yango_trip_count) : "",
-          off_yango_trip_count: rep.off_yango_trip_count ? String(rep.off_yango_trip_count) : "",
-          service_supplementaire: rep.service_supplementaire ? String(rep.service_supplementaire) : "",
-          commission_yango_reelle: rep.commission_yango_reelle ? String(rep.commission_yango_reelle) : "",
-          commission_partenaire_reelle: rep.commission_partenaire_reelle ? String(rep.commission_partenaire_reelle) : "",
-          comment: rep.comment || "",
-        });
-      }
-      if (veh) setVehicle(veh);
+      const rep = !active ? lastRejected : null;
+      // Pré-remplit depuis le dernier rejeté s'il y en a un pour cette date,
+      // sinon vide les champs (nouvelle date, ou date déjà active → verrouillée
+      // de toute façon). Ne touche jamais form.date : c'est ce qui a déclenché l'effet.
+      setForm((f) => ({
+        date: f.date,
+        end_odometer: rep?.end_odometer ? String(rep.end_odometer) : "",
+        yango_cash: rep?.yango_cash ? String(rep.yango_cash) : "",
+        yango_card: rep?.yango_card ? String(rep.yango_card) : "",
+        yango_gross: rep?.yango_gross ? String(rep.yango_gross) : "",
+        yango_bonus: rep?.yango_bonus ? String(rep.yango_bonus) : "",
+        off_yango_revenue: rep?.off_yango_revenue ? String(rep.off_yango_revenue) : "",
+        solde_yango: rep?.solde_yango ? String(rep.solde_yango) : "",
+        yango_trip_count: rep?.yango_trip_count ? String(rep.yango_trip_count) : "",
+        off_yango_trip_count: rep?.off_yango_trip_count ? String(rep.off_yango_trip_count) : "",
+        service_supplementaire: rep?.service_supplementaire ? String(rep.service_supplementaire) : "",
+        commission_yango_reelle: rep?.commission_yango_reelle ? String(rep.commission_yango_reelle) : "",
+        commission_partenaire_reelle: rep?.commission_partenaire_reelle ? String(rep.commission_partenaire_reelle) : "",
+        comment: rep?.comment || "",
+      }));
     })();
-  }, [profile.id, today]);
+  }, [profile.id, form.date]);
 
   // Taux résolus : chauffeur → véhicule → tenant (tous en %)
   const rates = resolveRates(
@@ -806,9 +814,12 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
       <div className="space-y-4">
         {canEdit && <AiScanBlock date={form.date} disabled={saving} onExtracted={applyExtraction} />}
         <Field label="Date">
-          <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} disabled={!canEdit} max={today}
+          {/* Toujours modifiable, même si la date actuelle a déjà un rapport actif —
+              sinon impossible de choisir une autre date pour une nouvelle saisie. */}
+          <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} max={today}
             className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-            style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", colorScheme: "dark", opacity: !canEdit ? 0.5 : 1 }} />
+            style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", colorScheme: "dark" }} />
+          {!canEdit && <div className="text-[10px] mt-1" style={{ color: "var(--sk-t4)" }}>Un rapport est déjà actif pour cette date — changez la date pour en saisir un autre, ou consultez l'historique.</div>}
         </Field>
         <Field label="Compteur km fin de journée" icon={Gauge}><InpText type="number" placeholder="ex: 48900" value={form.end_odometer} onChange={(v) => set("end_odometer", v)} disabled={!canEdit} /></Field>
         <div className="grid grid-cols-2 gap-3">

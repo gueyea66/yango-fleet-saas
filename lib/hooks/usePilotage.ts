@@ -130,8 +130,12 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   );
   const profiles = rawProfiles.filter((p: any) => !technicalIds.has(p.id));
   const payments = rawPayments.filter((p: any) => !technicalIds.has(p.driver_id));
-  // Exclure les jours de repos des calculs financiers
-  const reports = raw.reports.filter((r: any) => !String(r.comment || "").startsWith("[REPOS]"));
+  // Exclure les jours de repos ET les rapports rejetés/archivés des calculs financiers.
+  // Important depuis qu'un rapport rejeté peut coexister avec sa resoumission
+  // (nouvelle ligne, cf. app/driver/page.tsx) : sans ce filtre, la même date
+  // compte deux fois (le rejeté ET la resoumission active) et gonfle le CA.
+  const reports = raw.reports.filter((r: any) =>
+    !String(r.comment || "").startsWith("[REPOS]") && r.status !== "rejected" && r.status !== "archived");
   const today = new Date();
   const todayStr = today.toISOString().split("T")[0];
   const sixAgo = new Date(today.getFullYear(), today.getMonth() - 5, 1).toISOString().split("T")[0];
@@ -211,9 +215,31 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   // Jours ouvrés déjà réalisés = jours avec au moins un rapport
   const mtdWorkingDays = curPnL.workingDays || 1;
   const workingDaysRemaining = Math.max(0, workingDaysTotal - mtdWorkingDays);
-  // CA projeté = réalisé MTD + moy journalière × jours ouvrés restants
+  // Moyenne globale (affichage seulement, ex. "moyenne/jour" dans l'UI) : CA
+  // du mois ÷ jours calendaires ayant eu au moins un rapport, tous chauffeurs
+  // confondus. NE SERT PLUS à la projection (voir activeDailyRevRate ci-dessous) :
+  // cette moyenne mélange des jours où l'effectif actif n'était pas le même
+  // (ex. un chauffeur qui vient de démarrer, ou un autre déjà reparti), donc
+  // extrapoler dessus surestime/sous-estime selon la composition passée du mois.
   const dailyAvgCur = curPnL.revenue / mtdWorkingDays;
-  const projRevenue = curPnL.revenue + dailyAvgCur * workingDaysRemaining;
+  // Production PROPRE du chauffeur sur le mois courant (net MTD, jours, rythme).
+  // Défini ici (avant projRevenue) car la projection en a besoin — voir aussi
+  // son usage plus bas pour la masse salariale et les mois futurs.
+  const driverMtd = (p: any): { net: number; days: number; dailyAvg: number } => {
+    const dr = reports.filter((r) => r.driver_id === p.id && r.date >= `${curMonthStr}-01` && r.date <= todayStr);
+    const net = dr.reduce((s, r) => s + (r.net_after_expenses || 0), 0);
+    const days = new Set(dr.map((r) => r.date)).size;
+    return { net, days, dailyAvg: days > 0 ? net / days : 0 };
+  };
+  // Rythme journalier de la flotte RÉELLEMENT active aujourd'hui : somme des
+  // moyennes propres de chaque chauffeur actif (chacune sur SES jours travaillés
+  // à lui), pas une moyenne calendaire globale. Un chauffeur qui vient de
+  // démarrer ou dont un collègue est parti pendant le mois ne fausse plus la
+  // projection des jours restants. Fallback sur dailyAvgCur si aucun chauffeur
+  // actif n'a encore de données ce mois (début de mois).
+  const activeDailyRevRate = activeProfiles.reduce((s, p) => s + driverMtd(p).dailyAvg, 0) || dailyAvgCur;
+  // CA projeté = réalisé MTD + rythme des chauffeurs actifs × jours ouvrés restants
+  const projRevenue = curPnL.revenue + activeDailyRevRate * workingDaysRemaining;
 
   const past = historicalPnL.filter((p) => p.month !== curMonthStr && p.revenue > 0);
   const avgExpRatio = past.length > 0 ? past.reduce((s, p) => s + p.totalExpenses / p.revenue, 0) / past.length : 0.2;
@@ -255,13 +281,7 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
     paidThisMonthByDriver.set(p.driver_id, (paidThisMonthByDriver.get(p.driver_id) || 0) + (p.amount || 0));
     if ((p.type || "salaire") !== "acompte") salarySettledDrivers.add(p.driver_id);
   });
-  // Production PROPRE du chauffeur sur le mois courant (net MTD, jours, rythme)
-  const driverMtd = (p: any): { net: number; days: number; dailyAvg: number } => {
-    const dr = reports.filter((r) => r.driver_id === p.id && r.date >= `${curMonthStr}-01` && r.date <= todayStr);
-    const net = dr.reduce((s, r) => s + (r.net_after_expenses || 0), 0);
-    const days = new Set(dr.map((r) => r.date)).size;
-    return { net, days, dailyAvg: days > 0 ? net / days : 0 };
-  };
+  // (driverMtd défini plus haut, avant le calcul de projRevenue qui en a besoin)
   // Net projeté fin de mois du chauffeur (base du palier de salaire)
   const driverProjNet = (p: any): number => {
     const m = driverMtd(p);
@@ -310,8 +330,6 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   };
 
   // ── QUARTER & YEAR ────────────────────────────────
-  // Projection mois futur = moy journalière actuelle × jours ouvrés + charges/salaires projetés
-  const avgMonthRev = past.length > 0 ? past.reduce((s, p) => s + p.revenue, 0) / past.length : projRevenue;
   // Mois futurs : SEULS les chauffeurs encore sous contrat le mois prochain comptent,
   // au rythme de leur PROPRE production (pas celui des chauffeurs partis).
   const nextMonthDate = new Date(today.getFullYear(), today.getMonth() + 1, 1);
@@ -497,10 +515,11 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   // "EBITDA du mois" différents (piège vécu : simulation à +989k XOF quand la
   // vraie projection du mois est négative, simplement parce que les mois passés
   // étaient meilleurs que le mois en cours). Seuls les véhicules ADDITIONNELS
-  // simulés (qui n'existent pas encore) utilisent la moyenne historique par
-  // véhicule, faute de données réelles.
-  const contributorsCount = Math.max(new Set(reports.map((r: any) => r.driver_id)).size, 1);
-  const revPerVehicle = avgMonthRev / (filtered ? 1 : contributorsCount);
+  // simulés (qui n'existent pas encore) utilisent une moyenne, faute de données
+  // réelles — celle des chauffeurs ACTIFS aujourd'hui (activeDailyRevRate),
+  // pas une moyenne historique multi-mois qui peut inclure des mois où la
+  // flotte avait plus (ou moins) de véhicules que maintenant.
+  const revPerVehicle = nVehicles > 0 ? (activeDailyRevRate / nVehicles) * workingDaysTotal : 0;
   const expPerVehicle = revPerVehicle * avgExpRatio;
   const maintPerVehicle = nVehicles > 0 ? params.maintenanceCostPerMonth / nVehicles : params.maintenanceCostPerMonth;
   const SIMULATION_MAX_EXTRA = 10;
