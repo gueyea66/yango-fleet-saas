@@ -624,157 +624,6 @@ export default function AdminPage() {
                   </div>
                 </AccordionSection>
 
-                {/* ── AUJOURD'HUI ── */}
-                <AccordionSection title="Aujourd'hui" subtitle="Activité du jour — revenus, dépenses, marge"
-                  right={<span className="text-sm font-mono font-bold flex-shrink-0" style={{ color: kpis.todayNetMargin > 0 ? "#22c55e" : "#ef4444" }}>{Math.round(kpis.todayNetMargin).toLocaleString("fr-FR")} XOF</span>}>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-gray-800 border-l-4 border-yellow-500 rounded-lg p-4">
-                      <div className="text-xs uppercase text-gray-400 tracking-widest font-semibold">
-                        Revenus
-                      </div>
-                      <div className="text-2xl font-bold text-white font-mono mt-2">
-                        {Math.round(kpis.todayRevenue).toLocaleString("fr-FR")}
-                        <span className="text-sm text-gray-400"> XOF</span>
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        {kpis.activeDriversToday} chauffeurs actifs
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-800 border-l-4 border-red-500 rounded-lg p-4">
-                      <div className="text-xs uppercase text-gray-400 tracking-widest font-semibold">
-                        Dépenses
-                      </div>
-                      <div className="text-2xl font-bold text-white font-mono mt-2">
-                        {Math.round(kpis.todayExpenses).toLocaleString("fr-FR")}
-                        <span className="text-sm text-gray-400"> XOF</span>
-                      </div>
-                    </div>
-
-                    <div
-                      className={`bg-gray-800 border-l-4 rounded-lg p-4 ${
-                        kpis.todayNetMargin > 0
-                          ? "border-green-500"
-                          : "border-red-500"
-                      }`}
-                    >
-                      <div className="text-xs uppercase text-gray-400 tracking-widest font-semibold">
-                        Marge nette
-                      </div>
-                      <div
-                        className={`text-2xl font-bold font-mono mt-2 ${
-                          kpis.todayNetMargin > 0
-                            ? "text-green-400"
-                            : "text-red-400"
-                        }`}
-                      >
-                        {Math.round(kpis.todayNetMargin).toLocaleString("fr-FR")}
-                        <span className="text-sm text-gray-400"> XOF</span>
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-800 border-l-4 border-blue-500 rounded-lg p-4">
-                      <div className="text-xs uppercase text-gray-400 tracking-widest font-semibold">
-                        Conso moyenne
-                      </div>
-                      <div className="text-2xl font-bold text-white font-mono mt-2">
-                        {kpis.avgFuelConsumption.toFixed(2)}
-                        <span className="text-sm text-gray-400"> L/100km</span>
-                      </div>
-                    </div>
-                  </div>
-                </AccordionSection>
-
-                {/* Week KPIs */}
-                <AccordionSection title="7 derniers jours" subtitle="Tendance sur la semaine glissante"
-                  right={<span className="text-sm font-mono font-bold flex-shrink-0" style={{ color: kpis.weekNetMargin > 0 ? "#22c55e" : "#ef4444" }}>{Math.round(kpis.weekNetMargin).toLocaleString("fr-FR")} XOF</span>}>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-                      <div className="text-xs uppercase text-gray-400 tracking-widest font-semibold">
-                        Revenus
-                      </div>
-                      <div className="text-2xl font-bold text-yellow-400 font-mono mt-2">
-                        {Math.round(kpis.weekRevenue).toLocaleString("fr-FR")} XOF
-                      </div>
-                      <div className="text-xs text-gray-400 mt-2">
-                        Moy/jour: {Math.round(kpis.weekAvgDailyRevenue).toLocaleString("fr-FR")} XOF
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-                      <div className="text-xs uppercase text-gray-400 tracking-widest font-semibold">
-                        Dépenses
-                      </div>
-                      <div className="text-2xl font-bold text-red-400 font-mono mt-2">
-                        {Math.round(kpis.weekExpenses).toLocaleString("fr-FR")} XOF
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-                      <div className="text-xs uppercase text-gray-400 tracking-widest font-semibold">
-                        Marge nette
-                      </div>
-                      <div
-                        className={`text-2xl font-bold font-mono mt-2 ${
-                          kpis.weekNetMargin > 0
-                            ? "text-green-400"
-                            : "text-red-400"
-                        }`}
-                      >
-                        {Math.round(kpis.weekNetMargin).toLocaleString("fr-FR")} XOF
-                      </div>
-                    </div>
-                  </div>
-                </AccordionSection>
-
-                {/* Period KPIs */}
-                <AccordionSection title={`Période sélectionnée (${periodFrom} → ${periodTo})`} subtitle="Totaux sur la plage de dates choisie"
-                  right={<span className="text-sm font-mono font-bold flex-shrink-0" style={{ color: "#f5a623" }}>{Math.round(kpis.monthRevenue).toLocaleString("fr-FR")} XOF</span>}>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-                      <div className="text-xs uppercase text-gray-400 tracking-widest font-semibold">
-                        Revenus totaux
-                      </div>
-                      <div className="text-2xl font-bold text-yellow-400 font-mono mt-2">
-                        {Math.round(kpis.monthRevenue).toLocaleString("fr-FR")} XOF
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-                      <div className="text-xs uppercase text-gray-400 tracking-widest font-semibold">
-                        Dépenses totales
-                      </div>
-                      <div className="text-2xl font-bold text-red-400 font-mono mt-2">
-                        {Math.round(kpis.monthExpenses).toLocaleString("fr-FR")} XOF
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-                      <div className="text-xs uppercase text-gray-400 tracking-widest font-semibold">
-                        Marge %
-                      </div>
-                      <div
-                        className={`text-2xl font-bold font-mono mt-2 ${
-                          kpis.monthMarginPercent > 0
-                            ? "text-green-400"
-                            : "text-red-400"
-                        }`}
-                      >
-                        {kpis.monthMarginPercent.toFixed(1)}%
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-                      <div className="text-xs uppercase text-gray-400 tracking-widest font-semibold">
-                        Moy/chauffeur
-                      </div>
-                      <div className="text-2xl font-bold text-white font-mono mt-2">
-                        {Math.round(kpis.avgRevenuePerDriver).toLocaleString("fr-FR")} XOF
-                      </div>
-                    </div>
-                  </div>
-                </AccordionSection>
-
                 {/* ── CHARTS ── */}
                 <div className="space-y-6">
 
@@ -2807,10 +2656,19 @@ function InsightsPanel({ kpis }: { kpis: any }) {
 // ─── GROUPEMENT PAR MOIS (Paiements + Avances) ────────
 const MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 
-function groupByMonth<T extends { payment_date?: string }>(items: T[]): { key: string; label: string; items: T[]; total: number }[] {
+function groupByMonth<T extends { payment_date?: string; salary_month?: string | null }>(
+  items: T[],
+  dateField: "payment_date" | "salary_month" = "payment_date"
+): { key: string; label: string; items: T[]; total: number }[] {
   const map = new Map<string, T[]>();
   for (const it of items) {
-    const key = (it.payment_date || "").slice(0, 7) || "sans-date";
+    // Paiements de salaire : le mois de référence est salary_month (le mois du
+    // salaire concerné), pas payment_date (date d'émission — peut être un mois
+    // plus tard pour un paiement en retard, ex. salaire de juillet versé en août).
+    // Fallback sur payment_date si salary_month n'est pas renseigné (avances,
+    // anciens paiements sans mois de salaire).
+    const raw = (dateField === "salary_month" ? it.salary_month : null) || it.payment_date || "";
+    const key = raw.slice(0, 7) || "sans-date";
     if (!map.has(key)) map.set(key, []);
     map.get(key)!.push(it);
   }
@@ -3055,7 +2913,7 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
         <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Aucun paiement enregistré</div>
       ) : (
         <MonthAccordion
-          groups={groupByMonth(filteredPayments)}
+          groups={groupByMonth(filteredPayments, "salary_month")}
           xof={xof}
           emptyLabel="paiement"
           renderItem={(p) => <PaymentRow key={p.id} payment={p} onDelete={() => deletePayment(p.id)} typeBadge={typeBadge} xof={xof} />}
@@ -3453,7 +3311,8 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
     try {
       const supabase = createClient() as any;
       const { data: exists } = await supabase.from("daily_reports")
-        .select("id").eq("driver_id", addDriver).eq("date", addModal.date).maybeSingle();
+        .select("id").eq("driver_id", addDriver).eq("date", addModal.date)
+        .in("status", ["submitted", "approved"]).limit(1).maybeSingle();
       if (exists) { alert("Un rapport existe déjà pour ce chauffeur à cette date."); setSaving(false); return; }
       await supabase.from("daily_reports").insert({
         driver_id: addDriver, date: addModal.date, status: "approved",

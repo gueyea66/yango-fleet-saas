@@ -108,13 +108,23 @@ export async function GET(req: NextRequest) {
       }));
       filename = `depenses_${today()}.csv`;
     } else if (resource === "payments") {
+      // dateFrom/dateTo filtrent sur le MOIS DU SALAIRE (salary_month), pas la
+      // date d'émission (payment_date) : un salaire de juillet versé en août
+      // (retard) doit rester classé en juillet. Fallback sur payment_date
+      // seulement si salary_month n'est pas renseigné (paiements anciens/avances).
+      // Filtrage en JS (pas de COALESCE simple via le query builder Supabase).
       let q = admin.from("payments")
         .select("payment_date,salary_month,driver_id,amount,type,notes")
-        .eq("tenant_id", tenantId).order("payment_date", { ascending: false, nullsFirst: false }).limit(10000);
-      if (dateFrom) q = q.gte("payment_date", dateFrom) as any;
-      if (dateTo) q = q.lte("payment_date", dateTo) as any;
+        .eq("tenant_id", tenantId).limit(10000);
       if (driverId) q = q.eq("driver_id", driverId) as any;
-      const { data } = await q;
+      const { data: rawData } = await q;
+      const salaryDate = (p: any) => (p.salary_month ? String(p.salary_month).slice(0, 10) : p.payment_date) || "";
+      const data = (rawData || [])
+        .filter((p: any) => {
+          const d = salaryDate(p);
+          return (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);
+        })
+        .sort((a: any, b: any) => salaryDate(b).localeCompare(salaryDate(a)));
       headers = ["Date paiement", "Mois salaire", "Chauffeur", "Montant", "Type", "Notes"];
       rows = (data || []).map((p: any) => ({
         "Date paiement": p.payment_date ?? "",

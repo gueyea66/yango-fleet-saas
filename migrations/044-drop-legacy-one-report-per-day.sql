@@ -1,0 +1,22 @@
+-- Migration 044 — 2026-08-21 — APPLIQUÉE EN PROD le 21/08/2026 (approuvée Telegram,
+-- exécutée par Abdou via SQL Editor, suite à l'erreur "duplicate key value
+-- violates unique constraint daily_reports_driver_id_date_key" rencontrée en
+-- testant la resoumission après rejet).
+-- Supprime la vieille contrainte UNIQUE(driver_id, date) sur fleet.daily_reports
+-- (nom auto-généré Postgres : daily_reports_driver_id_date_key), héritée du
+-- schéma mono-tenant d'origine (sql/schema.sql, avant la migration 010
+-- multi-tenant — jamais retirée depuis, jamais trackée dans migrations/).
+--
+-- Cette contrainte bloque TOUT doublon (driver_id, date) quel que soit le
+-- statut — elle empêche donc la resoumission après rejet (migration 043 +
+-- app/driver/page.tsx) : un chauffeur rejeté ne peut plus jamais soumettre
+-- à nouveau pour cette date, quoi qu'il fasse (constaté en prod le 21/08 :
+-- "duplicate key value violates unique constraint daily_reports_driver_id_date_key").
+--
+-- Remplacée par l'invariant métier réellement voulu (migration 043, déjà en
+-- prod) : un index unique PARTIEL qui ne bloque que les rapports VALIDÉS,
+-- pas les rejetés/soumis. Rejeté + resoumission peuvent désormais coexister.
+--
+-- Idempotente (IF EXISTS).
+
+ALTER TABLE fleet.daily_reports DROP CONSTRAINT IF EXISTS daily_reports_driver_id_date_key;
