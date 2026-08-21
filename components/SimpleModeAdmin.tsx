@@ -130,6 +130,13 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
     setActing(r.id);
     try {
       const supabase = createClient() as any;
+      if (status === "approved") {
+        // Un seul rapport ACTIF par chauffeur et par date.
+        const { data: dup } = await supabase.from("daily_reports")
+          .select("id").eq("driver_id", r.driver_id).eq("tenant_id", r.tenant_id)
+          .eq("date", r.date).eq("status", "approved").neq("id", r.id).limit(1).maybeSingle();
+        if (dup) { alert("Un autre rapport est déjà validé pour ce chauffeur à cette date."); setActing(null); return; }
+      }
       const { error } = await supabase.from("daily_reports").update({ status }).eq("id", r.id);
       if (error) throw error;
       void supabase.from("action_logs").insert({
