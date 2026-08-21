@@ -187,8 +187,11 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       const technicalIds = new Set(
         (drivers || []).filter((d: any) => d.account_type === "technical").map((d: any) => d.id)
       );
-      // Chauffeurs ACTIFS aujourd'hui (masse salariale, effectif) — l'historique garde tout le monde
+      // Chauffeurs ACTIFS aujourd'hui (masse salariale, effectif) — l'historique garde tout le monde.
+      // Filtre chauffeur sélectionné : effectif réduit à lui seul (sinon "masse salariale
+      // estimée" continue d'afficher le total flotte même quand un seul chauffeur est choisi).
       const activeDrivers: any[] = drivers.filter((d: any) =>
+        (!filterDriverId || d.id === filterDriverId) &&
         d.account_type !== "technical" && d.active !== false && (!d.contract_end_date || d.contract_end_date >= today));
 
       // Filter expenses by user-entered date (expense_date) or created_at fallback
@@ -352,6 +355,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       // usePilotage.ts::activeRatioForMonth) — un chauffeur désactivé ou parti
       // avant/après la période n'encombre plus le bloc d'allocation.
       const isActiveForPeriod = (d: any): boolean => {
+        if (filterDriverId && d.id !== filterDriverId) return false; // filtre chauffeur : lui seul
         if (d.account_type === "technical") return false;
         if (d.active === false && !d.contract_end_date) return false;
         let from = periodStart, to = periodEnd;
