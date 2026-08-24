@@ -17,10 +17,15 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: false })
       .limit(12);
 
-    // Un insight par KPI (le plus récent), marqué stale si expiré — jamais masqué en frais
+    // Un insight par KPI (le plus récent), marqué stale si expiré. Au-delà de
+    // 7 jours de données, l'insight est MASQUÉ : sans nouveau franchissement de
+    // seuil, l'ancien restait affiché indéfiniment (bloc net opérationnel figé
+    // au 11/08, constaté le 24/08).
     const now = new Date().toISOString();
+    const cutoff = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
     const byKpi = new Map<string, Record<string, unknown>>();
     for (const ins of data ?? []) {
+      if (String(ins.period_end) < cutoff) continue;
       if (!byKpi.has(ins.kpi_name)) {
         byKpi.set(ins.kpi_name, { ...ins, is_stale: String(ins.expires_at) < now });
       }

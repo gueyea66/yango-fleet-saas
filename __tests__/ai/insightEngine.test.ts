@@ -3,14 +3,20 @@ import { reconcileCauses, isKpiCause, isCalculationSource } from "@/lib/ai/types
 import { DEFAULT_THRESHOLDS } from "@/lib/ai/killSwitch";
 import type { PeriodAggregates } from "@/lib/ai/dataReader";
 
-const agg = (over: Partial<PeriodAggregates>): PeriodAggregates => ({
-  from: "2026-07-21", to: "2026-07-27",
-  recettes: 500_000, soldeConsomme: 80_000, carburantConsomme: 90_000,
-  depensesOpe: 30_000, netOperationnel: 300_000, km: 700,
-  coutCarburantParKm: 128.5, reportsApproved: 12, reportsAttendus: 14,
-  reposDeclares: 0, tauxSoumission: 85.7,
-  ...over,
-});
+const agg = (over: Partial<PeriodAggregates>): PeriodAggregates => {
+  const merged = {
+    from: "2026-07-21", to: "2026-07-27",
+    recettes: 500_000, soldeConsomme: 80_000, carburantConsomme: 90_000,
+    depensesOpe: 30_000, netOperationnel: 300_000, km: 700,
+    coutCarburantParKm: 128.5, reportsApproved: 12, reportsAttendus: 14,
+    reposDeclares: 0, tauxSoumission: 85.7, joursOuvres: 7,
+    ...over,
+  };
+  return {
+    netParJourOuvre: Math.round(merged.netOperationnel / Math.max(1, merged.joursOuvres)),
+    ...merged,
+  } as PeriodAggregates;
+};
 
 describe("decomposeNetDelta — réconciliation exacte (règle d'or)", () => {
   it("Σ contributions == Δ net, à ±1 FCFA", () => {
@@ -52,6 +58,22 @@ describe("buildKpiInsights — seuils", () => {
       tenantId, cur: agg({}), prev: agg({}), thresholds: DEFAULT_THRESHOLDS,
     });
     expect(out).toHaveLength(0);
+  });
+
+  it("PAS de fausse alerte net quand la baisse vient de jours ouvrés en moins (repos flotte)", () => {
+    const prev = agg({}); // 300 000 sur 7 j ouvrés → 42 857 / j
+    // 6 j ouvrés au même rythme/jour : total en baisse de −14,3% mais net/j stable
+    const cur = agg({ netOperationnel: 257_143, recettes: 457_143, joursOuvres: 6 });
+    const out = buildKpiInsights({ tenantId, cur, prev, thresholds: DEFAULT_THRESHOLDS });
+    expect(out.find((i) => i.kpi_name === "net_operationnel")).toBeUndefined();
+  });
+
+  it("déclenche net quand la baisse PAR JOUR OUVRÉ franchit le seuil, même à jours inégaux", () => {
+    const prev = agg({}); // 42 857 / j ouvré
+    // 6 j ouvrés mais rythme/jour en chute de ~30% → alerte légitime
+    const cur = agg({ netOperationnel: 180_000, recettes: 380_000, joursOuvres: 6 });
+    const out = buildKpiInsights({ tenantId, cur, prev, thresholds: DEFAULT_THRESHOLDS });
+    expect(out.find((i) => i.kpi_name === "net_operationnel")).toBeDefined();
   });
 
   it("déclenche carburant_km au-dessus de +15%", () => {
