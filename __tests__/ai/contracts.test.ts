@@ -113,6 +113,26 @@ describe("Agrégats — net opérationnel et confiance dérivés des seules donn
     expect(agg.reportsApproved).toBe(2);
     // Le repos ne change PAS les montants (CA nul par nature)
     expect(agg.recettes).toBe(105_000);
+    // Repos « flotte entière » (personne n'a travaillé le 23) → 6 jours ouvrés
+    expect(agg.joursOuvres).toBe(6);
+    expect(agg.netParJourOuvre).toBe(Math.round(agg.netOperationnel / 6));
+  });
+
+  it("un chauffeur démarré en cours de période n'est attendu que depuis son 1er rapport", () => {
+    const winStart: TenantWindow = {
+      drivers: [
+        ...win.drivers,
+        { id: "d2", full_name: "Nouveau", account_type: null, active: true, salary_model: null },
+      ],
+      reports: [
+        ...win.reports,
+        { driver_id: "d2", date: "2026-07-24", status: "approved", yango_gross: 30_000, yango_bonus: 0, off_yango_revenue: 0, solde_yango: 10_000, end_odometer: 500 },
+      ],
+      expenses: win.expenses,
+    };
+    const agg = computePeriodAggregates(winStart, "2026-07-21", "2026-07-27", "2026-07-01");
+    // d1 : 7 j attendus ; d2 démarré le 24 → 4 j (24–27), pas 7
+    expect(agg.reportsAttendus).toBe(11);
   });
 });
 

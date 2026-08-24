@@ -231,9 +231,11 @@ export interface PeriodAggregates {
   km: number;
   coutCarburantParKm: number; // ratio historique appliqué (FCFA/km)
   reportsApproved: number;    // rapports travaillés (hors [REPOS])
-  reportsAttendus: number;    // chauffeurs actifs × jours − repos déclarés
+  reportsAttendus: number;    // Σ jours attendus par chauffeur (depuis sa date de début, repos déduits)
   reposDeclares: number;      // jours de repos déclarés ([REPOS]) sur la période
   tauxSoumission: number;     // %
+  joursOuvres: number;        // jours ouvrés flotte : calendaires − repos « flotte entière »
+  netParJourOuvre: number;    // net opérationnel ramené au jour ouvré (base de comparaison)
 }
 
 /**
@@ -264,8 +266,38 @@ export function computePeriodAggregates(
   // Jours de repos déclarés (chauffeurs actifs) : retirés des jours attendus —
   // un repos posé n'est pas un rapport manquant et ne doit pas biaiser le taux.
   const reposDeclares = periodReps.filter((r) => isReposReport(r) && activeIds.has(r.driver_id)).length;
-  const attendus = Math.max(0, activeIds.size * days - reposDeclares);
+
+  // Jours attendus PAR chauffeur depuis sa date de début (1er rapport connu de
+  // la fenêtre) : un chauffeur arrivé en cours de période n'est pas attendu
+  // avant son premier jour. Sans rapport du tout, il reste attendu sur toute
+  // la période (chauffeur silencieux = signal, pas une absence de début).
+  const firstReportByDriver = new Map<string, string>();
+  for (const r of win.reports) {
+    if (!activeIds.has(r.driver_id)) continue;
+    const f = firstReportByDriver.get(r.driver_id);
+    if (!f || r.date < f) firstReportByDriver.set(r.driver_id, r.date);
+  }
+  let attendus = 0;
+  for (const id of activeIds) {
+    const first = firstReportByDriver.get(id);
+    const start = first && first > from ? first : from;
+    if (start > to) continue;
+    const driverDays = Math.round((Date.parse(to) - Date.parse(start)) / 86_400_000) + 1;
+    const driverRepos = periodReps
+      .filter((r) => r.driver_id === id && isReposReport(r) && r.date >= start).length;
+    attendus += Math.max(0, driverDays - driverRepos);
+  }
   const approvedCount = periodReps.filter((r) => !isReposReport(r)).length;
+
+  // Jours ouvrés FLOTTE : un jour ne compte pas quand au moins un repos est
+  // déclaré et qu'aucun chauffeur actif n'a travaillé (même convention que le
+  // briefing). Base des comparaisons hebdo « par jour ouvré ».
+  const workedDates = new Set(periodReps
+    .filter((r) => !isReposReport(r) && activeIds.has(r.driver_id)).map((r) => r.date));
+  const reposFleetDays = [...new Set(periodReps
+    .filter((r) => isReposReport(r) && activeIds.has(r.driver_id)).map((r) => r.date))]
+    .filter((d) => !workedDates.has(d)).length;
+  const joursOuvres = Math.max(0, days - reposFleetDays);
 
   return {
     from, to,
@@ -280,6 +312,8 @@ export function computePeriodAggregates(
     reportsAttendus: attendus,
     reposDeclares,
     tauxSoumission: attendus > 0 ? Math.round((approvedCount / attendus) * 1000) / 10 : 0,
+    joursOuvres,
+    netParJourOuvre: Math.round(netOperationnel / Math.max(1, joursOuvres)),
   };
 }
 

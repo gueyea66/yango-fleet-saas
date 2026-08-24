@@ -99,11 +99,15 @@ export function buildKpiInsights(params: {
   const { tenantId, cur, prev, thresholds } = params;
   const out: InsightDraft[] = [];
 
-  // 1. Net opérationnel — seuil : baisse ≥ |net_operationnel_delta_pct| %
+  // 1. Net opérationnel — seuil : baisse ≥ |net_operationnel_delta_pct| %,
+  // évaluée PAR JOUR OUVRÉ : une semaine avec repos flotte ou moins de jours
+  // travaillés ne déclenche pas une fausse alerte de baisse (les valeurs
+  // affichées restent les totaux bruts de période).
   {
     const delta = cur.netOperationnel - prev.netOperationnel;
     const p = pct(delta, prev.netOperationnel);
-    if (p !== null && p <= thresholds.net_operationnel_delta_pct) {
+    const pParJourOuvre = pct(cur.netParJourOuvre - prev.netParJourOuvre, prev.netParJourOuvre);
+    if (p !== null && pParJourOuvre !== null && pParJourOuvre <= thresholds.net_operationnel_delta_pct) {
       const causes = decomposeNetDelta(cur, prev);
       if (reconcileCauses(causes, delta)) {
         out.push({

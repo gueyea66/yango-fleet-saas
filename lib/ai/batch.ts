@@ -98,9 +98,12 @@ async function runTenantBatch(
       // jamais interpréter le signe d'une contribution — observé en prod le 29/07.
       const payload = JSON.stringify({
         kpi: d.kpi_name, delta_fcfa: d.delta_value, delta_pct: d.delta_pct,
-        periode: { de: d.period_start, a: d.period_end },
+        periode: { de: d.period_start, a: d.period_end, jours_ouvres: cur.joursOuvres },
+        periode_precedente: { de: prevFrom, a: prevTo, jours_ouvres: prev.joursOuvres },
+        net_par_jour_ouvre: { actuel_fcfa: cur.netParJourOuvre, precedent_fcfa: prev.netParJourOuvre },
         causes: describeCauses(d.causes),
-        consigne: "Recopier le champ 'evolution' de chaque cause tel quel (sens déjà calculé).",
+        consigne: "Recopier le champ 'evolution' de chaque cause tel quel (sens déjà calculé). " +
+          "Si jours_ouvres diffère entre les deux périodes, le dire et t'appuyer sur net_par_jour_ouvre (déjà calculé).",
       });
       narrative = await narrate(payload, { model: opts.llmModel });
       if (narrative && !narrativeCitesOnlyKnownNumbers(narrative, payload)) {
