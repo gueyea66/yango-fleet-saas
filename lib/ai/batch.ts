@@ -265,7 +265,9 @@ async function buildBriefingContent(
 
   const deltaPct = (c: number, p: number) => (p !== 0 ? Math.round(((c - p) / Math.abs(p)) * 1000) / 10 : null);
   const kpis: BriefingKpi[] = [
-    { kpi_name: "net_operationnel", value: cur.netOperationnel, unit: "FCFA", delta_pct_wow: deltaPct(cur.netOperationnel, prev.netOperationnel), badge: "calculated" },
+    // Net : évolution hebdo PAR JOUR OUVRÉ (une semaine avec repos flotte ne
+    // crée pas une fausse variation) ; la valeur affichée reste le total 7 j.
+    { kpi_name: "net_operationnel", value: cur.netOperationnel, unit: "FCFA", delta_pct_wow: deltaPct(cur.netParJourOuvre, prev.netParJourOuvre), badge: "calculated" },
     { kpi_name: "carburant_km", value: cur.coutCarburantParKm, unit: "FCFA/km", delta_pct_wow: deltaPct(cur.coutCarburantParKm, prev.coutCarburantParKm), badge: "calculated" },
     { kpi_name: "taux_soumission", value: cur.tauxSoumission, unit: "%", delta_pct_wow: deltaPct(cur.tauxSoumission, prev.tauxSoumission), badge: "calculated" },
   ];

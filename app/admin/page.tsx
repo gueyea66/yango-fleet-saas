@@ -527,14 +527,14 @@ export default function AdminPage() {
                 {/* ── Audit UI — HERO BAR : 3 KPIs décisionnels, toujours en tête ── */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-2">
                   <HeroCard label="Net Final" value={kpis.netFinal} color={kpis.netFinal >= 0 ? "#22c55e" : "#ef4444"} primary
-                    prev={kpis.prevNetFinal}
+                    prev={kpis.prevNetFinal} days={kpis.joursOuvres} prevDays={kpis.prevJoursOuvres}
                     sub={`${kpis.monthMarginPercent.toFixed(1)}% de marge · période`}
                     breakdown={[
                       { label: "Rec. nettes", value: kpis.totalBrut, color: "#22c55e" },
                       { label: "Charges", value: kpis.totalDepenses, color: "#ef4444" },
                     ]} />
                   <HeroCard label="Total Recettes" value={kpis.brutYango + kpis.horsYango} color="#f5a623"
-                    prev={kpis.prevRecettes}
+                    prev={kpis.prevRecettes} days={kpis.joursOuvres} prevDays={kpis.prevJoursOuvres}
                     sub={`brut · ${plat} + hors-app`}
                     breakdown={[
                       { label: plat, value: kpis.brutYango, color: "#f5a623" },
@@ -3867,12 +3867,19 @@ function KPICard({ label, value, color, sub, negative, big, hideWhenZero, showZe
 
 // ── Audit UI — Hero bar : les 3 KPIs décisionnels, toujours visibles en tête
 // de dashboard (lisibilité en 5 s). Affichage seul, données inchangées.
-function HeroCard({ label, value, color, sub, primary, prev, breakdown }: {
+function HeroCard({ label, value, color, sub, primary, prev, days, prevDays, breakdown }: {
   label: string; value: number; color: string; sub?: string; primary?: boolean;
-  prev?: number | null; breakdown?: { label: string; value: number; color?: string }[];
+  prev?: number | null; days?: number | null; prevDays?: number | null;
+  breakdown?: { label: string; value: number; color?: string }[];
 }) {
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(Math.abs(n)));
-  const pct = (prev != null && prev !== 0) ? ((value - prev) / Math.abs(prev)) * 100 : null;
+  // Évolution PAR JOUR OUVRÉ quand les deux fenêtres sont connues : comparer
+  // des totaux à jours inégaux (mois en cours, semaines avec repos flotte)
+  // produisait des variations mécaniques. Le montant affiché reste le total.
+  const norm = days != null && days > 0 && prevDays != null && prevDays > 0;
+  const curVal = norm ? value / days : value;
+  const prevVal = prev != null ? (norm ? prev / (prevDays as number) : prev) : null;
+  const pct = (prevVal != null && prevVal !== 0) ? ((curVal - prevVal) / Math.abs(prevVal)) * 100 : null;
   const up = pct != null && pct >= 0;
   return (
     <div className="rounded-2xl p-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg" style={{
@@ -3884,8 +3891,9 @@ function HeroCard({ label, value, color, sub, primary, prev, breakdown }: {
         <div className="text-[11px] uppercase tracking-wider font-semibold" style={{ color: "var(--sk-t2)" }}>{label}</div>
         {pct != null && (
           <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-md flex items-center gap-0.5 flex-shrink-0"
+            title={norm ? "Évolution par jour ouvré, sur des périodes écoulées comparables (repos flotte exclus)" : undefined}
             style={{ color: up ? "#22c55e" : "#ef4444", background: up ? "rgba(34,197,94,.1)" : "rgba(239,68,68,.1)" }}>
-            {up ? "▲" : "▼"} {up ? "+" : ""}{pct.toFixed(1)}% <span className="font-normal opacity-70">vs préc.</span>
+            {up ? "▲" : "▼"} {up ? "+" : ""}{pct.toFixed(1)}% <span className="font-normal opacity-70">vs préc.{norm ? " /j" : ""}</span>
           </span>
         )}
       </div>
