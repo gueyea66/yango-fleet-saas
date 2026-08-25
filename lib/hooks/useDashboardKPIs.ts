@@ -32,6 +32,8 @@ export interface DashboardKPIs {
   prevNetFinal: number | null;   // net final de la période précédente (évolution vs N-1)
   prevTotalBrut: number | null;  // net après charges de la période précédente
   prevRecettes: number | null;   // recettes brutes (Yango + hors) de la période précédente
+  joursOuvres: number;           // jours ouvrés écoulés de la période (calendaires − repos flotte)
+  prevJoursOuvres: number | null; // idem, période précédente (comparaison /jour ouvré)
 
   // ── Reporting OPÉRATIONNEL réel ──
   soldeConsomme: number;       // solde Yango réellement consommé (mesuré)
@@ -107,6 +109,7 @@ export interface DashboardKPIs {
 const ZERO: DashboardKPIs = {
   brutYango: 0, netYango: 0, horsYango: 0, totalBrut: 0, totalDepenses: 0, netFinal: 0,
   prevNetFinal: null, prevTotalBrut: null, prevRecettes: null,
+  joursOuvres: 0, prevJoursOuvres: null,
   soldeConsomme: 0, carburantConsomme: 0, coutCarburantKm: 0, provisionsSolde: 0,
   achatsCarburant: 0, autresDepensesOpe: 0, netOperationnel: 0,
   decaissements: 0, tresorerie: 0, avanceSolde: 0, avanceCarburant: 0,
@@ -131,7 +134,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       const periodEnd = dateTo || today;
 
       let allReps: any[], allExps: any[], allPayments: any[], todayRep: any[], weekRep: any[], driverProfiles: any[];
-      let prev: { netFinal: number; totalBrut: number; recettes: number } | null = null;
+      let prev: { netFinal: number; totalBrut: number; recettes: number; joursOuvres?: number } | null = null;
 
       if (explicitTenantId) {
         // Admin context — bypass RLS via service-role API
@@ -410,9 +413,22 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       const weekExpAmt = (allExps || []).filter((e: any) => getED(e) >= weekAgo && getED(e) <= today && (!e.status || e.status === "approved")).reduce((s: number, e: any) => s + e.amount, 0);
       const weekActiveDays = new Set(weekReps.filter((r: any) => !isRepos(r)).map((r: any) => r.date)).size || 1;
 
+      // Jours ouvrés écoulés de la période (fin bornée à aujourd'hui) : jours
+      // calendaires − repos « flotte entière » (≥1 [REPOS] déclaré et personne
+      // n'a travaillé) — même convention que la couche IA et /api/admin/kpis.
+      const effEnd = periodEnd > today ? today : periodEnd;
+      const periodLen = Math.max(1, Math.round((Date.parse(effEnd) - Date.parse(periodStart)) / 86400000) + 1);
+      const periodActive = repsAll.filter((r: any) =>
+        (r.status === "approved" || r.status === "submitted") && r.date >= periodStart && r.date <= effEnd);
+      const joWorked = new Set(periodActive.filter((r: any) => !isRepos(r)).map((r: any) => r.date));
+      const reposFleetDays = [...new Set(periodActive.filter(isRepos).map((r: any) => r.date))]
+        .filter((d) => !joWorked.has(d)).length;
+      const joursOuvres = Math.max(0, periodLen - reposFleetDays);
+
       setKPIs({
         brutYango, netYango, horsYango, totalBrut, totalDepenses, netFinal,
         prevNetFinal: prev?.netFinal ?? null, prevTotalBrut: prev?.totalBrut ?? null, prevRecettes: prev?.recettes ?? null,
+        joursOuvres, prevJoursOuvres: prev?.joursOuvres ?? null,
         soldeConsomme: totalSoldeConsomme, carburantConsomme: carbuConsomme, coutCarburantKm,
         provisionsSolde, achatsCarburant, autresDepensesOpe, netOperationnel,
         decaissements: treso.decaissements, tresorerie: treso.tresorerie,

@@ -28,9 +28,12 @@ export async function GET(req: NextRequest) {
     const periodStart = dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
     const periodEnd = dateTo || today;
 
-    // Période précédente de même durée, juste avant (pour l'évolution vs N-1)
+    // Période précédente de même durée ÉCOULÉE, juste avant (évolution vs N-1).
+    // La fin effective est bornée à aujourd'hui : comparer un mois en cours
+    // (01→24) à un mois complet (01→31) produisait un faux « −48% vs préc. ».
     const msDay = 86400000;
-    const lenDays = Math.round((Date.parse(periodEnd) - Date.parse(periodStart)) / msDay) + 1;
+    const effEnd = periodEnd > today ? today : periodEnd;
+    const lenDays = Math.max(1, Math.round((Date.parse(effEnd) - Date.parse(periodStart)) / msDay) + 1);
     const prevEnd = new Date(Date.parse(periodStart) - msDay).toISOString().split("T")[0];
     const prevStart = new Date(Date.parse(periodStart) - lenDays * msDay).toISOString().split("T")[0];
 
@@ -49,7 +52,7 @@ export async function GET(req: NextRequest) {
       srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).eq("date", today),
       srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).gte("date", weekAgo).lte("date", today),
       admin.from("profiles").select("*").eq("tenant_id", tenantId).eq("role", "driver"),
-      srcQ(dQ(tQ(admin.from("daily_reports").select("date,status,yango_gross,yango_bonus,off_yango_revenue,net_after_expenses,driver_id")))).gte("date", prevStart).lte("date", prevEnd),
+      srcQ(dQ(tQ(admin.from("daily_reports").select("date,status,yango_gross,yango_bonus,off_yango_revenue,net_after_expenses,driver_id,comment")))).gte("date", prevStart).lte("date", prevEnd),
     ]);
 
     // ── Évolution vs période précédente (Net final & Total recettes) ──
@@ -63,6 +66,17 @@ export async function GET(req: NextRequest) {
     const prevSalaries = (allPayments || []).filter((p: any) => inPrev(salaryDate(p)) && !technicalIds.has(p.driver_id)).reduce((s: number, p: any) => s + (p.amount || 0), 0);
     const prevNetFinal = prevTotalBrut - prevExpenses - prevSalaries;
 
+    // Jours ouvrés de la période précédente : jours calendaires − jours de
+    // repos « flotte entière » (≥1 [REPOS] déclaré et personne n'a travaillé).
+    // Même convention que la couche IA — permet la comparaison /jour ouvré.
+    const prevLen = Math.round((Date.parse(prevEnd) - Date.parse(prevStart)) / msDay) + 1;
+    const prevActive = (prevReps || []).filter((r: any) => r.status === "approved" || r.status === "submitted");
+    const isReposRep = (r: any) => String(r.comment ?? "").startsWith("[REPOS]");
+    const prevWorked = new Set(prevActive.filter((r: any) => !isReposRep(r)).map((r: any) => r.date));
+    const prevReposFleet = [...new Set(prevActive.filter(isReposRep).map((r: any) => r.date))]
+      .filter((d) => !prevWorked.has(d as string)).length;
+    const prevJoursOuvres = Math.max(0, prevLen - prevReposFleet);
+
     return Response.json({
       allReps: allReps || [],
       allExps: allExps || [],
@@ -70,7 +84,7 @@ export async function GET(req: NextRequest) {
       todayRep: todayRep || [],
       weekRep: weekRep || [],
       driverProfiles: driverProfiles || [],
-      prev: { netFinal: prevNetFinal, totalBrut: prevTotalBrut, recettes: prevRecettes, start: prevStart, end: prevEnd },
+      prev: { netFinal: prevNetFinal, totalBrut: prevTotalBrut, recettes: prevRecettes, start: prevStart, end: prevEnd, joursOuvres: prevJoursOuvres },
     });
   } catch (err: any) {
     const status = err.status ?? 500;
