@@ -1199,7 +1199,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
             <div className="text-[10px] uppercase tracking-widest mb-2" style={{ color: "var(--sk-t4)" }}>Stats</div>
             <div className="text-xs" style={{ color: "var(--sk-t2)" }}>Kilométrage : <span className="text-white font-semibold">{xof(vehicle.mileage)} km</span></div>
             <div className="text-xs mt-1" style={{ color: "var(--sk-t2)" }}>Coût maint. total : <span className="text-white font-semibold">{xof(totalMaintCost)} XOF</span></div>
-            {assignedDriver && <div className="text-xs mt-1" style={{ color: "var(--sk-t2)" }}>Chauffeur : <span className="text-white">{assignedDriver.full_name}</span></div>}
+            <div className="text-xs mt-1" style={{ color: "var(--sk-t2)" }}>Chauffeur : {assignedDriver ? <span className="text-white">{assignedDriver.full_name}</span> : <span style={{ color: "var(--sk-t4)" }}>Non assigné</span>}</div>
           </div>
         </div>
 
@@ -1330,7 +1330,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: `${sm.color}18`, color: sm.color }}>{sm.label}</span>
                   {hasAlert && <AlertTriangle size={11} strokeWidth={2.2} style={{ color: "#f5a623" }} />}
                 </div>
-                <div className="text-xs" style={{ color: "var(--sk-t3)" }}>{v.make} {v.model} {v.year} {driver ? `· ${driver.full_name}` : ""}</div>
+                <div className="text-xs" style={{ color: "var(--sk-t3)" }}>{v.make} {v.model} {v.year} {driver ? `· ${driver.full_name}` : " · Non assigné"}</div>
                 <div className="flex gap-3 mt-0.5">
                   {v.insurance_expiry && <ExpiryBadge label="Ass." dateStr={v.insurance_expiry} />}
                   {v.visite_expiry && <ExpiryBadge label="Visite" dateStr={v.visite_expiry} />}
