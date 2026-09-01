@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { getReportAnalysis, renderAnalysisHtml } from "./reportAnalysis";
 
 /**
  * Génération du rapport d'activité (HTML brandé, imprimable).
@@ -69,6 +70,10 @@ export async function buildReportHtml(
 ): Promise<{ html: string; period: string; tenantName: string }> {
   const now = new Date();
   const { data: tenant } = await admin.from("tenants").select("name").eq("id", tenantId).single();
+
+  // Analyse externe (système multi-agents) éventuellement poussée pour cette
+  // période — absente, le rapport est rendu exactement comme avant.
+  const analysis = await getReportAnalysis(tenantId, dateFrom, dateTo);
 
   const [{ data: profiles }, repsQ, expsQ, paysQ] = await Promise.all([
     admin.from("profiles").select("id, driver_id, full_name, account_type, hire_date, contract_end_date")
@@ -255,6 +260,10 @@ tr.total td{font-weight:800;background:var(--gold-light);border-top:2px solid va
 .insight.ok{border-left-color:#15803D;background:#F0FDF4}
 footer{margin-top:26px;padding-top:12px;border-top:1px solid var(--border);font-size:8.5pt;color:var(--ink3);display:flex;justify-content:space-between}
 .note{font-size:8.5pt;color:var(--ink3);font-style:italic;margin-top:6px}
+.an-h{font-weight:800;color:var(--navy);font-size:11.5pt;margin:14px 0 4px}
+.an-p{margin:7px 0;font-size:10.5pt}
+.an-ul{margin:7px 0 7px 20px;font-size:10.5pt}
+.an-ul li{margin:3px 0}
 </style></head><body><div class="page">
 <div class="print-banner"><span>📄 Ce rapport est prêt à imprimer ou archiver.</span><button onclick="window.print()">⬇ Télécharger en PDF</button></div>
 <div class="doc-header">
@@ -278,6 +287,7 @@ ${driverRows}
 <div class="note">Montants en FCFA. « Jours » = jours travaillés (+Nr = repos déclarés, exclus des calculs). Rému. versée = salaires + acomptes rattachés au mois. Net final = net après commissions − dépenses − rémunération versée. Un chauffeur embauché en cours de mois peut inclure une période promo Yango : ratios non comparables.</div>
 ${depCat.size > 0 ? `<h2>Dépenses par catégorie</h2>\n${depRows}` : ""}
 ${insights.length > 0 ? `<h2>Ce qu'il faut retenir</h2>\n${insights.map((i, n) => `<div class="insight ${i.cls}"><b>${n + 1}.</b> ${i.text}</div>`).join("\n")}` : ""}
+${renderAnalysisHtml(analysis)}
 <footer><div>${esc(tenant?.name || "M3A GROUP")} — Rapport d'activité flotte</div><div>Chiffres calculés par le moteur — règles déterministes, aucun montant recalculé.</div></footer>
 </div></body></html>`;
 
