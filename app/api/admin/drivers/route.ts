@@ -188,11 +188,61 @@ export async function POST(request: Request) {
       }
 
       const profileId = profile?.id ?? driverId;
+
+      // ⚠️ Le véhicule appartient à la FLOTTE, pas au chauffeur.
+      // Historiquement fleet.vehicles.driver_id était un FK ON DELETE CASCADE :
+      // supprimer le chauffeur effaçait aussi son véhicule (bug prod du Kia K3).
+      // On désassigne AVANT la suppression du profil — le véhicule survit, libre.
+      // Si la migration 045 n'est pas encore appliquée (driver_id NOT NULL /
+      // cascade toujours en place), on refuse la suppression plutôt que de
+      // détruire un actif de la flotte.
+      const { data: linkedVehicles } = await adminClient
+        .from("vehicles")
+        .select("id, plate")
+        .eq("driver_id", profileId);
+
+      const plates: string[] = (linkedVehicles ?? []).map((v) => String(v.plate ?? ""));
+
+      if (plates.length > 0) {
+        const { error: unassignErr } = await adminClient
+          .from("vehicles")
+          .update({ driver_id: null })
+          .eq("driver_id", profileId);
+
+        if (unassignErr) {
+          return Response.json(
+            {
+              error:
+                `Suppression annulée : impossible de libérer le(s) véhicule(s) ` +
+                `${plates.join(", ")} ` +
+                `(${unassignErr.message}). Applique la migration 045 ` +
+                `(migrations/045-fix-suppression-chauffeur-supprime-vehicule.sql) ` +
+                `puis réessaie — sans elle, supprimer ce chauffeur supprimerait aussi son véhicule.`,
+            },
+            { status: 409 }
+          );
+        }
+      }
+
       await adminClient.from("profiles").delete().eq("id", profileId);
       await adminClient.auth.admin.deleteUser(profileId).catch(() => {});
-      audit({ tenantId, userId, action: "driver.delete", resourceType: "driver", resourceId: driverId, ip });
+      audit({
+        tenantId,
+        userId,
+        action: "driver.delete",
+        resourceType: "driver",
+        resourceId: driverId,
+        ip,
+        changes: {
+          before: { vehicles: plates },
+          after: { vehicles: [] }, // véhicules conservés, simplement libérés
+        },
+      });
 
-      return Response.json({ success: true });
+      return Response.json({
+        success: true,
+        unassignedVehicles: plates,
+      });
     }
 
     if (action === "reset_password") {

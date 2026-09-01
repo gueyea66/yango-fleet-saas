@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { getReportAnalysis, renderAnalysisHtml } from "./reportAnalysis";
 
 /**
  * Génération du rapport d'activité (HTML brandé, imprimable).
@@ -56,6 +57,60 @@ export function previousMonthRange(now: Date = new Date()): { dateFrom: string; 
   return { dateFrom: first.toISOString().slice(0, 10), dateTo: last.toISOString().slice(0, 10) };
 }
 
+/** Libellé lisible d'une période : « 01/08/2026 → 31/08/2026 ». */
+export function periodLabel(dateFrom: string, dateTo: string): string {
+  const d = (s: string) => `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}`;
+  return `${d(dateFrom)} → ${d(dateTo)}`;
+}
+
+/**
+ * Feuille de style du rapport — partagée avec les documents d'analyse
+ * autonomes (lib/reportAnalysis.ts) pour qu'ils sortent à l'identique.
+ */
+export const REPORT_CSS = `
+:root{--navy:#0E2640;--navy-soft:#1B3A5C;--gold:#C5A572;--gold-light:#E8DCC1;--ink:#1F2937;--ink3:#6B7280;--border:#D1D5DB;--bg:#FAF8F4}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Inter,'Segoe UI',Helvetica,sans-serif;color:var(--ink);background:var(--bg);font-size:11pt;line-height:1.55}
+.page{max-width:800px;margin:0 auto;padding:28px 34px 40px}
+h2{font-family:'Cormorant Garamond',Garamond,Georgia,serif;color:var(--navy);font-size:19pt;margin:26px 0 10px;border-bottom:2px solid var(--gold);padding-bottom:4px}
+.print-banner{background:var(--gold-light);border:1px solid var(--gold);border-radius:8px;padding:10px 14px;font-size:9.5pt;margin-bottom:18px;display:flex;align-items:center;gap:12px;justify-content:space-between}
+.print-banner button{background:var(--navy);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:9.5pt;font-weight:700;cursor:pointer}
+@media print{.print-banner{display:none}.page{padding:0}body{background:#fff}}
+.doc-header{display:flex;align-items:baseline;gap:14px;border-bottom:3px solid var(--navy);padding-bottom:12px}
+.doc-header .brand{font-family:'Cormorant Garamond',Garamond,Georgia,serif;font-size:24pt;font-weight:700;color:var(--navy)}
+.doc-header .meta{margin-left:auto;text-align:right;font-size:9pt;color:var(--ink3)}
+.tldr{background:linear-gradient(135deg,var(--navy),var(--navy-soft));color:#fff;border-left:5px solid var(--gold);border-radius:8px;padding:16px 20px;margin:18px 0;font-size:10.5pt}
+.tldr b{color:var(--gold-light)}
+.heroes{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}
+.hero{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.hero.gold{border-color:var(--gold);background:var(--gold-light)}
+.hero .lbl{font-size:8pt;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);font-weight:700}
+.hero .val{font-size:15pt;font-weight:800;color:var(--navy);margin-top:2px}
+.hero .sub{font-size:8.5pt;color:var(--ink3)}
+table{border-collapse:collapse;width:100%;font-size:9.5pt;background:#fff}
+th{background:var(--navy);color:#fff;padding:7px 8px;text-align:left;font-weight:600;font-size:8.5pt;text-transform:uppercase}
+th.r,td.r{text-align:right}
+td{padding:7px 8px;border-bottom:1px solid var(--border)}
+tr.total td{font-weight:800;background:var(--gold-light);border-top:2px solid var(--gold)}
+.tag{display:inline-block;font-size:7.5pt;font-weight:700;padding:1px 7px;border-radius:99px}
+.tag.amber{background:#FFFBEB;color:#B45309}.tag.navy{background:#E8EEF6;color:var(--navy)}
+.bar-row{display:flex;align-items:center;gap:10px;margin:4px 0;font-size:9.5pt}
+.bar-row .cat{width:130px}.bar-row .track{flex:1;background:#EDE9E0;border-radius:99px;height:14px;overflow:hidden}
+.bar-row .fill{background:linear-gradient(90deg,var(--navy),var(--navy-soft));height:100%}
+.bar-row .amt{width:130px;text-align:right;font-weight:600;color:var(--navy)}
+.insight{background:#fff;border:1px solid var(--border);border-left:4px solid var(--gold);border-radius:8px;padding:11px 15px;margin:8px 0;font-size:10pt}
+.insight.alert{border-left-color:#B91C1C;background:#FEF2F2}
+.insight.warn{border-left-color:#B45309;background:#FFFBEB}
+.insight.ok{border-left-color:#15803D;background:#F0FDF4}
+footer{margin-top:26px;padding-top:12px;border-top:1px solid var(--border);font-size:8.5pt;color:var(--ink3);display:flex;justify-content:space-between}
+.note{font-size:8.5pt;color:var(--ink3);font-style:italic;margin-top:6px}
+.an-h{font-weight:800;color:var(--navy);font-size:11.5pt;margin:14px 0 4px}
+.an-p{margin:7px 0;font-size:10.5pt}
+.an-ul{margin:7px 0 7px 20px;font-size:10.5pt}
+.an-ul li{margin:3px 0}
+.an-cell-note{font-size:8pt;color:var(--ink3);font-weight:400;margin-top:1px}
+`;
+
 export async function buildReportHtml(
   tenantId: string,
   dateFrom: string,
@@ -63,6 +118,10 @@ export async function buildReportHtml(
 ): Promise<{ html: string; period: string; tenantName: string }> {
   const now = new Date();
   const { data: tenant } = await admin.from("tenants").select("name").eq("id", tenantId).single();
+
+  // Analyse externe (système multi-agents) éventuellement poussée pour cette
+  // période — absente, le rapport est rendu exactement comme avant.
+  const analysis = await getReportAnalysis(tenantId, dateFrom, dateTo);
 
   const [{ data: profiles }, repsQ, expsQ, paysQ] = await Promise.all([
     admin.from("profiles").select("id, driver_id, full_name, account_type, hire_date, contract_end_date")
@@ -208,47 +267,13 @@ export async function buildReportHtml(
     return `<tr><td><b>${esc(a.name)}</b> ${tag}</td><td class="r">${joursCell}</td><td class="r">${a.technical ? "—" : fmt(rec)}</td><td class="r">${a.technical ? "—" : fmt(a.comm + a.svc)}</td><td class="r">${fmt(a.dep)}</td><td class="r">${remuCell}</td><td class="r"><b>${fmt(netF)}</b></td><td class="r">${d(panier)}</td><td class="r">${d(caJ)}</td></tr>`;
   }).join("\n");
 
-  const period = `${dateFrom.slice(8, 10)}/${dateFrom.slice(5, 7)}/${dateFrom.slice(0, 4)} → ${dateTo.slice(8, 10)}/${dateTo.slice(5, 7)}/${dateTo.slice(0, 4)}`;
+  const period = periodLabel(dateFrom, dateTo);
+
+
   const html = `<!DOCTYPE html>
 <html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${esc(tenant?.name || "M3A Fleet")} — Rapport d'activité ${esc(period)}</title>
-<style>
-:root{--navy:#0E2640;--navy-soft:#1B3A5C;--gold:#C5A572;--gold-light:#E8DCC1;--ink:#1F2937;--ink3:#6B7280;--border:#D1D5DB;--bg:#FAF8F4}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Inter,'Segoe UI',Helvetica,sans-serif;color:var(--ink);background:var(--bg);font-size:11pt;line-height:1.55}
-.page{max-width:800px;margin:0 auto;padding:28px 34px 40px}
-h2{font-family:'Cormorant Garamond',Garamond,Georgia,serif;color:var(--navy);font-size:19pt;margin:26px 0 10px;border-bottom:2px solid var(--gold);padding-bottom:4px}
-.print-banner{background:var(--gold-light);border:1px solid var(--gold);border-radius:8px;padding:10px 14px;font-size:9.5pt;margin-bottom:18px;display:flex;align-items:center;gap:12px;justify-content:space-between}
-.print-banner button{background:var(--navy);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:9.5pt;font-weight:700;cursor:pointer}
-@media print{.print-banner{display:none}.page{padding:0}body{background:#fff}}
-.doc-header{display:flex;align-items:baseline;gap:14px;border-bottom:3px solid var(--navy);padding-bottom:12px}
-.doc-header .brand{font-family:'Cormorant Garamond',Garamond,Georgia,serif;font-size:24pt;font-weight:700;color:var(--navy)}
-.doc-header .meta{margin-left:auto;text-align:right;font-size:9pt;color:var(--ink3)}
-.tldr{background:linear-gradient(135deg,var(--navy),var(--navy-soft));color:#fff;border-left:5px solid var(--gold);border-radius:8px;padding:16px 20px;margin:18px 0;font-size:10.5pt}
-.tldr b{color:var(--gold-light)}
-.heroes{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}
-.hero{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px}
-.hero.gold{border-color:var(--gold);background:var(--gold-light)}
-.hero .lbl{font-size:8pt;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);font-weight:700}
-.hero .val{font-size:15pt;font-weight:800;color:var(--navy);margin-top:2px}
-.hero .sub{font-size:8.5pt;color:var(--ink3)}
-table{border-collapse:collapse;width:100%;font-size:9.5pt;background:#fff}
-th{background:var(--navy);color:#fff;padding:7px 8px;text-align:left;font-weight:600;font-size:8.5pt;text-transform:uppercase}
-th.r,td.r{text-align:right}
-td{padding:7px 8px;border-bottom:1px solid var(--border)}
-tr.total td{font-weight:800;background:var(--gold-light);border-top:2px solid var(--gold)}
-.tag{display:inline-block;font-size:7.5pt;font-weight:700;padding:1px 7px;border-radius:99px}
-.tag.amber{background:#FFFBEB;color:#B45309}.tag.navy{background:#E8EEF6;color:var(--navy)}
-.bar-row{display:flex;align-items:center;gap:10px;margin:4px 0;font-size:9.5pt}
-.bar-row .cat{width:130px}.bar-row .track{flex:1;background:#EDE9E0;border-radius:99px;height:14px;overflow:hidden}
-.bar-row .fill{background:linear-gradient(90deg,var(--navy),var(--navy-soft));height:100%}
-.bar-row .amt{width:130px;text-align:right;font-weight:600;color:var(--navy)}
-.insight{background:#fff;border:1px solid var(--border);border-left:4px solid var(--gold);border-radius:8px;padding:11px 15px;margin:8px 0;font-size:10pt}
-.insight.alert{border-left-color:#B91C1C;background:#FEF2F2}
-.insight.warn{border-left-color:#B45309;background:#FFFBEB}
-.insight.ok{border-left-color:#15803D;background:#F0FDF4}
-footer{margin-top:26px;padding-top:12px;border-top:1px solid var(--border);font-size:8.5pt;color:var(--ink3);display:flex;justify-content:space-between}
-.note{font-size:8.5pt;color:var(--ink3);font-style:italic;margin-top:6px}
+<style>${REPORT_CSS}
 </style></head><body><div class="page">
 <div class="print-banner"><span>📄 Ce rapport est prêt à imprimer ou archiver.</span><button onclick="window.print()">⬇ Télécharger en PDF</button></div>
 <div class="doc-header">
@@ -272,27 +297,99 @@ ${driverRows}
 <div class="note">Montants en FCFA. « Jours » = jours travaillés (+Nr = repos déclarés, exclus des calculs). Rému. versée = salaires + acomptes rattachés au mois. Net final = net après commissions − dépenses − rémunération versée. Un chauffeur embauché en cours de mois peut inclure une période promo Yango : ratios non comparables.</div>
 ${depCat.size > 0 ? `<h2>Dépenses par catégorie</h2>\n${depRows}` : ""}
 ${insights.length > 0 ? `<h2>Ce qu'il faut retenir</h2>\n${insights.map((i, n) => `<div class="insight ${i.cls}"><b>${n + 1}.</b> ${i.text}</div>`).join("\n")}` : ""}
+${renderAnalysisHtml(analysis)}
 <footer><div>${esc(tenant?.name || "M3A GROUP")} — Rapport d'activité flotte</div><div>Chiffres calculés par le moteur — règles déterministes, aucun montant recalculé.</div></footer>
 </div></body></html>`;
 
   return { html, period, tenantName: tenant?.name || "M3A Fleet" };
 }
 
+/** Nom de fichier canonique d'un rapport de période. */
+export function reportFileName(dateFrom: string, dateTo: string): string {
+  return `rapport_${dateFrom}_${dateTo}.html`;
+}
+
+export interface StoredReport {
+  name: string;
+  created_at: string | null;
+  updated_at: string | null;
+  size: number | null;
+}
+
+/**
+ * Rapports déjà stockés pour un tenant, du plus récent au plus ancien.
+ * Lève une erreur explicite si le stockage est inaccessible — un bucket
+ * absent ou une clé invalide ne doivent pas se confondre avec « aucun rapport ».
+ */
+export async function listStoredReports(tenantId: string): Promise<StoredReport[]> {
+  const { data, error } = await admin.storage.from(REPORTS_BUCKET)
+    .list(tenantId, { sortBy: { column: "created_at", order: "desc" }, limit: 200 });
+
+  if (error) {
+    // Bucket jamais créé : aucun rapport n'a encore été généré, ce n'est pas une panne.
+    if (/not found|does not exist/i.test(error.message)) return [];
+    throw new Error(`lecture des rapports impossible: ${error.message}`);
+  }
+
+  return (data || [])
+    .filter((f) => f.name.endsWith(".html"))
+    .map((f) => ({
+      name: f.name,
+      created_at: f.created_at ?? null,
+      updated_at: f.updated_at ?? null,
+      size: (f.metadata as { size?: number } | null)?.size ?? null,
+    }));
+}
+
+/** Rapport déjà stocké pour cette période exacte, ou null. */
+export async function findStoredReport(
+  tenantId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<StoredReport | null> {
+  const wanted = reportFileName(dateFrom, dateTo);
+  const reports = await listStoredReports(tenantId);
+  return reports.find((r) => r.name === wanted) ?? null;
+}
+
+export type GenerateResult =
+  | { status: "created"; file: string; period: string }
+  | { status: "exists"; file: string; period: string; createdAt: string | null };
+
 /**
  * Génère + stocke le rapport d'un tenant dans le bucket privé, puis notifie
- * l'admin du tenant (in-app + web push). Retourne le nom du fichier stocké.
+ * l'admin du tenant (in-app + web push).
+ *
+ * Un rapport déjà présent pour la même période n'est JAMAIS écrasé sans
+ * `force` : la régénération remplace le fichier et renotifie le client, ce
+ * qui doit rester un geste délibéré. Sans force, on retourne
+ * `{ status: "exists" }` et l'appelant décide (confirmation utilisateur).
  */
 export async function generateAndStoreReport(
   tenantId: string,
   dateFrom: string,
-  dateTo: string
-): Promise<{ file: string; period: string }> {
+  dateTo: string,
+  opts: { force?: boolean } = {}
+): Promise<GenerateResult> {
+  const file = reportFileName(dateFrom, dateTo);
+
+  if (!opts.force) {
+    const existing = await findStoredReport(tenantId, dateFrom, dateTo);
+    if (existing) {
+      return {
+        status: "exists",
+        file,
+        period: periodLabel(dateFrom, dateTo),
+        createdAt: existing.created_at,
+      };
+    }
+  }
+
   const { html, period } = await buildReportHtml(tenantId, dateFrom, dateTo);
 
   // Bucket privé, créé au premier passage (idempotent).
   await admin.storage.createBucket(REPORTS_BUCKET, { public: false }).catch(() => { /* existe déjà */ });
 
-  const file = `rapport_${dateFrom}_${dateTo}.html`;
   const { error } = await admin.storage.from(REPORTS_BUCKET)
     .upload(`${tenantId}/${file}`, Buffer.from(html, "utf-8"), {
       contentType: "text/html; charset=utf-8",
@@ -316,5 +413,5 @@ export async function generateAndStoreReport(
     console.error("[report] notification failed:", e instanceof Error ? e.message : e);
   }
 
-  return { file, period };
+  return { status: "created", file, period };
 }
