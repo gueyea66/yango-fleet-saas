@@ -136,10 +136,12 @@ export async function POST(req: NextRequest) {
         const reports = await Promise.all(files.map(async (f) => {
           const { data } = await storage.storage.from(REPORTS_BUCKET)
             .createSignedUrl(`${tenantId}/${f.name}`, 1800);
-          const m = f.name.match(/rapport_(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})/);
+          const m = f.name.match(/^(rapport|analyse)_(?:(.+)_)?(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})/);
+          const range = m ? periodLabel(m[3], m[4]) : f.name.replace(".html", "");
+          const label = m && m[1] === "analyse" ? `${(m[2] || "analyse").replace(/-/g, " ")} · ` : "";
           return {
             name: f.name,
-            period: m ? periodLabel(m[1], m[2]) : f.name.replace(".html", ""),
+            period: `${label}${range}`,
             created_at: f.created_at,
             size: f.size,
             url: data?.signedUrl ?? null,

@@ -65,9 +65,29 @@ Système multi-agents ──POST──▶ /api/integrations/report-analysis
 ```
 
 - `tenantSlug` **ou** `tenantId` (UUID). L'un des deux suffit.
+- `kind` : `"section"` (défaut) ou `"document"` — voir ci-dessous.
 - `source` permet plusieurs producteurs distincts sur une même période.
 - Republier la même `(tenant, période, source)` **remplace** l'analyse précédente.
-- Réponse : `{ ok, tenantId, period, source, blocks }`.
+- Réponse : `{ ok, tenantId, period, source, kind, blocks }`, plus `file` pour un
+  `document` (nom du fichier déposé). Si le dépôt échoue, `fileWarning` le dit et
+  l'analyse reste en base : republier la redépose.
+
+## Deux formes : `section` ou `document`
+
+Le champ `kind` décide de la destination.
+
+- **`kind: "section"`** (défaut) — l'analyse est fondue dans le rapport mensuel
+  de la **même période**, après « Ce qu'il faut retenir ». C'est le cas du
+  rapport d'activité enrichi.
+- **`kind: "document"`** — l'analyse devient une **page autonome**, rendue au
+  même format que le rapport (même feuille de style, même en-tête, même pied) et
+  déposée parmi les rapports du client. C'est le cas d'un deep dive dont la
+  période (`20/06 → 31/07`) ne correspond à aucun rapport mensuel : il n'a pas de
+  rapport hôte où s'insérer.
+
+Un `document` apparaît dans « Rapports reçus » côté client et dans la console
+opérateur, libellé `Deep dive · 20/06/2026 → 31/07/2026`. Le champ `subtitle`
+alimente la ligne sous le nom du client dans l'en-tête (« Analyse approfondie »).
 
 ## Types de blocs
 
@@ -75,10 +95,41 @@ Système multi-agents ──POST──▶ /api/integrations/report-analysis
 |---|---|---|
 | `heading` | `text` | Sous-titre de section |
 | `paragraph` | `text` | Paragraphe |
-| `bullets` | `items[]` | Liste à puces |
+| `bullets` | `items[]`, `ordered?` | Liste à puces ou **numérotée** |
 | `insight` | `text`, `level` (`info`\|`ok`\|`warn`\|`alert`) | Encadré coloré |
 | `kpis` | `items[]` (`label`, `value`, `sub?`) | Tuiles chiffrées |
-| `table` | `columns[]`, `rows[][]`, `align?[]` (`l`\|`r`) | Tableau |
+| `table` | `columns[]`, `rows[][]`, `align?[]` (`l`\|`r`), `caption?` | Tableau + légende |
+
+### Mise en gras
+
+`**texte**` produit du gras dans `summary`, `paragraph`, `insight`, les items de
+liste et les cellules de tableau. C'est ce qui porte la lisibilité des analyses
+— une amorce en gras suivie de l'explication :
+
+```json
+{ "type": "paragraph",
+  "text": "**Le jeudi est ton vrai jour faible** (45 721 F, −31 % vs mercredi) — pas le lundi." }
+```
+
+Le texte est **échappé d'abord**, la mise en gras appliquée ensuite : le seul
+balisage produit est le `<b>` du moteur, jamais celui du payload.
+
+### Cellules annotées
+
+Une cellule peut porter une annotation discrète sous sa valeur — l'équivalent
+des « meilleur total », « creux réel », « contrat fini 12/07 » de tes tableaux :
+
+```json
+{ "type": "table",
+  "columns": ["JOUR", "TOTAL"],
+  "align": ["l", "r"],
+  "caption": "Moyennes par jour-chauffeur sur 66 rapports, repos exclus.",
+  "rows": [
+    [{ "v": "Mercredi", "note": "meilleur total" }, 66227],
+    [{ "v": "Jeudi", "note": "creux réel" }, 45721]
+  ]
+}
+```
 
 Un type inconnu ou un bloc malformé renvoie **400** avec la position du bloc
 fautif (`blocs[3] : type « html » inconnu`). Le rapport n'est jamais rendu avec
@@ -117,6 +168,34 @@ curl -H "Authorization: Bearer $REPORT_ANALYSIS_SECRET" \
 
 Renvoie les 24 dernières analyses stockées (période, source, modèle, date de
 réception, nombre de blocs).
+
+## Exemple : deep dive autonome
+
+```json
+{
+  "tenantSlug": "m3a",
+  "kind": "document",
+  "dateFrom": "2026-06-20",
+  "dateTo": "2026-07-31",
+  "source": "deep-dive",
+  "title": "Deep Dive Opérations & Demande",
+  "subtitle": "Analyse approfondie",
+  "summary": "**Ce que les chiffres disent du fonctionnement.** La demande a un rythme clair : volume en début de semaine, valeur en milieu de semaine.",
+  "blocks": [
+    { "type": "heading", "text": "1. La semaine type — où est la demande" },
+    { "type": "table", "columns": ["JOUR", "TOTAL JOUR", "LECTURE"], "align": ["l", "r", "l"],
+      "caption": "Moyennes par jour-chauffeur travaillé sur 66 rapports.",
+      "rows": [[{ "v": "Mercredi", "note": "meilleur total" }, 66227, "moins de courses, plus longues"]] },
+    { "type": "heading", "text": "DÉCISIONS PROPOSÉES" },
+    { "type": "bullets", "ordered": true, "items": [
+      "**Recruter vite** — le retard se paie 350-400 000 F/semaine.",
+      "**Poser les repos le JEUDI** — le jour le moins cher à sacrifier."
+    ]}
+  ]
+}
+```
+
+Déposé sous `analyse_deep-dive_2026-06-20_2026-07-31.html`.
 
 ## Ordre d'exploitation
 

@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { parseBlocks, AnalysisValidationError, LIMITS } from "@/lib/reportAnalysis";
+import {
+  parseBlocks, AnalysisValidationError, LIMITS,
+  renderAnalysisDocument, analysisFileName, type ReportAnalysis,
+} from "@/lib/reportAnalysis";
+import { REPORTS_BUCKET } from "@/lib/reportHtml";
 
 export const dynamic = "force-dynamic";
 
@@ -77,12 +81,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "analyse vide : fournir `summary` et/ou `blocks`" }, { status: 400 });
   }
 
+  // `document` : la période ne correspond à aucun rapport mensuel (deep dive
+  // sur plusieurs mois, par exemple) — l'analyse devient une page autonome.
+  const kind = body.kind === "document" ? "document" : "section";
+
   const row = {
     tenant_id: tenantId,
     date_from: dateFrom,
     date_to: dateTo,
     source: String(body.source ?? "external").slice(0, 60) || "external",
+    kind,
     title: body.title === undefined ? null : String(body.title).slice(0, 200),
+    subtitle: body.subtitle === undefined ? null : String(body.subtitle).slice(0, 200),
     summary,
     blocks,
     model: body.model === undefined ? null : String(body.model).slice(0, 120),
@@ -103,12 +113,53 @@ export async function POST(req: NextRequest) {
     }, { status: 500 });
   }
 
+  // Un document autonome est rendu et déposé dans le bucket des rapports :
+  // il apparaît alors dans « Rapports reçus » et dans la console opérateur
+  // sans plomberie supplémentaire. Un échec de dépôt ne perd pas l'analyse,
+  // qui reste stockée en base et re-déposable en republiant.
+  let file: string | null = null;
+  let fileError: string | null = null;
+  if (kind === "document") {
+    const { data: tenant } = await admin.from("tenants").select("name").eq("id", tenantId).maybeSingle();
+    const analysis: ReportAnalysis = {
+      kind: "document",
+      title: row.title,
+      subtitle: row.subtitle,
+      summary: row.summary,
+      blocks,
+      model: row.model,
+      source: row.source,
+      generatedAt: row.generated_at,
+    };
+    const html = renderAnalysisDocument(analysis, {
+      tenantName: tenant?.name || "M3A Fleet",
+      dateFrom,
+      dateTo,
+    });
+    file = analysisFileName(row.source, dateFrom, dateTo);
+
+    const storage = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    );
+    await storage.storage.createBucket(REPORTS_BUCKET, { public: false }).catch(() => { /* existe déjà */ });
+    const { error: upErr } = await storage.storage.from(REPORTS_BUCKET)
+      .upload(`${tenantId}/${file}`, Buffer.from(html, "utf-8"), {
+        contentType: "text/html; charset=utf-8",
+        upsert: true,
+      });
+    if (upErr) { fileError = upErr.message; file = null; }
+  }
+
   return NextResponse.json({
     ok: true,
     tenantId,
     period: { dateFrom, dateTo },
     source: row.source,
+    kind,
     blocks: blocks.length,
+    ...(file ? { file } : {}),
+    ...(fileError ? { fileWarning: `analyse enregistrée mais dépôt du document impossible : ${fileError}` } : {}),
   });
 }
 
@@ -124,7 +175,7 @@ export async function GET(req: NextRequest) {
   if (!tenantId) return NextResponse.json({ error: "tenant introuvable" }, { status: 404 });
 
   let q = admin.from("report_analyses")
-    .select("date_from, date_to, source, title, model, generated_at, received_at, blocks")
+    .select("date_from, date_to, source, kind, title, model, generated_at, received_at, blocks")
     .eq("tenant_id", tenantId)
     .order("date_from", { ascending: false })
     .limit(24);
@@ -141,6 +192,7 @@ export async function GET(req: NextRequest) {
     analyses: (data || []).map((r) => ({
       period: { dateFrom: r.date_from, dateTo: r.date_to },
       source: r.source,
+      kind: r.kind,
       title: r.title,
       model: r.model,
       generatedAt: r.generated_at,

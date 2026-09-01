@@ -8,6 +8,8 @@
 import {
   parseBlocks,
   renderAnalysisHtml,
+  renderAnalysisDocument,
+  analysisFileName,
   AnalysisValidationError,
   LIMITS,
   type ReportAnalysis,
@@ -16,7 +18,8 @@ import {
 jest.mock("@supabase/supabase-js", () => ({ createClient: () => ({ from: () => ({}) }) }));
 
 const analysis = (blocks: unknown[], extra: Partial<ReportAnalysis> = {}): ReportAnalysis => ({
-  title: "Analyse", summary: null, model: null, source: "multi-agent", generatedAt: null,
+  kind: "section", title: "Analyse", subtitle: null, summary: null,
+  model: null, source: "multi-agent", generatedAt: null,
   blocks: parseBlocks(blocks), ...extra,
 });
 
@@ -106,6 +109,93 @@ describe("renderAnalysisHtml — échappement du contenu externe", () => {
     expect(html).toContain("Mois solide.");
     expect(html).toContain("18 %");
     expect(html).toContain("Section produite par un système d'analyse externe");
+  });
+});
+
+describe("fidélité au rendu du système externe", () => {
+  // Reproduit la structure réelle du « Deep Dive Opérations & Demande » :
+  // sections numérotées, tableau annoté ligne par ligne, légende sous le
+  // tableau, amorces en gras, décisions numérotées.
+  const deepDive = [
+    { type: "heading", text: "1. La semaine type — où est la demande" },
+    {
+      type: "table",
+      columns: ["JOUR", "CA YANGO MOY.", "PANIER MOY.", "TOTAL JOUR", "LECTURE"],
+      align: ["l", "r", "r", "r", "l"],
+      caption: "Moyennes par jour-chauffeur travaillé sur 66 rapports (20/06 → 31/07), repos exclus.",
+      rows: [
+        ["Lundi", 48290, 2169, 49835, "volume max, petites courses"],
+        [{ v: "Mercredi", note: "meilleur total" }, 47180, 2497, 66227, "moins de courses, plus longues"],
+        [{ v: "Jeudi", note: "creux réel" }, 41290, 2343, 45721, "−23 % vs mardi : LE jour faible"],
+      ],
+    },
+    { type: "paragraph", text: "**Le jeudi est ton vrai jour faible** (45 721 F total, −31 % vs mercredi) — pas le lundi." },
+    { type: "heading", text: "4. Ce que les données ne disent pas encore" },
+    { type: "insight", level: "warn", text: "Le niveau « service client » n'est pas encore mesurable." },
+    {
+      type: "bullets",
+      ordered: true,
+      items: [
+        "**Recruter vite** — le retard se paie 350-400 000 F/semaine (mesuré en S29).",
+        "**Poser les repos et entretiens le JEUDI** (jour le plus faible).",
+      ],
+    },
+  ];
+
+  it("accepte la structure complète du deep dive", () => {
+    expect(parseBlocks(deepDive)).toHaveLength(6);
+  });
+
+  it("rend les amorces en gras sans laisser passer de HTML", () => {
+    const html = renderAnalysisHtml(analysis(deepDive));
+    expect(html).toContain("<b>Le jeudi est ton vrai jour faible</b>");
+    const injected = renderAnalysisHtml(analysis([
+      { type: "paragraph", text: "**<script>x</script>**" },
+    ]));
+    expect(injected).toContain("<b>&lt;script&gt;");
+    expect(injected).not.toContain("<script>");
+  });
+
+  it("numérote les décisions proposées", () => {
+    const html = renderAnalysisHtml(analysis([{ type: "bullets", ordered: true, items: ["a", "b"] }]));
+    expect(html).toContain("<ol");
+    expect(renderAnalysisHtml(analysis([{ type: "bullets", items: ["a"] }]))).toContain("<ul");
+  });
+
+  it("rend les annotations de cellule et la légende du tableau", () => {
+    const html = renderAnalysisHtml(analysis(deepDive));
+    expect(html).toContain("creux réel");
+    expect(html).toContain("Moyennes par jour-chauffeur");
+  });
+
+  it("rend un document autonome en page complète, hors du rapport mensuel", () => {
+    const a = analysis(deepDive, {
+      kind: "document",
+      title: "Deep Dive Opérations & Demande",
+      subtitle: "Analyse approfondie",
+      summary: "**Ce que les chiffres disent du fonctionnement.** La demande a un rythme clair.",
+    });
+
+    // Un document ne s'insère jamais dans le rapport mensuel.
+    expect(renderAnalysisHtml(a)).toBe("");
+
+    const doc = renderAnalysisDocument(a, {
+      tenantName: "M3A FLEET",
+      dateFrom: "2026-06-20",
+      dateTo: "2026-07-31",
+    });
+    expect(doc).toContain("<!DOCTYPE html>");
+    expect(doc).toContain("Deep Dive Opérations &amp; Demande");
+    expect(doc).toContain("Analyse approfondie");
+    expect(doc).toContain("20/06/2026 → 31/07/2026");
+    expect(doc).toContain("<b>Ce que les chiffres disent du fonctionnement.</b>");
+  });
+
+  it("nomme le fichier de façon lisible et sûre", () => {
+    expect(analysisFileName("Deep Dive", "2026-06-20", "2026-07-31"))
+      .toBe("analyse_deep-dive_2026-06-20_2026-07-31.html");
+    expect(analysisFileName("../../etc", "2026-06-20", "2026-07-31"))
+      .toBe("analyse_etc_2026-06-20_2026-07-31.html");
   });
 });
 

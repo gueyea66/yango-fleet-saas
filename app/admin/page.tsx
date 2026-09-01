@@ -4090,10 +4090,15 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
     }
   };
 
-  // "rapport_2026-07-01_2026-07-31.html" → "01/07/2026 → 31/07/2026"
+  // "rapport_2026-07-01_2026-07-31.html"          → "01/07/2026 → 31/07/2026"
+  // "analyse_deep-dive_2026-06-20_2026-07-31.html" → "Deep dive · 20/06/2026 → 31/07/2026"
   const periodOf = (name: string) => {
-    const m = name.match(/rapport_(\d{4})-(\d{2})-(\d{2})_(\d{4})-(\d{2})-(\d{2})/);
-    return m ? `${m[3]}/${m[2]}/${m[1]} → ${m[6]}/${m[5]}/${m[4]}` : name.replace(".html", "");
+    const m = name.match(/^(rapport|analyse)_(?:(.+)_)?(\d{4})-(\d{2})-(\d{2})_(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return name.replace(".html", "");
+    const range = `${m[5]}/${m[4]}/${m[3]} → ${m[8]}/${m[7]}/${m[6]}`;
+    if (m[1] === "rapport") return range;
+    const label = (m[2] || "analyse").replace(/-/g, " ");
+    return `${label.charAt(0).toUpperCase()}${label.slice(1)} · ${range}`;
   };
 
   const download = async (resource: string) => {

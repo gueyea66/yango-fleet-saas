@@ -17,7 +17,13 @@ CREATE TABLE IF NOT EXISTS fleet.report_analyses (
   date_from    DATE        NOT NULL,
   date_to      DATE        NOT NULL,
   source       TEXT        NOT NULL DEFAULT 'external',
+  -- section  : fondue dans le rapport mensuel de la même période
+  -- document : page autonome (deep dive, période hors rapport), déposée
+  --            parmi les rapports du client
+  kind         TEXT        NOT NULL DEFAULT 'section'
+                 CHECK (kind IN ('section', 'document')),
   title        TEXT,
+  subtitle     TEXT,
   summary      TEXT,
   blocks       JSONB       NOT NULL DEFAULT '[]'::jsonb,
   model        TEXT,
@@ -38,4 +44,10 @@ ALTER TABLE fleet.report_analyses DISABLE ROW LEVEL SECURITY;
 
 COMMENT ON TABLE  fleet.report_analyses IS 'Analyses externes injectées dans le rapport d''activité. Alimentée par POST /api/integrations/report-analysis.';
 COMMENT ON COLUMN fleet.report_analyses.blocks IS 'Blocs structurés (heading|paragraph|bullets|insight|kpis|table). Jamais de HTML brut : le contenu est échappé au rendu.';
+COMMENT ON COLUMN fleet.report_analyses.kind IS 'section = injectee dans le rapport mensuel ; document = page autonome deposee dans le bucket des rapports.';
 COMMENT ON COLUMN fleet.report_analyses.source IS 'Identifiant du producteur — permet plusieurs analyses distinctes sur une même période.';
+
+-- Rejeu sur une table créée par une version antérieure de cette migration.
+ALTER TABLE fleet.report_analyses
+  ADD COLUMN IF NOT EXISTS kind     TEXT NOT NULL DEFAULT 'section',
+  ADD COLUMN IF NOT EXISTS subtitle TEXT;

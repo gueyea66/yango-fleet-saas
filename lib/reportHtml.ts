@@ -63,6 +63,54 @@ export function periodLabel(dateFrom: string, dateTo: string): string {
   return `${d(dateFrom)} → ${d(dateTo)}`;
 }
 
+/**
+ * Feuille de style du rapport — partagée avec les documents d'analyse
+ * autonomes (lib/reportAnalysis.ts) pour qu'ils sortent à l'identique.
+ */
+export const REPORT_CSS = `
+:root{--navy:#0E2640;--navy-soft:#1B3A5C;--gold:#C5A572;--gold-light:#E8DCC1;--ink:#1F2937;--ink3:#6B7280;--border:#D1D5DB;--bg:#FAF8F4}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Inter,'Segoe UI',Helvetica,sans-serif;color:var(--ink);background:var(--bg);font-size:11pt;line-height:1.55}
+.page{max-width:800px;margin:0 auto;padding:28px 34px 40px}
+h2{font-family:'Cormorant Garamond',Garamond,Georgia,serif;color:var(--navy);font-size:19pt;margin:26px 0 10px;border-bottom:2px solid var(--gold);padding-bottom:4px}
+.print-banner{background:var(--gold-light);border:1px solid var(--gold);border-radius:8px;padding:10px 14px;font-size:9.5pt;margin-bottom:18px;display:flex;align-items:center;gap:12px;justify-content:space-between}
+.print-banner button{background:var(--navy);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:9.5pt;font-weight:700;cursor:pointer}
+@media print{.print-banner{display:none}.page{padding:0}body{background:#fff}}
+.doc-header{display:flex;align-items:baseline;gap:14px;border-bottom:3px solid var(--navy);padding-bottom:12px}
+.doc-header .brand{font-family:'Cormorant Garamond',Garamond,Georgia,serif;font-size:24pt;font-weight:700;color:var(--navy)}
+.doc-header .meta{margin-left:auto;text-align:right;font-size:9pt;color:var(--ink3)}
+.tldr{background:linear-gradient(135deg,var(--navy),var(--navy-soft));color:#fff;border-left:5px solid var(--gold);border-radius:8px;padding:16px 20px;margin:18px 0;font-size:10.5pt}
+.tldr b{color:var(--gold-light)}
+.heroes{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}
+.hero{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.hero.gold{border-color:var(--gold);background:var(--gold-light)}
+.hero .lbl{font-size:8pt;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);font-weight:700}
+.hero .val{font-size:15pt;font-weight:800;color:var(--navy);margin-top:2px}
+.hero .sub{font-size:8.5pt;color:var(--ink3)}
+table{border-collapse:collapse;width:100%;font-size:9.5pt;background:#fff}
+th{background:var(--navy);color:#fff;padding:7px 8px;text-align:left;font-weight:600;font-size:8.5pt;text-transform:uppercase}
+th.r,td.r{text-align:right}
+td{padding:7px 8px;border-bottom:1px solid var(--border)}
+tr.total td{font-weight:800;background:var(--gold-light);border-top:2px solid var(--gold)}
+.tag{display:inline-block;font-size:7.5pt;font-weight:700;padding:1px 7px;border-radius:99px}
+.tag.amber{background:#FFFBEB;color:#B45309}.tag.navy{background:#E8EEF6;color:var(--navy)}
+.bar-row{display:flex;align-items:center;gap:10px;margin:4px 0;font-size:9.5pt}
+.bar-row .cat{width:130px}.bar-row .track{flex:1;background:#EDE9E0;border-radius:99px;height:14px;overflow:hidden}
+.bar-row .fill{background:linear-gradient(90deg,var(--navy),var(--navy-soft));height:100%}
+.bar-row .amt{width:130px;text-align:right;font-weight:600;color:var(--navy)}
+.insight{background:#fff;border:1px solid var(--border);border-left:4px solid var(--gold);border-radius:8px;padding:11px 15px;margin:8px 0;font-size:10pt}
+.insight.alert{border-left-color:#B91C1C;background:#FEF2F2}
+.insight.warn{border-left-color:#B45309;background:#FFFBEB}
+.insight.ok{border-left-color:#15803D;background:#F0FDF4}
+footer{margin-top:26px;padding-top:12px;border-top:1px solid var(--border);font-size:8.5pt;color:var(--ink3);display:flex;justify-content:space-between}
+.note{font-size:8.5pt;color:var(--ink3);font-style:italic;margin-top:6px}
+.an-h{font-weight:800;color:var(--navy);font-size:11.5pt;margin:14px 0 4px}
+.an-p{margin:7px 0;font-size:10.5pt}
+.an-ul{margin:7px 0 7px 20px;font-size:10.5pt}
+.an-ul li{margin:3px 0}
+.an-cell-note{font-size:8pt;color:var(--ink3);font-weight:400;margin-top:1px}
+`;
+
 export async function buildReportHtml(
   tenantId: string,
   dateFrom: string,
@@ -220,50 +268,12 @@ export async function buildReportHtml(
   }).join("\n");
 
   const period = periodLabel(dateFrom, dateTo);
+
+
   const html = `<!DOCTYPE html>
 <html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${esc(tenant?.name || "M3A Fleet")} — Rapport d'activité ${esc(period)}</title>
-<style>
-:root{--navy:#0E2640;--navy-soft:#1B3A5C;--gold:#C5A572;--gold-light:#E8DCC1;--ink:#1F2937;--ink3:#6B7280;--border:#D1D5DB;--bg:#FAF8F4}
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Inter,'Segoe UI',Helvetica,sans-serif;color:var(--ink);background:var(--bg);font-size:11pt;line-height:1.55}
-.page{max-width:800px;margin:0 auto;padding:28px 34px 40px}
-h2{font-family:'Cormorant Garamond',Garamond,Georgia,serif;color:var(--navy);font-size:19pt;margin:26px 0 10px;border-bottom:2px solid var(--gold);padding-bottom:4px}
-.print-banner{background:var(--gold-light);border:1px solid var(--gold);border-radius:8px;padding:10px 14px;font-size:9.5pt;margin-bottom:18px;display:flex;align-items:center;gap:12px;justify-content:space-between}
-.print-banner button{background:var(--navy);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:9.5pt;font-weight:700;cursor:pointer}
-@media print{.print-banner{display:none}.page{padding:0}body{background:#fff}}
-.doc-header{display:flex;align-items:baseline;gap:14px;border-bottom:3px solid var(--navy);padding-bottom:12px}
-.doc-header .brand{font-family:'Cormorant Garamond',Garamond,Georgia,serif;font-size:24pt;font-weight:700;color:var(--navy)}
-.doc-header .meta{margin-left:auto;text-align:right;font-size:9pt;color:var(--ink3)}
-.tldr{background:linear-gradient(135deg,var(--navy),var(--navy-soft));color:#fff;border-left:5px solid var(--gold);border-radius:8px;padding:16px 20px;margin:18px 0;font-size:10.5pt}
-.tldr b{color:var(--gold-light)}
-.heroes{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0}
-.hero{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px}
-.hero.gold{border-color:var(--gold);background:var(--gold-light)}
-.hero .lbl{font-size:8pt;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);font-weight:700}
-.hero .val{font-size:15pt;font-weight:800;color:var(--navy);margin-top:2px}
-.hero .sub{font-size:8.5pt;color:var(--ink3)}
-table{border-collapse:collapse;width:100%;font-size:9.5pt;background:#fff}
-th{background:var(--navy);color:#fff;padding:7px 8px;text-align:left;font-weight:600;font-size:8.5pt;text-transform:uppercase}
-th.r,td.r{text-align:right}
-td{padding:7px 8px;border-bottom:1px solid var(--border)}
-tr.total td{font-weight:800;background:var(--gold-light);border-top:2px solid var(--gold)}
-.tag{display:inline-block;font-size:7.5pt;font-weight:700;padding:1px 7px;border-radius:99px}
-.tag.amber{background:#FFFBEB;color:#B45309}.tag.navy{background:#E8EEF6;color:var(--navy)}
-.bar-row{display:flex;align-items:center;gap:10px;margin:4px 0;font-size:9.5pt}
-.bar-row .cat{width:130px}.bar-row .track{flex:1;background:#EDE9E0;border-radius:99px;height:14px;overflow:hidden}
-.bar-row .fill{background:linear-gradient(90deg,var(--navy),var(--navy-soft));height:100%}
-.bar-row .amt{width:130px;text-align:right;font-weight:600;color:var(--navy)}
-.insight{background:#fff;border:1px solid var(--border);border-left:4px solid var(--gold);border-radius:8px;padding:11px 15px;margin:8px 0;font-size:10pt}
-.insight.alert{border-left-color:#B91C1C;background:#FEF2F2}
-.insight.warn{border-left-color:#B45309;background:#FFFBEB}
-.insight.ok{border-left-color:#15803D;background:#F0FDF4}
-footer{margin-top:26px;padding-top:12px;border-top:1px solid var(--border);font-size:8.5pt;color:var(--ink3);display:flex;justify-content:space-between}
-.note{font-size:8.5pt;color:var(--ink3);font-style:italic;margin-top:6px}
-.an-h{font-weight:800;color:var(--navy);font-size:11.5pt;margin:14px 0 4px}
-.an-p{margin:7px 0;font-size:10.5pt}
-.an-ul{margin:7px 0 7px 20px;font-size:10.5pt}
-.an-ul li{margin:3px 0}
+<style>${REPORT_CSS}
 </style></head><body><div class="page">
 <div class="print-banner"><span>📄 Ce rapport est prêt à imprimer ou archiver.</span><button onclick="window.print()">⬇ Télécharger en PDF</button></div>
 <div class="doc-header">
