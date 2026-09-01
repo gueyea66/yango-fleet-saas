@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { checkSuperadminKey, getClientIp } from "@/lib/auth/server";
+import { listStoredReports, REPORTS_BUCKET, periodLabel } from "@/lib/reportHtml";
 
 export const dynamic = "force-dynamic";
 
@@ -117,6 +118,34 @@ export async function POST(req: NextRequest) {
           admin.from("tenant_settings").select("tenant_id,app_name,primary_color"),
         ]);
         return NextResponse.json({ tenants: tenants ?? [], profiles: profiles ?? [], rMonth: rMonth ?? [], rAll: rAll ?? [], rDaily: rDaily ?? [], settings: settings ?? [] });
+      }
+
+      /* ── Rapports d'activité déjà poussés à un client (page → loadReports) ──
+         Angle mort corrigé : la console déclenchait les générations sans
+         jamais pouvoir relire ce que le client avait effectivement reçu.
+         Chaque rapport est accompagné d'une URL signée courte (bucket privé). */
+      case "list-reports": {
+        const { tenantId } = payload;
+        if (!tenantId) return NextResponse.json({ error: "tenantId manquant" }, { status: 400 });
+
+        const files = await listStoredReports(tenantId);
+        const storage = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!,
+        );
+        const reports = await Promise.all(files.map(async (f) => {
+          const { data } = await storage.storage.from(REPORTS_BUCKET)
+            .createSignedUrl(`${tenantId}/${f.name}`, 1800);
+          const m = f.name.match(/rapport_(\d{4}-\d{2}-\d{2})_(\d{4}-\d{2}-\d{2})/);
+          return {
+            name: f.name,
+            period: m ? periodLabel(m[1], m[2]) : f.name.replace(".html", ""),
+            created_at: f.created_at,
+            size: f.size,
+            url: data?.signedUrl ?? null,
+          };
+        }));
+        return NextResponse.json({ reports });
       }
 
       default:

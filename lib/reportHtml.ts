@@ -56,6 +56,12 @@ export function previousMonthRange(now: Date = new Date()): { dateFrom: string; 
   return { dateFrom: first.toISOString().slice(0, 10), dateTo: last.toISOString().slice(0, 10) };
 }
 
+/** Libellé lisible d'une période : « 01/08/2026 → 31/08/2026 ». */
+export function periodLabel(dateFrom: string, dateTo: string): string {
+  const d = (s: string) => `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}`;
+  return `${d(dateFrom)} → ${d(dateTo)}`;
+}
+
 export async function buildReportHtml(
   tenantId: string,
   dateFrom: string,
@@ -208,7 +214,7 @@ export async function buildReportHtml(
     return `<tr><td><b>${esc(a.name)}</b> ${tag}</td><td class="r">${joursCell}</td><td class="r">${a.technical ? "—" : fmt(rec)}</td><td class="r">${a.technical ? "—" : fmt(a.comm + a.svc)}</td><td class="r">${fmt(a.dep)}</td><td class="r">${remuCell}</td><td class="r"><b>${fmt(netF)}</b></td><td class="r">${d(panier)}</td><td class="r">${d(caJ)}</td></tr>`;
   }).join("\n");
 
-  const period = `${dateFrom.slice(8, 10)}/${dateFrom.slice(5, 7)}/${dateFrom.slice(0, 4)} → ${dateTo.slice(8, 10)}/${dateTo.slice(5, 7)}/${dateTo.slice(0, 4)}`;
+  const period = periodLabel(dateFrom, dateTo);
   const html = `<!DOCTYPE html>
 <html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${esc(tenant?.name || "M3A Fleet")} — Rapport d'activité ${esc(period)}</title>
@@ -278,21 +284,92 @@ ${insights.length > 0 ? `<h2>Ce qu'il faut retenir</h2>\n${insights.map((i, n) =
   return { html, period, tenantName: tenant?.name || "M3A Fleet" };
 }
 
+/** Nom de fichier canonique d'un rapport de période. */
+export function reportFileName(dateFrom: string, dateTo: string): string {
+  return `rapport_${dateFrom}_${dateTo}.html`;
+}
+
+export interface StoredReport {
+  name: string;
+  created_at: string | null;
+  updated_at: string | null;
+  size: number | null;
+}
+
+/**
+ * Rapports déjà stockés pour un tenant, du plus récent au plus ancien.
+ * Lève une erreur explicite si le stockage est inaccessible — un bucket
+ * absent ou une clé invalide ne doivent pas se confondre avec « aucun rapport ».
+ */
+export async function listStoredReports(tenantId: string): Promise<StoredReport[]> {
+  const { data, error } = await admin.storage.from(REPORTS_BUCKET)
+    .list(tenantId, { sortBy: { column: "created_at", order: "desc" }, limit: 200 });
+
+  if (error) {
+    // Bucket jamais créé : aucun rapport n'a encore été généré, ce n'est pas une panne.
+    if (/not found|does not exist/i.test(error.message)) return [];
+    throw new Error(`lecture des rapports impossible: ${error.message}`);
+  }
+
+  return (data || [])
+    .filter((f) => f.name.endsWith(".html"))
+    .map((f) => ({
+      name: f.name,
+      created_at: f.created_at ?? null,
+      updated_at: f.updated_at ?? null,
+      size: (f.metadata as { size?: number } | null)?.size ?? null,
+    }));
+}
+
+/** Rapport déjà stocké pour cette période exacte, ou null. */
+export async function findStoredReport(
+  tenantId: string,
+  dateFrom: string,
+  dateTo: string
+): Promise<StoredReport | null> {
+  const wanted = reportFileName(dateFrom, dateTo);
+  const reports = await listStoredReports(tenantId);
+  return reports.find((r) => r.name === wanted) ?? null;
+}
+
+export type GenerateResult =
+  | { status: "created"; file: string; period: string }
+  | { status: "exists"; file: string; period: string; createdAt: string | null };
+
 /**
  * Génère + stocke le rapport d'un tenant dans le bucket privé, puis notifie
- * l'admin du tenant (in-app + web push). Retourne le nom du fichier stocké.
+ * l'admin du tenant (in-app + web push).
+ *
+ * Un rapport déjà présent pour la même période n'est JAMAIS écrasé sans
+ * `force` : la régénération remplace le fichier et renotifie le client, ce
+ * qui doit rester un geste délibéré. Sans force, on retourne
+ * `{ status: "exists" }` et l'appelant décide (confirmation utilisateur).
  */
 export async function generateAndStoreReport(
   tenantId: string,
   dateFrom: string,
-  dateTo: string
-): Promise<{ file: string; period: string }> {
+  dateTo: string,
+  opts: { force?: boolean } = {}
+): Promise<GenerateResult> {
+  const file = reportFileName(dateFrom, dateTo);
+
+  if (!opts.force) {
+    const existing = await findStoredReport(tenantId, dateFrom, dateTo);
+    if (existing) {
+      return {
+        status: "exists",
+        file,
+        period: periodLabel(dateFrom, dateTo),
+        createdAt: existing.created_at,
+      };
+    }
+  }
+
   const { html, period } = await buildReportHtml(tenantId, dateFrom, dateTo);
 
   // Bucket privé, créé au premier passage (idempotent).
   await admin.storage.createBucket(REPORTS_BUCKET, { public: false }).catch(() => { /* existe déjà */ });
 
-  const file = `rapport_${dateFrom}_${dateTo}.html`;
   const { error } = await admin.storage.from(REPORTS_BUCKET)
     .upload(`${tenantId}/${file}`, Buffer.from(html, "utf-8"), {
       contentType: "text/html; charset=utf-8",
@@ -316,5 +393,5 @@ export async function generateAndStoreReport(
     console.error("[report] notification failed:", e instanceof Error ? e.message : e);
   }
 
-  return { file, period };
+  return { status: "created", file, period };
 }

@@ -30,6 +30,18 @@ function daysLabel(iso: string | null): string {
   return `J-${d}`;
 }
 
+function isReportError(v: unknown): v is { error: string } {
+  return typeof v === "object" && v !== null && "error" in v;
+}
+
+interface StoredReportRow {
+  name: string;
+  period: string;
+  created_at: string | null;
+  size: number | null;
+  url: string | null;
+}
+
 export default function SuperAdminPage() {
   const [authed, setAuthed] = useState(false);
   const [key, setKey] = useState("");
@@ -47,6 +59,8 @@ export default function SuperAdminPage() {
   const [keyForm, setKeyForm] = useState({ current: "", newKey: "", confirm: "" });
   const [globalSettings, setGlobalSettings] = useState({ whatsapp: "", phone: "", companyName: "M3A Solutions", defaultTrialDays: "14", defaultPlan: "standard", wavePhone: "", omPhone: "", priceStandard: "35000", pricePro: "75000", priceEnterprise: "100000" });
   const [settingsLoading, setSettingsLoading] = useState(false);
+  // Rapports déjà poussés, par tenant — chargés à la demande depuis le stockage.
+  const [tenantReports, setTenantReports] = useState<Record<string, StoredReportRow[] | "loading" | { error: string }>>({});
 
   const notify = (text: string, ok = true) => { setMsg({ text, ok }); setTimeout(() => setMsg(null), 4000); };
 
@@ -126,16 +140,62 @@ export default function SuperAdminPage() {
 
   // Génération en lot : mois précédent, stockage + notification aux admins clients.
   // Sans tenantIds → tous les clients activés ; avec → seulement ceux-là (si activés).
+  //
+  // Régénérer écrase le rapport déjà reçu par le client et le renotifie : le
+  // serveur refuse donc par défaut et remonte les périodes déjà couvertes
+  // (`skipped`). On demande confirmation, puis on rejoue avec force:true.
   const [generating, setGenerating] = useState(false);
-  async function generateReports(tenantIds?: string[]) {
+  async function generateReports(tenantIds?: string[], force = false) {
     setGenerating(true);
     try {
-      const d = await apiPost("/api/superadmin/generate-reports", tenantIds ? { tenantIds } : {});
+      const body: Record<string, unknown> = { ...(tenantIds ? { tenantIds } : {}), ...(force ? { force: true } : {}) };
+      const d = await apiPost("/api/superadmin/generate-reports", body);
       if (d.error) return notify(d.error, false);
-      const nOk = (d.generated || []).length;
+
+      const generated = d.generated || [];
+      const skipped = d.skipped || [];
       const nKo = (d.errors || []).length;
-      notify(`✓ ${nOk} rapport(s) généré(s) et poussé(s) (${d.period?.dateFrom} → ${d.period?.dateTo})${nKo ? ` · ${nKo} échec(s)` : ""}`, nKo === 0);
+
+      if (skipped.length > 0) {
+        const noms = skipped
+          .map((r: { tenantId: string; period: string; createdAt: string | null }) => {
+            const nom = tenants.find(t => t.id === r.tenantId)?.name || r.tenantId.slice(0, 8);
+            const le = r.createdAt ? ` (généré le ${new Date(r.createdAt).toLocaleDateString("fr-FR")})` : "";
+            return `• ${nom} — ${r.period}${le}`;
+          })
+          .join("\n");
+        const ok = window.confirm(
+          `Rapport déjà généré pour :\n\n${noms}\n\n` +
+          `Régénérer remplacera le rapport que le client a déjà reçu et lui enverra une nouvelle notification.\n\n` +
+          `Veux-tu vraiment générer un nouveau rapport ?`
+        );
+        if (ok) {
+          const ids = skipped.map((r: { tenantId: string }) => r.tenantId);
+          setGenerating(false);
+          return generateReports(ids, true);
+        }
+      }
+
+      const parts: string[] = [];
+      if (generated.length) parts.push(`${generated.length} rapport(s) ${force ? "régénéré(s)" : "généré(s)"} et poussé(s)`);
+      if (skipped.length) parts.push(`${skipped.length} déjà présent(s), conservé(s)`);
+      if (nKo) parts.push(`${nKo} échec(s)`);
+      notify(`${nKo ? "⚠" : "✓"} ${parts.join(" · ") || "Rien à faire"} (${d.period?.dateFrom} → ${d.period?.dateTo})`, nKo === 0);
+
+      // La liste ouverte doit refléter ce qui vient d'être poussé.
+      for (const tid of Object.keys(tenantReports)) void loadReports(tid, true);
     } finally { setGenerating(false); }
+  }
+
+  /** Rapports déjà poussés à un client — ce que la console ne montrait pas. */
+  async function loadReports(tenantId: string, refresh = false) {
+    if (!refresh && tenantReports[tenantId] !== undefined) {
+      setTenantReports(p => { const n = { ...p }; delete n[tenantId]; return n; });
+      return;
+    }
+    setTenantReports(p => ({ ...p, [tenantId]: "loading" }));
+    const d = await apiPost("/api/superadmin/console", { op: "list-reports", tenantId });
+    setTenantReports(p => ({ ...p, [tenantId]: d.error ? { error: d.error } : (d.reports || []) }));
   }
 
   useEffect(() => {
@@ -579,11 +639,18 @@ export default function SuperAdminPage() {
                     📊 Rapport {reportAddon.has(t.id) ? "ON" : "OFF"}
                   </button>
                   {reportAddon.has(t.id) && (
-                    <button onClick={() => generateReports([t.id])} disabled={generating}
-                      title="Générer le rapport du mois précédent pour CE client et le pousser dans son interface admin"
-                      style={{ background: "var(--sk-surface)", border: "none", borderRadius: 8, padding: "5px 10px", color: "#9ca3af", cursor: "pointer", fontSize: 11, opacity: generating ? 0.5 : 1 }}>
-                      Générer
-                    </button>
+                    <>
+                      <button onClick={() => generateReports([t.id])} disabled={generating}
+                        title="Générer le rapport du mois précédent pour CE client et le pousser dans son interface admin"
+                        style={{ background: "var(--sk-surface)", border: "none", borderRadius: 8, padding: "5px 10px", color: "#9ca3af", cursor: "pointer", fontSize: 11, opacity: generating ? 0.5 : 1 }}>
+                        Générer
+                      </button>
+                      <button onClick={() => loadReports(t.id)}
+                        title="Voir les rapports déjà reçus par ce client"
+                        style={{ background: "var(--sk-surface)", border: "none", borderRadius: 8, padding: "5px 10px", color: tenantReports[t.id] !== undefined ? "#f5a623" : "#9ca3af", cursor: "pointer", fontSize: 11 }}>
+                        Rapports {tenantReports[t.id] !== undefined ? "▲" : "▼"}
+                      </button>
+                    </>
                   )}
 
                   <button onClick={() => toggleActive(t.id, t.active)}
@@ -595,6 +662,41 @@ export default function SuperAdminPage() {
                     {isExpanded ? "Fermer ▲" : "Gérer ▼"}
                   </button>
                 </div>
+
+                {tenantReports[t.id] !== undefined && (
+                  <div style={{ borderTop: "0.5px solid var(--sk-surface)", padding: "14px 20px", background: "var(--sk-deep)" }}>
+                    <div style={{ fontSize: 11, color: "#f5a623", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8 }}>
+                      Rapports poussés à ce client
+                    </div>
+                    {tenantReports[t.id] === "loading" ? (
+                      <div style={{ fontSize: 11, color: "#6b7280" }}>Chargement…</div>
+                    ) : isReportError(tenantReports[t.id]) ? (
+                      <div style={{ fontSize: 11, color: "#ef4444" }}>
+                        Lecture impossible : {(tenantReports[t.id] as { error: string }).error}
+                      </div>
+                    ) : (tenantReports[t.id] as StoredReportRow[]).length === 0 ? (
+                      <div style={{ fontSize: 11, color: "#6b7280" }}>
+                        Aucun rapport généré pour ce client à ce jour.
+                      </div>
+                    ) : (
+                      (tenantReports[t.id] as StoredReportRow[]).map(r => (
+                        <div key={r.name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 0", borderBottom: "0.5px solid var(--sk-surface)" }}>
+                          <span style={{ fontSize: 11, color: "var(--sk-t1)", fontWeight: 600 }}>📄 {r.period}</span>
+                          <span style={{ fontSize: 10, color: "#6b7280" }}>
+                            {r.created_at ? `poussé le ${new Date(r.created_at).toLocaleDateString("fr-FR")}` : ""}
+                            {r.size ? ` · ${Math.round(r.size / 1024)} Ko` : ""}
+                          </span>
+                          {r.url && (
+                            <a href={r.url} target="_blank" rel="noopener noreferrer"
+                              style={{ marginLeft: "auto", fontSize: 11, color: "#f5a623", textDecoration: "none" }}>
+                              Ouvrir ↗
+                            </a>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
 
                 {isExpanded && (
                   <div style={{ borderTop: "0.5px solid var(--sk-surface)", padding: 20 }}>

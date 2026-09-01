@@ -150,3 +150,5 @@ describe("DELETE chauffeur — le véhicule assigné doit survivre", () => {
     expect(deletedAuthUsers).toEqual([PROFILE_ID]);
   });
 });
+
+export {};

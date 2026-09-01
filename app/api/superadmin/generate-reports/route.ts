@@ -19,14 +19,16 @@ async function getStoredKey(): Promise<string> {
 
 /**
  * Génération en lot des rapports d'activité (console super admin).
- * body : { superadminKey, tenantIds?: string[], dateFrom?, dateTo? }
+ * body : { superadminKey, tenantIds?: string[], dateFrom?, dateTo?, force? }
  *  - tenantIds absent → TOUS les tenants dont l'add-on est activé ;
  *  - tenantIds fourni → intersection avec les tenants activés (éligibilité stricte) ;
- *  - période absente → mois précédent complet.
- * Chaque rapport est stocké (bucket privé) et l'admin du client est notifié.
+ *  - période absente → mois précédent complet ;
+ *  - force absent → un rapport déjà présent pour la période est CONSERVÉ et
+ *    remonté dans `skipped` ; l'appelant confirme puis rejoue avec force:true.
+ * Chaque rapport créé est stocké (bucket privé) et l'admin du client notifié.
  */
 export async function POST(req: NextRequest) {
-  const { superadminKey, tenantIds, dateFrom, dateTo } = await req.json();
+  const { superadminKey, tenantIds, dateFrom, dateTo, force } = await req.json();
 
   const storedKey = await getStoredKey();
   if (!checkSuperadminKey(superadminKey, storedKey, getClientIp(req))) {
@@ -44,14 +46,16 @@ export async function POST(req: NextRequest) {
   const range = dateFrom && dateTo ? { dateFrom, dateTo } : previousMonthRange();
 
   const generated: { tenantId: string; file: string; period: string }[] = [];
+  const skipped: { tenantId: string; file: string; period: string; createdAt: string | null }[] = [];
   const errors: { tenantId: string; error: string }[] = [];
   for (const tid of targets) {
     try {
-      const r = await generateAndStoreReport(tid, range.dateFrom, range.dateTo);
-      generated.push({ tenantId: tid, ...r });
+      const r = await generateAndStoreReport(tid, range.dateFrom, range.dateTo, { force: force === true });
+      if (r.status === "exists") skipped.push({ tenantId: tid, ...r });
+      else generated.push({ tenantId: tid, file: r.file, period: r.period });
     } catch (e) {
       errors.push({ tenantId: tid, error: e instanceof Error ? e.message : "?" });
     }
   }
-  return NextResponse.json({ generated, errors, period: range });
+  return NextResponse.json({ generated, skipped, errors, period: range });
 }

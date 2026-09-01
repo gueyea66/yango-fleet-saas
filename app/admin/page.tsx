@@ -4073,13 +4073,21 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
   // Rapports poussés par M3A (génération auto/lot) — listés depuis le stockage.
   const [received, setReceived] = useState<{ name: string; created_at: string | null }[] | null>(null);
 
+  // Une erreur de lecture ne doit pas se confondre avec « aucun rapport reçu ».
+  const [receivedErr, setReceivedErr] = useState<string | null>(null);
+
   const loadReceived = async () => {
-    if (received !== null) { setReceived(null); return; }
+    if (received !== null) { setReceived(null); setReceivedErr(null); return; }
+    setReceivedErr(null);
     try {
       const res = await fetch("/api/admin/reports-list");
       const j = await res.json().catch(() => ({} as any));
+      if (!res.ok) { setReceivedErr(j.error || "Lecture des rapports impossible."); setReceived([]); return; }
       setReceived(j.reports || []);
-    } catch { setReceived([]); }
+    } catch {
+      setReceivedErr("Lecture des rapports impossible (réseau).");
+      setReceived([]);
+    }
   };
 
   // "rapport_2026-07-01_2026-07-31.html" → "01/07/2026 → 31/07/2026"
@@ -4158,7 +4166,11 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
             📁 Rapports reçus {received !== null ? "▲" : "▼"}
           </button>
           {received !== null && (
-            received.length === 0 ? (
+            receivedErr ? (
+              <div className="text-xs px-4 py-2" style={{ color: "#f87171", borderBottom: "1px solid var(--sk-surface)" }}>
+                {receivedErr}
+              </div>
+            ) : received.length === 0 ? (
               <div className="text-xs px-4 py-2" style={{ color: "var(--sk-t3)", borderBottom: "1px solid var(--sk-surface)" }}>
                 Aucun rapport poussé pour l'instant.
               </div>
