@@ -37,6 +37,7 @@ export default function SuperAdminPage() {
   const [activeTab, setActiveTab] = useState<"dashboard" | "clients" | "payments" | "imports" | "settings">("dashboard");
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [reportAddon, setReportAddon] = useState<Set<string>>(new Set());
+  const [reportPremium, setReportPremium] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -113,6 +114,7 @@ export default function SuperAdminPage() {
     if (d.error) { notify(d.error, false); setLoading(false); return; }
     setTenants(d.tenants || []);
     setReportAddon(new Set(d.reportAddonTenants || []));
+    setReportPremium(new Set(d.reportPremiumTenants || []));
     setLoading(false);
   }
 
@@ -124,13 +126,25 @@ export default function SuperAdminPage() {
     load();
   }
 
+  // Niveau « premium » du service Rapports : narration multi-agent IA + bilan
+  // YTD + deep dive opérations (facturable au-dessus de l'add-on standard).
+  async function toggleReportPremium(tenantId: string, current: boolean) {
+    const d = await apiPost("/api/superadmin/update-plan", { tenantId, report_premium: !current });
+    if (d.error) return notify(d.error, false);
+    notify(!current ? "✓ Rapports PREMIUM (IA) activés pour ce client" : "⏸ Rapports premium désactivés");
+    load();
+  }
+
   // Génération en lot : mois précédent, stockage + notification aux admins clients.
   // Sans tenantIds → tous les clients activés ; avec → seulement ceux-là (si activés).
   const [generating, setGenerating] = useState(false);
   async function generateReports(tenantIds?: string[]) {
     setGenerating(true);
     try {
-      const d = await apiPost("/api/superadmin/generate-reports", tenantIds ? { tenantIds } : {});
+      // monthly pour tous les activés ; deepdive appliqué automatiquement aux
+      // seuls tenants premium (filtré côté route).
+      const body = { types: ["monthly", "deepdive"], ...(tenantIds ? { tenantIds } : {}) };
+      const d = await apiPost("/api/superadmin/generate-reports", body);
       if (d.error) return notify(d.error, false);
       const nOk = (d.generated || []).length;
       const nKo = (d.errors || []).length;
@@ -579,8 +593,22 @@ export default function SuperAdminPage() {
                     📊 Rapport {reportAddon.has(t.id) ? "ON" : "OFF"}
                   </button>
                   {reportAddon.has(t.id) && (
+                    <button onClick={() => toggleReportPremium(t.id, reportPremium.has(t.id))}
+                      title="Niveau premium : narration multi-agent IA + bilan année-à-date + deep dive opérations"
+                      style={{
+                        background: reportPremium.has(t.id) ? "#a855f712" : "var(--sk-surface)",
+                        border: `0.5px solid ${reportPremium.has(t.id) ? "#a855f730" : "transparent"}`,
+                        borderRadius: 20, padding: "4px 10px", fontSize: 11, cursor: "pointer",
+                        color: reportPremium.has(t.id) ? "#a855f7" : "#6b7280",
+                      }}>
+                      🤖 Premium {reportPremium.has(t.id) ? "ON" : "OFF"}
+                    </button>
+                  )}
+                  {reportAddon.has(t.id) && (
                     <button onClick={() => generateReports([t.id])} disabled={generating}
-                      title="Générer le rapport du mois précédent pour CE client et le pousser dans son interface admin"
+                      title={reportPremium.has(t.id)
+                        ? "Générer rapport + deep dive du mois précédent (narration IA) pour CE client et les pousser dans son interface admin"
+                        : "Générer le rapport du mois précédent pour CE client et le pousser dans son interface admin"}
                       style={{ background: "var(--sk-surface)", border: "none", borderRadius: 8, padding: "5px 10px", color: "#9ca3af", cursor: "pointer", fontSize: 11, opacity: generating ? 0.5 : 1 }}>
                       Générer
                     </button>

@@ -4059,8 +4059,10 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
 
   // "rapport_2026-07-01_2026-07-31.html" → "01/07/2026 → 31/07/2026"
   const periodOf = (name: string) => {
-    const m = name.match(/rapport_(\d{4})-(\d{2})-(\d{2})_(\d{4})-(\d{2})-(\d{2})/);
-    return m ? `${m[3]}/${m[2]}/${m[1]} → ${m[6]}/${m[5]}/${m[4]}` : name.replace(".html", "");
+    const m = name.match(/(rapport|bilan-ytd|deepdive)_(\d{4})-(\d{2})-(\d{2})_(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return name.replace(".html", "");
+    const label = m[1] === "bilan-ytd" ? "Bilan YTD · " : m[1] === "deepdive" ? "Deep dive · " : "";
+    return `${label}${m[4]}/${m[3]}/${m[2]} → ${m[7]}/${m[6]}/${m[5]}`;
   };
 
   const download = async (resource: string) => {
@@ -4092,13 +4094,14 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
     ["payments", "Paiements / salaires"],
   ];
 
-  // Rapport d'activité imprimable (HTML brandé, généré côté serveur avec les
-  // mêmes formules que le récap) — service complémentaire activé par tenant.
+  // Rapports imprimables (HTML brandé, générés côté serveur avec les mêmes
+  // formules que le récap) — service complémentaire activé par tenant ;
+  // ytd/deepdive (+ narration IA) réservés au niveau premium (403 sinon).
   // fetch d'abord : un refus (403) s'affiche dans le menu au lieu d'un onglet JSON.
-  const openReport = async () => {
-    setBusy("report"); setErr(null);
+  const openReport = async (type: "monthly" | "ytd" | "deepdive" = "monthly") => {
+    setBusy(`report-${type}`); setErr(null);
     try {
-      const res = await fetch(`/api/admin/report-monthly?dateFrom=${dateFrom}&dateTo=${dateTo}`);
+      const res = await fetch(`/api/admin/report-monthly?dateFrom=${dateFrom}&dateTo=${dateTo}&type=${type}`);
       if (!res.ok) {
         const j = await res.json().catch(() => ({} as any));
         setErr(j.error || "Rapport indisponible.");
@@ -4122,10 +4125,20 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
       {open && (
         <div className="absolute right-0 mt-1.5 z-50 rounded-xl overflow-hidden min-w-[210px]"
           style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-border)", boxShadow: "0 12px 32px rgba(0,0,0,.45)" }}>
-          <button onClick={openReport} disabled={!!busy}
+          <button onClick={() => openReport("monthly")} disabled={!!busy}
             className="w-full text-left text-sm px-4 py-2.5 font-semibold disabled:opacity-50"
             style={{ color: "var(--sk-t1)", borderBottom: "1px solid var(--sk-surface)" }}>
-            {busy === "report" ? "Génération…" : "📊 Rapport d'activité (imprimable)"}
+            {busy === "report-monthly" ? "Génération…" : "📊 Rapport d'activité (imprimable)"}
+          </button>
+          <button onClick={() => openReport("ytd")} disabled={!!busy}
+            className="w-full text-left text-sm px-4 py-2.5 font-semibold disabled:opacity-50"
+            style={{ color: "var(--sk-t1)", borderBottom: "1px solid var(--sk-surface)" }}>
+            {busy === "report-ytd" ? "Génération…" : "📈 Bilan année-à-date (premium)"}
+          </button>
+          <button onClick={() => openReport("deepdive")} disabled={!!busy}
+            className="w-full text-left text-sm px-4 py-2.5 font-semibold disabled:opacity-50"
+            style={{ color: "var(--sk-t1)", borderBottom: "1px solid var(--sk-surface)" }}>
+            {busy === "report-deepdive" ? "Génération…" : "🔬 Deep dive opérations (premium)"}
           </button>
           <button onClick={loadReceived}
             className="w-full text-left text-sm px-4 py-2.5 font-semibold"
