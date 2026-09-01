@@ -290,11 +290,19 @@ function baseFacts(p: PeriodAgg, prefix = ""): Record<string, number> {
   return f;
 }
 
+/** Pseudonyme stable d'un chauffeur (aucun nom réel ne part vers le LLM). */
+const pseudoOf = (a: DriverAgg) => `drv_${a.id.replace(/-/g, "").slice(0, 6)}`;
+
+/** Carte pseudonyme → nom réel, réinjectée à l'affichage par le noyau. */
+function aliasesOf(p: PeriodAgg): Record<string, string> {
+  return Object.fromEntries(p.drivers.filter((a) => !a.technical).map((a) => [pseudoOf(a), a.name]));
+}
+
 function driverFacts(p: PeriodAgg): Record<string, string | number | null> {
   const f: Record<string, string | number | null> = {};
   for (const a of p.drivers) {
     if (a.technical) continue;
-    const key = a.name.split(" ")[0].toLowerCase().replace(/[^a-z0-9]/g, "") || a.id.slice(0, 6);
+    const key = pseudoOf(a);
     const rec = recetteOf(a);
     f[`chauffeur_${key}_nom`] = a.name;
     f[`chauffeur_${key}_jours`] = a.jours;
@@ -377,6 +385,7 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
     ],
     sections,
     facts,
+    aliases: aliasesOf(cur),
     context: [
       ...CONTEXT_COMMON,
       "Les faits préfixés mois_precedent_ couvrent la période précédente de même durée : compare la dynamique (recette, marge, carburant, effectif).",
@@ -479,6 +488,7 @@ async function ytdDataset(tenantId: string, dateTo: string, tenantName: string):
       driverTable(full, `${year}-01-01`, dateTo),
     ],
     facts,
+    aliases: aliasesOf(full),
     context: [
       ...CONTEXT_COMMON,
       "Rapport année-à-date : dégage la trajectoire (point mort, tendance de marge), les leçons structurelles et les priorités du trimestre suivant — pas le détail d'un seul mois.",
@@ -615,6 +625,7 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
       },
     ],
     facts,
+    aliases: aliasesOf(p),
     context: [
       ...CONTEXT_COMMON,
       "Deep dive opérationnel : cherche les patterns de demande (jours forts/faibles, où placer les repos), le coût du siège vide (semaines à N chauffeurs), les écarts d'efficience carburant/km entre chauffeurs, et les anomalies de saisie (paniers aberrants).",

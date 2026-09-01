@@ -93,6 +93,13 @@ export interface ReportDataset {
   facts: Record<string, string | number | null>;
   /** Contexte qualitatif non chiffré pour le panel (règles métier, historique). */
   context?: string[];
+  /**
+   * Pseudonymes → valeurs réelles (ex: drv_ab12 → nom du chauffeur). Le moteur
+   * remplace les valeurs réelles par les pseudonymes dans le payload envoyé au
+   * LLM, puis fait l'inverse sur la narration finale : aucune donnée nominative
+   * ne sort vers le fournisseur LLM.
+   */
+  aliases?: Record<string, string>;
   /** Repli si le panel LLM est indisponible ou rejeté par le garde-fou. */
   deterministicInsights: Insight[];
   deterministicDecisions?: Decision[];

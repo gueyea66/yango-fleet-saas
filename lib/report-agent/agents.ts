@@ -14,6 +14,7 @@ import { citesOnlyKnownNumbers, extractJsonObject } from "./guard";
 const COMMON_RULES = `
 Règles ABSOLUES (non négociables) :
 - Tu n'inventes JAMAIS un chiffre. Tu ne cites que les nombres présents dans le JSON fourni, à l'identique (mêmes chiffres, sans séparateurs de milliers).
+- Les personnes sont désignées par des références (ex: drv_ab12) — recopie-les TELLES QUELLES, elles seront remplacées par les vrais noms à l'affichage.
 - Tu ne fais AUCUN calcul (ni addition, ni pourcentage, ni conversion, ni arrondi).
 - Si une conclusion demanderait un calcul, formule-la sans chiffre.
 - Réponds UNIQUEMENT avec l'objet JSON demandé, sans texte autour, sans markdown.
@@ -62,7 +63,11 @@ function cleanFindings(raw: unknown, cap: number): Finding[] {
   });
 }
 
-/** Payload compact envoyé aux agents : facts + sections sans HTML. */
+/**
+ * Payload compact envoyé aux agents : facts + sections sans HTML.
+ * Les valeurs réelles des `aliases` (noms) sont remplacées par leur pseudonyme :
+ * aucune donnée nominative ne part vers le fournisseur LLM.
+ */
 export function buildAgentPayload(dataset: ReportDataset): string {
   const stripHtml = (s: string) => s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   const sections = dataset.sections.map((s) =>
@@ -70,13 +75,17 @@ export function buildAgentPayload(dataset: ReportDataset): string {
       ? { titre: s.title, colonnes: s.columns.map((c) => c.label), lignes: s.rows.map((r) => r.cells.map(stripHtml)), note: s.note }
       : { titre: s.title, barres: s.bars.map((b) => ({ label: b.label, valeur: b.amountLabel })), note: s.note }
   );
-  return JSON.stringify({
+  let payload = JSON.stringify({
     document: dataset.meta.docTitle,
     periode: dataset.meta.periodLabel,
     faits: dataset.facts,
     sections,
     contexte: dataset.context ?? [],
   });
+  for (const [pseudo, real] of Object.entries(dataset.aliases ?? {})) {
+    if (real) payload = payload.split(real).join(pseudo);
+  }
+  return payload;
 }
 
 /**
@@ -128,9 +137,17 @@ export async function runAgentPanel(
 
   const parsed = extractJsonObject(editorOut);
   if (!parsed) return null;
-  const tldr = String(parsed.tldr ?? "").trim();
-  const insights = cleanFindings(parsed.insights, 7);
-  const decisions = cleanFindings(parsed.decisions, 5).map(({ title, body }) => ({ title, body }));
+  // pseudonymes → vrais noms, uniquement à l'affichage
+  const unalias = (s: string) => {
+    let out = s;
+    for (const [pseudo, real] of Object.entries(dataset.aliases ?? {})) out = out.split(pseudo).join(real);
+    return out;
+  };
+  const tldr = unalias(String(parsed.tldr ?? "").trim());
+  const insights = cleanFindings(parsed.insights, 7)
+    .map((i) => ({ ...i, title: unalias(i.title), body: unalias(i.body) }));
+  const decisions = cleanFindings(parsed.decisions, 5)
+    .map(({ title, body }) => ({ title: unalias(title), body: unalias(body) }));
   if (!tldr || insights.length === 0) return null;
 
   return { tldr: tldr.slice(0, 1500), insights, decisions, rolesHeard: heard.map((r) => r.id) };
