@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { checkSuperadminKey, getClientIp } from "@/lib/auth/server";
-import { generateAndStoreReport, getReportAddonTenants, previousMonthRange } from "@/lib/reportHtml";
+import {
+  generateAndStoreReport, getReportAddonTenants, getReportPremiumTenants,
+  previousMonthRange, type FleetReportKind,
+} from "@/lib/reportHtml";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -19,21 +22,23 @@ async function getStoredKey(): Promise<string> {
 
 /**
  * Génération en lot des rapports d'activité (console super admin).
- * body : { superadminKey, tenantIds?: string[], dateFrom?, dateTo? }
+ * body : { superadminKey, tenantIds?: string[], dateFrom?, dateTo?, types?: FleetReportKind[] }
  *  - tenantIds absent → TOUS les tenants dont l'add-on est activé ;
  *  - tenantIds fourni → intersection avec les tenants activés (éligibilité stricte) ;
- *  - période absente → mois précédent complet.
+ *  - période absente → mois précédent complet ;
+ *  - types absent → ["monthly"] ; ytd/deepdive ne sont générés que pour les
+ *    tenants premium (qui reçoivent aussi la narration multi-agent).
  * Chaque rapport est stocké (bucket privé) et l'admin du client est notifié.
  */
 export async function POST(req: NextRequest) {
-  const { superadminKey, tenantIds, dateFrom, dateTo } = await req.json();
+  const { superadminKey, tenantIds, dateFrom, dateTo, types } = await req.json();
 
   const storedKey = await getStoredKey();
   if (!checkSuperadminKey(superadminKey, storedKey, getClientIp(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const addon = await getReportAddonTenants();
+  const [addon, premiumList] = await Promise.all([getReportAddonTenants(), getReportPremiumTenants()]);
   const targets: string[] = Array.isArray(tenantIds) && tenantIds.length > 0
     ? tenantIds.filter((id: string) => addon.includes(id))
     : addon;
@@ -41,16 +46,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Aucun client éligible (add-on rapport non activé)." }, { status: 400 });
   }
 
+  const askedTypes: FleetReportKind[] = (Array.isArray(types) && types.length > 0 ? types : ["monthly"])
+    .filter((t: string): t is FleetReportKind => ["monthly", "ytd", "deepdive"].includes(t));
   const range = dateFrom && dateTo ? { dateFrom, dateTo } : previousMonthRange();
 
-  const generated: { tenantId: string; file: string; period: string }[] = [];
-  const errors: { tenantId: string; error: string }[] = [];
+  const generated: { tenantId: string; kind: FleetReportKind; file: string; period: string; narrated: boolean }[] = [];
+  const errors: { tenantId: string; kind: FleetReportKind; error: string }[] = [];
   for (const tid of targets) {
-    try {
-      const r = await generateAndStoreReport(tid, range.dateFrom, range.dateTo);
-      generated.push({ tenantId: tid, ...r });
-    } catch (e) {
-      errors.push({ tenantId: tid, error: e instanceof Error ? e.message : "?" });
+    const premium = premiumList.includes(tid);
+    const kinds = askedTypes.filter((k) => k === "monthly" || premium);
+    for (const kind of kinds) {
+      try {
+        const r = await generateAndStoreReport(tid, range.dateFrom, range.dateTo, { kind, premium });
+        generated.push({ tenantId: tid, kind, ...r });
+      } catch (e) {
+        errors.push({ tenantId: tid, kind, error: e instanceof Error ? e.message : "?" });
+      }
     }
   }
   return NextResponse.json({ generated, errors, period: range });
