@@ -69,7 +69,7 @@ export function AttachmentUpload({
           multiple
           disabled={uploading || uploadedFiles.length >= maxFiles}
           onChange={handleFileSelect}
-          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+          accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp"
           className="hidden"
           id={`attachment-${eventId}`}
         />

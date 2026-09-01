@@ -26,6 +26,10 @@ import ImportHistoriqueModal from "@/components/ImportHistoriqueModal";
 import { useTenant } from "@/lib/tenant/context";
 import SimpleModeAdmin from "@/components/SimpleModeAdmin";
 import { setPlatformLabel, platLabel, displayLabel } from "@/lib/tenant/platformLabel";
+import { signedUrls } from "@/lib/storage/client";
+
+/** Ligne de fleet.uploads telle que lue côté client (client Supabase non typé). */
+type UploadRow = { file_path: string; file_name: string; ref_id?: string | null } & Record<string, unknown>;
 import { BrandLogo } from "@/components/brand/BrandShell";
 import TrialBanner from "@/components/TrialBanner";
 import AiBriefingSection from "@/components/ai/AiBriefingSection";
@@ -1405,10 +1409,12 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
       emergency_name: p?.emergency_name || "", emergency_phone: p?.emergency_phone || "",
       emergency_relation: p?.emergency_relation || "", phone_number: p?.phone_number || "",
     });
+    // Bucket privé : les URLs sont signées côté serveur (/api/kyc-file),
+    // signer depuis le navigateur dépend de policies storage non garanties.
+    const signed = await signedUrls(((docs || []) as { file_path: string }[]).map((d) => d.file_path));
     const urls: Record<string, string> = {};
     for (const doc of (docs || [])) {
-      const { data: su } = await supabase.storage.from("kyc-documents").createSignedUrl(doc.file_path, 3600);
-      if (su?.signedUrl) urls[doc.doc_type] = su.signedUrl;
+      if (signed[doc.file_path]) urls[doc.doc_type] = signed[doc.file_path];
     }
     setDocUrls(urls);
   };
@@ -1417,8 +1423,10 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
     if (!selected) return;
     setUploadingDoc(docType);
     try {
-      const ext = file.name.split(".").pop();
-      const path = `${selected}/${docType}_${Date.now()}.${ext}`;
+      const ext = (file.name.split(".").pop() || "bin").replace(/[^a-zA-Z0-9]/g, "");
+      // 1er segment ignoré par l'API (remplacé par le tenantId) : on en met un
+      // neutre pour que l'id du chauffeur soit conservé dans le chemin final.
+      const path = `kyc/${selected}/${docType}_${Date.now()}.${ext}`;
 
       // Upload via server route (service role — no storage RLS needed)
       const fd = new FormData();
@@ -1428,12 +1436,16 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Upload échoué");
 
+      // L'API réécrit le chemin (préfixe tenant) : persister le chemin RÉEL,
+      // sinon la ligne pointe dans le vide et le document devient illisible.
+      const storedPath = result.path || path;
+
       const existing = driverDocs.find((d) => d.doc_type === docType);
       if (existing) {
-        const { error: updErr } = await supabase.from("kyc_documents").update({ file_path: path, file_name: file.name, file_size: file.size, status: "pending", uploaded_at: new Date().toISOString() }).eq("id", existing.id);
+        const { error: updErr } = await supabase.from("kyc_documents").update({ file_path: storedPath, file_name: file.name, file_size: file.size, status: "pending", uploaded_at: new Date().toISOString() }).eq("id", existing.id);
         if (updErr) throw new Error(`DB update: ${updErr.message}`);
       } else {
-        const { error: insErr } = await supabase.from("kyc_documents").insert({ driver_id: selected, tenant_id: tenantId, doc_type: docType, file_path: path, file_name: file.name, file_size: file.size, status: "pending" });
+        const { error: insErr } = await supabase.from("kyc_documents").insert({ driver_id: selected, tenant_id: tenantId, doc_type: docType, file_path: storedPath, file_name: file.name, file_size: file.size, status: "pending" });
         if (insErr) throw new Error(`DB insert: ${insErr.message}`);
       }
       await loadDriver(selected);
@@ -1843,12 +1855,14 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
         .eq("driver_id", expense.driver_id)
         .eq("file_type", "expense")
         .order("created_at", { ascending: false });
-      const enriched = (data || [])
-        .filter((u: any) => u.ref_id === expense.id || u.file_path?.includes(expense.id))
-        .map((u: any) => {
-          const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(u.file_path);
-          return { ...u, publicUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(u.file_name) };
-        });
+      const rows: UploadRow[] = (data || [])
+        .filter((u: UploadRow) => u.ref_id === expense.id || u.file_path?.includes(expense.id));
+      const signed = await signedUrls(rows.map((u) => u.file_path));
+      const enriched = rows.map((u) => ({
+        ...u,
+        publicUrl: signed[u.file_path],
+        isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(u.file_name),
+      }));
       setUploads(enriched);
     })();
   }, [expense.id, expense.driver_id]);
@@ -2021,12 +2035,14 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
       const supabase = createClient() as any;
       const { data } = await supabase.from("uploads").select("*").eq("driver_id", report.driver_id).order("created_at", { ascending: false });
       // Keep files linked to this report: either by ref_id or file_path (legacy path)
-      const enriched = (data || [])
-        .filter((u: any) => u.ref_id === report.id || u.file_path?.includes(report.id))
-        .map((u: any) => {
-        const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(u.file_path);
-        return { ...u, publicUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(u.file_name) };
-      });
+      const rows: UploadRow[] = (data || [])
+        .filter((u: UploadRow) => u.ref_id === report.id || u.file_path?.includes(report.id));
+      const signed = await signedUrls(rows.map((u) => u.file_path));
+      const enriched = rows.map((u) => ({
+        ...u,
+        publicUrl: signed[u.file_path],
+        isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(u.file_name),
+      }));
       setUploads(enriched);
     })();
   }, [report.driver_id]);
@@ -2933,12 +2949,14 @@ function PaymentUpload({ paymentId, driverId }: { paymentId: string; driverId: s
   useEffect(() => {
     const supabase = createClient() as any;
     supabase.from("uploads").select("*").eq("driver_id", driverId).eq("file_type", "payment")
-      .order("created_at", { ascending: false }).then(({ data }: any) => {
-        const enriched = (data || []).filter((u: any) => u.file_path?.includes(paymentId)).map((u: any) => {
-          const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(u.file_path);
-          return { ...u, publicUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(u.file_name) };
-        });
-        setUploads(enriched);
+      .order("created_at", { ascending: false }).then(async ({ data }: any) => {
+        const rows: UploadRow[] = (data || []).filter((u: UploadRow) => u.file_path?.includes(paymentId));
+        const signed = await signedUrls(rows.map((u) => u.file_path));
+        setUploads(rows.map((u) => ({
+          ...u,
+          publicUrl: signed[u.file_path],
+          isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(u.file_name),
+        })));
       });
   }, [paymentId, driverId]);
 
@@ -2946,11 +2964,18 @@ function PaymentUpload({ paymentId, driverId }: { paymentId: string; driverId: s
     setUploading(true);
     try {
       const supabase = createClient() as any;
-      const path = `payment/${driverId}/${paymentId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-      await supabase.storage.from("kyc-documents").upload(path, file, { upsert: true });
-      const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(path);
-      await supabase.from("uploads").insert({ driver_id: driverId, file_name: file.name, file_path: path, file_type: "payment", file_size: file.size });
-      setUploads((p) => [...p, { file_name: file.name, publicUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(file.name) }]);
+      // Upload via la route serveur (service role) : le bucket est privé, un
+      // upload direct depuis le navigateur est refusé (« Access denied ») dès
+      // que les policies storage ne sont pas déployées.
+      const rawPath = `payment/${driverId}/${paymentId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("path", rawPath);
+      const res = await fetch("/api/kyc-upload", { method: "POST", body: fd });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Upload échoué");
+      await supabase.from("uploads").insert({ driver_id: driverId, file_name: file.name, file_path: result.path, file_type: "payment", file_size: file.size });
+      setUploads((p) => [...p, { file_name: file.name, publicUrl: result.signedUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(file.name) }]);
     } catch (err: any) { alert("Upload : " + err.message); }
     finally { setUploading(false); }
   };

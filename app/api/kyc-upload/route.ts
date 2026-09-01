@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { requireAnyAuth } from "@/lib/auth/server";
+import { assertServiceRoleKey, storageAdmin, BUCKET, describeStorageError } from "@/lib/storage/kyc";
 
 const ALLOWED_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
-const BUCKET = "kyc-documents";
-
-// Service role — bypasses storage RLS
-const adminStorage = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 // Construit un chemin de stockage sûr (fix audit V8).
 //  - Isolation tenant : le chemin commence TOUJOURS par le tenantId.
@@ -19,6 +12,11 @@ const adminStorage = createClient(
 //    plus écrire (ni écraser) le document d'un collègue.
 //  - Les admins restent libres dans leur tenant (ils gèrent les KYC de leurs
 //    chauffeurs), mais jamais hors de leur tenant.
+//
+// ⚠️ Le chemin RENVOYÉ diffère de celui envoyé : le 1er segment client est
+// remplacé. L'appelant doit donc persister `path` de la réponse, jamais le
+// chemin qu'il a construit — sinon le fichier est bien stocké mais la ligne en
+// base pointe dans le vide et le document devient illisible.
 function sanitizePath(rawPath: string, tenantId: string, opts: { role: string; userId: string }): string | null {
   const normalized = rawPath.replace(/\\/g, "/").replace(/\.{2,}/g, "");
   const segments = normalized.split("/").filter(Boolean);
@@ -40,6 +38,12 @@ export async function POST(req: NextRequest) {
   try {
     // Vérifie que l'utilisateur est authentifié (admin ou driver)
     const { tenantId, userId, role } = await requireAnyAuth();
+
+    // La route écrit avec la clé service role. Si elle est absente ou si c'est
+    // en réalité une clé anon/publishable, le Storage répond « Access denied »
+    // sans dire pourquoi : on le diagnostique ici, explicitement.
+    const keyProblem = assertServiceRoleKey();
+    if (keyProblem) return NextResponse.json({ error: keyProblem }, { status: 500 });
 
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
@@ -73,17 +77,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Chemin de fichier invalide" }, { status: 400 });
     }
 
-    // Ensure bucket exists
-    const { data: bucket } = await adminStorage.storage.getBucket(BUCKET);
-    if (!bucket) {
-      await adminStorage.storage.createBucket(BUCKET, {
-        public: false,
-        fileSizeLimit: MAX_FILE_SIZE_BYTES,
-        allowedMimeTypes: ALLOWED_MIME_TYPES,
-      });
-    }
-
-    const { error: uploadError } = await adminStorage.storage
+    const { error: uploadError } = await storageAdmin().storage
       .from(BUCKET)
       .upload(safePath, buffer, {
         contentType: detectedType,
@@ -91,11 +85,32 @@ export async function POST(req: NextRequest) {
       });
 
     if (uploadError) {
-      return NextResponse.json({ error: uploadError.message }, { status: 500 });
+      // Bucket absent au premier upload : on le crée puis on retente une fois.
+      if (/not found|does not exist/i.test(uploadError.message)) {
+        const { error: bucketError } = await storageAdmin().storage.createBucket(BUCKET, {
+          public: false,
+          fileSizeLimit: MAX_FILE_SIZE_BYTES,
+          allowedMimeTypes: ALLOWED_MIME_TYPES,
+        });
+        if (bucketError && !/already exists/i.test(bucketError.message)) {
+          const d = describeStorageError(bucketError);
+          return NextResponse.json({ error: d.message }, { status: d.status });
+        }
+        const retry = await storageAdmin().storage
+          .from(BUCKET)
+          .upload(safePath, buffer, { contentType: detectedType, upsert: true });
+        if (retry.error) {
+          const d = describeStorageError(retry.error);
+          return NextResponse.json({ error: d.message }, { status: d.status });
+        }
+      } else {
+        const d = describeStorageError(uploadError);
+        return NextResponse.json({ error: d.message }, { status: d.status });
+      }
     }
 
     // Signed URL uniquement (pas de public URL pour des documents KYC privés)
-    const { data: signed } = await adminStorage.storage
+    const { data: signed } = await storageAdmin().storage
       .from(BUCKET)
       .createSignedUrl(safePath, 1800); // 30 minutes
 

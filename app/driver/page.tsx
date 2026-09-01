@@ -13,6 +13,10 @@ import NotificationBell from "@/components/NotificationBell";
 import { resolveRates, computeCommissions } from "@/lib/calc";
 import { computeElementsReels, hasElementsReels } from "@/lib/calcReel";
 import { compressImageToJpeg } from "@/lib/ai/imageCompressor";
+import { signedUrls } from "@/lib/storage/client";
+
+/** Ligne de fleet.uploads telle que lue côté client (client Supabase non typé). */
+type UploadRow = { file_path: string; file_name: string; ref_id?: string | null };
 import { Home, ClipboardList, Wallet, BedDouble, History, Target, LogOut, Gauge, CheckCircle2, AlertTriangle, Paperclip, Calendar, Car, HandCoins, ScanLine } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -911,7 +915,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
               <label className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-center cursor-pointer"
                 style={{ background: "transparent", border: "1px solid #2a2f3d", color: "var(--sk-t3)" }}>
                 📁 Fichier
-                <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,video/*" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
               </label>
             </div>
           </div>
@@ -942,17 +946,18 @@ function UploadBlock({ driverId, refId, refType, label = "Photos / Reçus" }: { 
     supabase.from("uploads").select("file_name,file_path,file_type,ref_id")
       .eq("driver_id", driverId)
       .eq("file_type", refType)
-      .then(({ data }: any) => {
+      .then(async ({ data }: any) => {
         if (data?.length) {
-          const mapped = data
+          const rows: UploadRow[] = data
             // Match by ref_id (new) OR by path containing refId (legacy)
-            .filter((f: any) => f.ref_id === refId || f.file_path?.includes(refId))
-            .map((f: any) => {
-              const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(f.file_path);
-              const isImg = /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(f.file_name);
-              return { name: f.file_name, url: publicUrl, isImg };
-            });
-          setFiles(mapped);
+            .filter((f: UploadRow) => f.ref_id === refId || f.file_path?.includes(refId));
+          // Bucket privé : URLs signées côté serveur (/api/kyc-file).
+          const signed = await signedUrls(rows.map((f) => f.file_path));
+          setFiles(rows.map((f) => ({
+            name: f.file_name,
+            url: signed[f.file_path],
+            isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(f.file_name),
+          })));
         }
         setLoadingFiles(false);
       });
@@ -998,7 +1003,7 @@ function UploadBlock({ driverId, refId, refType, label = "Photos / Reçus" }: { 
       </div>
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
         onChange={(e) => { Array.from(e.target.files || []).forEach(upload); e.target.value = ""; }} />
-      <input ref={fileRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,video/*" multiple className="hidden"
+      <input ref={fileRef} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" multiple className="hidden"
         onChange={(e) => { Array.from(e.target.files || []).forEach(upload); e.target.value = ""; }} />
       {loadingFiles && <div className="text-xs text-center py-2" style={{ color: "var(--sk-t4)" }}>Chargement...</div>}
       {files.length > 0 && (
@@ -1148,7 +1153,7 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
             <label className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-center cursor-pointer"
               style={{ background: "transparent", border: "1px solid #2a2f3d", color: "var(--sk-t3)" }}>
               📁 Fichier
-              <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,video/*" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
+              <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
             </label>
           </div>
         </div>
@@ -1627,8 +1632,9 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
     setUploading(docType);
     try {
       const supabase = createClient() as any;
-      const ext = file.name.split(".").pop() || "jpg";
-      const path = `${profile.tenant_id}/${profile.id}/${docType}.${ext}`;
+      const ext = (file.name.split(".").pop() || "jpg").replace(/[^a-zA-Z0-9]/g, "");
+      // 1er segment ignoré par l'API (remplacée par `tenantId/userId`).
+      const path = `kyc/${docType}.${ext}`;
 
       // Upload via server route (service role — no storage RLS needed)
       const fd = new FormData();
@@ -1638,11 +1644,15 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Upload échoué");
 
+      // L'API réécrit le chemin (préfixe tenant/chauffeur) : persister le
+      // chemin RÉEL, sinon le document est stocké mais illisible ensuite.
+      const storedPath = result.path || path;
+
       const existing = kycDocs[docType];
       if (existing) {
-        await supabase.from("kyc_documents").update({ file_path: path, file_name: file.name, file_size: file.size, status: "pending", uploaded_at: new Date().toISOString() }).eq("id", existing.id);
+        await supabase.from("kyc_documents").update({ file_path: storedPath, file_name: file.name, file_size: file.size, status: "pending", uploaded_at: new Date().toISOString() }).eq("id", existing.id);
       } else {
-        await supabase.from("kyc_documents").insert({ driver_id: profile.id, tenant_id: profile.tenant_id, doc_type: docType, file_path: path, file_name: file.name, file_size: file.size, status: "pending" });
+        await supabase.from("kyc_documents").insert({ driver_id: profile.id, tenant_id: profile.tenant_id, doc_type: docType, file_path: storedPath, file_name: file.name, file_size: file.size, status: "pending" });
       }
       await loadData();
     } catch (err: any) { alert("Erreur upload : " + err.message); }
@@ -1747,7 +1757,7 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
                   style={{ background: "rgba(245,166,35,.1)", color: isUploading ? "var(--sk-t3)" : "#f5a623", border: "1px solid rgba(245,166,35,.15)" }}>
                   {isUploading ? "..." : uploaded ? "Remplacer" : "Uploader"}
                 </button>
-                <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,video/*" className="hidden"
+                <input type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,application/pdf,image/jpeg,image/png,image/webp" className="hidden"
                   ref={(el) => { fileRefs.current[doc.type] = el; }}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(f, doc.type); }} />
               </div>
