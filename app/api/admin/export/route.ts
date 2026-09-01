@@ -63,6 +63,8 @@ export async function GET(req: NextRequest) {
     let filename = "export.csv";
 
     if (resource === "reports") {
+      const { data: vehiclesForExport } = await admin
+        .from("vehicles").select("id, plate").eq("tenant_id", tenantId);
       let q = admin.from("daily_reports")
         .select("date,driver_id,vehicle_id,end_odometer,yango_gross,yango_bonus,off_yango_revenue,commission_amount,net_after_expenses,solde_yango,yango_trip_count,off_yango_trip_count,status,comment")
         .eq("tenant_id", tenantId)
@@ -71,11 +73,18 @@ export async function GET(req: NextRequest) {
       if (dateTo) q = q.lte("date", dateTo) as any;
       if (driverId) q = q.eq("driver_id", driverId) as any;
       const { data } = await q;
-      headers = ["Date", "Chauffeur", "Compteur km", "Brut Yango", "Bonus Yango", "Hors Yango",
+      // `vehicle_id` était déjà sélectionné mais jamais écrit dans le CSV : toute
+      // analyse externe partant de cet export était donc incapable de croiser
+      // chauffeur × véhicule (consommation par véhicule, réaffectation).
+      const vehLabel = new Map<string, string>(
+        (vehiclesForExport ?? []).map((v) => [String(v.id), String(v.plate || v.id)])
+      );
+      headers = ["Date", "Chauffeur", "Véhicule", "Compteur km", "Brut Yango", "Bonus Yango", "Hors Yango",
         "Commission", "Net après charges", "Solde wallet", "Courses Yango", "Courses hors", "Statut", "Commentaire"];
       rows = (data || []).map((r: any) => ({
         "Date": r.date,
         "Chauffeur": nameOf.get(r.driver_id) || r.driver_id,
+        "Véhicule": r.vehicle_id ? (vehLabel.get(r.vehicle_id) || "") : "",
         "Compteur km": r.end_odometer ?? "",
         "Brut Yango": num(r.yango_gross),
         "Bonus Yango": num(r.yango_bonus),
