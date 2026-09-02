@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireAdminAuth } from "@/lib/auth/server";
+import { isDriverActiveOn } from "@/lib/drivers";
 import { sendNotification } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
@@ -25,9 +26,10 @@ async function findMissing(tenantId: string) {
       .eq("tenant_id", tenantId).eq("date", ref).in("status", ["submitted", "approved"]),
   ]);
   const submitted = new Set((reports || []).map((r: any) => r.driver_id));
-  // Exclut les comptes techniques et ceux embauchés après le jour de référence.
+  // Règle canonique lib/drivers : exclut techniques, contrats terminés à J-1
+  // (retour Abdou 02/09 : on ne relance pas un chauffeur parti) et embauchés après.
   return (drivers || []).filter((d: any) =>
-    d.account_type !== "technical" && !submitted.has(d.id) && (!d.hire_date || d.hire_date <= ref));
+    !submitted.has(d.id) && isDriverActiveOn(d, ref, { requireHired: true }));
 }
 
 export async function GET() {

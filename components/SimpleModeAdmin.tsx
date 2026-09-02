@@ -15,6 +15,7 @@ import {
 } from "recharts";
 import { Home, Gauge, Users, LogOut, Car, Plus } from "lucide-react";
 import { displayLabel } from "@/lib/tenant/platformLabel";
+import { isDriverActiveToday } from "@/lib/drivers";
 
 const EXPENSE_COLORS = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#a855f7"];
 
@@ -193,7 +194,8 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
       fetch("/api/admin/drivers").then((r) => (r.ok ? r.json() : { drivers: [] })).catch(() => ({ drivers: [] })),
       supabase.from("vehicles").select("id, plate, make, model, driver_id, mileage, status").eq("tenant_id", tenantId).order("plate"),
     ]);
-    setDrivers((dRes.drivers || []).filter((d: any) => d.account_type !== "technical" && d.active !== false));
+    // Règle canonique lib/drivers : un contrat terminé sort aussi du mode simple.
+    setDrivers((dRes.drivers || []).filter((d: any) => isDriverActiveToday(d)));
     setVehicles(vRes.data || []);
   }, [tenantId]);
 
