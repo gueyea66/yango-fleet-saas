@@ -394,8 +394,12 @@ async function buildBriefingContent(
   let points: string[] | null = null;
   let action: string | null = null;
   let narrativeSource: "llm" | "deterministic" = "llm";
+  // Brief du patron = Sonnet par défaut (1 appel/jour/tenant) : Haiku arrondit
+  // les montants malgré la consigne (14500 → « 15000 ») et se fait rejeter par
+  // le garde → fallback systématique. Override : AI_BRIEFING_MODEL.
+  const briefingModel = process.env.AI_BRIEFING_MODEL?.trim() || llmModel || "claude-sonnet-5";
   for (let attempt = 0; attempt < 2 && !points; attempt++) {
-    const raw = await narrate(llmPayload, { model: llmModel, system: BRIEFING_JSON_SYSTEM });
+    const raw = await narrate(llmPayload, { model: briefingModel, system: BRIEFING_JSON_SYSTEM, maxTokens: 700, timeoutMs: 30_000 });
     if (!raw) break; // LLM indisponible → fallback déterministe direct
     const foreign = foreignNumbers(raw, llmPayload);
     if (foreign.length) {
