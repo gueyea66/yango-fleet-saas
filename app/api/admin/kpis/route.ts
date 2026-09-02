@@ -16,11 +16,14 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const driverId = searchParams.get("driverId") || null;
+    // Multi-sélection (retour Abdou 02/09) : driverIds=id1,id2 — compat driverId.
+    const driverIds = (searchParams.get("driverIds") || "").split(",").map((s) => s.trim()).filter(Boolean);
+    if (driverId && driverIds.length === 0) driverIds.push(driverId);
     const dateFrom = searchParams.get("dateFrom");
     const dateTo = searchParams.get("dateTo");
 
     const tQ = (q: any) => q.eq("tenant_id", tenantId);
-    const dQ = (q: any) => driverId ? q.eq("driver_id", driverId) : q;
+    const dQ = (q: any) => driverIds.length ? q.in("driver_id", driverIds) : q;
     const srcQ = (q: any) => q;
 
     const today = new Date().toISOString().split("T")[0];

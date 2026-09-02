@@ -1,6 +1,13 @@
 @import "tailwindcss";
 
 :root {
+  /* Accent du TENANT (marque blanche) — écrasé par lib/tenant/context.tsx.
+     Fallback = orange M3A pour un rendu identique tant qu'aucun branding n'est posé. */
+  --tenant-color: #f5a623;
+  --tenant-color-rgb: 245, 166, 35;
+  --tenant-color-dark: #e8951a;
+  --tenant-color-light: rgba(245, 166, 35, 0.12);
+
   --background: #ffffff;
   --foreground: #171717;
 }
@@ -108,7 +115,7 @@ body {
   transition: border-color 0.2s;
 }
 .input-base:focus {
-  border-color: #f5a623;
+  border-color: var(--tenant-color);
 }
 .input-base:disabled {
   opacity: 0.5;

@@ -16,7 +16,7 @@ import {
 
 const xof = (n: number) => xofFmt(n);
 const pct = (n: number) => (n || 0).toFixed(1) + "%";
-const CAT_COLORS = ["#ef4444","#f97316","#eab308","#22c55e","#3b82f6","#a855f7","#f5a623","var(--sk-t2)"];
+const CAT_COLORS = ["#ef4444","#f97316","#eab308","#22c55e","#3b82f6","#a855f7","var(--tenant-color)","var(--sk-t2)"];
 
 // ── CARD ──────────────────────────────────────────────
 function Card({ children, glow }: { children: React.ReactNode; glow?: string }) {
@@ -67,6 +67,19 @@ export default function PilotagePage() {
   const [allVehicles, setAllVehicles] = useState<any[]>([]);
   const [filterDriverId, setFilterDriverId] = useState<string>("");
   const [filterVehicleId, setFilterVehicleId] = useState<string>("");
+  // Mois piloté (retour Abdou 02/09) : "" = mois courant, sinon YYYY-MM antérieur.
+  const [refMonth, setRefMonth] = useState<string>("");
+  const monthOptions = (() => {
+    const now = new Date();
+    const out: Array<{ value: string; label: string }> = [];
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = d.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+      out.push({ value: i === 0 ? "" : v, label: label.charAt(0).toUpperCase() + label.slice(1) + (i === 0 ? " (en cours)" : "") });
+    }
+    return out;
+  })();
   // Filtres masquables (préférence par appareil, partagée avec le dashboard admin)
   const [showFilters, setShowFilters] = useState(true);
   useEffect(() => { setShowFilters(localStorage.getItem("m3a_filters_on") !== "0"); }, []);
@@ -106,7 +119,7 @@ export default function PilotagePage() {
   const effectiveDriverId = filterDriverId ||
     (filterVehicleId ? (allVehicles.find((v: any) => v.id === filterVehicleId)?.driver_id || "") : "");
 
-  const data = usePilotage(params, tenantId, effectiveDriverId || null);
+  const data = usePilotage(params, tenantId, effectiveDriverId || null, refMonth || null);
 
   if (!loading && !user) { router.push("/auth/login"); return null; }
 
@@ -123,7 +136,7 @@ export default function PilotagePage() {
    // Params panel reusable component
    const ParamsPanel = () => (
      <div className="space-y-4">
-       <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "#f5a623" }}>Paramètres du modèle</div>
+       <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: "var(--tenant-color)" }}>Paramètres du modèle</div>
        {([
          ["commYango",               `Comm. ${platLabel()}`, "%"] as const,
          ["commPartner",             "Comm. Partenaire",  "%"] as const,
@@ -145,10 +158,10 @@ export default function PilotagePage() {
          </div>
        ))}
        <div className="pt-3 border-t" style={{ borderColor: "var(--sk-surface)" }}>
-         <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#f5a623" }}>Paliers salaire</div>
+         <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "var(--tenant-color)" }}>Paliers salaire</div>
          {params.salaryRules.map((rule, i) => (
            <div key={i} className="mb-2 rounded-lg p-2.5" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
-             <div className="text-[9px] font-bold mb-1.5" style={{ color: "#f5a623" }}>Palier {i + 1}</div>
+             <div className="text-[9px] font-bold mb-1.5" style={{ color: "var(--tenant-color)" }}>Palier {i + 1}</div>
              <input type="text" value={rule.label} placeholder="Label"
                onChange={(e) => setParams((p) => ({ ...p, salaryRules: p.salaryRules.map((r, j) => j === i ? { ...r, label: e.target.value } : r) }))}
                className="w-full rounded px-1.5 py-1 text-[10px] outline-none mb-1"
@@ -183,16 +196,29 @@ export default function PilotagePage() {
                <div className="text-[9px]" style={{ color: "var(--sk-t4)" }}>{settings.operator_name || settings.app_name}</div>
              </div>
              {data.fetching && !data.loading && (
-               <div className="ml-auto w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "#f5a623" }} />
+               <div className="ml-auto w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: "var(--tenant-color)" }} />
              )}
            </div>
+         </div>
+         <div className="px-3 pt-3 flex-shrink-0">
+           <div className="text-[9px] uppercase tracking-widest font-bold px-2 mb-1.5" style={{ color: "var(--sk-t4)" }}>Mois piloté</div>
+           <select value={refMonth} onChange={(e) => setRefMonth(e.target.value)}
+             className="w-full text-xs rounded-lg px-2 py-2 outline-none"
+             style={{ background: "var(--sk-surface)", color: refMonth ? "var(--tenant-color)" : "var(--sk-t2)", border: `1px solid ${refMonth ? "rgba(var(--tenant-color-rgb),.35)" : "transparent"}` }}>
+             {monthOptions.map((o) => <option key={o.value || "current"} value={o.value}>{o.label}</option>)}
+           </select>
+           {refMonth && (
+             <div className="text-[9px] px-2 mt-1" style={{ color: "var(--sk-t4)" }}>
+               Vue historique : projections = réalisé du mois.
+             </div>
+           )}
          </div>
          <nav className="px-3 py-3 space-y-0.5 flex-shrink-0">
            <div className="text-[9px] uppercase tracking-widest font-bold px-2 mb-2" style={{ color: "var(--sk-t4)" }}>Navigation</div>
            {sections.map(([id, label]) => (
              <button key={id} onClick={() => setSection(id)}
                className="w-full text-left px-3 py-2.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2"
-               style={{ background: section === id ? "rgba(245,166,35,.12)" : "transparent", color: section === id ? "#f5a623" : "var(--sk-t3)", border: `1px solid ${section === id ? "rgba(245,166,35,.2)" : "transparent"}` }}>
+               style={{ background: section === id ? "rgba(var(--tenant-color-rgb),.12)" : "transparent", color: section === id ? "var(--tenant-color)" : "var(--sk-t3)", border: `1px solid ${section === id ? "rgba(var(--tenant-color-rgb),.2)" : "transparent"}` }}>
                <span>{label.split(" ")[0]}</span><span>{label.split(" ").slice(1).join(" ")}</span>
              </button>
            ))}
@@ -210,13 +236,13 @@ export default function PilotagePage() {
              <div className="flex flex-col gap-1.5">
                <button onClick={() => { setFilterDriverId(""); setFilterVehicleId(""); }}
                  className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold"
-                 style={{ background: (!filterDriverId && !filterVehicleId) ? "#f5a623" : "var(--sk-surface)", color: (!filterDriverId && !filterVehicleId) ? "#000" : "var(--sk-t3)" }}>
+                 style={{ background: (!filterDriverId && !filterVehicleId) ? "var(--tenant-color)" : "var(--sk-surface)", color: (!filterDriverId && !filterVehicleId) ? "#000" : "var(--sk-t3)" }}>
                  👥 Tous
                </button>
                {allDrivers.map((d: any) => (
                  <button key={d.id} onClick={() => { setFilterDriverId(filterDriverId === d.id ? "" : d.id); setFilterVehicleId(""); }}
                    className="w-full text-left px-2.5 py-1.5 rounded-xl text-xs font-semibold"
-                   style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "var(--sk-surface)", color: filterDriverId === d.id ? "#f5a623" : "var(--sk-t3)", border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}`, opacity: d.active === false ? 0.55 : 1 }}>
+                   style={{ background: filterDriverId === d.id ? "rgba(var(--tenant-color-rgb),.15)" : "var(--sk-surface)", color: filterDriverId === d.id ? "var(--tenant-color)" : "var(--sk-t3)", border: `1px solid ${filterDriverId === d.id ? "rgba(var(--tenant-color-rgb),.35)" : "transparent"}`, opacity: d.active === false ? 0.55 : 1 }}>
                    👤 {d.full_name || d.driver_id}
                    {allVehicles.find((v: any) => v.driver_id === d.id)?.plate && (
                      <span className="ml-1 text-[10px]" style={{ color: "var(--sk-t4)" }}>🚗 {allVehicles.find((v: any) => v.driver_id === d.id)?.plate}</span>
@@ -250,11 +276,11 @@ export default function PilotagePage() {
            <div className="flex items-center gap-2">
              <button onClick={data.refresh} className="text-xs px-2.5 py-1.5 rounded-lg" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>↻</button>
              <button onClick={() => toggleFilters(!showFilters)} className="text-xs px-2.5 py-1.5 rounded-lg" title="Afficher/masquer les filtres"
-               style={{ background: showFilters ? "rgba(245,166,35,.15)" : "var(--sk-surface)", color: filterDriverId ? "#f5a623" : showFilters ? "#f5a623" : "var(--sk-t2)" }}>
+               style={{ background: showFilters ? "rgba(var(--tenant-color-rgb),.15)" : "var(--sk-surface)", color: filterDriverId ? "var(--tenant-color)" : showFilters ? "var(--tenant-color)" : "var(--sk-t2)" }}>
                🔍
              </button>
              <button onClick={() => setShowParams(!showParams)} className="text-xs px-2.5 py-1.5 rounded-lg"
-               style={{ background: showParams ? "rgba(245,166,35,.15)" : "var(--sk-surface)", color: showParams ? "#f5a623" : "var(--sk-t2)" }}>
+               style={{ background: showParams ? "rgba(var(--tenant-color-rgb),.15)" : "var(--sk-surface)", color: showParams ? "var(--tenant-color)" : "var(--sk-t2)" }}>
                Params
              </button>
            </div>
@@ -263,7 +289,7 @@ export default function PilotagePage() {
            {sections.map(([id, label]) => (
              <button key={id} onClick={() => setSection(id)}
                className="flex-shrink-0 text-xs px-3 py-1.5 rounded-lg font-semibold whitespace-nowrap"
-               style={{ background: section === id ? "rgba(245,166,35,.12)" : "transparent", color: section === id ? "#f5a623" : "var(--sk-t3)" }}>
+               style={{ background: section === id ? "rgba(var(--tenant-color-rgb),.12)" : "transparent", color: section === id ? "var(--tenant-color)" : "var(--sk-t3)" }}>
                {label}
              </button>
            ))}
@@ -273,13 +299,13 @@ export default function PilotagePage() {
            <div className="flex gap-1.5 px-3 pb-2 overflow-x-auto">
              <button onClick={() => { setFilterDriverId(""); setFilterVehicleId(""); }}
                className="flex-shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-semibold whitespace-nowrap"
-               style={{ background: (!filterDriverId && !filterVehicleId) ? "#f5a623" : "var(--sk-surface)", color: (!filterDriverId && !filterVehicleId) ? "#000" : "var(--sk-t2)" }}>
+               style={{ background: (!filterDriverId && !filterVehicleId) ? "var(--tenant-color)" : "var(--sk-surface)", color: (!filterDriverId && !filterVehicleId) ? "#000" : "var(--sk-t2)" }}>
                👥 Tous
              </button>
              {allDrivers.map((d: any) => (
                <button key={d.id} onClick={() => { setFilterDriverId(filterDriverId === d.id ? "" : d.id); setFilterVehicleId(""); }}
                  className="flex-shrink-0 text-xs px-2.5 py-1.5 rounded-lg font-semibold whitespace-nowrap"
-                 style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "var(--sk-surface)", color: filterDriverId === d.id ? "#f5a623" : "var(--sk-t2)", border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}`, opacity: d.active === false ? 0.55 : 1 }}>
+                 style={{ background: filterDriverId === d.id ? "rgba(var(--tenant-color-rgb),.15)" : "var(--sk-surface)", color: filterDriverId === d.id ? "var(--tenant-color)" : "var(--sk-t2)", border: `1px solid ${filterDriverId === d.id ? "rgba(var(--tenant-color-rgb),.35)" : "transparent"}`, opacity: d.active === false ? 0.55 : 1 }}>
                  👤 {d.full_name || d.driver_id}
                  {allVehicles.find((v: any) => v.driver_id === d.id)?.plate && (
                    <span className="ml-1 text-[10px]" style={{ color: "var(--sk-t3)" }}>🚗 {allVehicles.find((v: any) => v.driver_id === d.id)?.plate}</span>
@@ -331,7 +357,7 @@ function Overview({ data, params }: { data: ReturnType<typeof usePilotage>; para
   const avgPastMargin = past.length > 0 ? past.reduce((s, m) => s + m.margin, 0) / past.length : 0;
 
   const bigCards = [
-    { icon: "📈", label: "CA projeté (mois)", value: xof(p?.revenue ?? 0), unit: "XOF", sub: `Moy/j: ${xof(data.avgDailyMetrics.revenue)}`, color: "#f5a623" },
+    { icon: "📈", label: "CA projeté (mois)", value: xof(p?.revenue ?? 0), unit: "XOF", sub: `Moy/j: ${xof(data.avgDailyMetrics.revenue)}`, color: "var(--tenant-color)" },
     { icon: "💸", label: "Charges projetées", value: xof((p?.totalExpenses ?? 0) + (p?.salaries ?? 0) + (p?.maintenance ?? 0)), unit: "XOF", sub: `Exp + salaires + maintenance`, color: "#ef4444" },
     { icon: "💰", label: "EBITDA projeté", value: xof(p?.ebitda ?? 0), unit: "XOF", sub: `Marge: ${pct(p?.margin ?? 0)}`, color: (p?.ebitda ?? 0) >= 0 ? "#22c55e" : "#ef4444" },
     { icon: "📆", label: "Projection Trimestre", value: xof(data.quarterProjection.revenue), unit: "XOF", sub: `EBITDA: ${xof(data.quarterProjection.ebitda)}`, color: "#3b82f6" },
@@ -395,7 +421,7 @@ function Overview({ data, params }: { data: ReturnType<typeof usePilotage>; para
           ].map((r, i) => (
             <div key={i}>
               <div style={{ color: "var(--sk-t3)" }}>{r.label}</div>
-              <div className="font-mono font-bold" style={{ color: (r as any).warn ? "#f5a623" : "var(--sk-t1)" }}>{r.value}</div>
+              <div className="font-mono font-bold" style={{ color: (r as any).warn ? "var(--tenant-color)" : "var(--sk-t1)" }}>{r.value}</div>
             </div>
           ))}
         </div>
@@ -450,7 +476,7 @@ function PnLDetailed({ data }: { data: ReturnType<typeof usePilotage> }) {
                 <th className="py-2 pr-3 text-left font-semibold sticky left-0 z-10" style={{ color: "var(--sk-t3)", minWidth: 130, maxWidth: 160, background: "var(--sk-bg)" }}>Ligne</th>
                 {all.map((m) => (
                   <th key={m.month} className="py-2 px-3 text-right font-semibold whitespace-nowrap"
-                    style={{ color: m.isProjection ? "#f5a623" : "var(--sk-t1)" }}>
+                    style={{ color: m.isProjection ? "var(--tenant-color)" : "var(--sk-t1)" }}>
                     {m.label}
                   </th>
                 ))}
@@ -458,7 +484,7 @@ function PnLDetailed({ data }: { data: ReturnType<typeof usePilotage> }) {
             </thead>
             <tbody>
               {/* Revenue */}
-              <PnLRow label="📈 Chiffre d'affaires net" values={all.map((m) => m.revenue)} color="#f5a623" bold />
+              <PnLRow label="📈 Chiffre d'affaires net" values={all.map((m) => m.revenue)} color="var(--tenant-color)" bold />
               {/* Expense categories */}
               {allCats.map((cat, ci) => (
                 <PnLRow key={cat} label={`  ${displayLabel(cat)}`} color={CAT_COLORS[ci % CAT_COLORS.length]}
@@ -516,7 +542,7 @@ function PnLDetailed({ data }: { data: ReturnType<typeof usePilotage> }) {
             <SH title="Landing Mois · Trimestre · Année" sub="Basé sur la tendance actuelle" />
             <div className="space-y-3">
               {[
-                { label: "Fin de mois", rev: data.currentProjection?.revenue ?? 0, ebitda: data.currentProjection?.ebitda ?? 0, margin: data.currentProjection?.margin ?? 0, color: "#f5a623" },
+                { label: "Fin de mois", rev: data.currentProjection?.revenue ?? 0, ebitda: data.currentProjection?.ebitda ?? 0, margin: data.currentProjection?.margin ?? 0, color: "var(--tenant-color)" },
                 { label: "Fin de trimestre", rev: data.quarterProjection.revenue, ebitda: data.quarterProjection.ebitda, margin: data.quarterProjection.marginPct, color: "#3b82f6" },
                 { label: "Fin d'année", rev: data.yearProjection.revenue, ebitda: data.yearProjection.ebitda, margin: data.yearProjection.marginPct, color: "#a855f7" },
               ].map((p) => (
@@ -567,7 +593,7 @@ function CashFlowSection({ data, params }: { data: ReturnType<typeof usePilotage
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {data.cashFlow.map((cf, i) => {
           const rows = [
-            { label: "CA net", value: cf.revenue, color: "#f5a623", positive: true },
+            { label: "CA net", value: cf.revenue, color: "var(--tenant-color)", positive: true },
             { label: `⛽ Carburant (~${params.fuelPctOfRevenue}%)`, value: cf.fuel, color: "#ef4444" },
             { label: `💳 Solde ${platLabel()} (~${params.soldePctOfRevenue}%)`, value: cf.solde, color: "#f97316" },
             { label: "📦 Autres dépenses", value: cf.other, color: "var(--sk-t2)" },
@@ -575,8 +601,8 @@ function CashFlowSection({ data, params }: { data: ReturnType<typeof usePilotage
             { label: "💵 Salaires", value: cf.salaries, color: "#f97316" },
           ];
           return (
-            <Card key={i} glow={i === 0 ? "#f5a623" : undefined}>
-              <div className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: i === 0 ? "#f5a623" : "var(--sk-t3)" }}>
+            <Card key={i} glow={i === 0 ? "var(--tenant-color)" : undefined}>
+              <div className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: i === 0 ? "var(--tenant-color)" : "var(--sk-t3)" }}>
                 {i === 0 ? "🎯 " : ""}{cf.label} {cf.isProjection && "(proj.)"}
               </div>
               {rows.map((r) => (
@@ -643,7 +669,7 @@ function DriversSection({ data, params }: { data: ReturnType<typeof usePilotage>
             <div className="flex items-start justify-between mb-5">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg font-black text-black"
-                  style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>{d.name[0]}</div>
+                  style={{ background: "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))" }}>{d.name[0]}</div>
                 <div>
                   <div className="font-bold text-white">{d.name}</div>
                   <div className="text-xs" style={{ color: "var(--sk-t4)" }}>ID: {d.driverId} · J{d.daysElapsed}/{d.daysInMonth} · {d.daysRemaining}j restants</div>
@@ -651,7 +677,7 @@ function DriversSection({ data, params }: { data: ReturnType<typeof usePilotage>
               </div>
               <div className="text-right">
                 <div className="text-xs" style={{ color: "var(--sk-t3)" }}>Palier projeté</div>
-                <div className="font-bold" style={{ color: "#f5a623" }}>{d.projectedTier}</div>
+                <div className="font-bold" style={{ color: "var(--tenant-color)" }}>{d.projectedTier}</div>
                 <div className="font-mono font-bold text-sm" style={{ color: "#22c55e" }}>{xof(d.projectedSalary)} XOF</div>
               </div>
             </div>
@@ -664,16 +690,16 @@ function DriversSection({ data, params }: { data: ReturnType<typeof usePilotage>
                   <span style={{ color: "var(--sk-t4)" }}>Objectif net: {xof(params.targetMonthlyNet)}</span>
                 </div>
                 <div className="h-3 rounded-full overflow-hidden relative" style={{ background: "var(--sk-surface)" }}>
-                  <div className="h-full rounded-full" style={{ width: `${mtdPct}%`, background: "linear-gradient(90deg,#f5a623,#fbbf24)" }} />
+                  <div className="h-full rounded-full" style={{ width: `${mtdPct}%`, background: "linear-gradient(90deg,var(--tenant-color),#fbbf24)" }} />
                 </div>
                 <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t3)" }}>Réalisé: {mtdPct.toFixed(0)}% · <span style={{ color: "var(--sk-t4)" }}>{`net après comm. ${platLabel()}+partenaire`}</span></div>
               </div>
               <div>
                 <div className="flex justify-between text-xs mb-1">
-                  <span style={{ color: "var(--sk-t3)" }}>Projection nette: <span className="font-mono font-bold" style={{ color: "#f5a623" }}>{xof(d.projectedMonthNet)}</span></span>
+                  <span style={{ color: "var(--sk-t3)" }}>Projection nette: <span className="font-mono font-bold" style={{ color: "var(--tenant-color)" }}>{xof(d.projectedMonthNet)}</span></span>
                 </div>
                 <div className="h-3 rounded-full overflow-hidden" style={{ background: "var(--sk-surface)" }}>
-                  <div className="h-full rounded-full" style={{ width: `${projPct}%`, background: projPct >= 100 ? "linear-gradient(90deg,#22c55e,#16a34a)" : "linear-gradient(90deg,#f5a623aa,#f5a623)" }} />
+                  <div className="h-full rounded-full" style={{ width: `${projPct}%`, background: projPct >= 100 ? "linear-gradient(90deg,#22c55e,#16a34a)" : "linear-gradient(90deg,var(--tenant-color)aa,var(--tenant-color))" }} />
                 </div>
                 <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t3)" }}>Landing: {projPct.toFixed(0)}% de l'objectif</div>
               </div>
@@ -685,7 +711,7 @@ function DriversSection({ data, params }: { data: ReturnType<typeof usePilotage>
                 { label: "Moy/jour réelle", value: xof(d.dailyAvg) + " XOF", sub: prevDelta !== 0 ? `${prevDelta >= 0 ? "+" : ""}${prevDelta.toFixed(0)}% vs mois préc.` : "", color: paceOk ? "#22c55e" : "#ef4444" },
                 { label: "Moy/jour nécessaire", value: xof(d.neededDailyAvg) + " XOF", sub: "pour atteindre objectif", color: "var(--sk-t3)" },
                 { label: "Reste à faire", value: xof(Math.max(0, params.targetMonthlyNet - d.mtdNet)) + " XOF", sub: `en ${d.daysRemaining}j (${xof(d.neededDailyAvg)}/j)`, color: "var(--sk-t2)" },
-                { label: "Salaire projeté", value: xof(d.projectedSalary) + " XOF", sub: d.projectedTier, color: "#f5a623" },
+                { label: "Salaire projeté", value: xof(d.projectedSalary) + " XOF", sub: d.projectedTier, color: "var(--tenant-color)" },
               ].map((k) => (
                 <div key={k.label} className="rounded-xl p-3" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
                   <div className="text-[10px] mb-1" style={{ color: "var(--sk-t4)" }}>{k.label}</div>
@@ -707,16 +733,16 @@ function DriversSection({ data, params }: { data: ReturnType<typeof usePilotage>
                   return (
                     <div key={i} className="flex items-center gap-3">
                       <div className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0"
-                        style={{ background: isReached ? "#22c55e" : isProjected ? "#f5a623" : "var(--sk-surface)", color: isReached || isProjected ? "#000" : "var(--sk-t3)" }}>
+                        style={{ background: isReached ? "#22c55e" : isProjected ? "var(--tenant-color)" : "var(--sk-surface)", color: isReached || isProjected ? "#000" : "var(--sk-t3)" }}>
                         {isReached ? "✓" : isProjected ? "★" : i + 1}
                       </div>
                       <div className="flex-1">
                         <div className="flex justify-between text-xs mb-0.5">
-                          <span style={{ color: isReached ? "#22c55e" : isProjected ? "#f5a623" : "var(--sk-t3)" }}>{r.label} — {xof(r.total_salary)} XOF</span>
+                          <span style={{ color: isReached ? "#22c55e" : isProjected ? "var(--tenant-color)" : "var(--sk-t3)" }}>{r.label} — {xof(r.total_salary)} XOF</span>
                           <span style={{ color: "var(--sk-t4)" }}>≥ {xof(r.min_net)}</span>
                         </div>
                         <div className="h-1 rounded-full overflow-hidden" style={{ background: "var(--sk-surface)" }}>
-                          <div className="h-full rounded-full" style={{ width: `${tierPct}%`, background: isReached ? "#22c55e" : isProjected ? "#f5a623" : "var(--sk-t4)" }} />
+                          <div className="h-full rounded-full" style={{ width: `${tierPct}%`, background: isReached ? "#22c55e" : isProjected ? "var(--tenant-color)" : "var(--sk-t4)" }} />
                         </div>
                         {notReachable && r.min_net > 0 && (
                           <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>
@@ -795,7 +821,7 @@ function SimulationSection({ data, params }: { data: ReturnType<typeof usePilota
           )}
         </div>
         {[
-          { l: "CA mensuel projeté", v: sim.revenue, c: "#f5a623" },
+          { l: "CA mensuel projeté", v: sim.revenue, c: "var(--tenant-color)" },
           { l: "Dépenses opé.", v: -sim.expenses, c: "#ef4444" },
           { l: "Maintenance", v: -sim.maintenance, c: "var(--sk-t2)" },
           { l: "Salaires", v: -sim.salaries, c: "#f97316" },
@@ -822,7 +848,7 @@ function SimulationSection({ data, params }: { data: ReturnType<typeof usePilota
         <button onClick={() => setShowCurve((v) => !v)}
           className="w-full flex items-center justify-between cursor-pointer">
           <span className="text-sm font-bold text-white">Courbes de projection — CA · EBITDA selon la taille de flotte</span>
-          <span className="text-xs" style={{ color: "#f5a623" }}>{showCurve ? "Masquer ▲" : "Afficher ▼"}</span>
+          <span className="text-xs" style={{ color: "var(--tenant-color)" }}>{showCurve ? "Masquer ▲" : "Afficher ▼"}</span>
         </button>
         {showCurve && (
           <div className="mt-4">
@@ -833,7 +859,7 @@ function SimulationSection({ data, params }: { data: ReturnType<typeof usePilota
                 <YAxis tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(v) => (v / 1000000).toFixed(1) + "M"} />
                 <Tooltip content={<ChartTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 11 }} />
-                <Line type="monotone" dataKey="CA" stroke="#f5a623" strokeWidth={2} dot={{ fill: "#f5a623", r: 4 }} />
+                <Line type="monotone" dataKey="CA" stroke="#f5a623" strokeWidth={2} dot={{ fill: "var(--tenant-color)", r: 4 }} />
                 <Line type="monotone" dataKey="EBITDA" stroke="#22c55e" strokeWidth={2} dot={{ fill: "#22c55e", r: 4 }} />
                 <Line type="monotone" dataKey="Salaires" stroke="#f97316" strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
                 <Line type="monotone" dataKey="Maintenance" stroke="var(--sk-t2)" strokeWidth={1.5} strokeDasharray="4 2" dot={false} />
@@ -918,7 +944,7 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
       {/* ── HEADER KPIs ─── */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {[
-          { icon: "💰", label: "Net moyen / jour", value: xof(data.avgDailyMetrics.revenue), sub: `${ops.length} jours enregistrés`, color: "#f5a623" },
+          { icon: "💰", label: "Net moyen / jour", value: xof(data.avgDailyMetrics.revenue), sub: `${ops.length} jours enregistrés`, color: "var(--tenant-color)" },
           { icon: "🚗", label: "Courses / jour", value: hasCourses ? data.avgDailyMetrics.avgCourses.toFixed(1) : "—", sub: hasFare ? `Prix moy: ${xof(data.avgDailyMetrics.avgFare)} XOF` : "Déclarez via rapport", color: "#22c55e" },
           { icon: "📍", label: "KM / jour", value: hasKm ? data.avgDailyMetrics.avgKm.toFixed(0) + " km" : "—", sub: hasKm && revenuePerKm > 0 ? `${xof(revenuePerKm)} XOF/km` : "Renseignez l'odomètre", color: "var(--sk-t2)" },
           { icon: "⛽", label: "Carburant / jour", value: xof(data.avgDailyMetrics.fuelRawDailyAvg), sub: data.avgDailyMetrics.fuelPricePerLiter > 0 ? `${xof(data.avgDailyMetrics.fuelPricePerLiter)} XOF/L · ${data.avgDailyMetrics.totalLiters.toFixed(0)}L` : "Ajoutez les litres en description", color: "#f97316" },
@@ -958,17 +984,17 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
               <button key={wdNum} onClick={() => setFilter(filter === wdNum ? "all" : wdNum)}
                 className="rounded-xl p-2 text-center transition-all"
                 style={{
-                  background: isActive ? "rgba(245,166,35,.2)" : intensity > 0.7 ? "rgba(245,166,35,.15)" : intensity > 0.4 ? "rgba(245,166,35,.07)" : "var(--sk-bg)",
-                  border: `1px solid ${isActive ? "#f5a623" : intensity > 0.5 ? "rgba(245,166,35,.2)" : "var(--sk-surface)"}`,
+                  background: isActive ? "rgba(var(--tenant-color-rgb),.2)" : intensity > 0.7 ? "rgba(var(--tenant-color-rgb),.15)" : intensity > 0.4 ? "rgba(var(--tenant-color-rgb),.07)" : "var(--sk-bg)",
+                  border: `1px solid ${isActive ? "var(--tenant-color)" : intensity > 0.5 ? "rgba(var(--tenant-color-rgb),.2)" : "var(--sk-surface)"}`,
                   cursor: "pointer",
                 }}>
-                <div className="text-[10px] font-bold mb-1" style={{ color: isActive ? "#f5a623" : isWeekend ? "#f5a623aa" : "var(--sk-t3)" }}>{wdLabels[i]}</div>
-                <div className="text-xs font-mono font-bold" style={{ color: isActive ? "#f5a623" : intensity > 0.5 ? "var(--sk-t1)" : "var(--sk-t4)" }}>
+                <div className="text-[10px] font-bold mb-1" style={{ color: isActive ? "var(--tenant-color)" : isWeekend ? "var(--tenant-color)aa" : "var(--sk-t3)" }}>{wdLabels[i]}</div>
+                <div className="text-xs font-mono font-bold" style={{ color: isActive ? "var(--tenant-color)" : intensity > 0.5 ? "var(--sk-t1)" : "var(--sk-t4)" }}>
                   {stat && stat.count > 0 ? (stat.avgNet / 1000).toFixed(0) + "k" : "—"}
                 </div>
                 {stat && stat.count > 0 && (
                   <div className="mt-1.5 h-1 rounded-full" style={{ background: "var(--sk-surface)" }}>
-                    <div className="h-full rounded-full" style={{ width: `${Math.round(intensity * 100)}%`, background: `rgba(245,166,35,${0.3 + intensity * 0.7})` }} />
+                    <div className="h-full rounded-full" style={{ width: `${Math.round(intensity * 100)}%`, background: `rgba(var(--tenant-color-rgb),${0.3 + intensity * 0.7})` }} />
                   </div>
                 )}
                 {stat && stat.avgCourses > 0 && (
@@ -981,11 +1007,11 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
         <div className="mt-3 flex gap-3 text-[10px]" style={{ color: "var(--sk-t4)" }}>
           <span>Cliquez sur un jour pour filtrer</span>
           <span>·</span>
-          <button onClick={() => setFilter("weekday")} className="hover:text-white" style={{ color: filter === "weekday" ? "#f5a623" : "var(--sk-t4)" }}>Semaine</button>
+          <button onClick={() => setFilter("weekday")} className="hover:text-white" style={{ color: filter === "weekday" ? "var(--tenant-color)" : "var(--sk-t4)" }}>Semaine</button>
           <span>·</span>
-          <button onClick={() => setFilter("weekend")} className="hover:text-white" style={{ color: filter === "weekend" ? "#f5a623" : "var(--sk-t4)" }}>Week-end</button>
+          <button onClick={() => setFilter("weekend")} className="hover:text-white" style={{ color: filter === "weekend" ? "var(--tenant-color)" : "var(--sk-t4)" }}>Week-end</button>
           <span>·</span>
-          <button onClick={() => setFilter("all")} className="hover:text-white" style={{ color: filter === "all" ? "#f5a623" : "var(--sk-t4)" }}>Tous</button>
+          <button onClick={() => setFilter("all")} className="hover:text-white" style={{ color: filter === "all" ? "var(--tenant-color)" : "var(--sk-t4)" }}>Tous</button>
         </div>
       </Card>
 
@@ -996,7 +1022,7 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
             <div>
               <div className="text-sm font-bold text-white">
                 {filter === "all" ? "Tous les jours" : filter === "weekday" ? "Semaine uniquement" : filter === "weekend" ? "Week-end uniquement" : `${wdLabels[wdOrder.indexOf(filter as number)]} uniquement`}
-                {" — "}{filtered.length} jours · moy: <span style={{ color: "#f5a623" }}>{xof(fNetAvg)}</span>
+                {" — "}{filtered.length} jours · moy: <span style={{ color: "var(--tenant-color)" }}>{xof(fNetAvg)}</span>
               </div>
               <div className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>30 derniers jours filtrés · barre verte = au-dessus de la moyenne globale</div>
             </div>
@@ -1005,7 +1031,7 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
               {[["net","CA net"],["courses","Courses"],["km","KM"],["fare","Prix moy."]].map(([k, l]) => (
                 <button key={k} onClick={() => setChartMetric(k as any)}
                   className="text-[10px] px-2 py-1 rounded-lg"
-                  style={{ background: chartMetric === k ? "rgba(245,166,35,.15)" : "var(--sk-surface)", color: chartMetric === k ? "#f5a623" : "var(--sk-t3)", border: `1px solid ${chartMetric === k ? "rgba(245,166,35,.3)" : "transparent"}` }}>
+                  style={{ background: chartMetric === k ? "rgba(var(--tenant-color-rgb),.15)" : "var(--sk-surface)", color: chartMetric === k ? "var(--tenant-color)" : "var(--sk-t3)", border: `1px solid ${chartMetric === k ? "rgba(var(--tenant-color-rgb),.3)" : "transparent"}` }}>
                   {l}
                 </button>
               ))}
@@ -1022,9 +1048,9 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
                 const val = d ? (chartMetric === "fare" ? d.avgFare : (d as any)[chartMetric]) : 0;
                 return (
                   <div className="rounded-xl p-3 text-xs" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", minWidth: 170 }}>
-                    <div className="font-bold text-white mb-2">{d?.date} <span style={{ color: d?.weekdayNum === 0 || d?.weekdayNum === 6 ? "#f5a623" : "var(--sk-t3)" }}>({d?.weekday})</span></div>
+                    <div className="font-bold text-white mb-2">{d?.date} <span style={{ color: d?.weekdayNum === 0 || d?.weekdayNum === 6 ? "var(--tenant-color)" : "var(--sk-t3)" }}>({d?.weekday})</span></div>
                     <div className="flex justify-between gap-3 py-0.5">
-                      <span style={{ color: "#f5a623" }}>{chartMetric === "net" ? "CA net" : chartMetric === "courses" ? "Courses" : chartMetric === "km" ? "KM" : "Prix moy."}</span>
+                      <span style={{ color: "var(--tenant-color)" }}>{chartMetric === "net" ? "CA net" : chartMetric === "courses" ? "Courses" : chartMetric === "km" ? "KM" : "Prix moy."}</span>
                       <span className="font-mono font-bold text-white">{chartMetric === "net" || chartMetric === "fare" ? xof(val) + " XOF" : String(Math.round(val))}</span>
                     </div>
                     {d && d.courses > 0 && <div className="mt-1.5 pt-1.5 border-t text-[10px]" style={{ borderColor: "var(--sk-surface)", color: "var(--sk-t3)" }}>🚗 {d.courses} courses · {d.avgFare > 0 ? xof(d.avgFare) + " moy." : ""}</div>}
@@ -1057,7 +1083,7 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
               <div className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>{sorted.length} jours · cliquer entête = trier</div>
             </div>
             {filter !== "all" && (
-              <button onClick={() => setFilter("all")} className="text-[10px] px-3 py-1.5 rounded-lg" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623", border: "1px solid rgba(245,166,35,.2)" }}>
+              <button onClick={() => setFilter("all")} className="text-[10px] px-3 py-1.5 rounded-lg" style={{ background: "rgba(var(--tenant-color-rgb),.1)", color: "var(--tenant-color)", border: "1px solid rgba(var(--tenant-color-rgb),.2)" }}>
                 ✕ Retirer le filtre
               </button>
             )}
@@ -1075,7 +1101,7 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
                   ].map(([k, h, sortable]) => (
                     <th key={String(h)} onClick={() => sortable && toggleSort(k as SortKey)}
                       className={`py-2 px-3 text-left font-semibold whitespace-nowrap select-none ${sortable ? "cursor-pointer hover:text-white" : ""}`}
-                      style={{ color: sortKey === k ? "#f5a623" : "var(--sk-t3)" }}>
+                      style={{ color: sortKey === k ? "var(--tenant-color)" : "var(--sk-t3)" }}>
                       {h}{sortable ? sortArrow(k as SortKey) : ""}
                     </th>
                   ))}
@@ -1087,7 +1113,7 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
                   return (
                     <tr key={d.date} style={{ borderBottom: "1px solid var(--sk-bg)", background: i % 2 === 0 ? "transparent" : "rgba(30,35,48,.25)" }}>
                       <td className="py-2 px-3 font-mono text-white">{d.date}</td>
-                      <td className="py-2 px-3 font-semibold" style={{ color: d.weekdayNum === 0 || d.weekdayNum === 6 ? "#f5a623" : "var(--sk-t3)" }}>
+                      <td className="py-2 px-3 font-semibold" style={{ color: d.weekdayNum === 0 || d.weekdayNum === 6 ? "var(--tenant-color)" : "var(--sk-t3)" }}>
                         {d.weekday}
                         {(d.weekdayNum === 0 || d.weekdayNum === 6) && <span className="ml-1 text-[9px]">WE</span>}
                       </td>
@@ -1107,9 +1133,9 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
                 })}
               </tbody>
               <tfoot>
-                <tr style={{ borderTop: "2px solid var(--sk-surface)", background: "rgba(245,166,35,.04)" }}>
+                <tr style={{ borderTop: "2px solid var(--sk-surface)", background: "rgba(var(--tenant-color-rgb),.04)" }}>
                   <td colSpan={2} className="py-2.5 px-3 font-bold text-white text-xs">Moy. ({filter === "all" ? "tous" : filter === "weekday" ? "semaine" : filter === "weekend" ? "WE" : wdLabels[wdOrder.indexOf(filter as number)]})</td>
-                  <td className="py-2.5 px-3 font-mono font-bold" style={{ color: "#f5a623" }}>{xof(fNetAvg)}</td>
+                  <td className="py-2.5 px-3 font-mono font-bold" style={{ color: "var(--tenant-color)" }}>{xof(fNetAvg)}</td>
                   {hasCourses && <td className="py-2.5 px-3 text-center font-mono font-bold" style={{ color: "#22c55e" }}>{fCoursesAvg.toFixed(1)}</td>}
                   {hasFare && <td className="py-2.5 px-3 font-mono font-bold" style={{ color: "#a855f7" }}>{fFareAvg > 0 ? xof(fFareAvg) : "—"}</td>}
                   {hasKm && <td className="py-2.5 px-3 font-mono font-bold" style={{ color: "var(--sk-t2)" }}>{fKmAvg > 0 ? fKmAvg.toFixed(0) + " km" : "—"}</td>}
@@ -1124,7 +1150,7 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
         <div className="text-center py-20" style={{ color: "var(--sk-t4)" }}>
           <div className="text-4xl mb-3">📅</div>
           <div className="text-sm text-white">Aucune donnée pour ce filtre.</div>
-          <button onClick={() => setFilter("all")} className="mt-3 text-xs px-4 py-2 rounded-xl" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623" }}>Voir tous les jours</button>
+          <button onClick={() => setFilter("all")} className="mt-3 text-xs px-4 py-2 rounded-xl" style={{ background: "rgba(var(--tenant-color-rgb),.1)", color: "var(--tenant-color)" }}>Voir tous les jours</button>
         </div>
       )}
     </div>

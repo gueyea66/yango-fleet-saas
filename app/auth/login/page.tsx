@@ -12,7 +12,7 @@ type UserRole = "admin" | "driver";
 
 export default function LoginPage() {
   const { settings } = useTenant();
-  const brand = settings.primary_color || "#f5a623";
+  const brand = settings.primary_color || "var(--tenant-color)";
   const [role, setRole] = useState<UserRole>("admin");
   const [email, setEmail] = useState("");
   const [driverId, setDriverId] = useState("");
@@ -77,7 +77,7 @@ export default function LoginPage() {
         </div>
 
         <div className="rounded-2xl border p-8"
-          style={{ background: "var(--sk-bg)", borderColor: "var(--sk-surface)", boxShadow: "0 0 0 1px rgba(245,166,35,0.04), 0 24px 48px rgba(0,0,0,0.4)" }}>
+          style={{ background: "var(--sk-bg)", borderColor: "var(--sk-surface)", boxShadow: "0 0 0 1px rgba(var(--tenant-color-rgb),0.04), 0 24px 48px rgba(0,0,0,0.4)" }}>
           <div className="flex p-1 rounded-xl mb-7" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
             {(["admin", "driver"] as UserRole[]).map((r) => (
               <button key={r} type="button" onClick={() => { setRole(r); setError(null); }}
@@ -105,14 +105,14 @@ export default function LoginPage() {
                   placeholder="admin@m3a.sn" required autoComplete="email"
                   className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all"
                   style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = "#f5a623"}
+                  onFocus={(e) => e.currentTarget.style.borderColor = "var(--tenant-color)"}
                   onBlur={(e) => e.currentTarget.style.borderColor = "var(--sk-surface)"} />
               ) : (
                 <input type="text" value={driverId} onChange={(e) => setDriverId(e.target.value.toUpperCase())}
                   placeholder="DRV001" required autoComplete="username"
                   className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all font-mono tracking-widest"
                   style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }}
-                  onFocus={(e) => e.currentTarget.style.borderColor = "#f5a623"}
+                  onFocus={(e) => e.currentTarget.style.borderColor = "var(--tenant-color)"}
                   onBlur={(e) => e.currentTarget.style.borderColor = "var(--sk-surface)"} />
               )}
             </div>
@@ -124,7 +124,7 @@ export default function LoginPage() {
                 placeholder="••••••••••" required autoComplete="current-password"
                 className="w-full rounded-xl px-4 py-3 text-sm outline-none transition-all"
                 style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }}
-                onFocus={(e) => e.currentTarget.style.borderColor = "#f5a623"}
+                onFocus={(e) => e.currentTarget.style.borderColor = "var(--tenant-color)"}
                 onBlur={(e) => e.currentTarget.style.borderColor = "var(--sk-surface)"} />
             </div>
             <button type="submit" disabled={loading}

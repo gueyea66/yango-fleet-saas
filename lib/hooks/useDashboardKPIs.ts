@@ -123,7 +123,9 @@ const ZERO: DashboardKPIs = {
   loading: true, error: null,
 };
 
-export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTenantId?: string | null, filterDriverId?: string) {
+export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTenantId?: string | null, filterDriverIds?: string[], refreshKey?: number) {
+  // Multi-sélection chauffeurs (retour Abdou 02/09) — vide/absent = tous.
+  const fSet = filterDriverIds && filterDriverIds.length ? new Set(filterDriverIds) : null;
   const [kpis, setKPIs] = useState<DashboardKPIs>(ZERO);
 
   const loadKPIs = useCallback(async () => {
@@ -139,7 +141,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       if (explicitTenantId) {
         // Admin context — bypass RLS via service-role API
         const params = new URLSearchParams({ tenantId: explicitTenantId, dateFrom: periodStart, dateTo: periodEnd });
-        if (filterDriverId) params.set("driverId", filterDriverId);
+        if (fSet) params.set("driverIds", [...fSet].join(","));
         const json = await fetch(`/api/admin/kpis?${params}`).then((r) => r.json());
         allReps = json.allReps || [];
         allExps = json.allExps || [];
@@ -154,7 +156,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         let tid: string | null = null;
         try { tid = await getTenantId(); } catch { /* no tenant context */ }
         const repQ = (q: any) => tid ? q.eq("tenant_id", tid) : q;
-        const drvQ = (q: any) => filterDriverId ? q.eq("driver_id", filterDriverId) : q;
+        const drvQ = (q: any) => fSet ? q.in("driver_id", [...fSet]) : q;
         // source='legacy' = imports historiques INTENTIONNELS (module d'import) :
         // ils comptent dans les KPIs comme promis par le module. Plus aucun
         // masquage par source — vérifié 05/08/2026 : zéro ligne legacy parasite.
@@ -194,7 +196,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       // Filtre chauffeur sélectionné : effectif réduit à lui seul (sinon "masse salariale
       // estimée" continue d'afficher le total flotte même quand un seul chauffeur est choisi).
       const activeDrivers: any[] = drivers.filter((d: any) =>
-        (!filterDriverId || d.id === filterDriverId) &&
+        (!fSet || fSet.has(d.id)) &&
         d.account_type !== "technical" && d.active !== false && (!d.contract_end_date || d.contract_end_date >= today));
 
       // Filter expenses by user-entered date (expense_date) or created_at fallback
@@ -358,7 +360,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       // usePilotage.ts::activeRatioForMonth) — un chauffeur désactivé ou parti
       // avant/après la période n'encombre plus le bloc d'allocation.
       const isActiveForPeriod = (d: any): boolean => {
-        if (filterDriverId && d.id !== filterDriverId) return false; // filtre chauffeur : lui seul
+        if (fSet && !fSet.has(d.id)) return false; // filtre chauffeur : les sélectionnés seulement
         if (d.account_type === "technical") return false;
         if (d.active === false && !d.contract_end_date) return false;
         let from = periodStart, to = periodEnd;
@@ -461,7 +463,8 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       setKPIs((prev) => ({ ...prev, loading: false, error: err instanceof Error ? err.message : "Erreur" }));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFrom, dateTo, explicitTenantId, filterDriverId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFrom, dateTo, explicitTenantId, (filterDriverIds || []).join(","), refreshKey]);
 
   useEffect(() => {
     setKPIs((prev) => ({ ...prev, loading: true }));

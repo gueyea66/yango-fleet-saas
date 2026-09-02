@@ -52,6 +52,15 @@ export default function NotificationBell() {
     return () => clearInterval(id);
   }, [fetchNotifs]);
 
+  // État RÉEL de l'abonnement push (avant : toujours false → bouton fantôme).
+  useEffect(() => {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    navigator.serviceWorker.getRegistration("/sw.js")
+      .then((reg) => reg?.pushManager.getSubscription())
+      .then((sub) => { if (sub) setPushEnabled(true); })
+      .catch(() => { /* état inconnu → bouton affiché */ });
+  }, []);
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -61,34 +70,47 @@ export default function NotificationBell() {
   }, []);
 
   const enablePush = async () => {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-      alert("Les notifications push ne sont pas supportées par ce navigateur.");
-      return;
+    // Tout échec doit être VISIBLE (avant : throw silencieux, l'utilisateur
+    // croyait avoir activé et ne recevait jamais rien).
+    try {
+      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+        alert("Les notifications push ne sont pas supportées par ce navigateur.");
+        return;
+      }
+      if (!VAPID_PUBLIC) {
+        alert("Notifications push non configurées côté serveur (clé publique absente). Contactez le support.");
+        return;
+      }
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") {
+        alert("Permission refusée — autorisez les notifications dans les réglages du navigateur pour être alerté.");
+        return;
+      }
+
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.ready;
+
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
+      });
+
+      const res = await fetch("/api/push/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sub.toJSON()),
+      });
+      if (!res.ok) {
+        const { error } = await res.json().catch(() => ({ error: res.statusText }));
+        alert(`Échec de l'activation des notifications push : ${error}`);
+        return;
+      }
+
+      setPushEnabled(true);
+      alert("Notifications push activées ✅ Vous serez alerté même app fermée.");
+    } catch (err) {
+      alert("Activation impossible : " + (err instanceof Error ? err.message : String(err)));
     }
-    const perm = await Notification.requestPermission();
-    if (perm !== "granted") return;
-
-    const reg = await navigator.serviceWorker.register("/sw.js");
-    await navigator.serviceWorker.ready;
-
-    const sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
-    });
-
-    const res = await fetch("/api/push/subscribe", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(sub.toJSON()),
-    });
-    if (!res.ok) {
-      const { error } = await res.json().catch(() => ({ error: res.statusText }));
-      alert(`Échec de l'activation des notifications push : ${error}`);
-      return;
-    }
-
-    setPushEnabled(true);
-    alert("Notifications push activées ✅");
   };
 
   const markRead = async (id: string) => {
@@ -146,17 +168,24 @@ export default function NotificationBell() {
             <span style={{ color: "#fff", fontWeight: 700, fontSize: "14px" }}>Notifications</span>
             <div style={{ display: "flex", gap: 8 }}>
               {unread > 0 && (
-                <button onClick={markAll} style={{ fontSize: "11px", color: "#f5a623", background: "none", border: "none", cursor: "pointer" }}>
+                <button onClick={markAll} style={{ fontSize: "11px", color: "var(--tenant-color)", background: "none", border: "none", cursor: "pointer" }}>
                   Tout lire
-                </button>
-              )}
-              {!pushEnabled && (
-                <button onClick={enablePush} style={{ fontSize: "11px", color: "var(--sk-t3)", background: "none", border: "none", cursor: "pointer" }} title="Activer les notifications push">
-                  🔔 Activer push
                 </button>
               )}
             </div>
           </div>
+
+          {!pushEnabled && (
+            <button onClick={enablePush}
+              style={{
+                display: "block", width: "100%", textAlign: "left", cursor: "pointer",
+                padding: "10px 16px", fontSize: "12px", fontWeight: 600,
+                color: "var(--tenant-color)", background: "rgba(var(--tenant-color-rgb),.08)",
+                border: "none", borderBottom: "1px solid var(--sk-surface)",
+              }}>
+              🔔 Activer les alertes push — soyez prévenu dès qu'un rapport est soumis, même app fermée.
+            </button>
+          )}
 
           <div style={{ maxHeight: "360px", overflowY: "auto" }}>
             {notifications.length === 0 ? (
@@ -170,7 +199,7 @@ export default function NotificationBell() {
                   onClick={() => !n.read_at && markRead(n.id)}
                   style={{
                     padding: "10px 16px", borderBottom: "1px solid var(--sk-surface)", cursor: n.read_at ? "default" : "pointer",
-                    background: n.read_at ? "transparent" : "rgba(245,166,35,.05)",
+                    background: n.read_at ? "transparent" : "rgba(var(--tenant-color-rgb),.05)",
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -179,7 +208,7 @@ export default function NotificationBell() {
                   </div>
                   <div style={{ color: "#888", fontSize: "12px", marginTop: 2 }}>{n.body}</div>
                   {!n.read_at && (
-                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: "#f5a623", marginTop: 4 }} />
+                    <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--tenant-color)", marginTop: 4 }} />
                   )}
                 </div>
               ))

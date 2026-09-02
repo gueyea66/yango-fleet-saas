@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireAnyAuth } from "@/lib/auth/server";
-import { sendNotification, getTenantAdminId, NotifType } from "@/lib/notifications";
+import { sendNotification, getTenantAdminIds, NotifType } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,7 @@ const admin = createClient(
 
 const NOTIF_META: Record<string, { title: string; body: (d: any) => string; url: string; recipient: "admin" | "driver" }> = {
   report_submitted:  { title: "📋 Nouveau rapport",     body: (d) => `${d.driverName} a soumis son rapport du ${d.date}`,       url: "/admin",          recipient: "admin" },
+  expense_submitted: { title: "🧾 Nouvelle dépense",     body: (d) => `${d.driverName} a déclaré ${d.amount} FCFA (${d.category})`, url: "/admin",       recipient: "admin" },
   report_approved:   { title: "✅ Rapport validé",       body: (d) => `Votre rapport du ${d.date} a été approuvé`,               url: "/driver",         recipient: "driver" },
   report_rejected:   { title: "❌ Rapport rejeté",       body: (d) => `Votre rapport du ${d.date} a été rejeté`,                 url: "/driver",         recipient: "driver" },
   advance_requested: { title: "💰 Demande d'avance",    body: (d) => `${d.driverName} demande une avance de ${d.amount} FCFA`,  url: "/admin",          recipient: "admin" },
@@ -26,7 +27,7 @@ const NOTIF_META: Record<string, { title: string; body: (d: any) => string; url:
 // reste (avance approuvée, rapport validé/rejeté…) est réservé aux admins —
 // sinon un chauffeur pouvait forger « votre avance de 900 000 FCFA est acceptée »
 // à destination d'un collègue.
-const DRIVER_ALLOWED_TYPES = new Set(["report_submitted", "advance_requested"]);
+const DRIVER_ALLOWED_TYPES = new Set(["report_submitted", "expense_submitted", "advance_requested"]);
 
 export async function POST(req: NextRequest) {
   try {
@@ -52,10 +53,11 @@ export async function POST(req: NextRequest) {
       if (me?.full_name) safeData.driverName = me.full_name;
     }
 
-    let recipientId: string | null = null;
+    // Destinataires : TOUS les admins du tenant (pas seulement le premier).
+    let recipientIds: string[] = [];
 
     if (meta.recipient === "admin") {
-      recipientId = await getTenantAdminId(tenantId);
+      recipientIds = await getTenantAdminIds(tenantId);
     } else if (meta.recipient === "driver" && driverId) {
       const { data: profile } = await admin
         .from("profiles")
@@ -65,13 +67,14 @@ export async function POST(req: NextRequest) {
         .eq("role", "driver")
         .limit(1)
         .single();
-      recipientId = profile?.id ?? null;
+      if (profile?.id) recipientIds = [profile.id];
     }
 
-    if (!recipientId) return NextResponse.json({ ok: true, skipped: "no recipient" });
+    if (!recipientIds.length) return NextResponse.json({ ok: true, skipped: "no recipient" });
 
     const body = meta.body(safeData);
-    await sendNotification(tenantId, recipientId, type as NotifType, meta.title, body, { url: meta.url, ...safeData });
+    await Promise.allSettled(recipientIds.map((rid) =>
+      sendNotification(tenantId, rid, type as NotifType, meta.title, body, { url: meta.url, ...safeData })));
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {

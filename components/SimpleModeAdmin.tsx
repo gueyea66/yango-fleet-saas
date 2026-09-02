@@ -90,11 +90,11 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
   const [tab, setTab] = useState<"accueil" | "pilotage" | "equipe">("accueil");
   const [periodKey, setPeriodKey] = useState<PeriodKey>("month");
   const period = periodRange(periodKey);
-  // refreshTick force un rechargement des KPIs après une validation : "" et
-  // undefined sont équivalents pour le filtre chauffeur (aucun), mais changent
-  // les deps du hook → refetch sans dupliquer sa logique.
+  // refreshTick force un rechargement des KPIs après une validation (paramètre
+  // refreshKey dédié du hook — l'ancien hack ""/undefined ne survivait pas à la
+  // multi-sélection chauffeurs).
   const [refreshTick, setRefreshTick] = useState(0);
-  const kpis = useDashboardKPIs(period.from, period.to, tenantId, refreshTick % 2 === 0 ? "" : undefined);
+  const kpis = useDashboardKPIs(period.from, period.to, tenantId, undefined, refreshTick);
 
   // ── Flux de validation complet (rapports + dépenses) : le mode simple doit
   //    se suffire à lui-même, sans passer par le mode avancé. Mêmes écritures
@@ -313,7 +313,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
       {/* ── Header ── */}
       <header className="sticky top-0 z-20 border-b" style={{ background: "var(--sk-deep)", borderColor: "var(--sk-surface)" }}>
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl grid place-items-center font-extrabold text-[13px]" style={{ background: "var(--sk-accent, #f5a623)", color: "#151007" }}>
+          <div className="w-9 h-9 rounded-xl grid place-items-center font-extrabold text-[13px]" style={{ background: "var(--sk-accent, var(--tenant-color))", color: "#151007" }}>
             {appName.slice(0, 3).toUpperCase()}
           </div>
           <div className="flex-1 min-w-0">
@@ -325,7 +325,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
               <button key={k} onClick={() => setPeriodKey(k)}
                 className="text-[11px] px-2.5 py-1.5 rounded-full font-semibold"
                 style={periodKey === k
-                  ? { background: "var(--sk-accent, #f5a623)", color: "#151007" }
+                  ? { background: "var(--sk-accent, var(--tenant-color))", color: "#151007" }
                   : { background: "var(--sk-bg)", color: "var(--sk-t2)", border: "1px solid var(--sk-surface)" }}>
                 {k === "month" ? "Mois" : k === "prev-month" ? "M-1" : "7 j"}
               </button>
@@ -347,13 +347,13 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
                   color={kpis.netFinal >= 0 ? "#22c55e" : "#ef4444"}
                   sub={`${kpis.monthMarginPercent.toFixed(1)} % de marge · XOF`} />
               </div>
-              <KpiCard label="Recettes brutes" value={xof(recettesBrutes)} color="#f5a623" sub={`moy. ${xof(kpis.avgBrutPerDay)} / jour`} />
+              <KpiCard label="Recettes brutes" value={xof(recettesBrutes)} color="var(--tenant-color)" sub={`moy. ${xof(kpis.avgBrutPerDay)} / jour`} />
               <KpiCard label="Dépenses" value={`− ${xof(kpis.totalDepenses)}`} color="#ef4444" sub="carburant · solde · autres" />
             </div>
 
             {/* À valider — rapports + dépenses, détails dépliables, valider/rejeter */}
             <div className="rounded-2xl p-4 mt-3 border-l-4"
-              style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderLeft: `4px solid ${pending.length + pendingExp.length > 0 ? "#f5a623" : "#22c55e"}` }}>
+              style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderLeft: `4px solid ${pending.length + pendingExp.length > 0 ? "var(--tenant-color)" : "#22c55e"}` }}>
               <div className="text-[11px] uppercase tracking-widest font-bold mb-1" style={{ color: "var(--sk-t3)" }}>
                 À valider {pending.length + pendingExp.length > 0 ? `(${pending.length + pendingExp.length})` : ""}
               </div>
@@ -519,7 +519,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
                       {kpis.dailyRows.map((r) => (
                         <tr key={r.date}>
                           <td className="px-3 py-2 text-left" style={{ color: "var(--sk-t2)", borderBottom: "1px solid var(--sk-surface)" }}>{r.date.slice(5)}</td>
-                          <td className="px-3 py-2 text-right" style={{ color: "#f5a623", borderBottom: "1px solid var(--sk-surface)" }}>{xof(r.brutYango)}</td>
+                          <td className="px-3 py-2 text-right" style={{ color: "var(--tenant-color)", borderBottom: "1px solid var(--sk-surface)" }}>{xof(r.brutYango)}</td>
                           <td className="px-3 py-2 text-right" style={{ color: "#a855f7", borderBottom: "1px solid var(--sk-surface)" }}>{xof(r.horsYango)}</td>
                           <td className="px-3 py-2 text-right" style={{ color: "#ef4444", borderBottom: "1px solid var(--sk-surface)" }}>−{xof(r.depenses)}</td>
                           <td className="px-3 py-2 text-right font-bold" style={{ color: r.netFinal >= 0 ? "#22c55e" : "#ef4444", borderBottom: "1px solid var(--sk-surface)" }}>{xof(r.netFinal)}</td>
@@ -528,7 +528,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
                       ))}
                       <tr style={{ background: "var(--sk-surface)" }}>
                         <td className="px-3 py-2.5 text-left font-bold">Total</td>
-                        <td className="px-3 py-2.5 text-right font-bold" style={{ color: "#f5a623" }}>{xof(kpis.brutYango)}</td>
+                        <td className="px-3 py-2.5 text-right font-bold" style={{ color: "var(--tenant-color)" }}>{xof(kpis.brutYango)}</td>
                         <td className="px-3 py-2.5 text-right font-bold" style={{ color: "#a855f7" }}>{xof(kpis.horsYango)}</td>
                         <td className="px-3 py-2.5 text-right font-bold" style={{ color: "#ef4444" }}>−{xof(kpis.totalDepenses)}</td>
                         <td className="px-3 py-2.5 text-right font-bold" style={{ color: kpis.netFinal >= 0 ? "#22c55e" : "#ef4444" }}>{xof(kpis.netFinal)}</td>
@@ -601,7 +601,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
                       <td className="px-3 py-2 text-left font-sans font-semibold" style={{ borderBottom: "1px solid var(--sk-surface)" }}>{d.name}</td>
                       <td className="px-3 py-2 text-right" style={{ color: "var(--sk-t2)", borderBottom: "1px solid var(--sk-surface)" }}>{d.nbApproved}</td>
                       <td className="px-3 py-2 text-right font-bold" style={{ color: "#22c55e", borderBottom: "1px solid var(--sk-surface)" }}>{xof(d.netApproved)}</td>
-                      <td className="px-3 py-2 text-right" style={{ color: "#f5a623", borderBottom: "1px solid var(--sk-surface)" }}>{d.nbPending > 0 ? `${xof(d.netPending)} (${d.nbPending})` : "—"}</td>
+                      <td className="px-3 py-2 text-right" style={{ color: "var(--tenant-color)", borderBottom: "1px solid var(--sk-surface)" }}>{d.nbPending > 0 ? `${xof(d.netPending)} (${d.nbPending})` : "—"}</td>
                     </tr>
                   ))}
                   {kpis.driverAllocations.length === 0 && (
@@ -631,7 +631,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
                   <div key={d.id} className="rounded-2xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
                     <div className="flex items-center gap-3 flex-wrap">
                       <div className="w-10 h-10 rounded-full grid place-items-center font-bold text-sm flex-none"
-                        style={{ background: "var(--sk-surface)", color: "#f5a623" }}>
+                        style={{ background: "var(--sk-surface)", color: "var(--tenant-color)" }}>
                         {(d.full_name || "?").split(" ").map((w: string) => w[0]).slice(0, 2).join("")}
                       </div>
                       <div className="flex-1 min-w-[130px]">
@@ -658,7 +658,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
             {!showAddDriver ? (
               <button onClick={() => setShowAddDriver(true)}
                 className="mt-3 text-xs px-4 py-2.5 rounded-xl font-bold inline-flex items-center gap-1.5"
-                style={{ background: "var(--sk-accent, #f5a623)", color: "#151007" }}>
+                style={{ background: "var(--sk-accent, var(--tenant-color))", color: "#151007" }}>
                 <Plus size={14} /> Ajouter un chauffeur
               </button>
             ) : (
@@ -708,7 +708,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
             {!showAddVehicle ? (
               <button onClick={() => setShowAddVehicle(true)}
                 className="mt-3 text-xs px-4 py-2.5 rounded-xl font-bold inline-flex items-center gap-1.5"
-                style={{ background: "var(--sk-accent, #f5a623)", color: "#151007" }}>
+                style={{ background: "var(--sk-accent, var(--tenant-color))", color: "#151007" }}>
                 <Plus size={14} /> Ajouter un véhicule
               </button>
             ) : (
@@ -740,7 +740,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
           {NAV.map(({ id, label, Icon }) => (
             <button key={id} onClick={() => { setTab(id); window.scrollTo({ top: 0 }); }}
               className="flex-1 flex flex-col items-center gap-1 py-2.5 text-[10.5px] font-bold"
-              style={{ color: tab === id ? "var(--sk-accent, #f5a623)" : "var(--sk-t3)" }}>
+              style={{ color: tab === id ? "var(--sk-accent, var(--tenant-color))" : "var(--sk-t3)" }}>
               <Icon size={20} strokeWidth={2} />
               {label}
             </button>

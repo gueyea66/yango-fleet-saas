@@ -21,6 +21,7 @@ if (vapidConfigured) {
 
 export type NotifType =
   | "report_submitted"
+  | "expense_submitted"
   | "report_approved"
   | "report_rejected"
   | "advance_requested"
@@ -29,7 +30,8 @@ export type NotifType =
   | "plan_expiring"
   | "payment_due"
   | "report_reminder"
-  | "report_available";
+  | "report_available"
+  | "vehicle_expiry";
 
 export async function sendNotification(
   tenantId: string,
@@ -49,7 +51,10 @@ export async function sendNotification(
   }
 
   // Send web push (best-effort)
-  if (!vapidConfigured) return;
+  if (!vapidConfigured) {
+    console.warn("[notifications] VAPID non configuré — push sauté (in-app envoyé)");
+    return;
+  }
   const { data: subs } = await admin
     .from("push_subscriptions")
     .select("endpoint,p256dh,auth")
@@ -71,6 +76,16 @@ export async function sendNotification(
       })
     )
   );
+}
+
+/** Tous les admins d'un tenant (un tenant peut en avoir plusieurs). */
+export async function getTenantAdminIds(tenantId: string): Promise<string[]> {
+  const { data } = await admin
+    .from("profiles")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("role", "admin");
+  return (data || []).map((p: { id: string }) => p.id);
 }
 
 /** Find admin user_id for a given tenant */
