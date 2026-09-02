@@ -130,6 +130,8 @@ export interface AgentPanelOptions {
   roles?: AgentRole[];
   /** Modèle du rédacteur final (défaut : celui du gateway). */
   editorModel?: string | null;
+  /** Modèle par défaut des rôles du panel (un rôle peut le surcharger). */
+  roleModel?: string | null;
   timeoutMs?: number;
   /** Titre des décisions (ex: "Décisions proposées pour septembre"). */
   decisionsTitle?: string;
