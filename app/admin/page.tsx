@@ -1428,12 +1428,15 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Upload échoué");
 
+      // file_path = chemin RÉEL renvoyé par la route (préfixé tenant), pas le
+      // chemin local — sinon les aperçus signés pointent dans le vide.
+      const storedPath = result.path || path;
       const existing = driverDocs.find((d) => d.doc_type === docType);
       if (existing) {
-        const { error: updErr } = await supabase.from("kyc_documents").update({ file_path: path, file_name: file.name, file_size: file.size, status: "pending", uploaded_at: new Date().toISOString() }).eq("id", existing.id);
+        const { error: updErr } = await supabase.from("kyc_documents").update({ file_path: storedPath, file_name: file.name, file_size: file.size, status: "pending", uploaded_at: new Date().toISOString() }).eq("id", existing.id);
         if (updErr) throw new Error(`DB update: ${updErr.message}`);
       } else {
-        const { error: insErr } = await supabase.from("kyc_documents").insert({ driver_id: selected, tenant_id: tenantId, doc_type: docType, file_path: path, file_name: file.name, file_size: file.size, status: "pending" });
+        const { error: insErr } = await supabase.from("kyc_documents").insert({ driver_id: selected, tenant_id: tenantId, doc_type: docType, file_path: storedPath, file_name: file.name, file_size: file.size, status: "pending" });
         if (insErr) throw new Error(`DB insert: ${insErr.message}`);
       }
       await loadDriver(selected);

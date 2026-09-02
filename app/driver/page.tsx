@@ -1638,11 +1638,13 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Upload échoué");
 
+      // file_path = chemin RÉEL renvoyé par la route (préfixé tenant/user).
+      const storedPath = result.path || path;
       const existing = kycDocs[docType];
       if (existing) {
-        await supabase.from("kyc_documents").update({ file_path: path, file_name: file.name, file_size: file.size, status: "pending", uploaded_at: new Date().toISOString() }).eq("id", existing.id);
+        await supabase.from("kyc_documents").update({ file_path: storedPath, file_name: file.name, file_size: file.size, status: "pending", uploaded_at: new Date().toISOString() }).eq("id", existing.id);
       } else {
-        await supabase.from("kyc_documents").insert({ driver_id: profile.id, tenant_id: profile.tenant_id, doc_type: docType, file_path: path, file_name: file.name, file_size: file.size, status: "pending" });
+        await supabase.from("kyc_documents").insert({ driver_id: profile.id, tenant_id: profile.tenant_id, doc_type: docType, file_path: storedPath, file_name: file.name, file_size: file.size, status: "pending" });
       }
       await loadData();
     } catch (err: any) { alert("Erreur upload : " + err.message); }

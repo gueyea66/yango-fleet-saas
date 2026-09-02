@@ -9,8 +9,8 @@ import { aiAdmin } from "./adminClient";
 import { isAiEnabled } from "./killSwitch";
 import { DEFAULT_THRESHOLDS } from "./killSwitch";
 import {
-  computePeriodAggregates, confidenceFromCoverage, fetchTenantWindow, freshnessSnapshot,
-  isReposReport, topExpenseMovements,
+  activeDriverIds, computePeriodAggregates, confidenceFromCoverage, fetchTenantWindow,
+  freshnessSnapshot, isDriverActiveOn, isReposReport, topExpenseMovements,
 } from "./dataReader";
 import { buildKpiInsights, describeCauses, paramsHash } from "./insightEngine";
 import { runRules } from "./recommendationEngine";
@@ -241,7 +241,8 @@ async function buildBriefingContent(
   // Rapports du mois (chauffeurs actifs) : les [REPOS] déclarés sortent des
   // jours ouvrés écoulés — sinon le rythme/jour est sous-estimé et la
   // projection fin de mois avec (retour Abdou 19/08).
-  const activeIds = new Set(win.drivers.filter((d) => d.active !== false).map((d) => d.id));
+  // Actif = flag + contrat non terminé avant le mois (paramétrages font foi).
+  const activeIds = activeDriverIds(win, monthStart);
   const monthReps = win.reports.filter((r) =>
     (r.status === "approved" || r.status === "submitted") && activeIds.has(r.driver_id)
     && r.date >= monthStart && r.date <= today);
@@ -279,8 +280,10 @@ async function buildBriefingContent(
   const sortedTiers = [...tiers].sort((a, b) => a.min_net - b.min_net);
   const joursOuvresRestants = joursRestants > 0
     ? joursOuvresProjetes(iso(Date.parse(today) + DAY), monthEnd) : 0;
+  // Seuls les chauffeurs actifs AUJOURD'HUI sont pilotés par le briefing —
+  // un contrat terminé ne doit plus y apparaître (retour Abdou 02/09).
   const chauffeurs: BriefingDriver[] = win.drivers
-    .filter((d) => d.active !== false)
+    .filter((d) => isDriverActiveOn(d, today))
     .map((d) => {
       const rr = monthReps.filter((r) => r.driver_id === d.id);
       const ca = rr.reduce((s, r) => s + (r.yango_gross ?? 0) + (r.yango_bonus ?? 0) + (r.off_yango_revenue ?? 0), 0);
@@ -298,9 +301,11 @@ async function buildBriefingContent(
         jours_travailles_mtd: joursTravailles,
         palier_cible_fcfa: cible?.min_net ?? null,
         a_risque: !!cible && cible.min_net - projete <= cible.min_net * 0.15,
+        embauche_le: d.hire_date && d.hire_date >= monthStart ? d.hire_date : undefined,
       };
     })
-    .filter((c) => c.ca_mtd_fcfa > 0);
+    // Un nouveau (embauché ce mois) reste listé même sans CA encore saisi.
+    .filter((c) => c.ca_mtd_fcfa > 0 || c.embauche_le);
 
   const projections = {
     net_projete_fcfa: netProjete,
@@ -341,11 +346,22 @@ async function buildBriefingContent(
     delta_fcfa: m.delta_fcfa,
   }));
 
+  // Nouveaux chauffeurs du mois : le briefing doit les accueillir (objectif,
+  // premier rapport) au lieu de les ignorer — retour Abdou 02/09.
+  const nouveaux = chauffeurs
+    .filter((c) => c.embauche_le)
+    .map((c) => ({
+      chauffeur: c.driver_ref,
+      embauche_le: c.embauche_le,
+      ca_depuis_embauche_fcfa: c.ca_mtd_fcfa,
+      jours_travailles: c.jours_travailles_mtd,
+    }));
+
   // Payload LLM : pseudonymes uniquement, agrégats + faits uniquement
   const llmPayload = JSON.stringify({
     date: today,
     kpis_deja_affiches_a_l_ecran: kpis,
-    faits_calcules: { paliers, depenses_mouvements: depensesMouvements },
+    faits_calcules: { paliers, depenses_mouvements: depensesMouvements, nouveaux_chauffeurs: nouveaux },
     projections,
   });
   // Jusqu'à 2 tentatives : un rejet anti-hallucination ne condamne pas le briefing
@@ -432,6 +448,9 @@ Règles ABSOLUES :
   uniquement les nombres du JSON fourni, recopiés tels quels. Tous les écarts utiles sont déjà fournis
   (manque_total_fcfa, effort_supplementaire_fcfa_par_jour…).
 - Les chauffeurs sont désignés par leur référence drv_xxxx : recopie-les telles quelles.
+- Si nouveaux_chauffeurs n'est pas vide : consacre un point au nouveau (démarrage, premiers chiffres,
+  objectif) SANS le comparer aux anciens — ses ratios ne sont pas encore représentatifs.
+- Ne mentionne JAMAIS un chauffeur absent du JSON (les partis/contrats terminés n'existent plus pour toi).
 - "action" : UNE action concrète et CHIFFRÉE pour aujourd'hui (qui, combien, sur combien de jours).`;
 
 function stripMarkdown(s: string): string {

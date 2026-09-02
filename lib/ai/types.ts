@@ -95,6 +95,8 @@ export interface BriefingDriver {
   jours_travailles_mtd?: number;
   palier_cible_fcfa: number | null;
   a_risque: boolean;
+  /** Date d'embauche si le chauffeur a démarré dans le mois (nouveau) — sinon absent. */
+  embauche_le?: string | null;
 }
 
 export interface BriefingContent {
