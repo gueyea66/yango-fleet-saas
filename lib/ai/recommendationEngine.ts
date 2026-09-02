@@ -6,6 +6,7 @@
  * viennent des agrégats et de lib/calc.ts.
  */
 import { AI_CALC_VERSION, RuleId } from "./types";
+import { isDriverActiveOn } from "./dataReader";
 import type { RawDriver, RawExpense, RawReport, TenantWindow } from "./dataReader";
 import { achatsCarburantPeriode, isReposReport, kmPeriode, provisionsSoldePeriode, soldeConsommePeriode } from "./dataReader";
 import { coutCarburantParKm, joursCalendaires, joursOuvresProjetes, joursOuvresRealises } from "@/lib/calc";
@@ -65,7 +66,7 @@ export function rulePalierARisque(ctx: RecoContext): RecoDraft[] {
 
   const joursOuvresRestants = joursOuvresProjetes(shiftDays(ctx.today, 1), `${ctx.today.slice(0, 8)}${String(daysInMonth).padStart(2, "0")}`);
   for (const d of ctx.win.drivers) {
-    if (d.active === false) continue;
+    if (!isDriverActiveOn(d, ctx.today)) continue; // contrat terminé = plus de recos
     const mtd = caDriver(ctx.win.reports, d.id, monthStart, ctx.today);
     if (mtd <= 0) continue;
     // Rythme sur jours OUVRÉS écoulés du chauffeur (démarrage réel, repos
@@ -149,7 +150,7 @@ export function ruleRapportManquant(ctx: RecoContext): RecoDraft[] {
   const out: RecoDraft[] = [];
 
   for (const d of ctx.win.drivers) {
-    if (d.active === false) continue;
+    if (!isDriverActiveOn(d, ctx.today)) continue; // contrat terminé = plus de recos
     const hasReport = ctx.win.reports.some((r) => r.driver_id === d.id && r.date === j1);
     if (hasReport) continue;
 

@@ -10,6 +10,7 @@
  * inter-chauffeurs et ne sert jamais de référence.
  */
 import { AI_CALC_VERSION, RuleId } from "./types";
+import { isDriverActiveOn } from "./dataReader";
 import type { RawReport, TenantWindow } from "./dataReader";
 import {
   achatsCarburantPeriode, depensesOpePeriode, isReposReport, kmPeriode, soldeConsommePeriode,
@@ -64,7 +65,7 @@ interface DriverStat {
 function driverStats30(ctx: AdvancedCtx, mature: Set<string>): DriverStat[] {
   const from = shiftDays(ctx.today, -29);
   return ctx.win.drivers
-    .filter((d) => d.active !== false && mature.has(d.id))
+    .filter((d) => isDriverActiveOn(d, ctx.today) && mature.has(d.id))
     .map((d) => {
       const rr = ctx.win.reports.filter((r) => r.driver_id === d.id && worked(r) && r.date >= from && r.date <= ctx.today);
       const caTotal = rr.reduce((s, r) => s + ca(r), 0);
@@ -146,7 +147,7 @@ export function ruleJourOptimalRepos(ctx: AdvancedCtx, mature: Set<string>): Rec
   // Chauffeurs ACTIFS uniquement, jours TRAVAILLÉS uniquement : un [REPOS]
   // (CA 0) posé toujours le même jour rendrait ce jour artificiellement
   // « creux » — la règle recommanderait le repos… à cause du repos.
-  const activeIds = new Set(ctx.win.drivers.filter((d) => d.active !== false).map((d) => d.id));
+  const activeIds = new Set(ctx.win.drivers.filter((d) => isDriverActiveOn(d, ctx.today)).map((d) => d.id));
   const reps = ctx.win.reports.filter((r) => worked(r) && mature.has(r.driver_id) && activeIds.has(r.driver_id));
   const byDay: number[][] = Array.from({ length: 7 }, () => []);
   for (const r of reps) byDay[new Date(r.date + "T00:00:00Z").getUTCDay()].push(ca(r));
@@ -178,7 +179,7 @@ export function ruleJourOptimalRepos(ctx: AdvancedCtx, mature: Set<string>): Rec
 export function ruleReconciliationSolde(ctx: AdvancedCtx, mature: Set<string>): RecoDraft[] {
   const from = shiftDays(ctx.today, -29);
   const out: RecoDraft[] = [];
-  for (const d of ctx.win.drivers.filter((x) => x.active !== false && mature.has(x.id))) {
+  for (const d of ctx.win.drivers.filter((x) => isDriverActiveOn(x, ctx.today) && mature.has(x.id))) {
     const rr = ctx.win.reports
       .filter((r) => r.driver_id === d.id && ok(r) && r.date >= from && r.solde_yango != null);
     if (rr.length < 5) continue;
