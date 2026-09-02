@@ -11,7 +11,7 @@ export const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN?.trim() || "";
 
 // Emails de contact (fallback : email M3A connu). À remplacer par une
 // adresse @domaine une fois le domaine acquis.
-export const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "gueye.a66@gmail.com";
+export const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "contact@m3afleet.com";
 export const PRIVACY_EMAIL = process.env.NEXT_PUBLIC_PRIVACY_EMAIL?.trim() || SUPPORT_EMAIL;
 
 /** URL de connexion d'un tenant. Sous-domaine si ROOT_DOMAIN défini, sinon relative. */

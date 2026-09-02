@@ -16,6 +16,7 @@
     "@sentry/nextjs": "^10.62.0",
     "@supabase/ssr": "^0.10.3",
     "@supabase/supabase-js": "^2.106.2",
+    "@vercel/analytics": "^2.0.1",
     "lucide-react": "^1.25.0",
     "next": "^16.3.0",
     "react": "19.2.4",
