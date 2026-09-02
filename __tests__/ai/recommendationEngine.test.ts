@@ -20,7 +20,7 @@ const expense = (over: Partial<RawExpense>): RawExpense => ({
 });
 
 const win = (reports: RawReport[], expenses: RawExpense[] = []): TenantWindow => ({
-  drivers: [{ id: DRV, full_name: "Emile Ndiaye", account_type: null, active: true, salary_model: null }],
+  drivers: [{ id: DRV, full_name: "Emile Ndiaye", account_type: null, active: true, salary_model: null, hire_date: null, contract_end_date: null }],
   reports, expenses,
 });
 
