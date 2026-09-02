@@ -14,6 +14,12 @@ export async function middleware(request: NextRequest) {
       url.pathname = "/auth/login";
       return Response.redirect(url, 307);
     }
+    // Vitrine publique : aucun besoin de session — la servir sans passer par
+    // le refresh Supabase (c'était le TTFB résiduel après la mise en statique).
+    return;
+  }
+  if (pathname === "/robots.txt" || pathname === "/sitemap.xml" || pathname.startsWith("/landing/")) {
+    return;
   }
   return await updateSession(request);
 }
