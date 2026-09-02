@@ -9,7 +9,7 @@
 import type {
   AgentPanelOptions, AgentRole, NarrativeResult, ReportDataset, Severity,
 } from "./types";
-import { citesOnlyKnownNumbers, extractJsonObject } from "./guard";
+import { extractJsonObject, foreignNumbers } from "./guard";
 
 const COMMON_RULES = `
 Règles ABSOLUES (non négociables) :
@@ -18,6 +18,7 @@ Règles ABSOLUES (non négociables) :
 - Tu ne fais AUCUN calcul (ni addition, ni pourcentage, ni conversion, ni arrondi).
 - Si une conclusion demanderait un calcul, formule-la sans chiffre.
 - Le rapport est un LIVRABLE FINAL pour son destinataire : ne mentionne JAMAIS de versions, corrections, itérations, bugs, sources de données ou processus de génération — uniquement les faits de la période.
+- Français naturel : ne recopie JAMAIS un nom de clé technique (écris « rapports en attente », jamais « rapports_en_attente »). Phrases toujours complètes et terminées.
 - Réponds UNIQUEMENT avec l'objet JSON demandé, sans texte autour, sans markdown.
 - Français direct et concret, niveau consultant senior qui parle à un patron de PME.`;
 
@@ -52,6 +53,14 @@ const OK_SEVERITIES = new Set<Severity>(["info", "ok", "warn", "alert"]);
 
 interface Finding { severity: Severity; title: string; body: string }
 
+/** Tronque à la fin de phrase (jamais en plein mot ni en plein chiffre). */
+function clip(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+  return end > max * 0.4 ? cut.slice(0, end + 1) : cut.slice(0, cut.lastIndexOf(" ")) + "…";
+}
+
 function cleanFindings(raw: unknown, cap: number): Finding[] {
   if (!Array.isArray(raw)) return [];
   return raw.slice(0, cap).flatMap((f) => {
@@ -60,8 +69,21 @@ function cleanFindings(raw: unknown, cap: number): Finding[] {
     const body = String(o?.body ?? "").trim();
     if (!title && !body) return [];
     const sev = OK_SEVERITIES.has(o?.severity as Severity) ? (o.severity as Severity) : "info";
-    return [{ severity: sev, title: title.slice(0, 200), body: body.slice(0, 800) }];
+    return [{ severity: sev, title: clip(title, 200), body: clip(body, 800) }];
   });
+}
+
+/**
+ * Mise en forme française des nombres de la narration (après dé-pseudonymisation) :
+ * milliers en espace fine (≥ 5 chiffres, et 4 chiffres devant une devise),
+ * décimales « 18.5 % » → « 18,5 % ». Pur formatage — aucune valeur modifiée.
+ */
+function frenchifyNumbers(s: string): string {
+  const group = (n: string) => Number(n).toLocaleString("fr-FR").replace(/[  ]/g, " ");
+  return s
+    .replace(/(\d+)\.(\d+)(\s*(?:%|FCFA|F\b))/g, "$1,$2$3")
+    .replace(/\d{5,}/g, group)
+    .replace(/\b(\d{4})(\s*(?:FCFA|F)\b)/g, (_, n, cur) => group(n) + cur);
 }
 
 /**
@@ -101,6 +123,10 @@ export async function runAgentPanel(
   const payload = buildAgentPayload(dataset);
   const timeoutMs = opts.timeoutMs ?? 90_000;
 
+  // Chaque repli est loggé avec sa cause : indispensable pour diagnostiquer un
+  // rapport premium sorti en mode déterministe (visible dans les logs Vercel).
+  const warn = (msg: string) => console.warn(`[report-agent] ${dataset.meta.docTitle}: ${msg}`);
+
   // 1) rôles en parallèle — un rôle qui échoue ou hallucine est simplement écarté
   const roleOutputs = await Promise.all(
     roles.map(async (role) => {
@@ -108,19 +134,23 @@ export async function runAgentPanel(
         const out = await opts.narrate(payload, {
           system: role.system,
           model: role.model ?? null,
-          maxTokens: role.maxTokens ?? 1200,
+          maxTokens: role.maxTokens ?? 1600,
           timeoutMs,
         });
-        if (!out || !citesOnlyKnownNumbers(out, payload)) return null;
+        if (!out) { warn(`rôle ${role.id} sans réponse LLM`); return null; }
+        const foreign = foreignNumbers(out, payload);
+        if (foreign.length > 0) { warn(`rôle ${role.id} rejeté (nombres étrangers: ${foreign.slice(0, 3).join(", ")})`); return null; }
         const findings = cleanFindings(extractJsonObject(out)?.findings, 5);
-        return findings.length > 0 ? { id: role.id, findings } : null;
-      } catch {
+        if (findings.length === 0) { warn(`rôle ${role.id} JSON illisible ou vide`); return null; }
+        return { id: role.id, findings };
+      } catch (e) {
+        warn(`rôle ${role.id} en erreur: ${e instanceof Error ? e.message : e}`);
         return null;
       }
     })
   );
   const heard = roleOutputs.filter((r): r is { id: string; findings: Finding[] } => r !== null);
-  if (heard.length === 0) return null;
+  if (heard.length === 0) { warn("aucun rôle entendu → repli déterministe"); return null; }
 
   // 2) rédacteur final
   const editorUser = JSON.stringify({
@@ -130,26 +160,31 @@ export async function runAgentPanel(
   const editorOut = await opts.narrate(editorUser, {
     system: EDITOR_SYSTEM(opts.decisionsTitle ?? "décisions proposées pour la période suivante"),
     model: opts.editorModel ?? null,
-    maxTokens: 3000,
+    maxTokens: 4096,
     timeoutMs,
-  }).catch(() => null);
+  }).catch((e) => { warn(`rédacteur en erreur: ${e instanceof Error ? e.message : e}`); return null; });
+  if (!editorOut) { warn("rédacteur sans réponse → repli déterministe"); return null; }
   // le garde compare aux données + constats (déjà validés contre les données)
-  if (!editorOut || !citesOnlyKnownNumbers(editorOut, editorUser)) return null;
+  const editorForeign = foreignNumbers(editorOut, editorUser);
+  if (editorForeign.length > 0) {
+    warn(`rédacteur rejeté (nombres étrangers: ${editorForeign.slice(0, 3).join(", ")}) → repli déterministe`);
+    return null;
+  }
 
   const parsed = extractJsonObject(editorOut);
-  if (!parsed) return null;
-  // pseudonymes → vrais noms, uniquement à l'affichage
+  if (!parsed) { warn("rédacteur JSON illisible (sortie tronquée ?) → repli déterministe"); return null; }
+  // pseudonymes → vrais noms + mise en forme française des nombres (affichage seul)
   const unalias = (s: string) => {
     let out = s;
     for (const [pseudo, real] of Object.entries(dataset.aliases ?? {})) out = out.split(pseudo).join(real);
-    return out;
+    return frenchifyNumbers(out);
   };
   const tldr = unalias(String(parsed.tldr ?? "").trim());
   const insights = cleanFindings(parsed.insights, 7)
     .map((i) => ({ ...i, title: unalias(i.title), body: unalias(i.body) }));
   const decisions = cleanFindings(parsed.decisions, 5)
     .map(({ title, body }) => ({ title: unalias(title), body: unalias(body) }));
-  if (!tldr || insights.length === 0) return null;
+  if (!tldr || insights.length === 0) { warn("rédacteur sans tldr/insights exploitables → repli déterministe"); return null; }
 
   return { tldr: tldr.slice(0, 1500), insights, decisions, rolesHeard: heard.map((r) => r.id) };
 }

@@ -632,7 +632,7 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
       "Les données ne contiennent ni heures en ligne, ni annulations, ni note conducteur : la qualité de service n'est pas mesurable — ne pas l'inventer.",
     ],
     deterministicInsights: [
-      { severity: "info", html: "<b>Analyse détaillée disponible en service premium.</b> Ce document présente les tables opérationnelles calculées (semaine type, dynamique hebdomadaire, efficience par chauffeur)." },
+      { severity: "info", html: "<b>Lecture des tables.</b> La semaine type situe les jours forts et faibles de la demande (où placer repos et entretiens) ; le film des semaines montre l'effet direct du nombre de chauffeurs actifs sur la recette ; l'efficience par chauffeur compare rendement kilométrique et coût carburant." },
     ],
     deterministicDecisions: [],
     deterministicTldr: `<b>L'essentiel.</b> ${p.reportRows.length} rapports analysés du ${frFull(dateFrom)} au ${frFull(dateTo)} : ${fmt(recetteOf(p.tot))} F de recette totale, ${fmt(p.tot.courses)} courses Yango.`,
