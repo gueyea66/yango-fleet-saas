@@ -44,6 +44,8 @@ interface PeriodAgg {
     comm: number; net: number; dep: number; sal: number; aco: number; courses: number;
   };
   depCat: Map<string, number>;
+  /** Lignes de charge brutes (motifs saisis) — matière du deep dive dépenses. */
+  expenseRows: { date: string; driver_id: string | null; category: string; amount: number; description: string }[];
   pending: number;
   reportRows: { date: string; driver_id: string; brut: number; bonus: number; hors: number; courses: number }[];
 }
@@ -56,7 +58,7 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
       .select("date,driver_id,yango_gross,yango_bonus,off_yango_revenue,commission_amount,service_supplementaire,net_after_expenses,yango_trip_count,end_odometer,status,comment")
       .eq("tenant_id", tenantId)
       .gte("date", dateFrom).lte("date", dateTo).order("date").limit(20000),
-    admin.from("expenses").select("driver_id,category,amount,expense_date")
+    admin.from("expenses").select("driver_id,category,amount,expense_date,description")
       .eq("tenant_id", tenantId).gte("expense_date", dateFrom).lte("expense_date", dateTo).limit(20000),
     admin.from("payments").select("driver_id,amount,payment_date,salary_month,type")
       .eq("tenant_id", tenantId).limit(20000),
@@ -130,6 +132,11 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
 
   return {
     drivers, tot, depCat,
+    expenseRows: expenses.map((e) => ({
+      date: e.expense_date || "", driver_id: e.driver_id,
+      category: e.category || "Autre", amount: Math.round(e.amount || 0),
+      description: String((e as { description?: string | null }).description || "").trim(),
+    })),
     pending: reports.length - approved.length,
     reportRows: approved.map((r) => ({
       date: r.date, driver_id: r.driver_id,
@@ -249,6 +256,39 @@ function driverTable(p: PeriodAgg, dateFrom: string, dateTo: string): Section {
   };
 }
 
+/**
+ * Charges notables : hors Carburant/Solde Yango, les plus grosses lignes de la
+ * période AVEC leur motif saisi — visibles dans le rapport et exploitées par le
+ * panel pour le deep dive dépenses (retour Abdou 02/09 : les décaissements
+ * propriétaire commentés doivent s'expliquer, pas finir en delta anonyme).
+ */
+function notableExpensesTable(p: PeriodAgg, top = 8): Section | null {
+  const nameOf = new Map(p.drivers.map((d) => [d.id, d.name]));
+  const rows = p.expenseRows
+    .filter((e) => e.category !== "Carburant" && e.category !== "Solde Yango" && e.amount >= 5000)
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, top)
+    .map((e) => ({
+      cells: [
+        fr(e.date), esc(e.category),
+        esc(e.description || "(sans motif — à documenter)"),
+        esc(e.driver_id ? (nameOf.get(e.driver_id) || "?") : "—"),
+        fmt(e.amount),
+      ],
+    }));
+  if (rows.length === 0) return null;
+  return {
+    kind: "table",
+    title: "Charges notables de la période",
+    columns: [
+      { label: "Date" }, { label: "Motif" }, { label: "Détail saisi" },
+      { label: "Chauffeur" }, { label: "Montant", align: "right" },
+    ],
+    rows,
+    note: "Hors carburant et solde Yango — les plus grosses lignes avec le motif saisi à la déclaration. Une ligne « sans motif » mérite d'être documentée pour que l'analyse mensuelle reste exploitable.",
+  };
+}
+
 function depBars(p: PeriodAgg): Section | null {
   if (p.depCat.size === 0) return null;
   const entries = Array.from(p.depCat.entries()).sort((a, b) => b[1] - a[1]);
@@ -359,6 +399,8 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
   const sections: Section[] = [driverTable(cur, dateFrom, dateTo)];
   const bars = depBars(cur);
   if (bars) sections.push(bars);
+  const notable = notableExpensesTable(cur);
+  if (notable) sections.push(notable);
 
   const facts: Record<string, string | number | null> = {
     ...baseFacts(cur),
@@ -389,6 +431,7 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
     context: [
       ...CONTEXT_COMMON,
       "Les faits préfixés mois_precedent_ couvrent la période précédente de même durée : compare la dynamique (recette, marge, carburant, effectif).",
+      "La table « Charges notables » donne le MOTIF saisi de chaque grosse ligne (décaissements propriétaire compris) : appuie l'analyse des dépenses dessus — un poste ne s'explique jamais par son seul total.",
     ],
     deterministicInsights: det.insights,
     deterministicDecisions: det.decisions,
@@ -623,6 +666,7 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
         rows: effRows,
         note: "Km par delta d'odomètre entre le premier et le dernier rapport de la période. Ponction = (commissions + services) / brut Yango. Hors-app = part de la recette totale hors plateforme.",
       },
+      ...(notableExpensesTable(p) ? [{ ...notableExpensesTable(p)!, title: "4. Charges commentées" } as Section] : []),
     ],
     facts,
     aliases: aliasesOf(p),

@@ -18,6 +18,7 @@ import {
   AlertTriangle, Info, TrendingUp, Fuel, Coins, Wallet, FileText, BedDouble, Paperclip, Trash2, ChevronRight, type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
+import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useDashboardKPIs } from "@/lib/hooks/useDashboardKPIs";
@@ -1806,7 +1807,7 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0)) + " XOF";
-  const expenseTypes = ["Carburant", "Péage", "Contrôle routier", "Entretien", "Lavage", "Amende", "Solde Yango", "Autre"];
+  const expenseTypes = [...EXPENSE_CATEGORIES];
 
   const saveEdit = async () => {
     setSaving(true);

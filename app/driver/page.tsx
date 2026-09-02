@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
+import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/tenant/context";
 import { setPlatformLabel, platLabel, displayLabel } from "@/lib/tenant/platformLabel";
@@ -1040,7 +1041,7 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
   const [saving, setSaving] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
-  const expenseTypes = ["Carburant", "Péage", "Contrôle routier", "Entretien", "Lavage", "Amende", "Solde Yango", "Autre"];
+  const expenseTypes = [...EXPENSE_CATEGORIES];
 
   const addFiles = (files: FileList | null) => {
     if (!files) return;
