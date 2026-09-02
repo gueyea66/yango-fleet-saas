@@ -18,6 +18,7 @@ Règles ABSOLUES (non négociables) :
 - Tu ne fais AUCUN calcul (ni addition, ni pourcentage, ni conversion, ni arrondi).
 - Si une conclusion demanderait un calcul, formule-la sans chiffre.
 - Le rapport est un LIVRABLE FINAL pour son destinataire : ne mentionne JAMAIS de versions, corrections, itérations, bugs, sources de données ou processus de génération — uniquement les faits de la période.
+- Français naturel : ne recopie JAMAIS un nom de clé technique (écris « rapports en attente », jamais « rapports_en_attente »). Phrases toujours complètes et terminées.
 - Réponds UNIQUEMENT avec l'objet JSON demandé, sans texte autour, sans markdown.
 - Français direct et concret, niveau consultant senior qui parle à un patron de PME.`;
 
@@ -52,6 +53,14 @@ const OK_SEVERITIES = new Set<Severity>(["info", "ok", "warn", "alert"]);
 
 interface Finding { severity: Severity; title: string; body: string }
 
+/** Tronque à la fin de phrase (jamais en plein mot ni en plein chiffre). */
+function clip(s: string, max: number): string {
+  if (s.length <= max) return s;
+  const cut = s.slice(0, max);
+  const end = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf("! "), cut.lastIndexOf("? "));
+  return end > max * 0.4 ? cut.slice(0, end + 1) : cut.slice(0, cut.lastIndexOf(" ")) + "…";
+}
+
 function cleanFindings(raw: unknown, cap: number): Finding[] {
   if (!Array.isArray(raw)) return [];
   return raw.slice(0, cap).flatMap((f) => {
@@ -60,8 +69,21 @@ function cleanFindings(raw: unknown, cap: number): Finding[] {
     const body = String(o?.body ?? "").trim();
     if (!title && !body) return [];
     const sev = OK_SEVERITIES.has(o?.severity as Severity) ? (o.severity as Severity) : "info";
-    return [{ severity: sev, title: title.slice(0, 200), body: body.slice(0, 800) }];
+    return [{ severity: sev, title: clip(title, 200), body: clip(body, 800) }];
   });
+}
+
+/**
+ * Mise en forme française des nombres de la narration (après dé-pseudonymisation) :
+ * milliers en espace fine (≥ 5 chiffres, et 4 chiffres devant une devise),
+ * décimales « 18.5 % » → « 18,5 % ». Pur formatage — aucune valeur modifiée.
+ */
+function frenchifyNumbers(s: string): string {
+  const group = (n: string) => Number(n).toLocaleString("fr-FR").replace(/[  ]/g, " ");
+  return s
+    .replace(/(\d+)\.(\d+)(\s*(?:%|FCFA|F\b))/g, "$1,$2$3")
+    .replace(/\d{5,}/g, group)
+    .replace(/\b(\d{4})(\s*(?:FCFA|F)\b)/g, (_, n, cur) => group(n) + cur);
 }
 
 /**
@@ -151,11 +173,11 @@ export async function runAgentPanel(
 
   const parsed = extractJsonObject(editorOut);
   if (!parsed) { warn("rédacteur JSON illisible (sortie tronquée ?) → repli déterministe"); return null; }
-  // pseudonymes → vrais noms, uniquement à l'affichage
+  // pseudonymes → vrais noms + mise en forme française des nombres (affichage seul)
   const unalias = (s: string) => {
     let out = s;
     for (const [pseudo, real] of Object.entries(dataset.aliases ?? {})) out = out.split(pseudo).join(real);
-    return out;
+    return frenchifyNumbers(out);
   };
   const tldr = unalias(String(parsed.tldr ?? "").trim());
   const insights = cleanFindings(parsed.insights, 7)
