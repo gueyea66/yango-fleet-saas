@@ -315,6 +315,10 @@ async function buildBriefingContent(
 
   // ── Faits calculés « palpables » : ce que les cartes KPI ne montrent PAS ──
   // (retour terrain 29/07 : la narration répétait les chiffres déjà affichés)
+  // Trajectoire (retour Abdou 02/09) : le 2 du mois, « il manque 976 000 F au
+  // palier » est trivial — le signal utile est le RYTHME comparé au besoin
+  // nominal du mois entier (au-dessus/en-dessous de la trajectoire, de combien).
+  const joursOuvresMois = Math.max(1, joursOuvresProjetes(monthStart, monthEnd));
   const paliers = chauffeurs
     .filter((c) => c.palier_cible_fcfa && joursRestants > 0 && joursOuvresRestants > 0)
     .map((c) => {
@@ -323,6 +327,7 @@ async function buildBriefingContent(
       // comparer un rythme hors repos à un besoin calendaire gonflait l'écart.
       const rythme = Math.round(c.ca_mtd_fcfa / Math.max(1, c.jours_travailles_mtd ?? 1));
       const besoin = Math.ceil(manque / joursOuvresRestants);
+      const nominal = Math.ceil((c.palier_cible_fcfa ?? 0) / joursOuvresMois);
       // Tous les écarts sont PRÉ-CALCULÉS : le LLM n'a jamais à faire une
       // soustraction (cause du rejet anti-hallucination du 29/07).
       return {
@@ -334,16 +339,33 @@ async function buildBriefingContent(
         effort_supplementaire_fcfa_par_jour: Math.max(0, besoin - rythme),
         jours_ouvres_restants: joursOuvresRestants,
         atteignable: besoin <= rythme * 2,
+        rythme_requis_sur_le_mois_fcfa_par_jour: nominal,
+        ecart_vs_trajectoire_fcfa_par_jour: rythme - nominal,
+        sur_trajectoire: rythme >= nominal,
       };
     })
     .filter((p) => p.besoin_fcfa_par_jour_pour_palier > 0);
 
+  // Les libellés saisis peuvent contenir des noms de chauffeurs : on les
+  // remplace par leur pseudonyme avant envoi au LLM (doctrine llmGateway).
+  const scrubNames = (s: string) => {
+    let out = s;
+    for (const c of chauffeurs) {
+      for (const token of c.driver_name.split(/\s+/).filter((t) => t.length >= 3)) {
+        out = out.replace(new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), c.driver_ref);
+      }
+    }
+    return out;
+  };
   const depensesMouvements = topExpenseMovements(
     win.expenses, cur.from, cur.to, prev.from, prev.to
   ).map((m) => ({
     poste: m.poste,
     mouvement: `${m.sens} de ${Math.abs(m.delta_fcfa)} FCFA vs semaine précédente`,
     delta_fcfa: m.delta_fcfa,
+    // Ce qui COMPOSE le mouvement (commentaires d'Abdou) : le brief explique,
+    // il ne constate pas (retour 02/09 « chercher les réponses au constat »).
+    explication_lignes: m.lignes.map((l) => ({ montant_fcfa: l.montant_fcfa, libelle: scrubNames(l.libelle) })),
   }));
 
   // Nouveaux chauffeurs du mois : le briefing doit les accueillir (objectif,
@@ -436,20 +458,27 @@ async function buildBriefingContent(
 }
 
 /** Le briefing est structuré et ne répète pas ce que l'écran montre déjà. */
-const BRIEFING_JSON_SYSTEM = `Tu rédiges le briefing matinal d'un opérateur de flotte VTC à Dakar.
+const BRIEFING_JSON_SYSTEM = `Tu rédiges le brief matinal du PATRON d'une flotte VTC à Dakar.
+Style directeur d'exploitation : télégraphique, factuel, zéro remplissage, zéro phrase d'ambiance
+(« surveillance prioritaire », « à suivre », « courbe d'apprentissage » = interdits).
 Réponds UNIQUEMENT par un objet JSON valide, sans texte autour :
 {"points":["…","…"],"action":"…"}
 Règles ABSOLUES :
-- 2 ou 3 points maximum, UNE phrase courte par point, français direct, AUCUN markdown ni astérisque.
-- Chaque point doit apprendre quelque chose de NON visible sur les cartes KPI : utilise faits_calcules
-  (rythme vs besoin par jour pour un palier, poste de dépense qui bouge) et projections.
+- 2 ou 3 points maximum, UNE phrase courte par point, AUCUN markdown ni astérisque.
+- CHAQUE point = constat + CAUSE tirée des données + ce que ça implique. Un constat sans son
+  explication est INTERDIT : les réponses sont dans le JSON (explication_lignes des dépenses,
+  ecart_vs_trajectoire des paliers, nouveaux_chauffeurs, projections) — va les chercher.
+- Paliers : juge la TRAJECTOIRE — rythme_actuel_fcfa_par_jour vs rythme_requis_sur_le_mois_fcfa_par_jour
+  (ecart_vs_trajectoire_fcfa_par_jour, sur_trajectoire). INTERDIT de citer manque_total_fcfa quand
+  jours_restants_mois > 20 : en début de mois ce chiffre est trivial et n'apprend rien.
+- Dépenses : nomme CE QUI compose un mouvement (explication_lignes : montants + libellés saisis),
+  jamais un delta seul.
 - INTERDIT de recopier les valeurs de kpis_deja_affiches_a_l_ecran, sauf pour les mettre en rapport avec un fait.
 - Tu n'inventes JAMAIS un chiffre et tu ne fais JAMAIS de calcul (ni somme, ni différence, ni arrondi) :
-  uniquement les nombres du JSON fourni, recopiés tels quels. Tous les écarts utiles sont déjà fournis
-  (manque_total_fcfa, effort_supplementaire_fcfa_par_jour…).
+  uniquement les nombres du JSON fourni, recopiés tels quels — tous les écarts utiles sont déjà fournis.
 - Les chauffeurs sont désignés par leur référence drv_xxxx : recopie-les telles quelles.
-- Si nouveaux_chauffeurs n'est pas vide : consacre un point au nouveau (démarrage, premiers chiffres,
-  objectif) SANS le comparer aux anciens — ses ratios ne sont pas encore représentatifs.
+- Si nouveaux_chauffeurs n'est pas vide : un point factuel sur le nouveau (date de démarrage, CA,
+  jours) SANS le comparer aux anciens.
 - Ne mentionne JAMAIS un chauffeur absent du JSON (les partis/contrats terminés n'existent plus pour toi).
 - "action" : UNE action concrète et CHIFFRÉE pour aujourd'hui (qui, combien, sur combien de jours).`;
 

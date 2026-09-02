@@ -38,6 +38,8 @@ export interface RawExpense {
   amount: number | null;
   expense_date: string | null;
   status: string | null;      // null | submitted | approved
+  /** Commentaire saisi (Abdou documente ses dépenses) — matière première des explications du brief. */
+  description?: string | null;
 }
 
 export interface RawDriver {
@@ -90,9 +92,9 @@ export async function fetchTenantWindow(tenantId: string, days = 70): Promise<Te
       .gte("date", from)
       .order("date", { ascending: true }),
     admin.from("expenses")
-      .select("driver_id, category, amount, expense_date, status")
+      .select("driver_id, category, amount, expense_date, status, description")
       .eq("tenant_id", tenantId)
-      
+
       .gte("expense_date", from),
   ]);
 
@@ -211,7 +213,13 @@ export function topExpenseMovements(
   curFrom: string, curTo: string,
   prevFrom: string, prevTo: string,
   minDelta = 5_000, top = 3
-): Array<{ poste: string; delta_fcfa: number; sens: "hausse" | "baisse" }> {
+): Array<{
+  poste: string; delta_fcfa: number; sens: "hausse" | "baisse";
+  /** Lignes de la semaine courante qui composent le poste (montant + commentaire
+   *  saisi) — le brief EXPLIQUE le mouvement au lieu de le constater (retour
+   *  Abdou 02/09 : « chercher les réponses au constat »). */
+  lignes: Array<{ montant_fcfa: number; libelle: string }>;
+}> {
   const sum = (from: string, to: string) => {
     const acc = new Map<string, number>();
     for (const e of expenses) {
@@ -228,7 +236,15 @@ export function topExpenseMovements(
   return [...cats]
     .map((poste) => {
       const delta = Math.round((cur.get(poste) ?? 0) - (prev.get(poste) ?? 0));
-      return { poste, delta_fcfa: delta, sens: (delta >= 0 ? "hausse" : "baisse") as "hausse" | "baisse" };
+      const lignes = expenses
+        .filter((e) => (e.category ?? "Autre") === poste && expenseOk(e) && inPeriod(e.expense_date, curFrom, curTo))
+        .sort((a, b) => n(b.amount) - n(a.amount))
+        .slice(0, 3)
+        .map((e) => ({
+          montant_fcfa: Math.round(n(e.amount)),
+          libelle: (e.description ?? "").trim().slice(0, 80) || "(sans commentaire)",
+        }));
+      return { poste, delta_fcfa: delta, sens: (delta >= 0 ? "hausse" : "baisse") as "hausse" | "baisse", lignes };
     })
     .filter((m) => Math.abs(m.delta_fcfa) >= minDelta)
     .sort((a, b) => Math.abs(b.delta_fcfa) - Math.abs(a.delta_fcfa))
