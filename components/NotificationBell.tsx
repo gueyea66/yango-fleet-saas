@@ -25,6 +25,9 @@ export default function NotificationBell() {
   const [unread, setUnread] = useState(0);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  // Cloche en bas de la sidebar admin : le panneau doit s'ouvrir vers le HAUT
+  // sinon il sort de l'écran (retour Abdou 03/09 « alertes illisibles »).
+  const [openUp, setOpenUp] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   // Sur mobile, la barre d'en-tête défile horizontalement : un panneau en
@@ -137,7 +140,11 @@ export default function NotificationBell() {
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          const r = ref.current?.getBoundingClientRect();
+          setOpenUp(!!r && window.innerHeight - r.bottom < 440);
+          setOpen((o) => !o);
+        }}
         style={{ position: "relative", background: "none", border: "none", cursor: "pointer", padding: "4px 8px", color: "#888" }}
         title="Notifications"
       >
@@ -159,9 +166,11 @@ export default function NotificationBell() {
         <div style={{
           ...(isMobile
             ? { position: "fixed" as const, left: 8, right: 8, top: 72, width: "auto" }
-            : { position: "absolute" as const, right: 0, top: "36px", width: "320px" }),
+            : openUp
+              ? { position: "absolute" as const, left: 0, bottom: "36px", width: "320px" }
+              : { position: "absolute" as const, right: 0, top: "36px", width: "320px" }),
           zIndex: 1000,
-          background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderRadius: "16px",
+          background: "var(--sk-bg, #0b0e15)", border: "1px solid var(--sk-surface, #232838)", borderRadius: "16px",
           boxShadow: "0 8px 32px rgba(0,0,0,.6)", overflow: "hidden",
         }}>
           <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--sk-surface)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>

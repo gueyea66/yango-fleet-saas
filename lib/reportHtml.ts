@@ -59,11 +59,11 @@ export function previousMonthRange(now: Date = new Date()): { dateFrom: string; 
   return { dateFrom: first.toISOString().slice(0, 10), dateTo: last.toISOString().slice(0, 10) };
 }
 
-function fleetTheme(tenantName: string): BrandTheme {
+function fleetTheme(tenantName: string, platformLabel: string): BrandTheme {
   return {
     brandName: tenantName || "M3A FLEET",
-    tagline: "Gestion de flotte Yango · Dakar",
-    footerBrand: "M3A GROUP",
+    tagline: platformLabel === "Yango" ? "Gestion de flotte Yango · Dakar" : "Gestion de flotte · Dakar",
+    footerBrand: tenantName || "M3A GROUP",
   };
 }
 
@@ -79,7 +79,7 @@ export async function buildReportHtml(
   opts: BuildReportOptions = {}
 ): Promise<{ html: string; period: string; tenantName: string; narrated: boolean }> {
   const kind = opts.kind ?? "monthly";
-  const { dataset, tenantName } = await buildFleetDataset(tenantId, dateFrom, dateTo, kind);
+  const { dataset, tenantName, platformLabel } = await buildFleetDataset(tenantId, dateFrom, dateTo, kind);
 
   let narrative: NarrativeResult | null = null;
   const agentOn = (process.env.REPORT_AGENT ?? "on") !== "off";
@@ -96,7 +96,7 @@ export async function buildReportHtml(
     }
   }
 
-  const html = renderReport(dataset, fleetTheme(tenantName), narrative, {
+  const html = renderReport(dataset, fleetTheme(tenantName, platformLabel), narrative, {
     decisionsTitle: "Décisions proposées pour la période suivante",
   });
   const period = `${dateFrom.slice(8, 10)}/${dateFrom.slice(5, 7)}/${dateFrom.slice(0, 4)} → ${dateTo.slice(8, 10)}/${dateTo.slice(5, 7)}/${dateTo.slice(0, 4)}`;

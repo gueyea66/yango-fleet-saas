@@ -683,15 +683,43 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
   };
 }
 
+/**
+ * White-label des libellés (retour Abdou 03/09) : le mot « Yango » des textes
+ * générés est remplacé par le platform_label du tenant (migration 038) — même
+ * règle que displayLabel côté UI. Valeurs stockées (catégories, colonnes) intactes.
+ */
+function whiteLabelDataset(dataset: ReportDataset, label: string): ReportDataset {
+  if (!label || label === "Yango") return dataset;
+  const wl = (s: string) => s.replace(/Yango/g, label);
+  return {
+    ...dataset,
+    kpis: dataset.kpis.map((k) => ({ ...k, label: wl(k.label), sub: k.sub ? wl(k.sub) : k.sub })),
+    sections: dataset.sections.map((s) => s.kind === "table"
+      ? { ...s, title: wl(s.title), note: s.note ? wl(s.note) : s.note,
+          columns: s.columns.map((c) => ({ ...c, label: wl(c.label) })),
+          rows: s.rows.map((r) => ({ ...r, cells: r.cells.map(wl) })) }
+      : { ...s, title: wl(s.title), note: s.note ? wl(s.note) : s.note,
+          bars: s.bars.map((b) => ({ ...b, label: wl(b.label), amountLabel: wl(b.amountLabel) })) }),
+    context: (dataset.context ?? []).map(wl),
+    deterministicInsights: dataset.deterministicInsights.map((i) => ({ ...i, html: wl(i.html) })),
+    deterministicDecisions: (dataset.deterministicDecisions ?? []).map((d) => ({ html: wl(d.html) })),
+    deterministicTldr: wl(dataset.deterministicTldr),
+  };
+}
+
 /** Point d'entrée de l'adaptateur. */
 export async function buildFleetDataset(
   tenantId: string, dateFrom: string, dateTo: string, kind: FleetReportKind
-): Promise<{ dataset: ReportDataset; tenantName: string }> {
-  const { data: tenant } = await admin.from("tenants").select("name").eq("id", tenantId).single();
+): Promise<{ dataset: ReportDataset; tenantName: string; platformLabel: string }> {
+  const [{ data: tenant }, { data: ts }] = await Promise.all([
+    admin.from("tenants").select("name").eq("id", tenantId).single(),
+    admin.from("tenant_settings").select("platform_label, operator_name").eq("tenant_id", tenantId).maybeSingle(),
+  ]);
   const tenantName = tenant?.name || "M3A Fleet";
+  const platformLabel = (ts?.platform_label || "Yango").trim() || "Yango";
   const dataset =
     kind === "ytd" ? await ytdDataset(tenantId, dateTo, tenantName)
     : kind === "deepdive" ? await deepdiveDataset(tenantId, dateFrom, dateTo, tenantName)
     : await monthlyDataset(tenantId, dateFrom, dateTo, tenantName);
-  return { dataset, tenantName };
+  return { dataset: whiteLabelDataset(dataset, platformLabel), tenantName, platformLabel };
 }

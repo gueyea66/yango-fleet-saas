@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
 import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
 import { createClient } from "@/lib/supabase/client";
-import { useTenant } from "@/lib/tenant/context";
+import { useTenant, applyTenantBrandingOverride } from "@/lib/tenant/context";
 import { setPlatformLabel, platLabel, displayLabel } from "@/lib/tenant/platformLabel";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import NotificationBell from "@/components/NotificationBell";
@@ -104,7 +104,13 @@ export default function DriverApp() {
         if (data.tenant_id) {
           // Libellé plateforme du tenant (select * : tolère migration 038 absente)
           void supabase.from("tenant_settings").select("*").eq("tenant_id", data.tenant_id).maybeSingle()
-            .then(({ data: ts }: any) => { if (ts?.platform_label) { setPlatformLabel(ts.platform_label); setPlat(ts.platform_label); } });
+            .then(({ data: ts }: any) => {
+              if (ts?.platform_label) { setPlatformLabel(ts.platform_label); setPlat(ts.platform_label); }
+              if (ts) applyTenantBrandingOverride({
+                app_name: ts.app_name, logo_url: ts.logo_url, primary_color: ts.primary_color,
+                skin: ts.skin, operator_name: ts.operator_name, currency: ts.currency,
+              });
+            });
           const { data: remun } = await supabase
             .from("remuneration_config")
             .select("*")

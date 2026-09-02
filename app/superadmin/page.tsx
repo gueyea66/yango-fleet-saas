@@ -302,7 +302,7 @@ export default function SuperAdminPage() {
           </div>
           <button onClick={load} style={{ marginLeft: "auto", background: "var(--sk-surface)", border: "none", borderRadius: 8, padding: "8px 16px", color: "#9ca3af", cursor: "pointer", fontSize: 13 }}>↻ Rafraîchir</button>
           <button onClick={lockConsole} title="Oublier la clé sur cet appareil"
-            style={{ background: "var(--sk-surface)", border: "none", borderRadius: 8, padding: "8px 16px", color: "#9ca3af", cursor: "pointer", fontSize: 13 }}>🔒 Verrouiller</button>
+            style={{ background: "var(--sk-surface)", border: "none", borderRadius: 8, padding: "8px 16px", color: "#9ca3af", cursor: "pointer", fontSize: 13 }}>⎋ Déconnexion</button>
         </div>
 
         {/* Tabs */}

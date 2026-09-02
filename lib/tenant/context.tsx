@@ -6,6 +6,14 @@ import type { TenantContext } from "./types";
 
 const Ctx = createContext<TenantContext | null>(null);
 
+// Après connexion, le tenant du PROFIL fait autorité sur le hostname (retour
+// Abdou 03/09 : connecté au compte test depuis l'apex, il voyait le branding
+// par défaut). Les pages authentifiées poussent ici les settings de LEUR tenant.
+let overrideListener: ((s: Partial<TenantContext["settings"]>) => void) | null = null;
+export function applyTenantBrandingOverride(s: Partial<TenantContext["settings"]>) {
+  overrideListener?.(s);
+}
+
 const FALLBACK: TenantContext = {
   tenant: { id: "", slug: "m3a", name: "Fleet Manager", domain: null, plan: "pro", active: true, created_at: "" },
   settings: { id: "", tenant_id: "", app_name: "Fleet Manager", logo_url: null, primary_color: "#f5a623", currency: "XOF", timezone: "Africa/Dakar", operator_name: null, skin: "midnight" },
@@ -19,6 +27,8 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     loadTenantContext()
       .then(setCtx)
       .catch((err) => console.error("Tenant load failed:", err));
+    overrideListener = (s) => setCtx((prev) => ({ ...prev, settings: { ...prev.settings, ...s } }));
+    return () => { overrideListener = null; };
   }, []);
 
   // Inject CSS variables + page title from tenant settings
