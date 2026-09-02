@@ -150,7 +150,9 @@ describe("Briefing palpable — faits calculés et parsing JSON", () => {
     ];
     const out = topExpenseMovements(expenses, "2026-07-22", "2026-07-28", "2026-07-15", "2026-07-21");
     expect(out).toHaveLength(1); // Lavage sous minDelta, Carburant exclu
-    expect(out[0]).toEqual({ poste: "Entretien", delta_fcfa: 70_000, sens: "hausse" });
+    expect(out[0]).toMatchObject({ poste: "Entretien", delta_fcfa: 70_000, sens: "hausse" });
+    // Les lignes qui composent le mouvement expliquent le constat (retour 02/09).
+    expect(out[0].lignes).toEqual([{ montant_fcfa: 80_000, libelle: "(sans commentaire)" }]);
   });
 
   it("extractJsonObject tolère les fences et rejette l'illisible", () => {
