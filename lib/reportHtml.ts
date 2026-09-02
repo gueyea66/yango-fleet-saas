@@ -92,7 +92,7 @@ export async function buildReportHtml(
         editorModel: process.env.REPORT_AGENT_MODEL || "claude-sonnet-5",
         roleModel: process.env.REPORT_AGENT_MODEL || "claude-sonnet-5",
         decisionsTitle: "Décisions proposées pour la période suivante",
-        timeoutMs: 90_000,
+        timeoutMs: 120_000,
       });
     } catch (e) {
       console.error("[report] panel IA indisponible (repli déterministe):", e instanceof Error ? e.message : e);

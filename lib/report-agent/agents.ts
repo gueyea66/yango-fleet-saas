@@ -20,6 +20,7 @@ Règles ABSOLUES (non négociables) :
 - Le rapport est un LIVRABLE FINAL pour son destinataire : ne mentionne JAMAIS de versions, corrections, itérations, bugs, sources de données ou processus de génération — uniquement les faits de la période.
 - Français naturel : ne recopie JAMAIS un nom de clé technique (écris « rapports en attente », jamais « rapports_en_attente »). Phrases toujours complètes et terminées.
 - Réponds UNIQUEMENT avec l'objet JSON demandé, sans texte autour, sans markdown.
+- Sois BREF : body de 2 phrases maximum par constat — une sortie trop longue est tronquée et perdue.
 - Français direct et concret, niveau consultant senior qui parle à un patron de PME.`;
 
 export const DEFAULT_ROLES: AgentRole[] = [
@@ -134,14 +135,17 @@ export async function runAgentPanel(
         const out = await opts.narrate(payload, {
           system: role.system,
           model: role.model ?? opts.roleModel ?? null,
-          maxTokens: role.maxTokens ?? 1600,
+          maxTokens: role.maxTokens ?? 2500,
           timeoutMs,
         });
         if (!out) { warn(`rôle ${role.id} sans réponse LLM`); return null; }
         const foreign = foreignNumbers(out, payload);
         if (foreign.length > 0) { warn(`rôle ${role.id} rejeté (nombres étrangers: ${foreign.slice(0, 3).join(", ")})`); return null; }
         const findings = cleanFindings(extractJsonObject(out)?.findings, 5);
-        if (findings.length === 0) { warn(`rôle ${role.id} JSON illisible ou vide`); return null; }
+        if (findings.length === 0) {
+          warn(`rôle ${role.id} JSON illisible ou vide (fin de sortie: …${out.slice(-160).replace(/\s+/g, " ")})`);
+          return null;
+        }
         return { id: role.id, findings };
       } catch (e) {
         warn(`rôle ${role.id} en erreur: ${e instanceof Error ? e.message : e}`);
