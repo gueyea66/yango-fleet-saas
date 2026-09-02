@@ -24,7 +24,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useDashboardKPIs } from "@/lib/hooks/useDashboardKPIs";
 import NotificationBell from "@/components/NotificationBell";
 import ImportHistoriqueModal from "@/components/ImportHistoriqueModal";
-import { useTenant } from "@/lib/tenant/context";
+import { useTenant, applyTenantBrandingOverride } from "@/lib/tenant/context";
 import SimpleModeAdmin from "@/components/SimpleModeAdmin";
 import { setPlatformLabel, platLabel, displayLabel } from "@/lib/tenant/platformLabel";
 import { BrandLogo } from "@/components/brand/BrandShell";
@@ -146,6 +146,12 @@ export default function AdminPage() {
       ]);
       if (ts?.ui_mode) setTenantUiMode(ts.ui_mode);
       if (ts?.platform_label) { setPlatformLabel(ts.platform_label); setTenantPlatformLabel(ts.platform_label); }
+      // Branding du tenant du PROFIL (couleur, logo, nom, skin) — autorité sur
+      // le hostname : l'admin connecté depuis l'apex voit SON branding.
+      if (ts) applyTenantBrandingOverride({
+        app_name: ts.app_name, logo_url: ts.logo_url, primary_color: ts.primary_color,
+        skin: ts.skin, operator_name: ts.operator_name, currency: ts.currency,
+      });
       const plateMap = Object.fromEntries((vehs || []).map((v: any) => [v.driver_id, v.plate]));
       setAllDrivers((profs || []).map((p: any) => ({ ...p, plate: plateMap[p.id] || null })));
       if (rc) setRemunCfg(rc);

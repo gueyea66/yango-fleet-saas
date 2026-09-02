@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
 import { usePilotage, DEFAULT_PARAMS, xofFmt, type PilotageParams } from "@/lib/hooks/usePilotage";
-import { useTenant } from "@/lib/tenant/context";
+import { useTenant, applyTenantBrandingOverride } from "@/lib/tenant/context";
 import { setPlatformLabel, platLabel, displayLabel } from "@/lib/tenant/platformLabel";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import {
@@ -93,6 +93,10 @@ export default function PilotagePage() {
     (async () => {
       const sb = createClient() as any;
       const { data: ts } = await sb.from("tenant_settings").select("*").eq("tenant_id", tenantId).maybeSingle();
+      if (ts) applyTenantBrandingOverride({
+        app_name: ts.app_name, logo_url: ts.logo_url, primary_color: ts.primary_color,
+        skin: ts.skin, operator_name: ts.operator_name, currency: ts.currency,
+      });
       if (ts?.platform_label) { setPlatformLabel(ts.platform_label); setPlatTick((t) => t + 1); }
     })();
   }, [tenantId]);
