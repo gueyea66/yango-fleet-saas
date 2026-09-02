@@ -133,7 +133,7 @@ export async function runAgentPanel(
       try {
         const out = await opts.narrate(payload, {
           system: role.system,
-          model: role.model ?? null,
+          model: role.model ?? opts.roleModel ?? null,
           maxTokens: role.maxTokens ?? 1600,
           timeoutMs,
         });

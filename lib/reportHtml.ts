@@ -85,9 +85,12 @@ export async function buildReportHtml(
   const agentOn = (process.env.REPORT_AGENT ?? "on") !== "off";
   if (opts.premium && agentOn) {
     try {
+      // Rôles ET rédacteur sur Sonnet : Haiku calcule/arrondit malgré la consigne
+      // et se fait rejeter par le garde (observé en prod 02-03/09, brief compris).
       narrative = await runAgentPanel(dataset, {
         narrate,
         editorModel: process.env.REPORT_AGENT_MODEL || "claude-sonnet-5",
+        roleModel: process.env.REPORT_AGENT_MODEL || "claude-sonnet-5",
         decisionsTitle: "Décisions proposées pour la période suivante",
         timeoutMs: 90_000,
       });
