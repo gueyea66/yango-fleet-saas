@@ -260,10 +260,10 @@ export default async function Home() {
         <div className="max-w-4xl mx-auto px-5 sm:px-8 py-20 sm:py-28" style={{ borderColor: "var(--sk-surface)" }}>
           <div className="text-center mb-10">
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
-              La solution en action
+              50 secondes pour comprendre
             </h2>
             <p style={{ color: "var(--sk-t2)" }}>
-              Le circuit complet, du chauffeur au patron, sur des écrans réels.
+              Déclarer, valider, piloter — puis essayez par vous-même ou demandez une démonstration.
             </p>
           </div>
           <div className="aspect-video">
