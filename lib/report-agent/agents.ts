@@ -9,7 +9,7 @@
 import type {
   AgentPanelOptions, AgentRole, NarrativeResult, ReportDataset, Severity,
 } from "./types";
-import { citesOnlyKnownNumbers, extractJsonObject } from "./guard";
+import { extractJsonObject, foreignNumbers } from "./guard";
 
 const COMMON_RULES = `
 Règles ABSOLUES (non négociables) :
@@ -101,6 +101,10 @@ export async function runAgentPanel(
   const payload = buildAgentPayload(dataset);
   const timeoutMs = opts.timeoutMs ?? 90_000;
 
+  // Chaque repli est loggé avec sa cause : indispensable pour diagnostiquer un
+  // rapport premium sorti en mode déterministe (visible dans les logs Vercel).
+  const warn = (msg: string) => console.warn(`[report-agent] ${dataset.meta.docTitle}: ${msg}`);
+
   // 1) rôles en parallèle — un rôle qui échoue ou hallucine est simplement écarté
   const roleOutputs = await Promise.all(
     roles.map(async (role) => {
@@ -108,19 +112,23 @@ export async function runAgentPanel(
         const out = await opts.narrate(payload, {
           system: role.system,
           model: role.model ?? null,
-          maxTokens: role.maxTokens ?? 1200,
+          maxTokens: role.maxTokens ?? 1600,
           timeoutMs,
         });
-        if (!out || !citesOnlyKnownNumbers(out, payload)) return null;
+        if (!out) { warn(`rôle ${role.id} sans réponse LLM`); return null; }
+        const foreign = foreignNumbers(out, payload);
+        if (foreign.length > 0) { warn(`rôle ${role.id} rejeté (nombres étrangers: ${foreign.slice(0, 3).join(", ")})`); return null; }
         const findings = cleanFindings(extractJsonObject(out)?.findings, 5);
-        return findings.length > 0 ? { id: role.id, findings } : null;
-      } catch {
+        if (findings.length === 0) { warn(`rôle ${role.id} JSON illisible ou vide`); return null; }
+        return { id: role.id, findings };
+      } catch (e) {
+        warn(`rôle ${role.id} en erreur: ${e instanceof Error ? e.message : e}`);
         return null;
       }
     })
   );
   const heard = roleOutputs.filter((r): r is { id: string; findings: Finding[] } => r !== null);
-  if (heard.length === 0) return null;
+  if (heard.length === 0) { warn("aucun rôle entendu → repli déterministe"); return null; }
 
   // 2) rédacteur final
   const editorUser = JSON.stringify({
@@ -130,14 +138,19 @@ export async function runAgentPanel(
   const editorOut = await opts.narrate(editorUser, {
     system: EDITOR_SYSTEM(opts.decisionsTitle ?? "décisions proposées pour la période suivante"),
     model: opts.editorModel ?? null,
-    maxTokens: 3000,
+    maxTokens: 4096,
     timeoutMs,
-  }).catch(() => null);
+  }).catch((e) => { warn(`rédacteur en erreur: ${e instanceof Error ? e.message : e}`); return null; });
+  if (!editorOut) { warn("rédacteur sans réponse → repli déterministe"); return null; }
   // le garde compare aux données + constats (déjà validés contre les données)
-  if (!editorOut || !citesOnlyKnownNumbers(editorOut, editorUser)) return null;
+  const editorForeign = foreignNumbers(editorOut, editorUser);
+  if (editorForeign.length > 0) {
+    warn(`rédacteur rejeté (nombres étrangers: ${editorForeign.slice(0, 3).join(", ")}) → repli déterministe`);
+    return null;
+  }
 
   const parsed = extractJsonObject(editorOut);
-  if (!parsed) return null;
+  if (!parsed) { warn("rédacteur JSON illisible (sortie tronquée ?) → repli déterministe"); return null; }
   // pseudonymes → vrais noms, uniquement à l'affichage
   const unalias = (s: string) => {
     let out = s;
@@ -149,7 +162,7 @@ export async function runAgentPanel(
     .map((i) => ({ ...i, title: unalias(i.title), body: unalias(i.body) }));
   const decisions = cleanFindings(parsed.decisions, 5)
     .map(({ title, body }) => ({ title: unalias(title), body: unalias(body) }));
-  if (!tldr || insights.length === 0) return null;
+  if (!tldr || insights.length === 0) { warn("rédacteur sans tldr/insights exploitables → repli déterministe"); return null; }
 
   return { tldr: tldr.slice(0, 1500), insights, decisions, rolesHeard: heard.map((r) => r.id) };
 }
