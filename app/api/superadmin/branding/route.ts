@@ -148,7 +148,7 @@ export async function POST(req: NextRequest) {
     if (Object.keys(patch).length > 0) {
       const { error: updateError } = await adminClient
         .from("tenant_settings")
-        .update({ ...patch, updated_at: new Date().toISOString() })
+        .upsert({ tenant_id: tenantId, ...patch, updated_at: new Date().toISOString() }, { onConflict: "tenant_id" })
         .eq("tenant_id", tenantId);
       if (updateError) {
         return NextResponse.json({ error: updateError.message }, { status: 500 });

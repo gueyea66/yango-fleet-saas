@@ -16,13 +16,15 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const driverId = searchParams.get("driverId") || null;
+    const driverIds = (searchParams.get("driverIds") || "").split(",").map((s) => s.trim()).filter(Boolean);
+    if (driverId && driverIds.length === 0) driverIds.push(driverId);
     const dateFrom = searchParams.get("dateFrom") || null;
     const dateTo = searchParams.get("dateTo") || null;
     const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
     const pageSize = Math.min(500, Math.max(10, parseInt(searchParams.get("pageSize") || "300")));
     const offset = (page - 1) * pageSize;
 
-    const dQ = (q: any) => driverId ? q.eq("driver_id", driverId) : q;
+    const dQ = (q: any) => driverIds.length ? q.in("driver_id", driverIds) : q;
     const dateQ = (q: any) => {
       if (dateFrom) q = q.gte("date", dateFrom);
       if (dateTo) q = q.lte("date", dateTo);

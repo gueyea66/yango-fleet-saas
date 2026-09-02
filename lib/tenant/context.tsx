@@ -24,10 +24,15 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   // Inject CSS variables + page title from tenant settings
   useEffect(() => {
     const color = ctx.settings.primary_color || "#f5a623";
-    document.documentElement.style.setProperty("--tenant-color", color);
-    // Derive a darker shade for hover states
-    document.documentElement.style.setProperty("--tenant-color-dark", color + "cc");
-    document.documentElement.style.setProperty("--tenant-color-light", color + "22");
+    // hex → composantes RGB (gère #abc et #aabbcc) pour les rgba(var(--tenant-color-rgb), α)
+    const hex = color.replace("#", "");
+    const full = hex.length === 3 ? hex.split("").map((c) => c + c).join("") : hex.padEnd(6, "0");
+    const [r, g, b] = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) || 0);
+    const root = document.documentElement.style;
+    root.setProperty("--tenant-color", color);
+    root.setProperty("--tenant-color-rgb", `${r}, ${g}, ${b}`);
+    root.setProperty("--tenant-color-dark", `rgb(${Math.round(r * 0.85)}, ${Math.round(g * 0.85)}, ${Math.round(b * 0.85)})`);
+    root.setProperty("--tenant-color-light", `rgba(${r}, ${g}, ${b}, 0.12)`);
     // Skin par tenant (surfaces + texte) — l'accent reste --tenant-color ci-dessus.
     document.documentElement.setAttribute("data-skin", ctx.settings.skin || "midnight");
     if (ctx.settings.app_name) {

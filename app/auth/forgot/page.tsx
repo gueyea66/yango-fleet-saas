@@ -10,7 +10,7 @@ import { BrandLogo, PoweredBy } from "@/components/brand/BrandShell";
 
 export default function ForgotPasswordPage() {
   const { settings } = useTenant();
-  const brand = settings.primary_color || "#f5a623";
+  const brand = settings.primary_color || "var(--tenant-color)";
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);

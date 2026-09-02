@@ -118,7 +118,7 @@ const PONCTUELLES = new Set(["Amende", "Contrôle routier"]);
 // Une dépense "autre récurrente" = ni carburant, ni solde, ni ponctuelle.
 const isRecurrentOther = (cat: string) => cat !== "Carburant" && cat !== "Solde Yango" && !PONCTUELLES.has(cat);
 
-function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: string | null): Omit<PilotageData, "loading" | "fetching" | "error" | "refresh"> {
+function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: string | null, refMonth?: string | null): Omit<PilotageData, "loading" | "fetching" | "error" | "refresh"> {
   // Comptes techniques (décaissements, ex. « Founder ») : exclus de l'effectif et de
   // la masse salariale — même règle que useDashboardKPIs.ts. Leurs déclarations et
   // dépenses restent comptées dans les totaux (comportement intentionnel existant,
@@ -136,7 +136,14 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   // compte deux fois (le rejeté ET la resoumission active) et gonfle le CA.
   const reports = raw.reports.filter((r: any) =>
     !String(r.comment || "").startsWith("[REPOS]") && r.status !== "rejected" && r.status !== "archived");
-  const today = new Date();
+  // Mois de référence : un mois antérieur se pilote comme si « aujourd'hui »
+  // était son dernier jour (projection = réalisé, fenêtres 6 mois recalées).
+  const realNow = new Date();
+  const curRealMonth = `${realNow.getFullYear()}-${String(realNow.getMonth() + 1).padStart(2, "0")}`;
+  const isPastRef = !!refMonth && refMonth < curRealMonth;
+  const today = isPastRef
+    ? new Date(Number(refMonth!.slice(0, 4)), Number(refMonth!.slice(5, 7)), 0)
+    : realNow;
   const todayStr = today.toISOString().split("T")[0];
   const sixAgo = new Date(today.getFullYear(), today.getMonth() - 5, 1).toISOString().split("T")[0];
 
@@ -552,7 +559,7 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
 }
 
 // ── MAIN HOOK ─────────────────────────────────────────
-export function usePilotage(params: PilotageParams = DEFAULT_PARAMS, tenantId?: string | null, driverId?: string | null) {
+export function usePilotage(params: PilotageParams = DEFAULT_PARAMS, tenantId?: string | null, driverId?: string | null, refMonth?: string | null) {
   const [raw, setRaw] = useState<RawData | null>(null);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -573,7 +580,7 @@ export function usePilotage(params: PilotageParams = DEFAULT_PARAMS, tenantId?: 
       if (!tid) { setError("Tenant introuvable"); setFetching(false); return; }
 
       // Fetch via server-side API route (service role — bypasses RLS)
-      const params_url = new URLSearchParams({ tenantId: tid, ...(driverId ? { driverId } : {}) });
+      const params_url = new URLSearchParams({ tenantId: tid, ...(driverId ? { driverId } : {}), ...(refMonth ? { refMonth } : {}) });
       const res = await fetch(`/api/admin/pilotage-data?${params_url}`);
       if (!res.ok) throw new Error((await res.json()).error || "Erreur API");
       const json = await res.json();
@@ -583,20 +590,20 @@ export function usePilotage(params: PilotageParams = DEFAULT_PARAMS, tenantId?: 
     } finally {
       setFetching(false);
     }
-  }, [tenantId, driverId]);
+  }, [tenantId, driverId, refMonth]);
 
-  useEffect(() => { fetchRaw(); }, [fetchRaw, tenantId, driverId]);
+  useEffect(() => { fetchRaw(); }, [fetchRaw, tenantId, driverId, refMonth]);
 
   // Recompute synchronously when raw data or params change (no DB call)
   useEffect(() => {
     if (!raw) return;
     try {
-      const result = computeFromRaw(raw, params, driverId);
+      const result = computeFromRaw(raw, params, driverId, refMonth);
       setComputed(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur de calcul");
     }
-  }, [raw, params, driverId]);
+  }, [raw, params, driverId, refMonth]);
 
   const refresh = useCallback(() => { fetchRaw(); }, [fetchRaw]);
 

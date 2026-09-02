@@ -7,7 +7,7 @@ import { getTrialStatus, type TrialStatus } from "@/lib/plans";
 
 const HORIZON_CONFIG = {
   "14d": { bg: "#1a2a1a", border: "#22c55e40", color: "#22c55e", icon: "🟢", urgency: "Info" },
-  "7d":  { bg: "#2a2200", border: "#f5a62340", color: "#f5a623", icon: "🟡", urgency: "Attention" },
+  "7d":  { bg: "#2a2200", border: "var(--tenant-color)40", color: "var(--tenant-color)", icon: "🟡", urgency: "Attention" },
   "3d":  { bg: "#2a1500", border: "#f9731640", color: "#f97316", icon: "🟠", urgency: "Urgent" },
   "1d":  { bg: "#2a0a0a", border: "#ef444440", color: "#ef4444", icon: "🔴", urgency: "Critique" },
 };

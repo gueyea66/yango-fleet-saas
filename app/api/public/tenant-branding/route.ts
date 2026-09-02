@@ -35,6 +35,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(
     { tenant, settings: settings ?? null },
     // Cache CDN 5 min — le branding change rarement
-    { headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" } }
+    { headers: { "Cache-Control": "public, s-maxage=30, stale-while-revalidate=60" } }
   );
 }

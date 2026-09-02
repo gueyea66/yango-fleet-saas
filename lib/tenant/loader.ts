@@ -43,7 +43,7 @@ export async function loadTenantContext(): Promise<TenantContext> {
 
   // Branding via l'API publique (service role côté serveur) : fonctionne AVANT
   // connexion — la lecture directe de `tenants` est bloquée par RLS pour les anonymes.
-  const res = await fetch(`/api/public/tenant-branding?slug=${encodeURIComponent(slug)}`);
+  const res = await fetch(`/api/public/tenant-branding?slug=${encodeURIComponent(slug)}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`Tenant '${slug}' not found`);
   const { tenant, settings } = await res.json();
   if (!tenant.active) throw new Error(`Tenant '${slug}' is suspended`);

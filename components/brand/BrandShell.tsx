@@ -42,6 +42,7 @@ export function BrandName({ className }: { className?: string }) {
 }
 
 export function PoweredBy() {
+  const { settings } = useTenant();
   return (
     <div
       style={{
@@ -52,8 +53,8 @@ export function PoweredBy() {
         letterSpacing: "0.04em",
       }}
     >
-      Powered by{" "}
-      <span style={{ color: "#f5a623", fontWeight: 500 }}>M3A Solutions</span>
+      {/* White-label : jamais de marque M3A chez un client (« vos équipes ne voient jamais M3A »). */}
+      <span style={{ color: "var(--tenant-color)", fontWeight: 500 }}>{settings.operator_name || settings.app_name || ""}</span>
     </div>
   );
 }

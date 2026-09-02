@@ -1,0 +1,19 @@
+name: Rappels du soir (notifications)
+
+# Les 2 crons Vercel (Hobby) sont pris (batch IA 06h + rapports mensuels) :
+# GitHub Actions déclenche la route des rappels du soir — même pattern de
+# secours que les autres projets maison.
+on:
+  schedule:
+    - cron: "5 20 * * *" # 20h05 UTC = 20h05 Dakar
+  workflow_dispatch: {}
+
+jobs:
+  evening:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Déclenche /api/cron/evening
+        run: |
+          curl -sf -X POST "https://m3afleet.com/api/cron/evening" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            --max-time 290

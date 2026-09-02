@@ -95,7 +95,13 @@ export default function AdminPage() {
   const [sessionError, setSessionError] = useState<string | null>(null);
 
   // Driver / vehicle filter (global, shared across tabs)
-  const [filterDriverId, setFilterDriverId] = useState("");
+  // Multi-sélection chauffeurs (retour Abdou 02/09) — [] = tous.
+  const [filterDriverIds, setFilterDriverIds] = useState<string[]>([]);
+  // Compat : les onglets annexes (KYC, paiements, avances…) restent mono-chauffeur
+  // et ne se filtrent que lorsqu'exactement un chauffeur est sélectionné.
+  const filterDriverId = filterDriverIds.length === 1 ? filterDriverIds[0] : "";
+  const toggleDriverFilter = (id: string) =>
+    setFilterDriverIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   // Barre de filtres masquable (préférence par appareil, partagée avec Pilotage)
   const [showFilters, setShowFilters] = useState(true);
   useEffect(() => { setShowFilters(localStorage.getItem("m3a_filters_on") !== "0"); }, []);
@@ -154,7 +160,7 @@ export default function AdminPage() {
   const lastMonth = Math.max(...filterMonths);
   const lastDay = new Date(filterYear, lastMonth, 0).getDate();
   const periodTo = `${filterYear}-${String(lastMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-  const kpis = useDashboardKPIs(periodFrom, periodTo, adminTenantId, filterDriverId || undefined);
+  const kpis = useDashboardKPIs(periodFrom, periodTo, adminTenantId, filterDriverIds.length ? filterDriverIds : undefined);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -164,16 +170,17 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (user && adminTenantId && (tab === "history" || tab === "pending")) {
-      loadReports(filterDriverId || null);
+      loadReports(filterDriverIds);
     }
-  }, [user, tab, adminTenantId, filterDriverId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, tab, adminTenantId, filterDriverIds.join(",")]);
 
-  const loadReports = async (driverId: string | null = null) => {
+  const loadReports = async (driverIds: string[] = []) => {
     if (!adminTenantId) return;
     setLoadingReports(true);
     try {
       const params = new URLSearchParams({ tenantId: adminTenantId });
-      if (driverId) params.set("driverId", driverId);
+      if (driverIds.length) params.set("driverIds", driverIds.join(","));
       const res = await fetch(`/api/admin/reports?${params}`);
       if (res.status === 401) {
         setSessionError("Session expirée — veuillez vous reconnecter.");
@@ -326,9 +333,9 @@ export default function AdminPage() {
                 {group.items.map(([id, icon, label]) => (
                   <button key={id} onClick={() => id === "drivers" ? router.push("/admin/drivers") : setTab(id)} className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150 flex items-center gap-2.5 hover:translate-x-0.5"
                     style={{
-                      background: tab === id ? "rgba(245,166,35,.12)" : "transparent",
-                      color: tab === id ? "#f5a623" : "var(--sk-t2)",
-                      border: `1px solid ${tab === id ? "rgba(245,166,35,.2)" : "transparent"}`,
+                      background: tab === id ? "rgba(var(--tenant-color-rgb),.12)" : "transparent",
+                      color: tab === id ? "var(--tenant-color)" : "var(--sk-t2)",
+                      border: `1px solid ${tab === id ? "rgba(var(--tenant-color-rgb),.2)" : "transparent"}`,
                     }}
                     onMouseEnter={(e) => { if (tab !== id) { e.currentTarget.style.background = "rgba(255,255,255,.045)"; e.currentTarget.style.color = "#fff"; } }}
                     onMouseLeave={(e) => { if (tab !== id) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--sk-t2)"; } }}>
@@ -397,7 +404,7 @@ export default function AdminPage() {
             {group.items.map(([id, icon]) => (
               <button key={id} onClick={() => id === "drivers" ? router.push("/admin/drivers") : setTab(id)}
                 className="flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium"
-                style={{ color: tab === id ? "#f5a623" : "var(--sk-t3)", borderBottom: tab === id ? "2px solid #f5a623" : "2px solid transparent" }}>
+                style={{ color: tab === id ? "var(--tenant-color)" : "var(--sk-t3)", borderBottom: tab === id ? "2px solid var(--tenant-color)" : "2px solid transparent" }}>
                 {(() => { const I = NAV_ICONS[id]; return I
                   ? <I size={18} strokeWidth={1.75} />
                   : <span className="text-base leading-none">{icon}</span>; })()}
@@ -428,7 +435,7 @@ export default function AdminPage() {
         {sessionError && (
           <div style={{ background: "#2d1515", border: "1px solid #c53030", borderRadius: 12, padding: "14px 18px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <AlertTriangle size={19} strokeWidth={2} style={{ color: "#f5a623" }} />
+              <AlertTriangle size={19} strokeWidth={2} style={{ color: "var(--tenant-color)" }} />
               <div>
                 <div style={{ color: "#fc8181", fontWeight: 700, fontSize: 14 }}>{sessionError}</div>
                 <div style={{ color: "#a0aab8", fontSize: 12 }}>Vos données sont intactes — reconnectez-vous pour y accéder.</div>
@@ -445,25 +452,28 @@ export default function AdminPage() {
           <div className="mb-6">
             <button onClick={() => toggleFilters(true)}
               className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-              style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", color: filterDriverId ? "#f5a623" : "var(--sk-t3)" }}>
-              🔍 Filtres{filterDriverId ? ` · ${allDrivers.find((d) => d.id === filterDriverId)?.full_name || "1 chauffeur"}` : ""}
+              style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", color: filterDriverIds.length ? "var(--tenant-color)" : "var(--sk-t3)" }}>
+              🔍 Filtres{filterDriverIds.length === 1
+                ? ` · ${allDrivers.find((d) => d.id === filterDriverIds[0])?.full_name || "1 chauffeur"}`
+                : filterDriverIds.length > 1 ? ` · ${filterDriverIds.length} chauffeurs` : ""}
             </button>
           </div>
         )}
         {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage"].includes(tab) && allDrivers.length > 0 && showFilters && (
           <div className="mb-6 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
             <span className="text-[10px] font-bold uppercase tracking-widest mr-1" style={{ color: "var(--sk-t4)" }}>Vue :</span>
-            <button onClick={() => setFilterDriverId("")}
+            <button onClick={() => setFilterDriverIds([])}
               className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
-              style={{ background: !filterDriverId ? "#f5a623" : "var(--sk-surface)", color: !filterDriverId ? "#000" : "var(--sk-t3)" }}>
+              style={{ background: !filterDriverIds.length ? "var(--tenant-color)" : "var(--sk-surface)", color: !filterDriverIds.length ? "#000" : "var(--sk-t3)" }}>
               Tous
             </button>
             {allDrivers.map((d) => (
-              <button key={d.id} onClick={() => setFilterDriverId(filterDriverId === d.id ? "" : d.id)}
+              <button key={d.id} onClick={() => toggleDriverFilter(d.id)}
+                title="Clic : ajouter/retirer de la sélection (multi-sélection possible)"
                 className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5"
-                style={{ background: filterDriverId === d.id ? "rgba(245,166,35,.15)" : "var(--sk-surface)",
-                  color: filterDriverId === d.id ? "#f5a623" : "var(--sk-t3)",
-                  border: `1px solid ${filterDriverId === d.id ? "rgba(245,166,35,.35)" : "transparent"}`,
+                style={{ background: filterDriverIds.includes(d.id) ? "rgba(var(--tenant-color-rgb),.15)" : "var(--sk-surface)",
+                  color: filterDriverIds.includes(d.id) ? "var(--tenant-color)" : "var(--sk-t3)",
+                  border: `1px solid ${filterDriverIds.includes(d.id) ? "rgba(var(--tenant-color-rgb),.35)" : "transparent"}`,
                   opacity: d.active === false ? 0.55 : 1 }}>
                 👤 {d.full_name || d.driver_id}
                 {d.plate && <span className="font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--sk-deep)", color: "var(--sk-t2)", fontSize: 10 }}>{d.plate}</span>}
@@ -502,14 +512,14 @@ export default function AdminPage() {
                         prev.includes(mn) ? (prev.length > 1 ? prev.filter((x) => x !== mn) : prev) : [...prev, mn].sort()
                       )}
                         className="text-xs px-2 py-1 rounded-lg font-semibold transition-all"
-                        style={{ background: active ? "#f5a623" : "var(--sk-surface)", color: active ? "#000" : "var(--sk-t3)" }}>
+                        style={{ background: active ? "var(--tenant-color)" : "var(--sk-surface)", color: active ? "#000" : "var(--sk-t3)" }}>
                         {m}
                       </button>
                     );
                   })}
                   <button onClick={() => setFilterMonths([1,2,3,4,5,6,7,8,9,10,11,12])}
                     className="text-xs px-2 py-1 rounded-lg font-semibold"
-                    style={{ background: filterMonths.length === 12 ? "#f5a623" : "var(--sk-surface)", color: filterMonths.length === 12 ? "#000" : "var(--sk-t3)" }}>
+                    style={{ background: filterMonths.length === 12 ? "var(--tenant-color)" : "var(--sk-surface)", color: filterMonths.length === 12 ? "#000" : "var(--sk-t3)" }}>
                     Année
                   </button>
                 </div>
@@ -534,11 +544,11 @@ export default function AdminPage() {
                       { label: "Rec. nettes", value: kpis.totalBrut, color: "#22c55e" },
                       { label: "Charges", value: kpis.totalDepenses, color: "#ef4444" },
                     ]} />
-                  <HeroCard label="Total Recettes" value={kpis.brutYango + kpis.horsYango} color="#f5a623"
+                  <HeroCard label="Total Recettes" value={kpis.brutYango + kpis.horsYango} color="var(--tenant-color)"
                     prev={kpis.prevRecettes} days={kpis.joursOuvres} prevDays={kpis.prevJoursOuvres}
                     sub={`brut · ${plat} + hors-app`}
                     breakdown={[
-                      { label: plat, value: kpis.brutYango, color: "#f5a623" },
+                      { label: plat, value: kpis.brutYango, color: "var(--tenant-color)" },
                       { label: "Hors-app", value: kpis.horsYango, color: "#a855f7" },
                     ]} />
                   <HeroCard label="Trésorerie Nette" value={kpis.tresorerie} color={kpis.tresorerie >= 0 ? "#22c55e" : "#ef4444"}
@@ -577,7 +587,7 @@ export default function AdminPage() {
                 {/* ── PÉRIODE SÉLECTIONNÉE ── */}
                 <AccordionSection title="Période — Recettes vs Charges" subtitle="Détail des postes — replié par défaut (le hero suffit pour la lecture 5 s)">
                   <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-4">
-                    <KPICard label={`Brut ${plat}`} value={kpis.brutYango} color="#f5a623" sub={`Moy/jour: ${Math.round(kpis.avgBrutPerDay).toLocaleString("fr-FR")} XOF`} />
+                    <KPICard label={`Brut ${plat}`} value={kpis.brutYango} color="var(--tenant-color)" sub={`Moy/jour: ${Math.round(kpis.avgBrutPerDay).toLocaleString("fr-FR")} XOF`} />
                     <KPICard label={`Net ${plat}`} value={kpis.netYango} color="#3b82f6" sub="Après commission" />
                     <KPICard label={`Hors ${plat}`} value={kpis.horsYango} color="#a855f7" sub="Recettes off-platform" />
                     <KPICard label="Total Recettes (net)" value={kpis.totalBrut} color="#22c55e" sub={`Moy/jour: ${Math.round(kpis.avgNetPerDay).toLocaleString("fr-FR")} XOF`} />
@@ -617,8 +627,8 @@ export default function AdminPage() {
                 <AccordionSection title="Trésorerie (cash)" subtitle="Décaissements réels — inclut les provisions front-loadées">
                   <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
                     <KPICard label="Encaissements" value={kpis.brutYango + kpis.horsYango} color="#22c55e" />
-                    <KPICard label="Provisions solde" value={kpis.provisionsSolde} color="#f5a623" negative sub="achats de solde" />
-                    <KPICard label="Achats carburant" value={kpis.achatsCarburant} color="#f5a623" negative sub="pleins payés" />
+                    <KPICard label="Provisions solde" value={kpis.provisionsSolde} color="var(--tenant-color)" negative sub="achats de solde" />
+                    <KPICard label="Achats carburant" value={kpis.achatsCarburant} color="var(--tenant-color)" negative sub="pleins payés" />
                     <KPICard label="Décaissements" value={kpis.decaissements} color="#ef4444" negative />
                     <KPICard label="TRÉSORERIE" value={kpis.tresorerie} color={kpis.tresorerie >= 0 ? "#22c55e" : "#ef4444"} big sub="cash net" />
                     <KPICard label="Avance immobilisée" value={kpis.avanceSolde + kpis.avanceCarburant} color="#a855f7" sub="solde + carburant avancés" />
@@ -735,7 +745,7 @@ export default function AdminPage() {
             loading={loadingReports}
             emptyMsg="Aucune soumission en attente"
             title="Soumissions en attente"
-            onRefresh={() => loadReports(filterDriverId || null)}
+            onRefresh={() => loadReports(filterDriverIds)}
           />
         )}
 
@@ -746,7 +756,8 @@ export default function AdminPage() {
             loading={loadingReports}
             emptyMsg="Aucun rapport"
             title="Tous les rapports"
-            onRefresh={() => loadReports(filterDriverId || null)}
+            onRefresh={() => loadReports(filterDriverIds)}
+            groupByMonth
           />
         )}
 
@@ -866,11 +877,11 @@ export default function AdminPage() {
         {tab === "avances" && adminTenantId && <AvancesTab filterDriverId={filterDriverId} tenantId={adminTenantId} />}
         {tab === "pilotage" && (
           <div className="text-center py-12">
-            <div className="flex justify-center mb-3"><Gauge size={40} strokeWidth={1.6} style={{ color: "#f5a623" }} /></div>
+            <div className="flex justify-center mb-3"><Gauge size={40} strokeWidth={1.6} style={{ color: "var(--tenant-color)" }} /></div>
             <p className="text-white font-semibold mb-2">Module Pilotage</p>
             <p className="text-sm mb-4" style={{ color: "var(--sk-t3)" }}>Projections, P&L, simulation de flotte et recommandations. Les moyennes de la période sont sur le dashboard.</p>
             <a href="/admin/pilotage" className="inline-block px-6 py-3 rounded-xl text-sm font-bold text-black"
-              style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>
+              style={{ background: "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))" }}>
               Ouvrir le module Pilotage →
             </a>
           </div>
@@ -888,7 +899,7 @@ export default function AdminPage() {
             <button
               onClick={() => setShowImportModal(true)}
               className="flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm text-black mb-8"
-              style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}
+              style={{ background: "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))" }}
             >
               <Upload size={16} strokeWidth={2.2} /> Importer un fichier CSV
             </button>
@@ -1015,7 +1026,7 @@ function InpText({ type, placeholder, value, onChange }: { type: string; placeho
 // ─── FLEET TAB ───────────────────────────────────────
 const VEHICLE_STATUS_META: Record<string, { label: string; color: string }> = {
   active:      { label: "Actif",        color: "#22c55e" },
-  maintenance: { label: "Maintenance",  color: "#f5a623" },
+  maintenance: { label: "Maintenance",  color: "var(--tenant-color)" },
   inactive:    { label: "Inactif",      color: "var(--sk-t3)" },
   sold:        { label: "Vendu",        color: "var(--sk-t4)" },
 };
@@ -1037,7 +1048,7 @@ function daysUntil(dateStr: string | null): number | null {
 
 function ExpiryBadge({ label, dateStr }: { label: string; dateStr: string | null }) {
   const days = daysUntil(dateStr);
-  const color = days === null ? "var(--sk-t4)" : days < 0 ? "#ef4444" : days < 30 ? "#f5a623" : "#22c55e";
+  const color = days === null ? "var(--sk-t4)" : days < 0 ? "#ef4444" : days < 30 ? "var(--tenant-color)" : "#22c55e";
   const text = days === null ? "Non renseigné" : days < 0 ? `Expiré (${Math.abs(days)}j)` : days === 0 ? "Expire aujourd'hui" : `${days}j`;
   return (
     <div className="text-[10px]">
@@ -1137,7 +1148,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
             <div className="text-xs" style={{ color: "var(--sk-t3)" }}>{vehicle.make} {vehicle.model} {vehicle.year}</div>
           </div>
           <span className="text-xs px-2 py-1 rounded-full font-semibold" style={{ background: `${statusMeta.color}18`, color: statusMeta.color }}>{statusMeta.label}</span>
-          <button onClick={() => setShowForm(!showForm)} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623", border: "1px solid rgba(245,166,35,.2)" }}>Modifier</button>
+          <button onClick={() => setShowForm(!showForm)} className="text-xs px-3 py-1.5 rounded-lg font-semibold" style={{ background: "rgba(var(--tenant-color-rgb),.1)", color: "var(--tenant-color)", border: "1px solid rgba(var(--tenant-color-rgb),.2)" }}>Modifier</button>
         </div>
 
         {/* Edit form */}
@@ -1182,7 +1193,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
             </Field>
             <Field label="Notes"><InpText type="text" value={form.notes} onChange={(v) => setF("notes", v)} /></Field>
             <button onClick={saveVehicle} disabled={saving} className="w-full py-2.5 rounded-xl text-sm font-bold transition-all"
-              style={{ background: saving ? "#2a2f3d" : "linear-gradient(135deg,#f5a623,#e8951a)", color: saving ? "var(--sk-t3)" : "#000" }}>
+              style={{ background: saving ? "#2a2f3d" : "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))", color: saving ? "var(--sk-t3)" : "#000" }}>
               {saving ? "Enregistrement..." : "✓ Enregistrer"}
             </button>
           </div>
@@ -1208,7 +1219,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
         <div className="rounded-2xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
           <div className="flex items-center justify-between mb-3">
             <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: "var(--sk-t4)" }}>Historique maintenance</div>
-            <button onClick={() => setShowMaintForm(!showMaintForm)} className="text-xs px-3 py-1 rounded-lg font-semibold" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623", border: "1px solid rgba(245,166,35,.2)" }}>+ Ajouter</button>
+            <button onClick={() => setShowMaintForm(!showMaintForm)} className="text-xs px-3 py-1 rounded-lg font-semibold" style={{ background: "rgba(var(--tenant-color-rgb),.1)", color: "var(--tenant-color)", border: "1px solid rgba(var(--tenant-color-rgb),.2)" }}>+ Ajouter</button>
           </div>
 
           {showMaintForm && (
@@ -1227,7 +1238,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
                 <Field label="Km au compteur"><InpText type="number" value={maintForm.mileage_at} onChange={(v) => setMaintForm((f) => ({ ...f, mileage_at: v }))} /></Field>
               </div>
               <Field label="Description"><InpText type="text" placeholder="Détails..." value={maintForm.description} onChange={(v) => setMaintForm((f) => ({ ...f, description: v }))} /></Field>
-              <button onClick={saveMaint} disabled={savingMaint} className="w-full py-2 rounded-xl text-xs font-bold text-black" style={{ background: savingMaint ? "#2a2f3d" : "linear-gradient(135deg,#f5a623,#e8951a)" }}>
+              <button onClick={saveMaint} disabled={savingMaint} className="w-full py-2 rounded-xl text-xs font-bold text-black" style={{ background: savingMaint ? "#2a2f3d" : "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))" }}>
                 {savingMaint ? "..." : "Enregistrer"}
               </button>
             </div>
@@ -1243,7 +1254,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
                     {m.description && <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t3)" }}>{m.description}</div>}
                     <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>{m.date} {m.mileage_at ? `· ${xof(m.mileage_at)} km` : ""}</div>
                   </div>
-                  <div className="text-xs font-semibold flex-shrink-0 ml-2" style={{ color: m.cost > 0 ? "#f5a623" : "var(--sk-t4)" }}>
+                  <div className="text-xs font-semibold flex-shrink-0 ml-2" style={{ color: m.cost > 0 ? "var(--tenant-color)" : "var(--sk-t4)" }}>
                     {m.cost > 0 ? `-${xof(m.cost)}` : "—"} XOF
                   </div>
                 </div>
@@ -1265,15 +1276,15 @@ function FleetTab({ tenantId }: { tenantId: string }) {
         </div>
         <button onClick={() => { setIsNew(true); setForm({ ...EMPTY_VEH }); setSelected("__new__"); setVehicle({}); setMaintenance([]); setShowForm(true); }}
           className="text-sm px-4 py-2 rounded-xl font-bold text-black"
-          style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>
+          style={{ background: "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))" }}>
           + Ajouter
         </button>
       </div>
 
       {/* New vehicle form (inline) */}
       {selected === "__new__" && showForm && (
-        <div className="rounded-2xl p-4 mb-4 space-y-3" style={{ background: "var(--sk-bg)", border: "1px solid rgba(245,166,35,.3)" }}>
-          <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: "#f5a623" }}>Nouveau véhicule</div>
+        <div className="rounded-2xl p-4 mb-4 space-y-3" style={{ background: "var(--sk-bg)", border: "1px solid rgba(var(--tenant-color-rgb),.3)" }}>
+          <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: "var(--tenant-color)" }}>Nouveau véhicule</div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Plaque *"><InpText type="text" value={form.plate} onChange={(v) => setF("plate", v)} /></Field>
             <Field label="Marque"><InpText type="text" value={form.make} onChange={(v) => setF("make", v)} /></Field>
@@ -1295,7 +1306,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
             </select>
           </Field>
           <div className="flex gap-2">
-            <button onClick={saveVehicle} disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-black" style={{ background: saving ? "#2a2f3d" : "linear-gradient(135deg,#f5a623,#e8951a)" }}>
+            <button onClick={saveVehicle} disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-bold text-black" style={{ background: saving ? "#2a2f3d" : "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))" }}>
               {saving ? "..." : "Créer le véhicule"}
             </button>
             <button onClick={() => { setSelected(null); setShowForm(false); setIsNew(false); }} className="px-4 rounded-xl text-sm" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>
@@ -1323,13 +1334,13 @@ function FleetTab({ tenantId }: { tenantId: string }) {
           return (
             <button key={v.id} onClick={() => selectVehicle(v.id)}
               className="w-full rounded-xl px-4 py-3 flex items-center gap-3 transition-all text-left"
-              style={{ background: "var(--sk-bg)", border: `1px solid ${hasAlert ? "rgba(245,166,35,.3)" : "var(--sk-surface)"}` }}>
+              style={{ background: "var(--sk-bg)", border: `1px solid ${hasAlert ? "rgba(var(--tenant-color-rgb),.3)" : "var(--sk-surface)"}` }}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "var(--sk-surface)" }}><Car size={18} strokeWidth={2} style={{ color: "var(--sk-t2)" }} /></div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-white">{v.plate}</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: `${sm.color}18`, color: sm.color }}>{sm.label}</span>
-                  {hasAlert && <AlertTriangle size={11} strokeWidth={2.2} style={{ color: "#f5a623" }} />}
+                  {hasAlert && <AlertTriangle size={11} strokeWidth={2.2} style={{ color: "var(--tenant-color)" }} />}
                 </div>
                 <div className="text-xs" style={{ color: "var(--sk-t3)" }}>{v.make} {v.model} {v.year} {driver ? `· ${driver.full_name}` : ""}</div>
                 <div className="flex gap-3 mt-0.5">
@@ -1523,7 +1534,7 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
           <div className="flex items-center justify-between mb-3">
             <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: "var(--sk-t4)" }}>Informations</div>
             <button onClick={() => setEditingProfile(!editingProfile)} className="text-xs px-3 py-1 rounded-lg font-semibold"
-              style={{ background: editingProfile ? "rgba(245,166,35,.15)" : "var(--sk-surface)", color: editingProfile ? "#f5a623" : "var(--sk-t2)" }}>
+              style={{ background: editingProfile ? "rgba(var(--tenant-color-rgb),.15)" : "var(--sk-surface)", color: editingProfile ? "var(--tenant-color)" : "var(--sk-t2)" }}>
               {editingProfile ? "Annuler" : "Modifier"}
             </button>
           </div>
@@ -1546,7 +1557,7 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
                 </div>
               ))}
               <button onClick={saveProfile} disabled={saving} className="w-full py-2.5 rounded-xl text-xs font-bold mt-2"
-                style={{ background: "rgba(245,166,35,.15)", color: "#f5a623", border: "1px solid rgba(245,166,35,.3)" }}>
+                style={{ background: "rgba(var(--tenant-color-rgb),.15)", color: "var(--tenant-color)", border: "1px solid rgba(var(--tenant-color-rgb),.3)" }}>
                 {saving ? "Sauvegarde..." : "💾 Sauvegarder la fiche"}
               </button>
             </div>
@@ -1566,7 +1577,7 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
             {KYC_DOC_DEFS.map((def) => {
               const doc = driverDocs.find((d) => d.doc_type === def.type);
               const url = docUrls[def.type];
-              const docStatusColor = doc?.status === "approved" ? "#22c55e" : doc?.status === "rejected" ? "#ef4444" : doc ? "#f5a623" : "#2a2f3d";
+              const docStatusColor = doc?.status === "approved" ? "#22c55e" : doc?.status === "rejected" ? "#ef4444" : doc ? "var(--tenant-color)" : "#2a2f3d";
               return (
                 <div key={def.type} className="rounded-xl p-3" style={{ background: "var(--sk-deep)", border: `1px solid ${docStatusColor}30` }}>
                   <div className="flex items-center justify-between mb-2">
@@ -1581,7 +1592,7 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
                       ) : (
                         <span className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Non uploadé</span>
                       )}
-                      <label className="text-[10px] px-2 py-0.5 rounded font-semibold cursor-pointer" style={{ background: "rgba(245,166,35,.1)", color: uploadingDoc === def.type ? "var(--sk-t3)" : "#f5a623" }}>
+                      <label className="text-[10px] px-2 py-0.5 rounded font-semibold cursor-pointer" style={{ background: "rgba(var(--tenant-color-rgb),.1)", color: uploadingDoc === def.type ? "var(--sk-t3)" : "var(--tenant-color)" }}>
                         {uploadingDoc === def.type ? "…" : doc ? "Remplacer" : "Uploader"}
                         <input type="file" accept="image/*,application/pdf,.pdf,.doc,.docx,.xls,.xlsx,video/*" className="hidden"
                           onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(def.type, f); e.target.value = ""; }}
@@ -1591,7 +1602,7 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
                   </div>
                   {url && (
                     url.toLowerCase().includes(".pdf") ? (
-                      <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs underline" style={{ color: "#f5a623" }}>📄 Voir le PDF</a>
+                      <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs underline" style={{ color: "var(--tenant-color)" }}>📄 Voir le PDF</a>
                     ) : (
                       <a href={url} target="_blank" rel="noopener noreferrer">
                         <img src={url} alt={def.label} className="w-full max-h-48 object-contain rounded-lg" style={{ background: "var(--sk-surface)" }} />
@@ -1614,7 +1625,7 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
                 {LEVEL_OPTS.map((o) => (
                   <button key={o.value} onClick={() => setLevel(o.value)}
                     className="flex-1 py-2 rounded-xl text-xs font-semibold transition-all"
-                    style={{ background: level === o.value ? "rgba(245,166,35,.15)" : "var(--sk-deep)", color: level === o.value ? "#f5a623" : "var(--sk-t3)", border: `1px solid ${level === o.value ? "rgba(245,166,35,.3)" : "#2a2f3d"}` }}>
+                    style={{ background: level === o.value ? "rgba(var(--tenant-color-rgb),.15)" : "var(--sk-deep)", color: level === o.value ? "var(--tenant-color)" : "var(--sk-t3)", border: `1px solid ${level === o.value ? "rgba(var(--tenant-color-rgb),.3)" : "#2a2f3d"}` }}>
                     {o.label}
                   </button>
                 ))}
@@ -1660,7 +1671,7 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
             <button key={d.id} onClick={() => selectDriver(d.id)} className="w-full rounded-xl px-4 py-3 flex items-center gap-3 transition-all text-left"
               style={{ background: "var(--sk-bg)", border: `1px solid ${sc}20` }}>
               <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-sm text-black flex-shrink-0"
-                style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>
+                style={{ background: "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))" }}>
                 {d.full_name?.[0] || "?"}
               </div>
               <div className="flex-1 min-w-0">
@@ -1680,19 +1691,37 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
 }
 
 // ─── REPORT LIST ─────────────────────────────────────
-function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh }: {
-  reports: any[]; expenses: any[]; loading: boolean; emptyMsg: string; title: string; onRefresh: () => void;
+function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh, groupByMonth = false }: {
+  reports: any[]; expenses: any[]; loading: boolean; emptyMsg: string; title: string; onRefresh: () => void; groupByMonth?: boolean;
 }) {
   const [selected, setSelected] = useState<any | null>(null);
   const [selectedExpense, setSelectedExpense] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<"reports" | "expenses">("reports");
+  // Historique rangé par mois, groupes FERMÉS par défaut — l'admin déplie le
+  // mois qu'il veut (retour Abdou 02/09).
+  const [openMonths, setOpenMonths] = useState<Set<string>>(new Set());
+  const toggleMonth = (m: string) => setOpenMonths((prev) => {
+    const nxt = new Set(prev); if (nxt.has(m)) nxt.delete(m); else nxt.add(m); return nxt;
+  });
+  const monthLabel = (m: string) => {
+    const [y, mo] = m.split("-");
+    return ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"][parseInt(mo) - 1] + " " + y;
+  };
+  const groupOf = (rows: any[], keyOf: (r: any) => string): Array<[string, any[]]> => {
+    const map = new Map<string, any[]>();
+    for (const r of rows) {
+      const k = keyOf(r) || "—";
+      map.set(k, [...(map.get(k) || []), r]);
+    }
+    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]));
+  };
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0)) + " XOF";
 
   const isRepos = (r: any) => typeof r.comment === "string" && r.comment.startsWith("[REPOS]");
 
   const statusBadge = (s: string) => {
     const map: Record<string, [string, string]> = {
-      submitted: ["#f5a623", "rgba(245,166,35,.12)"],
+      submitted: ["var(--tenant-color)", "rgba(var(--tenant-color-rgb),.12)"],
       approved: ["#22c55e", "rgba(34,197,94,.12)"],
       rejected: ["#ef4444", "rgba(239,68,68,.12)"],
     };
@@ -1709,7 +1738,7 @@ function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh }: 
           {(["reports", "expenses"] as const).map((t) => (
             <button key={t} onClick={() => setActiveTab(t)}
               className="text-sm px-4 py-1.5 rounded-lg font-semibold"
-              style={{ background: activeTab === t ? "#f5a623" : "var(--sk-surface)", color: activeTab === t ? "#000" : "var(--sk-t3)" }}>
+              style={{ background: activeTab === t ? "var(--tenant-color)" : "var(--sk-surface)", color: activeTab === t ? "#000" : "var(--sk-t3)" }}>
               {t === "reports" ? `Rapports (${reports.length})` : `Dépenses (${expenses.length})`}
             </button>
           ))}
@@ -1721,9 +1750,81 @@ function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh }: 
       ) : activeTab === "reports" ? (
         reports.length === 0 ? (
           <div className="text-center text-gray-400 py-12">{emptyMsg}</div>
+        ) : groupByMonth ? (
+          <div className="space-y-3">
+            {groupOf(reports, (r: any) => String(r.date || "").slice(0, 7)).map(([m, rows]) => {
+              const worked = rows.filter((r: any) => !isRepos(r));
+              const repos = rows.length - worked.length;
+              const net = worked.reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0);
+              const pending = rows.filter((r: any) => r.status === "submitted").length;
+              const isOpen = openMonths.has(m);
+              return (
+                <div key={m} className="rounded-xl border" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+                  <button onClick={() => toggleMonth(m)} className="w-full flex items-center justify-between p-4 text-left">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold text-white">{isOpen ? "▾" : "▸"} {monthLabel(m)}</span>
+                      <span className="text-xs" style={{ color: "var(--sk-t3)" }}>
+                        {worked.length} rapport{worked.length > 1 ? "s" : ""}{repos ? ` + ${repos} repos` : ""}
+                        {pending > 0 && <span style={{ color: "var(--tenant-color)" }}> · {pending} en attente</span>}
+                      </span>
+                    </div>
+                    <span className="font-mono font-bold text-sm text-white">{xof(net)}</span>
+                  </button>
+                  {isOpen && <div className="space-y-3 px-3 pb-3">{rows.map((r: any) => renderReportCard(r))}</div>}
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <div className="space-y-3">
-            {reports.map((r) => (
+            {reports.map((r) => renderReportCard(r))}
+          </div>
+        )
+      ) : (
+        expenses.length === 0 ? (
+          <div className="text-center text-gray-400 py-12">Aucune dépense</div>
+        ) : groupByMonth ? (
+          <div className="space-y-3">
+            {groupOf(expenses, (e: any) => String(e.expense_date || e.created_at || "").slice(0, 7)).map(([m, rows]) => {
+              const total = rows.reduce((s: number, e: any) => s + (e.amount || 0), 0);
+              const pending = rows.filter((e: any) => (e.status || "submitted") === "submitted").length;
+              const isOpen = openMonths.has("exp-" + m);
+              return (
+                <div key={m} className="rounded-xl border" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+                  <button onClick={() => toggleMonth("exp-" + m)} className="w-full flex items-center justify-between p-4 text-left">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-bold text-white">{isOpen ? "▾" : "▸"} {monthLabel(m)}</span>
+                      <span className="text-xs" style={{ color: "var(--sk-t3)" }}>
+                        {rows.length} charge{rows.length > 1 ? "s" : ""}
+                        {pending > 0 && <span style={{ color: "var(--tenant-color)" }}> · {pending} en attente</span>}
+                      </span>
+                    </div>
+                    <span className="font-mono font-bold text-sm" style={{ color: "#ef4444" }}>-{xof(total)}</span>
+                  </button>
+                  {isOpen && <div className="space-y-3 px-3 pb-3">{rows.map((e: any) => renderExpenseCard(e))}</div>}
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {expenses.map((e) => renderExpenseCard(e))}
+          </div>
+        )
+      )}
+
+      {selected && (
+        <ReportModal report={selected} onClose={() => setSelected(null)} onRefresh={() => { onRefresh(); setSelected(null); }} />
+      )}
+
+      {selectedExpense && (
+        <ExpenseModal expense={selectedExpense} onClose={() => setSelectedExpense(null)} onRefresh={onRefresh} />
+      )}
+    </div>
+  );
+
+  function renderReportCard(r: any) {
+    return (
               <div key={r.id} className="rounded-xl border cursor-pointer transition-all hover:border-yellow-500/40"
                 style={{ background: isRepos(r) ? "rgba(99,102,241,.04)" : "var(--sk-bg)", border: `1px solid ${isRepos(r) ? "rgba(99,102,241,.25)" : "var(--sk-surface)"}` }}
                 onClick={() => setSelected(r)}>
@@ -1752,15 +1853,11 @@ function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh }: 
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )
-      ) : (
-        expenses.length === 0 ? (
-          <div className="text-center text-gray-400 py-12">Aucune dépense</div>
-        ) : (
-          <div className="space-y-3">
-            {expenses.map((e) => (
+    );
+  }
+
+  function renderExpenseCard(e: any) {
+    return (
               <div key={e.id} className="rounded-xl border cursor-pointer transition-all hover:border-yellow-500/40"
                 style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}
                 onClick={() => setSelectedExpense(e)}>
@@ -1778,20 +1875,8 @@ function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh }: 
                   </div>
                 </div>
               </div>
-            ))}
-          </div>
-        )
-      )}
-
-      {selected && (
-        <ReportModal report={selected} onClose={() => setSelected(null)} onRefresh={() => { onRefresh(); setSelected(null); }} />
-      )}
-
-      {selectedExpense && (
-        <ExpenseModal expense={selectedExpense} onClose={() => setSelectedExpense(null)} onRefresh={onRefresh} />
-      )}
-    </div>
-  );
+    );
+  }
 }
 
 // ─── EXPENSE MODAL ───────────────────────────────────
@@ -1942,12 +2027,12 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
             <div className="flex gap-2 mb-3">
               <button onClick={() => cameraRef.current?.click()} disabled={uploading}
                 className="flex-1 py-2.5 rounded-xl text-sm border"
-                style={{ background: uploading ? "var(--sk-surface)" : "rgba(245,166,35,.08)", borderColor: "rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
+                style={{ background: uploading ? "var(--sk-surface)" : "rgba(var(--tenant-color-rgb),.08)", borderColor: "rgba(var(--tenant-color-rgb),.25)", color: uploading ? "#374151" : "var(--tenant-color)" }}>
                 {uploading ? "…" : "Photo"}
               </button>
               <button onClick={() => fileRef.current?.click()} disabled={uploading}
                 className="flex-1 py-2.5 rounded-xl text-sm border-dashed border-2"
-                style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "var(--sk-t3)" }}>
+                style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "var(--tenant-color)" : "var(--sk-t3)" }}>
                 {uploading ? "Upload…" : "Fichier / Galerie"}
               </button>
             </div>
@@ -1969,7 +2054,7 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
                 className="flex items-center gap-2 text-xs p-2 rounded-lg mb-1"
                 style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>
                 <span>📄</span><span className="truncate flex-1">{u.file_name}</span>
-                <span style={{ color: "#f5a623" }}>Ouvrir →</span>
+                <span style={{ color: "var(--tenant-color)" }}>Ouvrir →</span>
               </a>
             ))}
             {uploads.length === 0 && <div className="text-xs text-center py-1" style={{ color: "var(--sk-t4)" }}>Aucune pièce jointe</div>}
@@ -2172,14 +2257,14 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
           </div>
 
           {report.comment && (
-            <div className="text-sm rounded-xl px-4 py-3" style={{ background: "rgba(245,166,35,.05)", border: "1px solid rgba(245,166,35,.15)", color: "var(--sk-t2)" }}>
+            <div className="text-sm rounded-xl px-4 py-3" style={{ background: "rgba(var(--tenant-color-rgb),.05)", border: "1px solid rgba(var(--tenant-color-rgb),.15)", color: "var(--sk-t2)" }}>
               💬 {report.comment}
             </div>
           )}
 
           {/* Editable fields — always available */}
           <div className="rounded-xl p-4 space-y-3" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
-            <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: "#f5a623" }}>Modifier le rapport</div>
+            <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: "var(--tenant-color)" }}>Modifier le rapport</div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Date</label>
@@ -2224,7 +2309,7 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
                 <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Solde wallet</label>
                 <input type="number" value={soldeEdit} onChange={(e) => setSoldeEdit(e.target.value)}
                   className="w-full rounded-xl px-3 py-2 text-sm outline-none"
-                  style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "#f5a623" }} />
+                  style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "var(--tenant-color)" }} />
               </div>
               <div>
                 <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Km fin de journée</label>
@@ -2275,12 +2360,12 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
             <div className="flex gap-2 mb-3">
               <button onClick={() => cameraRef.current?.click()} disabled={uploading}
                 className="flex-1 py-2.5 rounded-xl text-sm border"
-                style={{ background: uploading ? "var(--sk-surface)" : "rgba(245,166,35,.08)", borderColor: "rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
+                style={{ background: uploading ? "var(--sk-surface)" : "rgba(var(--tenant-color-rgb),.08)", borderColor: "rgba(var(--tenant-color-rgb),.25)", color: uploading ? "#374151" : "var(--tenant-color)" }}>
                 {uploading ? "…" : "Photo"}
               </button>
               <button onClick={() => fileRef.current?.click()} disabled={uploading}
                 className="flex-1 py-2.5 rounded-xl text-sm border-dashed border-2"
-                style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "var(--sk-t3)" }}>
+                style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "var(--tenant-color)" : "var(--sk-t3)" }}>
                 {uploading ? "Upload…" : "Fichier / Galerie"}
               </button>
             </div>
@@ -2306,7 +2391,7 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
                 style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>
                 <span>{u.file_type?.includes("admin") ? "👤" : "📄"}</span>
                 <span className="truncate flex-1">{u.file_name}</span>
-                <span style={{ color: "#f5a623" }}>Ouvrir →</span>
+                <span style={{ color: "var(--tenant-color)" }}>Ouvrir →</span>
               </a>
             ))}
             {uploads.length === 0 && <div className="text-xs text-center py-2" style={{ color: "var(--sk-t4)" }}>Aucune pièce jointe</div>}
@@ -2353,7 +2438,7 @@ function DailyTable({ data, periodFrom, periodTo }: { data: any[]; periodFrom: s
 
   const cols = [
     { k: "date", label: "Date", fmt: (v: any) => v, color: () => "var(--sk-t1)" },
-    { k: "brutYango", label: `Brut ${platLabel()}`, fmt: xof, color: () => "#f5a623" },
+    { k: "brutYango", label: `Brut ${platLabel()}`, fmt: xof, color: () => "var(--tenant-color)" },
     { k: "horsYango", label: `Hors ${platLabel()}`, fmt: xof, color: () => "#a855f7" },
     { k: "netRecettes", label: "Net recettes", fmt: xof, color: () => "#3b82f6" },
     { k: "depenses", label: "Dépenses", fmt: (v: number) => v > 0 ? `- ${xof(v)}` : "—", color: () => "#ef4444" },
@@ -2371,7 +2456,7 @@ function DailyTable({ data, periodFrom, periodTo }: { data: any[]; periodFrom: s
             min={periodFrom} max={periodTo}
             className="text-xs px-2 py-1 rounded-lg outline-none"
             style={{ background: "var(--sk-surface)", border: "1px solid #2a2f3d", color: "var(--sk-t1)", colorScheme: "dark" }} />
-          {filter && <button onClick={() => setFilter("")} className="text-xs px-2 py-1 rounded" style={{ color: "#f5a623", background: "rgba(245,166,35,.1)" }}>✕ Tout afficher</button>}
+          {filter && <button onClick={() => setFilter("")} className="text-xs px-2 py-1 rounded" style={{ color: "var(--tenant-color)", background: "rgba(var(--tenant-color-rgb),.1)" }}>✕ Tout afficher</button>}
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -2400,7 +2485,7 @@ function DailyTable({ data, periodFrom, periodTo }: { data: any[]; periodFrom: s
           <tfoot>
             <tr style={{ background: "var(--sk-surface)", borderTop: "2px solid #2a2f3d" }}>
               <td className="px-3 py-2.5 font-bold text-white">TOTAL ({filtered.length} j)</td>
-              <td className="px-3 py-2.5 font-mono font-bold" style={{ color: "#f5a623" }}>{xof(tot.brutYango)}</td>
+              <td className="px-3 py-2.5 font-mono font-bold" style={{ color: "var(--tenant-color)" }}>{xof(tot.brutYango)}</td>
               <td className="px-3 py-2.5 font-mono font-bold" style={{ color: "#a855f7" }}>{xof(tot.horsYango)}</td>
               <td className="px-3 py-2.5 font-mono font-bold" style={{ color: "#3b82f6" }}>{xof(tot.netRecettes)}</td>
               <td className="px-3 py-2.5 font-mono font-bold" style={{ color: "#ef4444" }}>- {xof(tot.depenses)}</td>
@@ -2451,9 +2536,9 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
     <div>
       <div className="flex items-center gap-3 mb-4">
         <h3 className="text-sm uppercase tracking-widest font-semibold" style={{ color: "var(--sk-t3)" }}>
-          Allocation par chauffeur — <span style={{ color: "#f5a623" }}>{modelLabel[model] ?? model}</span>
+          Allocation par chauffeur — <span style={{ color: "var(--tenant-color)" }}>{modelLabel[model] ?? model}</span>
         </h3>
-        <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(245,166,35,.1)", color: "#f5a623" }}>
+        <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold" style={{ background: "rgba(var(--tenant-color-rgb),.1)", color: "var(--tenant-color)" }}>
           approuvé + en attente
         </span>
       </div>
@@ -2467,13 +2552,13 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
           const hasPending = d.nbPending > 0;
           return (
             <div key={d.driver_id} className="rounded-2xl p-4 space-y-3"
-              style={{ background: "var(--sk-bg)", border: `1px solid ${hasPending ? "rgba(245,166,35,.25)" : "var(--sk-surface)"}` }}>
+              style={{ background: "var(--sk-bg)", border: `1px solid ${hasPending ? "rgba(var(--tenant-color-rgb),.25)" : "var(--sk-surface)"}` }}>
               <div className="flex items-center justify-between">
                 <div>
                   <div className="font-semibold text-sm text-white">{d.name}</div>
                   <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>
                     {d.nbApproved > 0 && <span className="text-green-500">✓ {d.nbApproved} validés</span>}
-                    {d.nbPending > 0 && <span className="ml-1" style={{ color: "#f5a623" }}>{d.nbPending} en attente</span>}
+                    {d.nbPending > 0 && <span className="ml-1" style={{ color: "var(--tenant-color)" }}>{d.nbPending} en attente</span>}
                     {d.nbReports === 0 && <span style={{ color: "var(--sk-t4)" }}>Aucun rapport</span>}
                   </div>
                 </div>
@@ -2499,7 +2584,7 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
                 {d.netPending > 0 && (
                   <div className="flex justify-between">
                     <span>Net en attente</span>
-                    <span className="font-mono" style={{ color: "#f5a623" }}>{xof(d.netPending)}</span>
+                    <span className="font-mono" style={{ color: "var(--tenant-color)" }}>{xof(d.netPending)}</span>
                   </div>
                 )}
                 <div className="flex justify-between pt-1 border-t" style={{ borderColor: "var(--sk-surface)" }}>
@@ -2517,7 +2602,7 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
                       </span>
                     )}
                   </div>
-                  <div className="font-mono font-bold text-base" style={{ color: "#f5a623" }}>{xof(salary)}</div>
+                  <div className="font-mono font-bold text-base" style={{ color: "var(--tenant-color)" }}>{xof(salary)}</div>
                   {isProrated && d.hire_date && (
                     <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>
                       Entré le {new Date(d.hire_date).toLocaleDateString("fr-FR")}
@@ -2559,7 +2644,7 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
   if (model === "fixed") {
     const masseSalariale = realMasseSalariale;
     items = [
-      { label: "Salaire/driver", value: xof(cfg.base_amount), color: "#f5a623" },
+      { label: "Salaire/driver", value: xof(cfg.base_amount), color: "var(--tenant-color)" },
       { label: "Masse salariale totale", value: xof(masseSalariale), color: "#ef4444", sub: `${kpis.totalDrivers} drivers, prorata inclus` },
       { label: "CA net période", value: xof(kpis.totalBrut), color: "#22c55e" },
       { label: "Marge après salaires", value: xof(kpis.totalBrut - masseSalariale), color: kpis.totalBrut - masseSalariale >= 0 ? "#22c55e" : "#ef4444" },
@@ -2572,7 +2657,7 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
     const estSalaire = estTier?.total_salary ?? cfg.base_amount ?? 0;
     const masseSalariale = realMasseSalariale;
     items = [
-      { label: "CA net moy/driver", value: xof(avgPerDriver), color: "#f5a623", sub: "Indicatif (hors prorata)" },
+      { label: "CA net moy/driver", value: xof(avgPerDriver), color: "var(--tenant-color)", sub: "Indicatif (hors prorata)" },
       { label: "Palier estimé", value: estTier?.label ?? "—", color: "var(--sk-t2)", sub: `→ ${xof(estSalaire)}/driver plein mois` },
       { label: "Masse salariale estimée", value: xof(masseSalariale), color: "#ef4444", sub: `${kpis.totalDrivers} drivers, prorata inclus` },
       { label: "Marge après salaires", value: xof(kpis.totalBrut - masseSalariale), color: kpis.totalBrut - masseSalariale >= 0 ? "#22c55e" : "#ef4444" },
@@ -2583,7 +2668,7 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
     items = [
       { label: `Part drivers (${Math.round((cfg.commission_rate || 0) * 100)}%)`, value: xof(partDriver), color: "#ef4444" },
       { label: "Part opérateur", value: xof(partOpe), color: "#22c55e" },
-      { label: "CA net période", value: xof(kpis.totalBrut), color: "#f5a623" },
+      { label: "CA net période", value: xof(kpis.totalBrut), color: "var(--tenant-color)" },
       { label: "Taux opérateur", value: `${Math.round((1 - (cfg.commission_rate || 0)) * 100)}%`, color: "var(--sk-t2)" },
     ];
   } else if (model === "hybrid") {
@@ -2591,7 +2676,7 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
     const bonusDrivers = cfg.bonus_threshold > 0 && avgPerDriver >= cfg.bonus_threshold ? kpis.totalDrivers : 0;
     const masseSalariale = realMasseSalariale;
     items = [
-      { label: "Masse fixe (plein mois, indicatif)", value: xof((cfg.base_amount || 0) * (kpis.totalDrivers || 1)), color: "#f5a623", sub: `${kpis.totalDrivers} × ${xof(cfg.base_amount)}` },
+      { label: "Masse fixe (plein mois, indicatif)", value: xof((cfg.base_amount || 0) * (kpis.totalDrivers || 1)), color: "var(--tenant-color)", sub: `${kpis.totalDrivers} × ${xof(cfg.base_amount)}` },
       { label: "Bonus estimés", value: xof(bonusDrivers * (cfg.bonus_amount || 0)), color: "#a855f7", sub: bonusDrivers > 0 ? `${bonusDrivers} drivers ont atteint le seuil` : `Seuil : ${xof(cfg.bonus_threshold)}` },
       { label: "Masse salariale totale", value: xof(masseSalariale), color: "#ef4444", sub: "Prorata inclus (réel)" },
       { label: "Marge après salaires", value: xof(kpis.totalBrut - masseSalariale), color: kpis.totalBrut - masseSalariale >= 0 ? "#22c55e" : "#ef4444" },
@@ -2601,7 +2686,7 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
     const loyerTotal = loyerParDriver * (kpis.totalDrivers || 1);
     const loyerMensuel = (cfg.daily_rent || 0) * daysInMonth * (kpis.totalDrivers || 1);
     items = [
-      { label: `Loyer/jour/driver`, value: xof(cfg.daily_rent), color: "#f5a623" },
+      { label: `Loyer/jour/driver`, value: xof(cfg.daily_rent), color: "var(--tenant-color)" },
       { label: `Loyer collecté (${daysElapsed}j)`, value: xof(loyerTotal), color: "#22c55e", sub: `${kpis.totalDrivers} drivers` },
       { label: "Loyer mensuel projeté", value: xof(loyerMensuel), color: "#3b82f6", sub: `${daysInMonth}j × ${kpis.totalDrivers} drivers` },
       { label: "CA net drivers (après loyer)", value: xof(kpis.totalBrut - loyerTotal), color: "var(--sk-t2)", sub: "Géré par les drivers" },
@@ -2611,7 +2696,7 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
   return (
     <div>
       <h3 className="text-sm uppercase tracking-widest font-semibold mb-4" style={{ color: "var(--sk-t3)" }}>
-        Rémunération — <span style={{ color: "#f5a623" }}>{modelLabel[model] ?? model}</span>
+        Rémunération — <span style={{ color: "var(--tenant-color)" }}>{modelLabel[model] ?? model}</span>
       </h3>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {items.map((item) => (
@@ -2635,7 +2720,7 @@ function InsightsPanel({ kpis }: { kpis: any }) {
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
   const insights: { icon: LucideIcon; label: string; value: string; color: string }[] = [];
 
-  if (kpis.avgBrutPerDay > 0) insights.push({ icon: TrendingUp, label: "Net recettes moy/jour", value: xof(kpis.avgBrutPerDay) + " XOF", color: "#f5a623" });
+  if (kpis.avgBrutPerDay > 0) insights.push({ icon: TrendingUp, label: "Net recettes moy/jour", value: xof(kpis.avgBrutPerDay) + " XOF", color: "var(--tenant-color)" });
   if (kpis.avgDepensesPerDay > 0) insights.push({ icon: Fuel, label: "Dépense moy/jour", value: xof(kpis.avgDepensesPerDay) + " XOF", color: "#ef4444" });
   if (kpis.avgNetPerDay !== 0) insights.push({ icon: Coins, label: "Net final moy/jour", value: xof(kpis.avgNetPerDay) + " XOF", color: kpis.avgNetPerDay > 0 ? "#22c55e" : "#ef4444" });
   if (kpis.avgSoldePerDay > 0) insights.push({ icon: Wallet, label: "Solde wallet moy/jour", value: xof(kpis.avgSoldePerDay) + " XOF", color: "#a855f7" });
@@ -2806,7 +2891,7 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
   const typeBadge = (t: string) => {
     const map: Record<string, [string, string]> = {
       salaire: ["#22c55e", "rgba(34,197,94,.1)"],
-      acompte: ["#f5a623", "rgba(245,166,35,.1)"],
+      acompte: ["var(--tenant-color)", "rgba(var(--tenant-color-rgb),.1)"],
       bonus: ["#3b82f6", "rgba(59,130,246,.1)"],
       autre: ["var(--sk-t2)", "var(--sk-surface)"],
     };
@@ -2829,7 +2914,7 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
         <h2 className="flex items-center gap-2 text-2xl font-bold text-white"><Banknote size={22} strokeWidth={2} />Paiements chauffeurs</h2>
         <button onClick={() => setShowForm(!showForm)}
           className="text-sm px-4 py-2 rounded-xl font-semibold"
-          style={{ background: showForm ? "var(--sk-surface)" : "linear-gradient(135deg,#f5a623,#e8951a)", color: showForm ? "var(--sk-t2)" : "#000" }}>
+          style={{ background: showForm ? "var(--sk-surface)" : "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))", color: showForm ? "var(--sk-t2)" : "#000" }}>
           {showForm ? "Annuler" : "+ Nouveau paiement"}
         </button>
       </div>
@@ -2868,10 +2953,10 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
                 style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", colorScheme: "dark" }} />
             </div>
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "#f5a623" }}>Mois du salaire (à imputer)</label>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--tenant-color)" }}>Mois du salaire (à imputer)</label>
               <input type="month" value={form.salary_month?.slice(0, 7)} onChange={(e) => setForm((f) => ({ ...f, salary_month: e.target.value + "-01" }))}
                 className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-                style={{ background: "var(--sk-deep)", border: "1px solid rgba(245,166,35,.4)", color: "#f5a623", colorScheme: "dark" }} />
+                style={{ background: "var(--sk-deep)", border: "1px solid rgba(var(--tenant-color-rgb),.4)", color: "var(--tenant-color)", colorScheme: "dark" }} />
               <p className="text-xs mt-1" style={{ color: "var(--sk-t4)" }}>Apparaît comme charge sur ce mois dans le dashboard</p>
             </div>
           </div>
@@ -2884,7 +2969,7 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
           </div>
           <button onClick={save} disabled={saving}
             className="w-full py-3 rounded-xl text-sm font-bold"
-            style={{ background: saving ? "var(--sk-surface)" : "linear-gradient(135deg,#f5a623,#e8951a)", color: saving ? "var(--sk-t3)" : "#000" }}>
+            style={{ background: saving ? "var(--sk-surface)" : "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))", color: saving ? "var(--sk-t3)" : "#000" }}>
             {saving ? "Enregistrement..." : "✓ Enregistrer le paiement"}
           </button>
 
@@ -2969,12 +3054,12 @@ function PaymentUpload({ paymentId, driverId }: { paymentId: string; driverId: s
       <div className="flex gap-2 mb-2">
         <button onClick={() => cameraRef.current?.click()} disabled={uploading}
           className="flex-1 py-2 rounded-xl text-xs border"
-          style={{ background: uploading ? "var(--sk-surface)" : "rgba(245,166,35,.08)", borderColor: "rgba(245,166,35,.25)", color: uploading ? "#374151" : "#f5a623" }}>
+          style={{ background: uploading ? "var(--sk-surface)" : "rgba(var(--tenant-color-rgb),.08)", borderColor: "rgba(var(--tenant-color-rgb),.25)", color: uploading ? "#374151" : "var(--tenant-color)" }}>
           {uploading ? "…" : "Photo"}
         </button>
         <button onClick={() => fileRef.current?.click()} disabled={uploading}
           className="flex-1 py-2 rounded-xl text-xs border-dashed border-2"
-          style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "#f5a623" : "var(--sk-t3)" }}>
+          style={{ background: "transparent", borderColor: "#2a2f3d", color: uploading ? "var(--tenant-color)" : "var(--sk-t3)" }}>
           {uploading ? "Upload…" : "Fichier / Galerie"}
         </button>
       </div>
@@ -2996,7 +3081,7 @@ function PaymentUpload({ paymentId, driverId }: { paymentId: string; driverId: s
           className="flex items-center gap-2 text-xs p-1.5 rounded-lg mb-1"
           style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>
           <span>📄</span><span className="truncate flex-1">{u.file_name}</span>
-          <span style={{ color: "#f5a623" }}>→</span>
+          <span style={{ color: "var(--tenant-color)" }}>→</span>
         </a>
       ))}
     </div>
@@ -3016,7 +3101,7 @@ function PaymentRow({ payment: p, onDelete, typeBadge, xof }: { payment: any; on
             <span className="ml-2 text-xs" style={{ color: "var(--sk-t4)" }}>{p.profiles?.driver_id}</span>
           </div>
           <div className="text-xs mt-0.5 flex items-center gap-2 flex-wrap" style={{ color: "var(--sk-t3)" }}>
-            {p.salary_month && <span style={{ color: "#f5a623" }}>Mois: {p.salary_month?.slice(0, 7)}</span>}
+            {p.salary_month && <span style={{ color: "var(--tenant-color)" }}>Mois: {p.salary_month?.slice(0, 7)}</span>}
             <span>Payé le: {p.payment_date}</span>
             {typeBadge(p.type)}
             {p.notes && <span className="truncate max-w-[200px]">{p.notes}</span>}
@@ -3025,7 +3110,7 @@ function PaymentRow({ payment: p, onDelete, typeBadge, xof }: { payment: any; on
         <div className="flex items-center gap-3">
           <div className="font-mono font-bold" style={{ color: "#22c55e" }}>{xof(p.amount)} XOF</div>
           <button onClick={() => setOpen(!open)} className="text-xs px-2 py-1 rounded-lg"
-            style={{ background: open ? "rgba(245,166,35,.1)" : "var(--sk-surface)", color: open ? "#f5a623" : "var(--sk-t3)" }}>
+            style={{ background: open ? "rgba(var(--tenant-color-rgb),.1)" : "var(--sk-surface)", color: open ? "var(--tenant-color)" : "var(--sk-t3)" }}>
             <Paperclip size={13} strokeWidth={2} />
           </button>
           <button onClick={onDelete} className="text-xs" style={{ color: "var(--sk-t4)" }}><Trash2 size={13} strokeWidth={2} /></button>
@@ -3120,14 +3205,14 @@ function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string
         <div>
           <h2 className="flex items-center gap-2 text-2xl font-bold text-white"><HandCoins size={22} strokeWidth={2} />Avances sur salaire</h2>
           {totalPending > 0 && (
-            <div className="text-sm mt-1" style={{ color: "#f5a623" }}>
+            <div className="text-sm mt-1" style={{ color: "var(--tenant-color)" }}>
               <span className="inline-flex items-center gap-1"><AlertTriangle size={13} strokeWidth={2} />Total avances non déduites :</span> <span className="font-mono font-bold">{xof(totalPending)} XOF</span>
             </div>
           )}
         </div>
         <button onClick={() => setShowForm(!showForm)}
           className="text-sm px-4 py-2 rounded-xl font-semibold"
-          style={{ background: showForm ? "var(--sk-surface)" : "linear-gradient(135deg,#f5a623,#e8951a)", color: showForm ? "var(--sk-t2)" : "#000" }}>
+          style={{ background: showForm ? "var(--sk-surface)" : "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))", color: showForm ? "var(--sk-t2)" : "#000" }}>
           {showForm ? "Annuler" : "+ Nouvelle avance"}
         </button>
       </div>
@@ -3168,7 +3253,7 @@ function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string
           </div>
           <button onClick={saveAdvance} disabled={saving}
             className="w-full py-3 rounded-xl text-sm font-bold"
-            style={{ background: saving ? "var(--sk-surface)" : "linear-gradient(135deg,#f5a623,#e8951a)", color: saving ? "var(--sk-t3)" : "#000" }}>
+            style={{ background: saving ? "var(--sk-surface)" : "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))", color: saving ? "var(--sk-t3)" : "#000" }}>
             {saving ? "Enregistrement..." : "✓ Enregistrer l'avance"}
           </button>
         </div>
@@ -3178,13 +3263,13 @@ function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string
       {byDriver.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {byDriver.map((d) => (
-            <div key={d.id} className="rounded-2xl p-5" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderLeft: `3px solid ${d.pending > 0 ? "#f5a623" : "#22c55e"}` }}>
+            <div key={d.id} className="rounded-2xl p-5" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderLeft: `3px solid ${d.pending > 0 ? "var(--tenant-color)" : "#22c55e"}` }}>
               <div className="font-semibold text-white text-sm mb-1">{d.full_name}</div>
               <div className="text-xs mb-3" style={{ color: "var(--sk-t4)" }}>{d.driver_id}</div>
               <div className="flex gap-4">
                 <div>
                   <div className="text-[10px] uppercase tracking-wider mb-0.5" style={{ color: "var(--sk-t3)" }}>En attente</div>
-                  <div className="font-mono font-bold text-sm" style={{ color: d.pending > 0 ? "#f5a623" : "var(--sk-t4)" }}>
+                  <div className="font-mono font-bold text-sm" style={{ color: d.pending > 0 ? "var(--tenant-color)" : "var(--sk-t4)" }}>
                     {xof(d.pending)} XOF
                   </div>
                 </div>
@@ -3242,12 +3327,12 @@ function AdvanceRow({
           {a.notes && <span className="truncate max-w-[200px]">{a.notes}</span>}
           {a.is_deducted
             ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: "#22c55e", background: "rgba(34,197,94,.1)" }}>✓ Déduit {a.deducted_at || ""}</span>
-            : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: "#f5a623", background: "rgba(245,166,35,.1)" }}>En attente</span>
+            : <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color: "var(--tenant-color)", background: "rgba(var(--tenant-color-rgb),.1)" }}>En attente</span>
           }
         </div>
       </div>
       <div className="flex items-center gap-3">
-        <div className="font-mono font-bold" style={{ color: a.is_deducted ? "var(--sk-t3)" : "#f5a623" }}>
+        <div className="font-mono font-bold" style={{ color: a.is_deducted ? "var(--sk-t3)" : "var(--tenant-color)" }}>
           {xof(a.amount)} XOF
         </div>
         {!a.is_deducted && (
@@ -3365,7 +3450,7 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
 
       {/* Legend */}
       <div className="flex gap-4 flex-wrap text-xs">
-        {[["#6366f1","Repos planifié"],["#22c55e","Travaillé"],["#f5a623","En attente"],["#ef4444","Rejeté"]].map(([c, l]) => (
+        {[["#6366f1","Repos planifié"],["#22c55e","Travaillé"],["var(--tenant-color)","En attente"],["#ef4444","Rejeté"]].map(([c, l]) => (
           <div key={l} className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm" style={{ background: c }} /><span style={{ color: "var(--sk-t2)" }}>{l}</span></div>
         ))}
       </div>
@@ -3395,10 +3480,10 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
               return (
                 <div key={day} onClick={() => { if (!isFuture || true) { setAddModal({ date: dateStr }); if (drivers.length === 1) setAddDriver(drivers[0].id); } }}
                   className="cursor-pointer transition-all hover:bg-opacity-80"
-                  style={{ borderRight: "1px solid var(--sk-bg)", borderBottom: "1px solid var(--sk-bg)", minHeight: 80, padding: "6px", background: isToday ? "rgba(245,166,35,.05)" : "transparent" }}>
+                  style={{ borderRight: "1px solid var(--sk-bg)", borderBottom: "1px solid var(--sk-bg)", minHeight: 80, padding: "6px", background: isToday ? "rgba(var(--tenant-color-rgb),.05)" : "transparent" }}>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-bold" style={{ color: isToday ? "#f5a623" : isPast ? "var(--sk-t4)" : "var(--sk-t2)",
-                      background: isToday ? "rgba(245,166,35,.15)" : "transparent", borderRadius: 4, padding: "0 3px" }}>
+                    <span className="text-xs font-bold" style={{ color: isToday ? "var(--tenant-color)" : isPast ? "var(--sk-t4)" : "var(--sk-t2)",
+                      background: isToday ? "rgba(var(--tenant-color-rgb),.15)" : "transparent", borderRadius: 4, padding: "0 3px" }}>
                       {day}
                     </span>
                     {isFuture && <span className="text-[9px]" style={{ color: "#2a2f3d" }}>+</span>}
@@ -3408,7 +3493,7 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
                       const isRepos = e.comment?.startsWith("[REPOS]");
                       const color = isRepos
                         ? (e.status === "approved" ? "#6366f1" : e.status === "rejected" ? "#ef4444" : "#a5b4fc")
-                        : (e.status === "approved" ? "#22c55e" : e.status === "rejected" ? "#ef4444" : "#f5a623");
+                        : (e.status === "approved" ? "#22c55e" : e.status === "rejected" ? "#ef4444" : "var(--tenant-color)");
                       return (
                         <div key={e.id} onClick={(ev) => { ev.stopPropagation(); }}
                           className="text-[10px] px-1.5 py-0.5 rounded font-semibold truncate flex items-center justify-between group"
@@ -3476,7 +3561,7 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
               <div key={d.id} className="rounded-2xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-8 h-8 rounded-xl flex items-center justify-center text-xs font-black text-black"
-                    style={{ background: "linear-gradient(135deg,#f5a623,#e8951a)" }}>{d.full_name[0]}</div>
+                    style={{ background: "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))" }}>{d.full_name[0]}</div>
                   <div>
                     <div className="text-sm font-bold text-white">{d.full_name}</div>
                     {d.plate && <div className="text-[10px] font-mono" style={{ color: "var(--sk-t4)" }}>{d.plate}</div>}
@@ -3492,7 +3577,7 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
                     <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Repos</div>
                   </div>
                   <div className="rounded-xl py-2" style={{ background: "var(--sk-deep)" }}>
-                    <div className="text-sm font-bold font-mono" style={{ color: "#f5a623" }}>{(totalNet / 1000).toFixed(0)}k</div>
+                    <div className="text-sm font-bold font-mono" style={{ color: "var(--tenant-color)" }}>{(totalNet / 1000).toFixed(0)}k</div>
                     <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Net XOF</div>
                   </div>
                 </div>
@@ -3532,7 +3617,7 @@ function ActionLogsTab({ filterDriverId = "" }: { filterDriverId?: string }) {
     : allLogs;
 
   const actionLabel: Record<string, [string, string]> = {
-    submitted: ["Soumis", "#f5a623"],
+    submitted: ["Soumis", "var(--tenant-color)"],
     approved:  ["Validé", "#22c55e"],
     rejected:  ["Rejeté", "#ef4444"],
     edited:    ["Modifié", "#3b82f6"],
@@ -3689,12 +3774,12 @@ function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
             <button key={key} onClick={() => set("model", key)}
               className="flex items-center gap-3 rounded-xl px-4 py-3 text-left transition-all"
               style={{
-                background: cfg.model === key ? "rgba(245,166,35,.1)" : "var(--sk-deep)",
-                border: `1px solid ${cfg.model === key ? "rgba(245,166,35,.4)" : "var(--sk-surface)"}`,
+                background: cfg.model === key ? "rgba(var(--tenant-color-rgb),.1)" : "var(--sk-deep)",
+                border: `1px solid ${cfg.model === key ? "rgba(var(--tenant-color-rgb),.4)" : "var(--sk-surface)"}`,
               }}>
-              <div className="w-3 h-3 rounded-full border-2 flex-shrink-0" style={{ borderColor: cfg.model === key ? "#f5a623" : "#2a2f3d", background: cfg.model === key ? "#f5a623" : "transparent" }} />
+              <div className="w-3 h-3 rounded-full border-2 flex-shrink-0" style={{ borderColor: cfg.model === key ? "var(--tenant-color)" : "#2a2f3d", background: cfg.model === key ? "var(--tenant-color)" : "transparent" }} />
               <div>
-                <div className="text-sm font-semibold" style={{ color: cfg.model === key ? "#f5a623" : "var(--sk-t2)" }}>{label}</div>
+                <div className="text-sm font-semibold" style={{ color: cfg.model === key ? "var(--tenant-color)" : "var(--sk-t2)" }}>{label}</div>
                 <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>
                   {key === "fixed"    && "Salaire fixe peu importe le CA. Idéal pour partenariats stables."}
                   {key === "tiered"   && "Grille de paliers : le salaire monte avec le CA net mensuel."}
@@ -3743,7 +3828,7 @@ function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
           <div className="flex items-center justify-between mb-4">
             <div className="text-xs uppercase tracking-wider font-semibold" style={{ color: "var(--sk-t4)" }}>Grille de paliers</div>
             <button onClick={addTier} className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-              style={{ background: "rgba(245,166,35,.1)", color: "#f5a623", border: "1px solid rgba(245,166,35,.2)" }}>
+              style={{ background: "rgba(var(--tenant-color-rgb),.1)", color: "var(--tenant-color)", border: "1px solid rgba(var(--tenant-color-rgb),.2)" }}>
               + Ajouter palier
             </button>
           </div>
@@ -3846,7 +3931,7 @@ function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
       {/* Save */}
       <button onClick={save} disabled={saving}
         className="w-full py-3 rounded-xl font-semibold text-black transition-all"
-        style={{ background: saved ? "#22c55e" : saving ? "#2a2f3d" : "#f5a623", color: saving ? "var(--sk-t3)" : "#000" }}>
+        style={{ background: saved ? "#22c55e" : saving ? "#2a2f3d" : "var(--tenant-color)", color: saving ? "var(--sk-t3)" : "#000" }}>
         {saving ? "Enregistrement..." : saved ? "✓ Enregistré !" : "Enregistrer la configuration"}
       </button>
     </div>
@@ -3980,11 +4065,11 @@ function AlertsPanel() {
     <div className="space-y-2">
       {alerts.map((a) => {
         const warn = a.severity === "warn";
-        const color = warn ? "#f5a623" : "#60a5fa";
+        const color = warn ? "var(--tenant-color)" : "#60a5fa";
         const Icon = warn ? AlertTriangle : Info;
         return (
           <div key={a.kind} className="rounded-xl px-5 py-3 flex items-start gap-3"
-            style={{ background: warn ? "rgba(245,166,35,.06)" : "rgba(96,165,250,.06)", border: `1px solid ${warn ? "rgba(245,166,35,.22)" : "rgba(96,165,250,.22)"}` }}>
+            style={{ background: warn ? "rgba(var(--tenant-color-rgb),.06)" : "rgba(96,165,250,.06)", border: `1px solid ${warn ? "rgba(var(--tenant-color-rgb),.22)" : "rgba(96,165,250,.22)"}` }}>
             <Icon size={17} strokeWidth={2} style={{ color, flexShrink: 0, marginTop: 1 }} />
             <div className="min-w-0">
               <div className="text-sm font-semibold" style={{ color: "var(--sk-t1)" }}>{a.title}</div>
@@ -4025,8 +4110,8 @@ function RemindBanner() {
   const names = state.drivers.map((d) => d.name).join(", ");
   return (
     <div className="rounded-xl px-5 py-3.5 flex items-center gap-4 flex-wrap"
-      style={{ background: "rgba(245,166,35,.07)", border: "1px solid rgba(245,166,35,.25)" }}>
-      <BellRing size={18} strokeWidth={2} style={{ color: "#f5a623", flexShrink: 0 }} />
+      style={{ background: "rgba(var(--tenant-color-rgb),.07)", border: "1px solid rgba(var(--tenant-color-rgb),.25)" }}>
+      <BellRing size={18} strokeWidth={2} style={{ color: "var(--tenant-color)", flexShrink: 0 }} />
       <div className="flex-1 min-w-[180px]">
         <div className="text-sm font-semibold" style={{ color: "var(--sk-t1)" }}>
           {state.count} chauffeur{state.count > 1 ? "s" : ""} sans rapport hier (J-1)
@@ -4040,7 +4125,7 @@ function RemindBanner() {
       ) : (
         <button onClick={remind} disabled={sending}
           className="text-sm px-4 py-2 rounded-lg font-semibold disabled:opacity-50"
-          style={{ background: "#f5a623", color: "#000" }}>
+          style={{ background: "var(--tenant-color)", color: "#000" }}>
           {sending ? "Envoi…" : "Relancer"}
         </button>
       )}

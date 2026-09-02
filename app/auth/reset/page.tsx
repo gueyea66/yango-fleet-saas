@@ -9,7 +9,7 @@ import { BrandLogo, PoweredBy } from "@/components/brand/BrandShell";
 
 export default function ResetPasswordPage() {
   const { settings } = useTenant();
-  const brand = settings.primary_color || "#f5a623";
+  const brand = settings.primary_color || "var(--tenant-color)";
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [done, setDone] = useState(false);
