@@ -325,9 +325,13 @@ async function buildBriefingContent(
       const manque = Math.max(0, (c.palier_cible_fcfa ?? 0) - c.ca_mtd_fcfa);
       // Rythme et besoin par jour OUVRÉ (repos exclus des deux côtés) :
       // comparer un rythme hors repos à un besoin calendaire gonflait l'écart.
-      const rythme = Math.round(c.ca_mtd_fcfa / Math.max(1, c.jours_travailles_mtd ?? 1));
-      const besoin = Math.ceil(manque / joursOuvresRestants);
-      const nominal = Math.ceil((c.palier_cible_fcfa ?? 0) / joursOuvresMois);
+      // Montants /jour ARRONDIS À LA CENTAINE : le LLM arrondissait de lui-même
+      // (28884 → « 29000 ») et se faisait rejeter par le garde — on lui donne
+      // directement des chiffres ronds, la précision au franc n'a aucune valeur.
+      const r100 = (v: number) => Math.round(v / 100) * 100;
+      const rythme = r100(c.ca_mtd_fcfa / Math.max(1, c.jours_travailles_mtd ?? 1));
+      const besoin = r100(manque / joursOuvresRestants);
+      const nominal = r100((c.palier_cible_fcfa ?? 0) / joursOuvresMois);
       // Tous les écarts sont PRÉ-CALCULÉS : le LLM n'a jamais à faire une
       // soustraction (cause du rejet anti-hallucination du 29/07).
       return {
@@ -431,6 +435,9 @@ async function buildBriefingContent(
         effort_supplementaire_fcfa_par_jour: p.effort_supplementaire_fcfa_par_jour,
         jours_ouvres_restants: p.jours_ouvres_restants,
         atteignable: p.atteignable,
+        rythme_requis_sur_le_mois_fcfa_par_jour: p.rythme_requis_sur_le_mois_fcfa_par_jour,
+        ecart_vs_trajectoire_fcfa_par_jour: p.ecart_vs_trajectoire_fcfa_par_jour,
+        sur_trajectoire: p.sur_trajectoire,
       })),
       mouvements: topExpenseMovements(win.expenses, cur.from, cur.to, prev.from, prev.to),
       netProjete: projections.net_projete_fcfa,
@@ -475,7 +482,8 @@ Règles ABSOLUES :
   jamais un delta seul.
 - INTERDIT de recopier les valeurs de kpis_deja_affiches_a_l_ecran, sauf pour les mettre en rapport avec un fait.
 - Tu n'inventes JAMAIS un chiffre et tu ne fais JAMAIS de calcul (ni somme, ni différence, ni arrondi) :
-  uniquement les nombres du JSON fourni, recopiés tels quels — tous les écarts utiles sont déjà fournis.
+  uniquement les nombres du JSON fourni, recopiés tels quels — tous les écarts utiles sont déjà fournis
+  et les montants par jour sont DÉJÀ arrondis : n'arrondis jamais toi-même (28884 ne devient pas 29000).
 - Les chauffeurs sont désignés par leur référence drv_xxxx : recopie-les telles quelles.
 - Si nouveaux_chauffeurs n'est pas vide : un point factuel sur le nouveau (date de démarrage, CA,
   jours) SANS le comparer aux anciens.
