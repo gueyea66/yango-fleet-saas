@@ -1,6 +1,4 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -52,22 +50,38 @@ export const metadata: Metadata = {
 
 const surface = { background: "var(--sk-surface)", border: "1px solid var(--sk-border)" };
 
-// La vitrine M3A Fleet n'a de sens que sur le domaine racine (m3afleet.com).
-// Un sous-domaine client (slug.m3afleet.com — même détection que
-// lib/tenant/loader.ts::detectSlug) doit continuer à renvoyer vers sa page de
-// connexion, jamais afficher le branding M3A ("vos clients ne voient jamais M3A").
-async function isClientSubdomain(): Promise<boolean> {
-  const host = (await headers()).get("host") || "";
-  const hostname = host.split(":")[0];
-  if (hostname === "localhost" || hostname === "127.0.0.1") return false;
-  return hostname.split(".").length >= 3;
-}
+// La redirection des sous-domaines clients (slug.m3afleet.com/ → login) est
+// gérée par le middleware : cette page est STATIQUE (TTFB — audit v2 03/09).
+export const revalidate = 3600;
 
-export default async function Home() {
-  if (await isClientSubdomain()) {
-    redirect("/auth/login");
-  }
+const FAQ_ITEMS = [
+  {
+    q: "Mes chauffeurs n'ont pas de smartphones récents — ça marchera ?",
+    a: "Oui. L'application chauffeur tourne sur un Android modeste et fonctionne en 3G. La déclaration prend deux minutes, photo du justificatif comprise.",
+  },
+  {
+    q: "Combien ça coûte ?",
+    a: "À partir de 35 000 XOF par mois pour une flotte jusqu'à 20 chauffeurs, sans engagement. L'essai de 14 jours est gratuit et complet — les conditions précises s'ajustent à votre périmètre lors de la démonstration.",
+  },
+  {
+    q: "J'ai déjà des mois d'historique dans un cahier ou un tableur — je les perds ?",
+    a: "Non. Le module d'import intègre votre historique (tableur ou relevés existants) pour que vos rapports et comparaisons repartent de vos vrais chiffres, pas de zéro.",
+  },
+  {
+    q: "Qui voit quoi ?",
+    a: "Chaque chauffeur ne voit que son activité et ce qu'il va toucher. Vous validez et voyez tout. Les données de votre entreprise sont strictement isolées de celles des autres clients — et vos équipes ne voient jamais la marque M3A.",
+  },
+  {
+    q: "Et si un chauffeur conteste un montant ?",
+    a: "Chaque validation, chaque modification et chaque paiement est tracé, avec justificatifs photographiés. Les litiges se tranchent sur des preuves, pas sur des souvenirs.",
+  },
+  {
+    q: "Je ne travaille pas avec Yango — l'outil me concerne ?",
+    a: "Oui. Transport de personnes, fret, logistique, flotte de service : le libellé de la plateforme s'adapte à votre activité, et l'outil porte vos couleurs et votre logo.",
+  },
+];
 
+export default function Home() {
   // Données structurées (SEO — audit 02/09) : uniquement des faits vérifiables.
   const jsonLd = {
     "@context": "https://schema.org",
@@ -82,9 +96,19 @@ export default async function Home() {
     provider: { "@type": "Organization", name: "M3A Group", address: { "@type": "PostalAddress", addressLocality: "Dakar", addressCountry: "SN" }, email: "contact@m3afleet.com", telephone: "+221787600330" },
   };
 
+  const faqLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: FAQ_ITEMS.map((f) => ({
+      "@type": "Question", name: f.q,
+      acceptedAnswer: { "@type": "Answer", text: f.a },
+    })),
+  };
+
   return (
     <div style={{ background: "var(--sk-bg)", color: "var(--sk-t1)" }}>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
       {/* ── HEADER ─────────────────────────────────────────────── */}
       <header
         className="sticky top-0 z-30 backdrop-blur"
@@ -104,6 +128,7 @@ export default async function Home() {
             <a href="#solution" className="hover:opacity-80 transition-opacity">Solution</a>
             <a href="#demo" className="hover:opacity-80 transition-opacity">Démo</a>
             <a href="#securite" className="hover:opacity-80 transition-opacity">Sécurité</a>
+            <a href="#faq" className="hover:opacity-80 transition-opacity">FAQ</a>
             <a href="#contact" className="hover:opacity-80 transition-opacity">Contact</a>
           </nav>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -223,6 +248,7 @@ export default async function Home() {
           number="1"
           icon={ScanLine}
           title="DÉCLARER"
+          imageAlt="Écran mobile du chauffeur : déclaration de la journée avec recettes, kilométrage et photo du justificatif"
           tagline="La journée du chauffeur, saisie en deux minutes."
           description="Depuis son téléphone, le chauffeur déclare sa journée : recettes, kilométrage, carburant, dépenses — photo du justificatif à l'appui. L'application tourne sur un Android modeste, même en 3G. Sur les plateformes compatibles, il photographie simplement son écran et le compteur : l'IA remplit les champs, il vérifie et valide."
           image="/landing/img/driver-mobile.png"
@@ -234,6 +260,7 @@ export default async function Home() {
           number="2"
           icon={ShieldCheck}
           title="VALIDER"
+          imageAlt="Fenêtre de validation du gestionnaire : rapport du chauffeur avec justificatifs et net calculé"
           tagline="Pas de chiffre sans preuve, pas d'action sans trace."
           description="Rien n'entre dans les comptes sans votre validation. Le moteur de calcul applique le modèle de rémunération de chaque chauffeur et affiche le net immédiatement. Chaque validation, chaque rejet, chaque modification est enregistré : qui, quoi, quand."
           image="/landing/img/validation-modal.png"
@@ -245,6 +272,7 @@ export default async function Home() {
           number="3"
           icon={BarChart3}
           title="PILOTER"
+          imageAlt="Tableau de bord de la flotte : net final, recettes par jour et alertes par véhicule"
           tagline="Combien rapporte chaque véhicule ? La réponse est sur l'écran."
           description="Le net réel, jour après jour, véhicule par véhicule, chauffeur par chauffeur. Le coût au kilomètre, les salaires calculés automatiquement, une alerte dès qu'une déclaration manque — et chaque matin, un brief qui vous dit où agir."
           image="/landing/img/dashboard-desktop.png"
@@ -437,7 +465,8 @@ export default async function Home() {
         <div className="grid sm:grid-cols-2 gap-6">
           <div className="rounded-2xl p-8" style={surface}>
             <h3 className="text-lg font-semibold mb-1">Instance dédiée entreprise</h3>
-            <p className="text-sm mb-6" style={{ color: "var(--sk-t3)" }}>Grands comptes, exigences de sécurité élevées</p>
+            <p className="text-sm mb-2" style={{ color: "var(--sk-t3)" }}>Grands comptes, exigences de sécurité élevées</p>
+            <p className="mb-6 text-sm font-semibold" style={{ color: "var(--sk-t2)" }}>Sur devis, selon votre périmètre</p>
             <ul className="space-y-3 text-sm" style={{ color: "var(--sk-t2)" }}>
               <li>Base de données et domaine dédiés au client</li>
               <li>Marque blanche complète + adaptations métier</li>
@@ -447,7 +476,8 @@ export default async function Home() {
           </div>
           <div className="rounded-2xl p-8" style={{ ...surface, borderColor: "#f5a623" }}>
             <h3 className="text-lg font-semibold mb-1">SaaS accompagné</h3>
-            <p className="text-sm mb-6" style={{ color: "var(--sk-t3)" }}>PME, démarrage rapide</p>
+            <p className="text-sm mb-2" style={{ color: "var(--sk-t3)" }}>PME, démarrage rapide</p>
+            <p className="mb-6"><span className="text-2xl font-bold" style={{ color: "#f5a623" }}>À partir de 35 000 XOF</span><span className="text-sm" style={{ color: "var(--sk-t3)" }}> /mois · essai gratuit 14 jours</span></p>
             <ul className="space-y-3 text-sm" style={{ color: "var(--sk-t2)" }}>
               <li>Plateforme mutualisée, données isolées</li>
               <li>Marque blanche (logo, couleurs)</li>
@@ -471,6 +501,26 @@ export default async function Home() {
             <ProcessStep n={1} title="Essai ou démonstration" text="Créez votre espace en deux minutes, ou demandez trente minutes de démonstration, en ligne ou à Dakar." />
             <ProcessStep n={2} title="Pilote" text="Trente jours, sur une partie de vos véhicules, avec vos données réelles." />
             <ProcessStep n={3} title="Déploiement" text="Sur toute la flotte, avec la formation de vos gestionnaires et de vos chauffeurs." />
+          </div>
+        </div>
+      </section>
+
+      {/* ── FAQ ────────────────────────────────────────────────── */}
+      <section id="faq" style={{ background: "var(--sk-deep)" }} className="border-y">
+        <div className="max-w-3xl mx-auto px-5 sm:px-8 py-20 sm:py-24" style={{ borderColor: "var(--sk-surface)" }}>
+          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-10 text-center">
+            Questions fréquentes
+          </h2>
+          <div className="space-y-3">
+            {FAQ_ITEMS.map((f) => (
+              <details key={f.q} className="rounded-xl px-5 py-4 group" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+                <summary className="cursor-pointer font-semibold text-[15px] list-none flex justify-between items-center gap-4">
+                  {f.q}
+                  <span className="shrink-0 transition-transform group-open:rotate-45" style={{ color: "#f5a623" }}>+</span>
+                </summary>
+                <p className="mt-3 text-sm leading-relaxed" style={{ color: "var(--sk-t2)" }}>{f.a}</p>
+              </details>
+            ))}
           </div>
         </div>
       </section>
@@ -536,6 +586,7 @@ function Step({
   tagline,
   description,
   image,
+  imageAlt,
   imageWidth,
   imageHeight,
   reverse,
@@ -547,6 +598,7 @@ function Step({
   tagline: string;
   description: string;
   image: string;
+  imageAlt?: string;
   imageWidth: number;
   imageHeight: number;
   reverse: boolean;
@@ -570,7 +622,7 @@ function Step({
       </div>
       <div className={reverse ? "lg:order-1" : ""}>
         <div className="rounded-2xl overflow-hidden shadow-xl max-w-sm mx-auto lg:max-w-none" style={{ border: "1px solid var(--sk-border)" }}>
-          <Image src={image} alt={title} width={imageWidth} height={imageHeight} className="w-full h-auto" loading="lazy" />
+          <Image src={image} alt={imageAlt ?? title} width={imageWidth} height={imageHeight} className="w-full h-auto" loading="lazy" />
         </div>
       </div>
     </div>
