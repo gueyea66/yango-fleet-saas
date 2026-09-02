@@ -41,9 +41,12 @@ export async function GET(req: NextRequest) {
 
     const profileMap = Object.fromEntries((profiles || []).map((p: any) => [p.id, p]));
     const expensesWithProfile = (expenses || []).map((e: any) => ({ ...e, _profile: profileMap[e.driver_id] }));
+    // Le nom du chauffeur doit accompagner les RAPPORTS aussi (retour Abdou
+    // 02/09 : la file de validation n'affichait qu'un bout d'UUID).
+    const reportsWithProfile = (reports || []).map((r: any) => ({ ...r, _profile: profileMap[r.driver_id] }));
 
     return Response.json({
-      reports: reports || [],
+      reports: reportsWithProfile,
       expenses: expensesWithProfile,
       pagination: { page, pageSize, total: reportsTotal ?? 0, totalPages: Math.ceil((reportsTotal ?? 0) / pageSize) },
     });
