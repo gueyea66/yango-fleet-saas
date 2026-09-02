@@ -18,6 +18,7 @@ import {
   AlertTriangle, Info, TrendingUp, Fuel, Coins, Wallet, FileText, BedDouble, Paperclip, Trash2, ChevronRight, type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
+import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useDashboardKPIs } from "@/lib/hooks/useDashboardKPIs";
@@ -1737,9 +1738,12 @@ function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh }: 
                       )}
                     </div>
                     <div className="text-xs mt-1" style={{ color: "var(--sk-t3)" }}>
-                      {isRepos(r)
-                        ? (r.comment?.replace("[REPOS]", "").trim() || "Jour de repos") + " · " + r.driver_id?.slice(0, 8) + "..."
-                        : `${r.yango_trip_count ?? 0} courses · ${r.driver_id?.slice(0, 8)}...`}
+                      {(() => {
+                        const who = r._profile?.full_name || r._profile?.driver_id || `${r.driver_id?.slice(0, 8)}…`;
+                        return isRepos(r)
+                          ? `${r.comment?.replace("[REPOS]", "").trim() || "Jour de repos"} · ${who}`
+                          : `${who} · ${r.yango_trip_count ?? 0} courses`;
+                      })()}
                     </div>
                   </div>
                   <div className="text-right flex flex-col items-end gap-1">
@@ -1803,7 +1807,7 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0)) + " XOF";
-  const expenseTypes = ["Carburant", "Péage", "Contrôle routier", "Entretien", "Lavage", "Amende", "Solde Yango", "Autre"];
+  const expenseTypes = [...EXPENSE_CATEGORIES];
 
   const saveEdit = async () => {
     setSaving(true);
@@ -2145,7 +2149,9 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
         <div className="flex items-center justify-between p-5 border-b" style={{ borderColor: "var(--sk-surface)" }}>
           <div>
             <div className="font-bold text-white">Rapport — {report.date}</div>
-            <div className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>Driver ID: {report.driver_id?.slice(0, 8)}...</div>
+            <div className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>
+              {report._profile?.full_name || report._profile?.driver_id || `Driver ID: ${report.driver_id?.slice(0, 8)}…`}
+            </div>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-white text-xl">✕</button>
         </div>
