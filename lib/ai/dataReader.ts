@@ -46,6 +46,22 @@ export interface RawDriver {
   account_type: string | null; // "technical" à exclure des stats
   active: boolean | null;
   salary_model: string | null;
+  hire_date: string | null;
+  contract_end_date: string | null;
+}
+
+/**
+ * Chauffeur actif à une date donnée : flag actif ET contrat non terminé.
+ * Le flag `active` seul ne suffit pas (retour Abdou 02/09 : le briefing parlait
+ * d'un chauffeur dont le contrat était fini depuis 2 jours) — les paramétrages
+ * hire_date / contract_end_date font foi.
+ */
+export function isDriverActiveOn(d: RawDriver, date: string): boolean {
+  return d.active !== false && (!d.contract_end_date || d.contract_end_date >= date);
+}
+
+export function activeDriverIds(win: TenantWindow, date: string): Set<string> {
+  return new Set(win.drivers.filter((d) => isDriverActiveOn(d, date)).map((d) => d.id));
 }
 
 export interface TenantWindow {
@@ -65,7 +81,7 @@ export async function fetchTenantWindow(tenantId: string, days = 70): Promise<Te
 
   const [drv, rep, exp] = await Promise.all([
     admin.from("profiles")
-      .select("id, full_name, account_type, active, salary_model")
+      .select("id, full_name, account_type, active, salary_model, hire_date, contract_end_date")
       .eq("tenant_id", tenantId).eq("role", "driver"),
     admin.from("daily_reports")
       .select("driver_id, date, status, yango_gross, yango_bonus, off_yango_revenue, solde_yango, end_odometer, yango_trip_count, off_yango_trip_count, commission_amount, comment")
@@ -259,7 +275,10 @@ export function computePeriodAggregates(
     depensesOperationnelles: depensesOpe, salaires: 0,
   });
 
-  const activeIds = new Set(win.drivers.filter((d) => d.active !== false).map((d) => d.id));
+  // Actif = flag + contrat couvrant au moins une partie de la période.
+  const activeIds = activeDriverIds(win, from);
+  const endOf = new Map(win.drivers.map((d) => [d.id, d.contract_end_date]));
+  const hireOf = new Map(win.drivers.map((d) => [d.id, d.hire_date]));
   const days = Math.max(1, Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000) + 1);
   const periodReps = win.reports.filter((r) =>
     (r.status === "approved" || r.status === "submitted") && inPeriod(r.date, from, to));
@@ -279,12 +298,18 @@ export function computePeriodAggregates(
   }
   let attendus = 0;
   for (const id of activeIds) {
+    // Attendu de max(période, embauche, 1er rapport) jusqu'à min(période, fin
+    // de contrat) : un contrat terminé en cours de période n'est plus attendu après.
+    const hire = hireOf.get(id);
     const first = firstReportByDriver.get(id);
-    const start = first && first > from ? first : from;
-    if (start > to) continue;
-    const driverDays = Math.round((Date.parse(to) - Date.parse(start)) / 86_400_000) + 1;
+    let start = hire && hire > from ? hire : from;
+    if (first && first > start) start = first;
+    const contractEnd = endOf.get(id);
+    const end = contractEnd && contractEnd < to ? contractEnd : to;
+    if (start > end) continue;
+    const driverDays = Math.round((Date.parse(end) - Date.parse(start)) / 86_400_000) + 1;
     const driverRepos = periodReps
-      .filter((r) => r.driver_id === id && isReposReport(r) && r.date >= start).length;
+      .filter((r) => r.driver_id === id && isReposReport(r) && r.date >= start && r.date <= end).length;
     attendus += Math.max(0, driverDays - driverRepos);
   }
   const approvedCount = periodReps.filter((r) => !isReposReport(r)).length;
@@ -323,7 +348,10 @@ export function computePeriodAggregates(
  * dates et polluerait le briefing (fausse alerte « chauffeur silencieux »).
  */
 export function freshnessSnapshot(win: TenantWindow): Record<string, string> {
-  const activeIds = new Set(win.drivers.filter((d) => d.active !== false).map((d) => d.id));
+  // Actif AUJOURD'HUI : un contrat terminé ne doit plus déclencher d'alerte
+  // « chauffeur silencieux » (cas Ahmadou, retour Abdou 02/09).
+  const today = new Date().toISOString().slice(0, 10);
+  const activeIds = activeDriverIds(win, today);
   const snap: Record<string, string> = {};
   for (const r of win.reports) {
     if (!activeIds.has(r.driver_id)) continue;

@@ -11,7 +11,7 @@ const D2 = "22222222-2222-2222-2222-222222222222"; // Ahmadou — mature
 const D3 = "33333333-3333-3333-3333-333333333333"; // Daouda — NOUVEAU (promo)
 
 const driver = (id: string, name: string): RawDriver =>
-  ({ id, full_name: name, account_type: null, active: true, salary_model: null });
+  ({ id, full_name: name, account_type: null, active: true, salary_model: null, hire_date: null, contract_end_date: null });
 
 const rep = (driver_id: string, date: string, over: Partial<RawReport> = {}): RawReport => ({
   driver_id, date, status: "approved",

@@ -69,7 +69,7 @@ describe("Garde anti-hallucination — le LLM ne peut citer que les chiffres du 
 
 describe("Agrégats — net opérationnel et confiance dérivés des seules données", () => {
   const win: TenantWindow = {
-    drivers: [{ id: "d1", full_name: "Test", account_type: null, active: true, salary_model: null }],
+    drivers: [{ id: "d1", full_name: "Test", account_type: null, active: true, salary_model: null, hire_date: null, contract_end_date: null }],
     reports: [
       { driver_id: "d1", date: "2026-07-21", status: "approved", yango_gross: 50_000, yango_bonus: 5_000, off_yango_revenue: 0, solde_yango: 20_000, end_odometer: 1000 },
       { driver_id: "d1", date: "2026-07-22", status: "approved", yango_gross: 45_000, yango_bonus: 0, off_yango_revenue: 5_000, solde_yango: 12_000, end_odometer: 1150 },
@@ -122,7 +122,7 @@ describe("Agrégats — net opérationnel et confiance dérivés des seules donn
     const winStart: TenantWindow = {
       drivers: [
         ...win.drivers,
-        { id: "d2", full_name: "Nouveau", account_type: null, active: true, salary_model: null },
+        { id: "d2", full_name: "Nouveau", account_type: null, active: true, salary_model: null, hire_date: null, contract_end_date: null },
       ],
       reports: [
         ...win.reports,
