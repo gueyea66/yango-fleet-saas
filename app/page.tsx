@@ -30,6 +30,24 @@ export const metadata: Metadata = {
   title: "M3A Fleet — Sachez ce que votre flotte gagne vraiment, chaque jour",
   description:
     "Vos chauffeurs déclarent leur journée en deux minutes, vous validez, et le résultat net de chaque véhicule s'affiche. Essai gratuit 14 jours, sans engagement.",
+  metadataBase: new URL("https://m3afleet.com"),
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    url: "https://m3afleet.com",
+    siteName: "M3A Fleet",
+    locale: "fr_SN",
+    title: "M3A Fleet — Sachez ce que votre flotte gagne vraiment, chaque jour",
+    description:
+      "Déclarer. Valider. Piloter. La gestion de flotte sans tableur — essai gratuit 14 jours.",
+    images: [{ url: "/landing/img/og-m3afleet.png", width: 1200, height: 630, alt: "M3A Fleet — gestion de flotte" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "M3A Fleet — la gestion de flotte, sans tableur",
+    description: "Vos chauffeurs déclarent, vous validez, le net s'affiche. Essai gratuit 14 jours.",
+    images: ["/landing/img/og-m3afleet.png"],
+  },
 };
 
 const surface = { background: "var(--sk-surface)", border: "1px solid var(--sk-border)" };
@@ -50,8 +68,23 @@ export default async function Home() {
     redirect("/auth/login");
   }
 
+  // Données structurées (SEO — audit 02/09) : uniquement des faits vérifiables.
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "M3A Fleet",
+    applicationCategory: "BusinessApplication",
+    operatingSystem: "Web, Android",
+    description:
+      "Gestion de flotte pour le transport à Dakar : déclaration chauffeur en 2 minutes, validation avec justificatifs, résultat net par véhicule.",
+    url: "https://m3afleet.com",
+    offers: { "@type": "Offer", price: "35000", priceCurrency: "XOF", description: "À partir de 35 000 FCFA/mois — essai gratuit 14 jours" },
+    provider: { "@type": "Organization", name: "M3A Group", address: { "@type": "PostalAddress", addressLocality: "Dakar", addressCountry: "SN" }, email: "contact@m3afleet.com", telephone: "+221787600330" },
+  };
+
   return (
     <div style={{ background: "var(--sk-bg)", color: "var(--sk-t1)" }}>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       {/* ── HEADER ─────────────────────────────────────────────── */}
       <header
         className="sticky top-0 z-30 backdrop-blur"
@@ -227,10 +260,10 @@ export default async function Home() {
         <div className="max-w-4xl mx-auto px-5 sm:px-8 py-20 sm:py-28" style={{ borderColor: "var(--sk-surface)" }}>
           <div className="text-center mb-10">
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
-              La solution en action
+              50 secondes pour comprendre
             </h2>
             <p style={{ color: "var(--sk-t2)" }}>
-              Le circuit complet, du chauffeur au patron, sur des écrans réels.
+              Déclarer, valider, piloter — puis essayez par vous-même ou demandez une démonstration.
             </p>
           </div>
           <div className="aspect-video">
@@ -280,6 +313,25 @@ export default async function Home() {
             title="Votre marque"
             text="Logo, couleurs, nom de l'application : l'outil porte VOTRE marque. Vos équipes ne voient jamais M3A."
           />
+        </div>
+      </section>
+
+      {/* ── PREUVE — l'outil tourne sur une vraie flotte ────────── */}
+      <section className="max-w-4xl mx-auto px-5 sm:px-8 py-16 sm:py-20">
+        <div className="rounded-2xl p-8 sm:p-10" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", borderLeft: "4px solid #f5a623" }}>
+          <p className="text-lg sm:text-xl leading-relaxed" style={{ color: "var(--sk-t1)" }}>
+            « Nous gérons notre propre flotte avec M3A Fleet, tous les jours depuis mai 2026.
+            Chaque validation du soir, chaque salaire, chaque franc de carburant passe par
+            l&apos;outil — c&apos;est celui que j&apos;aurais voulu pouvoir acheter. »
+          </p>
+          <p className="mt-4 text-sm font-semibold" style={{ color: "#f5a623" }}>
+            Abdoulaye Gueye — gérant, M3A Group (Dakar)
+          </p>
+          <div className="grid grid-cols-3 gap-4 mt-8 pt-6" style={{ borderTop: "1px solid var(--sk-surface)" }}>
+            <div><div className="text-2xl font-bold text-white">2 200+</div><div className="text-xs mt-1" style={{ color: "var(--sk-t3)" }}>courses suivies</div></div>
+            <div><div className="text-2xl font-bold text-white">6,7 M+</div><div className="text-xs mt-1" style={{ color: "var(--sk-t3)" }}>FCFA de recettes tracées</div></div>
+            <div><div className="text-2xl font-bold text-white">100 %</div><div className="text-xs mt-1" style={{ color: "var(--sk-t3)" }}>des validations avec justificatif</div></div>
+          </div>
         </div>
       </section>
 
@@ -438,8 +490,8 @@ export default async function Home() {
               <a href="tel:+221787600330" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                 <Phone size={18} style={{ color: "#f5a623" }} /> +221 78 760 03 30
               </a>
-              <a href="mailto:gueye.a66@gmail.com" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-                <Mail size={18} style={{ color: "#f5a623" }} /> gueye.a66@gmail.com
+              <a href="mailto:contact@m3afleet.com" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                <Mail size={18} style={{ color: "#f5a623" }} /> contact@m3afleet.com
               </a>
               <p className="flex items-center gap-3">
                 <MapPin size={18} style={{ color: "#f5a623" }} /> Dakar, Sénégal

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>M3A Fleet — teaser 50 s</title>
+<style>
+  :root { --bg:#080a0f; --orange:#f5a623; --t1:#fff; --t2:#9ca3af; --surface:#141824; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { width:1920px; height:1080px; overflow:hidden; background:var(--bg);
+    font-family:'Segoe UI',Inter,system-ui,sans-serif; color:var(--t1); }
+  .scene { position:absolute; inset:0; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; opacity:0; padding:0 160px; text-align:center; }
+  .kicker { font-size:26px; font-weight:700; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--orange); margin-bottom:28px; }
+  h1 { font-size:88px; font-weight:800; line-height:1.12; letter-spacing:-.01em; }
+  h2 { font-size:64px; font-weight:800; line-height:1.15; }
+  .accent { color:var(--orange); }
+  .sub { font-size:34px; color:var(--t2); margin-top:26px; line-height:1.5; }
+  .pill { display:inline-block; margin-top:44px; background:var(--orange); color:#080a0f;
+    font-size:34px; font-weight:800; padding:20px 44px; border-radius:16px; }
+  .shot { max-height:640px; max-width:1100px; border-radius:20px;
+    box-shadow:0 40px 120px rgba(0,0,0,.65); border:1px solid #232838; }
+  .shot.phone { max-height:760px; }
+  .split { display:flex; align-items:center; gap:90px; text-align:left; }
+  .split .txt { max-width:640px; }
+  .num { font-size:24px; font-weight:800; letter-spacing:.2em; color:var(--orange); margin-bottom:16px; }
+  .prob { font-size:52px; font-weight:700; line-height:1.35; text-align:left; }
+  .prob div { opacity:0; transform:translateY(24px); }
+  .logo { width:120px; height:120px; border-radius:24px; background:var(--orange);
+    display:flex; align-items:center; justify-content:center; font-size:56px; font-weight:800;
+    color:#080a0f; margin-bottom:36px; }
+  .contact { margin-top:34px; font-size:30px; color:var(--t2); }
+  .bar { position:absolute; left:0; bottom:0; height:8px; background:var(--orange);
+    width:0; animation:bar 50s linear forwards; }
+  @keyframes bar { to { width:100%; } }
+  @keyframes fadeIn  { from{opacity:0; transform:translateY(30px);} to{opacity:1; transform:none;} }
+  @keyframes fadeOut { from{opacity:1;} to{opacity:0; transform:translateY(-24px);} }
+  @keyframes lineIn  { to{opacity:1; transform:none;} }
+  @keyframes slowZoom{ from{transform:scale(1);} to{transform:scale(1.05);} }
+
+  /* Timeline (50 s) — chaque scène : entrée .9s, sortie .7s */
+  #s1 { animation:fadeIn .9s ease  .3s forwards, fadeOut .7s ease  7.3s forwards; }
+  #s2 { animation:fadeIn .9s ease  8.0s forwards, fadeOut .7s ease 15.3s forwards; }
+  #s2 .prob div:nth-child(1){ animation:lineIn .7s ease  9.0s forwards; }
+  #s2 .prob div:nth-child(2){ animation:lineIn .7s ease 10.6s forwards; }
+  #s2 .prob div:nth-child(3){ animation:lineIn .7s ease 12.2s forwards; }
+  #s3 { animation:fadeIn .9s ease 16.0s forwards, fadeOut .7s ease 24.3s forwards; }
+  #s3 .shot { animation:slowZoom 9s linear 16s forwards; }
+  #s4 { animation:fadeIn .9s ease 25.0s forwards, fadeOut .7s ease 33.3s forwards; }
+  #s4 .shot { animation:slowZoom 9s linear 25s forwards; }
+  #s5 { animation:fadeIn .9s ease 34.0s forwards, fadeOut .7s ease 42.3s forwards; }
+  #s5 .shot { animation:slowZoom 9s linear 34s forwards; }
+  #s6 { animation:fadeIn .9s ease 43.0s forwards; }
+</style>
+</head>
+<body>
+  <div class="bar"></div>
+
+  <section class="scene" id="s1">
+    <div class="kicker">M3A Fleet</div>
+    <h1>Vous avez des véhicules sur la route.<br>
+      <span class="accent">Savez-vous ce qu'ils rapportent vraiment ?</span></h1>
+  </section>
+
+  <section class="scene" id="s2">
+    <div class="prob">
+      <div>📒&nbsp; Les recettes dans un cahier.</div>
+      <div style="margin-top:34px">💬&nbsp; Les dépenses sur WhatsApp.</div>
+      <div style="margin-top:34px">📊&nbsp; Un tableur jamais à jour.</div>
+    </div>
+    <p class="sub" style="margin-top:54px">À la fin du mois, impossible de dire si la flotte a été rentable.</p>
+  </section>
+
+  <section class="scene" id="s3">
+    <div class="split">
+      <img class="shot phone" src="../../public/landing/img/driver-mobile.png" alt="">
+      <div class="txt">
+        <div class="num">1 — DÉCLARER</div>
+        <h2>La journée du chauffeur,<br>saisie en <span class="accent">2 minutes</span>.</h2>
+        <p class="sub">Depuis son téléphone, photo du justificatif à l'appui.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="scene" id="s4">
+    <div class="split">
+      <div class="txt">
+        <div class="num">2 — VALIDER</div>
+        <h2>Pas de chiffre<br><span class="accent">sans preuve</span>.</h2>
+        <p class="sub">Rien n'entre dans les comptes sans votre validation.</p>
+      </div>
+      <img class="shot" src="../../public/landing/img/validation-modal.png" alt="">
+    </div>
+  </section>
+
+  <section class="scene" id="s5">
+    <div class="split">
+      <img class="shot" src="../../public/landing/img/dashboard-desktop.png" alt="">
+      <div class="txt">
+        <div class="num">3 — PILOTER</div>
+        <h2>Le net de chaque véhicule,<br><span class="accent">chaque soir</span>.</h2>
+        <p class="sub">Alertes, salaires calculés, brief chaque matin.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="scene" id="s6">
+    <div class="logo">FL</div>
+    <h1>Reprenez la main sur votre flotte.</h1>
+    <div class="pill">Essai gratuit 14 jours&nbsp;&nbsp;·&nbsp;&nbsp;m3afleet.com</div>
+    <p class="contact">ou demandez une démonstration&nbsp;&nbsp;—&nbsp;&nbsp;+221 78 760 03 30</p>
+  </section>
+</body>
+</html>
