@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Decision, Insight, ReportDataset, Section, TableSection } from "@/lib/report-agent/types";
+import { CAT_AVANCE } from "@/lib/expenseCategories";
 
 /**
  * Adaptateur M3A Fleet pour le noyau lib/report-agent : (Supabase fleet) →
@@ -44,6 +45,8 @@ interface PeriodAgg {
     comm: number; net: number; dep: number; sal: number; aco: number; courses: number;
   };
   depCat: Map<string, number>;
+  /** Avances propriétaire remises (Décaissement propriétaire) — hors charges, cash sorti. */
+  avances: number;
   /** Lignes de charge brutes (motifs saisis) — matière du deep dive dépenses. */
   expenseRows: { date: string; driver_id: string | null; category: string; amount: number; description: string }[];
   pending: number;
@@ -68,7 +71,14 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
   const allReports = repsQ.data || [];
   const reposReports = allReports.filter(isRepos);
   const reports = allReports.filter((r) => !isRepos(r));
-  const expenses = expsQ.data || [];
+  // « Décaissement propriétaire » = avance remise à un chauffeur : neutre pour
+  // les charges du rapport (la charge réelle est déclarée ensuite par le
+  // chauffeur — anti double comptage, cf. lib/expenseCategories CAT_AVANCE).
+  // Les lignes restent dans expenseRows (deep dive) : le motif saisi garde sa valeur.
+  const allExpenses = expsQ.data || [];
+  const expenses = allExpenses.filter((e) => e.category !== CAT_AVANCE);
+  const avances = allExpenses.filter((e) => e.category === CAT_AVANCE)
+    .reduce((s, e) => s + (e.amount || 0), 0);
   const salaryDate = (p: { salary_month?: string | null; payment_date?: string | null }) =>
     (p.salary_month ? String(p.salary_month).slice(0, 10) : p.payment_date) || "";
   const payments = (paysQ.data || []).filter((p) => {
@@ -131,8 +141,8 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
   tot.dep = Math.round(Array.from(depCat.values()).reduce((s, v) => s + v, 0));
 
   return {
-    drivers, tot, depCat,
-    expenseRows: expenses.map((e) => ({
+    drivers, tot, depCat, avances,
+    expenseRows: allExpenses.map((e) => ({
       date: e.expense_date || "", driver_id: e.driver_id,
       category: e.category || "Autre", amount: Math.round(e.amount || 0),
       description: String((e as { description?: string | null }).description || "").trim(),
@@ -432,6 +442,9 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
       ...CONTEXT_COMMON,
       "Les faits préfixés mois_precedent_ couvrent la période précédente de même durée : compare la dynamique (recette, marge, carburant, effectif).",
       "La table « Charges notables » donne le MOTIF saisi de chaque grosse ligne (décaissements propriétaire compris) : appuie l'analyse des dépenses dessus — un poste ne s'explique jamais par son seul total.",
+      ...(cur.avances > 0 ? [
+        `Les « Décaissement propriétaire » sont des AVANCES remises aux chauffeurs (${fmt(cur.avances)} F sur la période) : cash sorti mais NEUTRE pour le résultat — la charge réelle est celle déclarée ensuite par le chauffeur. Ne jamais les compter comme des dépenses.`,
+      ] : []),
     ],
     deterministicInsights: det.insights,
     deterministicDecisions: det.decisions,
@@ -674,6 +687,9 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
       ...CONTEXT_COMMON,
       "Deep dive opérationnel : cherche les patterns de demande (jours forts/faibles, où placer les repos), le coût du siège vide (semaines à N chauffeurs), les écarts d'efficience carburant/km entre chauffeurs, et les anomalies de saisie (paniers aberrants).",
       "Les données ne contiennent ni heures en ligne, ni annulations, ni note conducteur : la qualité de service n'est pas mesurable — ne pas l'inventer.",
+      ...(p.avances > 0 ? [
+        `Les « Décaissement propriétaire » sont des AVANCES remises aux chauffeurs (${fmt(p.avances)} F sur la période) : cash sorti mais NEUTRE pour le résultat — la charge réelle est celle déclarée ensuite par le chauffeur. Ne jamais les compter comme des dépenses.`,
+      ] : []),
     ],
     deterministicInsights: [
       { severity: "info", html: "<b>Lecture des tables.</b> La semaine type situe les jours forts et faibles de la demande (où placer repos et entretiens) ; le film des semaines montre l'effet direct du nombre de chauffeurs actifs sur la recette ; l'efficience par chauffeur compare rendement kilométrique et coût carburant." },

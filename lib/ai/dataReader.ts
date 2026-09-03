@@ -7,6 +7,7 @@
  */
 import { aiAdmin } from "./adminClient";
 import { soldeConsomme, coutCarburantParKm, carburantConsomme, computeOperationnel } from "@/lib/calc";
+import { CAT_AVANCE } from "@/lib/expenseCategories";
 
 export interface RawReport {
   driver_id: string;
@@ -135,10 +136,15 @@ export function achatsCarburantPeriode(expenses: RawExpense[], from: string, to:
     .reduce((s, e) => s + n(e.amount), 0);
 }
 
-/** Dépenses opérationnelles hors Solde/Carburant sur une période. */
+/**
+ * Dépenses opérationnelles hors Solde/Carburant sur une période.
+ * Les « Décaissement propriétaire » (CAT_AVANCE) sont exclus : ce sont des
+ * avances remises aux chauffeurs, neutres pour le résultat — la charge réelle
+ * est celle que le chauffeur déclare ensuite (anti double comptage, 03/09).
+ */
 export function depensesOpePeriode(expenses: RawExpense[], from: string, to: string): number {
   return expenses.filter((e) =>
-    e.category !== "Solde Yango" && e.category !== "Carburant" &&
+    e.category !== "Solde Yango" && e.category !== "Carburant" && e.category !== CAT_AVANCE &&
     expenseOk(e) && inPeriod(e.expense_date, from, to)
   ).reduce((s, e) => s + n(e.amount), 0);
 }
@@ -223,7 +229,7 @@ export function topExpenseMovements(
   const sum = (from: string, to: string) => {
     const acc = new Map<string, number>();
     for (const e of expenses) {
-      if (e.category === "Carburant" || e.category === "Solde Yango") continue;
+      if (e.category === "Carburant" || e.category === "Solde Yango" || e.category === CAT_AVANCE) continue;
       if (!expenseOk(e) || !inPeriod(e.expense_date, from, to)) continue;
       const cat = e.category ?? "Autre";
       acc.set(cat, (acc.get(cat) ?? 0) + n(e.amount));

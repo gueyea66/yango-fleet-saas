@@ -31,7 +31,8 @@ export type NotifType =
   | "payment_due"
   | "report_reminder"
   | "report_available"
-  | "vehicle_expiry";
+  | "vehicle_expiry"
+  | "advance_unjustified"; // avance propriétaire sans charges déclarées à J+7/J+14
 
 export async function sendNotification(
   tenantId: string,

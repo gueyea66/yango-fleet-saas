@@ -6,6 +6,8 @@ import {
   computeOperationnel, computeTresorerie, joursOuvresProjetes,
 } from "@/lib/calc";
 
+import { CAT_AVANCE } from "@/lib/expenseCategories";
+
 // Catégories de dépenses au traitement spécial (front-load)
 const CAT_SOLDE = "Solde Yango";
 const CAT_CARBU = "Carburant";
@@ -48,6 +50,15 @@ export interface DashboardKPIs {
   tresorerie: number;
   avanceSolde: number;         // cash immobilisé en solde
   avanceCarburant: number;     // cash immobilisé en carburant
+  // ── Avances propriétaire (Décaissement propriétaire = avance, neutre pour le résultat) ──
+  avancesProprietaire: number; // total remis sur la période (compte en trésorerie seulement)
+  avancesParChauffeur: Array<{
+    driver_id: string | null;  // null = avance sans destinataire renseigné
+    name: string;
+    remis: number;             // avances reçues sur la période
+    justifie: number;          // charges déclarées par le chauffeur sur la période
+    restant: number;           // remis − justifié (min 0)
+  }>;
   avgBrutPerDay: number;
   avgNetPerDay: number;
   avgDepensesPerDay: number;
@@ -113,6 +124,7 @@ const ZERO: DashboardKPIs = {
   soldeConsomme: 0, carburantConsomme: 0, coutCarburantKm: 0, provisionsSolde: 0,
   achatsCarburant: 0, autresDepensesOpe: 0, netOperationnel: 0,
   decaissements: 0, tresorerie: 0, avanceSolde: 0, avanceCarburant: 0,
+  avancesProprietaire: 0, avancesParChauffeur: [],
   avgBrutPerDay: 0, avgNetPerDay: 0, avgDepensesPerDay: 0, avgKmPerDay: 0, avgSoldePerDay: 0,
   todayRevenue: 0, todayExpenses: 0, todayNetMargin: 0, activeDriversToday: 0,
   weekRevenue: 0, weekExpenses: 0, weekNetMargin: 0, weekAvgDailyRevenue: 0,
@@ -202,11 +214,17 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       // Filter expenses by user-entered date (expense_date) or created_at fallback
       // Only approved expenses count in real figures
       const getED = (e: any) => e.expense_date || e.created_at?.slice(0, 10) || "";
-      const exps: any[] = (allExps || []).filter((e: any) => {
+      const periodExps: any[] = (allExps || []).filter((e: any) => {
         const d = getED(e);
         const isApproved = !e.status || e.status === "approved"; // legacy rows without status count as approved
         return isApproved && d >= periodStart && d <= periodEnd;
       });
+      // « Décaissement propriétaire » = AVANCE remise à un chauffeur : cash sorti
+      // (trésorerie) mais NEUTRE pour le résultat — la charge réelle est celle que
+      // le chauffeur déclare ensuite (retour Abdou 03/09, anti double comptage).
+      const avancesExps: any[] = periodExps.filter((e: any) => e.category === CAT_AVANCE);
+      const exps: any[] = periodExps.filter((e: any) => e.category !== CAT_AVANCE);
+      const totalAvances = avancesExps.reduce((s: number, e: any) => s + (e.amount || 0), 0);
       const expsPending: any[] = (allExps || []).filter((e: any) => e.status === "submitted");
 
       // Filter salary payments by salary_month (imputation month) or payment_date fallback
@@ -287,9 +305,34 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       });
       const treso = computeTresorerie({
         encaissements: recettesReelles, provisionsSolde, achatsCarburant,
-        autresDepenses: autresDepensesOpe, salaires: totalSalaries,
+        // Les avances propriétaire sont du cash réellement sorti : elles comptent
+        // dans les décaissements/trésorerie même si elles sont neutres au résultat.
+        autresDepenses: autresDepensesOpe + totalAvances, salaires: totalSalaries,
         soldeConsomme: totalSoldeConsomme, carburantConsomme: carbuConsomme,
       });
+
+      // ── AVANCES PAR CHAUFFEUR (remis vs justifié sur la période) ──
+      const nameById = new Map<string, string>(drivers.map((d: any) => [d.id, d.full_name || "Chauffeur"]));
+      const avMap = new Map<string, { remis: number; justifie: number }>();
+      for (const e of avancesExps) {
+        const key = e.advance_driver_id || "";
+        const cur = avMap.get(key) || { remis: 0, justifie: 0 };
+        cur.remis += e.amount || 0;
+        avMap.set(key, cur);
+      }
+      for (const [key, cur] of avMap) {
+        if (!key) continue;
+        cur.justifie = exps.filter((e: any) => e.driver_id === key)
+          .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+      }
+      const avancesParChauffeur = Array.from(avMap.entries())
+        .map(([key, v]) => ({
+          driver_id: key || null,
+          name: key ? (nameById.get(key) || "Chauffeur") : "Non affecté",
+          remis: v.remis, justifie: v.justifie,
+          restant: Math.max(0, v.remis - v.justifie),
+        }))
+        .sort((a, b) => b.restant - a.restant);
 
       // ── DAILY ROWS for table ──
       const dateSet = new Set<string>([
@@ -410,9 +453,9 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         base_amount: baseAmountByDriver[driver_id] ?? null,
       })).sort((a, b) => b.netDeclared - a.netDeclared);
 
-      // ── TODAY / WEEK (approved only) ──
-      const todayExpenses = (allExps || []).filter((e: any) => getED(e) === today && (!e.status || e.status === "approved")).reduce((s: number, e: any) => s + e.amount, 0);
-      const weekExpAmt = (allExps || []).filter((e: any) => getED(e) >= weekAgo && getED(e) <= today && (!e.status || e.status === "approved")).reduce((s: number, e: any) => s + e.amount, 0);
+      // ── TODAY / WEEK (approved only, avances exclues — neutres au résultat) ──
+      const todayExpenses = (allExps || []).filter((e: any) => e.category !== CAT_AVANCE && getED(e) === today && (!e.status || e.status === "approved")).reduce((s: number, e: any) => s + e.amount, 0);
+      const weekExpAmt = (allExps || []).filter((e: any) => e.category !== CAT_AVANCE && getED(e) >= weekAgo && getED(e) <= today && (!e.status || e.status === "approved")).reduce((s: number, e: any) => s + e.amount, 0);
       const weekActiveDays = new Set(weekReps.filter((r: any) => !isRepos(r)).map((r: any) => r.date)).size || 1;
 
       // Jours ouvrés écoulés de la période (fin bornée à aujourd'hui) : jours
@@ -435,6 +478,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         provisionsSolde, achatsCarburant, autresDepensesOpe, netOperationnel,
         decaissements: treso.decaissements, tresorerie: treso.tresorerie,
         avanceSolde: treso.avanceSolde, avanceCarburant: treso.avanceCarburant,
+        avancesProprietaire: totalAvances, avancesParChauffeur,
         avgBrutPerDay: Math.round(totalBrut / activeDays),
         avgNetPerDay: Math.round(netFinal / activeDays),
         avgDepensesPerDay: Math.round(totalDepenses / activeDays),
