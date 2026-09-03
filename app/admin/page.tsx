@@ -31,6 +31,7 @@ import { BrandLogo } from "@/components/brand/BrandShell";
 import TrialBanner from "@/components/TrialBanner";
 import AiBriefingSection from "@/components/ai/AiBriefingSection";
 import { computeCommissions } from "@/lib/calc";
+import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
 import {
   BarChart, Bar, Treemap,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -187,18 +188,15 @@ export default function AdminPage() {
     try {
       const params = new URLSearchParams({ tenantId: adminTenantId });
       if (driverIds.length) params.set("driverIds", driverIds.join(","));
-      const res = await fetch(`/api/admin/reports?${params}`);
-      if (res.status === 401) {
-        setSessionError("Session expirée — veuillez vous reconnecter.");
-        return;
-      }
-      if (!res.ok) throw new Error((await res.json()).error || "Erreur chargement rapports");
-      const json = await res.json();
+      // Retry sur erreur transitoire (401 refresh token, cold start) — fix
+      // « refresh ne charge pas, il faut refresh à nouveau » (03/09). Un 401
+      // qui persiste après retries = vraie session expirée.
+      const json = await fetchJsonRetry(`/api/admin/reports?${params}`);
       setReports(json.reports || []);
       setExpenses(json.expenses || []);
     } catch (err: any) {
       console.error("Error loading:", err);
-      setSessionError(err.message || "Erreur de chargement");
+      setSessionError(err.status === 401 ? "Session expirée — veuillez vous reconnecter." : (err.message || "Erreur de chargement"));
     } finally {
       setLoadingReports(false);
     }
@@ -2892,13 +2890,18 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
 
   const load = async () => {
     setLoading(true);
-    const params = new URLSearchParams({ tenantId });
-    if (filterDriverId) params.set("driverId", filterDriverId);
-    const json = await fetch(`/api/admin/payments?${params}`).then((r) => r.json());
-    setPayments(json.payments || []);
-    setDrivers(json.profiles || []);
-    if (json.profiles?.length && !form.driver_id) setForm((f) => ({ ...f, driver_id: json.profiles[0].id }));
-    setLoading(false);
+    try {
+      const params = new URLSearchParams({ tenantId });
+      if (filterDriverId) params.set("driverId", filterDriverId);
+      const json = await fetchJsonRetry(`/api/admin/payments?${params}`);
+      setPayments(json.payments || []);
+      setDrivers(json.profiles || []);
+      if (json.profiles?.length && !form.driver_id) setForm((f) => ({ ...f, driver_id: json.profiles[0].id }));
+    } catch (err) {
+      console.error("payments load:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const save = async () => {
@@ -3187,13 +3190,18 @@ function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string
 
   const load = async () => {
     setLoading(true);
-    const params = new URLSearchParams({ tenantId, type: "acompte" });
-    if (filterDriverId) params.set("driverId", filterDriverId);
-    const json = await fetch(`/api/admin/payments?${params}`).then((r) => r.json());
-    setAdvances(json.payments || []);
-    setDrivers(json.profiles || []);
-    if (json.profiles?.length && !form.driver_id) setForm((f) => ({ ...f, driver_id: json.profiles[0].id }));
-    setLoading(false);
+    try {
+      const params = new URLSearchParams({ tenantId, type: "acompte" });
+      if (filterDriverId) params.set("driverId", filterDriverId);
+      const json = await fetchJsonRetry(`/api/admin/payments?${params}`);
+      setAdvances(json.payments || []);
+      setDrivers(json.profiles || []);
+      if (json.profiles?.length && !form.driver_id) setForm((f) => ({ ...f, driver_id: json.profiles[0].id }));
+    } catch (err) {
+      console.error("acomptes load:", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const saveAdvance = async () => {
