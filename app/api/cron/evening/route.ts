@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isDriverActiveOn } from "@/lib/drivers";
 import { getTenantAdminIds, sendNotification } from "@/lib/notifications";
+import { CAT_AVANCE } from "@/lib/expenseCategories";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -23,6 +24,7 @@ const admin = createClient(
 
 const EXPIRY_STEPS = new Set([30, 14, 7, 3, 1, 0]);
 const PLAN_STEPS = new Set([7, 3, 1]);
+const AVANCE_STEPS = new Set([7, 14]); // jours depuis la remise de l'avance
 const daysUntil = (dateStr: string, today: string) =>
   Math.round((Date.parse(dateStr) - Date.parse(today)) / 86_400_000);
 
@@ -37,7 +39,7 @@ async function handle(req: NextRequest) {
   const { data: tenants } = await admin.from("tenants")
     .select("id, name, plan, active, trial_ends_at, plan_expires_at").eq("active", true);
 
-  let reminders = 0, expiries = 0, plans = 0;
+  let reminders = 0, expiries = 0, plans = 0, avancesAlerts = 0;
   const errors: string[] = [];
 
   for (const t of tenants || []) {
@@ -87,6 +89,43 @@ async function handle(req: NextRequest) {
         }
       }
 
+      // 4) avances propriétaire non justifiées (Décaissement propriétaire avec
+      // destinataire) : alerte admins à J+7 et J+14 exactement (pas de spam) si
+      // les charges déclarées par le chauffeur depuis l'avance restent inférieures
+      // au montant remis. Neutres pour le résultat — c'est un suivi de cash.
+      try {
+        const { data: advRows } = await admin.from("expenses")
+          .select("advance_driver_id, amount, expense_date, category, status")
+          .eq("tenant_id", t.id).eq("category", CAT_AVANCE)
+          .not("advance_driver_id", "is", null)
+          .gte("expense_date", new Date(Date.now() - 15 * 86_400_000).toISOString().slice(0, 10));
+        const dueRows = (advRows || []).filter((a) => {
+          if (a.status && a.status !== "approved" && a.status !== "submitted") return false;
+          const age = -daysUntil(a.expense_date, today);
+          return AVANCE_STEPS.has(age);
+        });
+        if (dueRows.length) {
+          const nameOf = new Map((drivers || []).map((d) => [d.id, d.full_name || "Chauffeur"]));
+          for (const a of dueRows) {
+            const { data: justRows } = await admin.from("expenses")
+              .select("amount, category, status")
+              .eq("tenant_id", t.id).eq("driver_id", a.advance_driver_id)
+              .neq("category", CAT_AVANCE)
+              .gte("expense_date", a.expense_date);
+            const justifie = (justRows || [])
+              .filter((e) => !e.status || e.status === "approved" || e.status === "submitted")
+              .reduce((s, e) => s + (e.amount || 0), 0);
+            if (justifie >= (a.amount || 0)) continue;
+            const age = -daysUntil(a.expense_date, today);
+            await notifyAdmins("advance_unjustified",
+              `💸 Avance non justifiée — ${nameOf.get(a.advance_driver_id) || "Chauffeur"}`,
+              `Avance de ${(a.amount || 0).toLocaleString("fr-FR")} XOF remise le ${a.expense_date} : seulement ${justifie.toLocaleString("fr-FR")} XOF de charges déclarées depuis (${age} jours). Demandez les justificatifs.`,
+              "/admin");
+            avancesAlerts++;
+          }
+        }
+      } catch { /* colonne advance_driver_id absente (migration 046 pas encore appliquée) : étape ignorée */ }
+
       // 3) abonnement / essai
       const planEnd = t.plan_expires_at ?? t.trial_ends_at;
       if (planEnd) {
@@ -103,7 +142,7 @@ async function handle(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ date: today, reminders, expiries, plans, errors });
+  return NextResponse.json({ date: today, reminders, expiries, plans, avancesAlerts, errors });
 }
 
 export async function GET(req: NextRequest) { return handle(req); }

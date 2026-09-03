@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
-import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
+import { CAT_AVANCE, EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
 import { createClient } from "@/lib/supabase/client";
 import { useTenant, applyTenantBrandingOverride } from "@/lib/tenant/context";
 import { setPlatformLabel, platLabel, displayLabel } from "@/lib/tenant/platformLabel";
@@ -65,6 +65,7 @@ interface Profile {
   full_name: string;
   role: string;
   tenant_id: string;
+  account_type?: string | null; // 'technical' = compte de décaissement (ex. Founder)
 }
 
 export default function DriverApp() {
@@ -1053,7 +1054,18 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
   const [saving, setSaving] = useState(false);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
-  const expenseTypes = [...EXPENSE_CATEGORIES];
+  // « Décaissement propriétaire » = avance de fonds : réservé aux comptes
+  // techniques (ex. Founder) — un chauffeur déclare la charge réelle, jamais l'avance.
+  const isTechnical = profile.account_type === "technical";
+  const expenseTypes = EXPENSE_CATEGORIES.filter((t) => isTechnical || t !== CAT_AVANCE);
+  // Destinataire de l'avance (suivi « remis vs justifié » par chauffeur)
+  const [advanceTo, setAdvanceTo] = useState("");
+  const [targets, setTargets] = useState<Array<{ id: string; full_name: string }>>([]);
+  useEffect(() => {
+    if (!isTechnical || form.type !== CAT_AVANCE || targets.length > 0) return;
+    fetch("/api/driver/advance-targets").then((r) => r.json())
+      .then((d) => setTargets(d.targets || [])).catch(() => {});
+  }, [isTechnical, form.type, targets.length]);
 
   const addFiles = (files: FileList | null) => {
     if (!files) return;
@@ -1068,6 +1080,8 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
       const { data, error } = await supabase.from("expenses").insert({
         driver_id: profile.id, tenant_id: profile.tenant_id, category: form.type, amount: parseFloat(form.amount),
         expense_date: form.expense_date, status: "submitted", source: "saas",
+        // Avance propriétaire : porte le chauffeur destinataire (migration 046)
+        ...(form.type === CAT_AVANCE && advanceTo ? { advance_driver_id: advanceTo } : {}),
         description: [form.odometer ? `KM: ${form.odometer}` : null, form.fuel_liters ? `${form.fuel_liters}L` : null, form.comment || null].filter(Boolean).join(" · ") || null,
       }).select().single();
       if (error) throw error;
@@ -1111,7 +1125,7 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
         <UploadBlock driverId={profile.id} refId={expenseId} refType="expense" />
       </div>
       <div className="flex gap-3">
-        <button onClick={() => { setForm({ expense_date: today, type: "Carburant", amount: "", odometer: "", fuel_liters: "", comment: "" }); setSubmitted(false); setExpenseId(null); }}
+        <button onClick={() => { setForm({ expense_date: today, type: "Carburant", amount: "", odometer: "", fuel_liters: "", comment: "" }); setAdvanceTo(""); setSubmitted(false); setExpenseId(null); }}
           className="flex-1 py-2.5 text-sm rounded-xl" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)", border: "1px solid #2a2f3d" }}>Nouvelle dépense</button>
         <button onClick={onBack} className="flex-1 py-2.5 text-sm rounded-xl font-bold text-black" style={{ background: "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))" }}>Accueil</button>
       </div>
@@ -1134,6 +1148,19 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
             {expenseTypes.map((t) => <option key={t} value={t}>{displayLabel(t)}</option>)}
           </select>
         </Field>
+        {form.type === CAT_AVANCE && (
+          <Field label="Remis à (chauffeur)">
+            <select value={advanceTo} onChange={(e) => setAdvanceTo(e.target.value)}
+              className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+              style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }}>
+              <option value="">— Non affecté (autre sortie) —</option>
+              {targets.map((t) => <option key={t.id} value={t.id}>{t.full_name}</option>)}
+            </select>
+            <p className="text-[11px] mt-1" style={{ color: "var(--sk-t4)" }}>
+              Une avance est neutre pour le résultat : la charge réelle sera celle que le chauffeur déclare avec ses preuves.
+            </p>
+          </Field>
+        )}
         <Field label="Montant (XOF) *"><InpText type="number" placeholder="ex: 8 000" value={form.amount} onChange={(v) => set("amount", v)} /></Field>
         {form.type === "Carburant" && (
           <div className="grid grid-cols-2 gap-3">

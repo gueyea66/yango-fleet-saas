@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { CAT_AVANCE } from "@/lib/expenseCategories";
 
 // ── PARAMETERS ────────────────────────────────────────
 export const DEFAULT_PARAMS = {
@@ -123,8 +124,12 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   // la masse salariale — même règle que useDashboardKPIs.ts. Leurs déclarations et
   // dépenses restent comptées dans les totaux (comportement intentionnel existant,
   // cf. commentaire équivalent dans useDashboardKPIs.ts) : on ne filtre donc PAS
-  // `reports`/`expenses`, seulement `profiles` (effectif) et `payments` (salaires).
-  const { expenses, payments: rawPayments, profiles: rawProfiles } = raw;
+  // `reports`, seulement `profiles` (effectif) et `payments` (salaires).
+  // EXCEPTION : les « Décaissement propriétaire » sont des AVANCES remises aux
+  // chauffeurs (neutres pour le P&L — la charge réelle est déclarée ensuite par
+  // le chauffeur, cf. lib/expenseCategories CAT_AVANCE) : hors Pilotage.
+  const { payments: rawPayments, profiles: rawProfiles } = raw;
+  const expenses = raw.expenses.filter((e: any) => e.category !== CAT_AVANCE);
   const technicalIds = new Set(
     rawProfiles.filter((p: any) => p.account_type === "technical").map((p: any) => p.id)
   );

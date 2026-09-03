@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
 import { requireAdminAuth } from "@/lib/auth/server";
+import { CAT_AVANCE } from "@/lib/expenseCategories";
 
 export const dynamic = "force-dynamic";
 
@@ -65,7 +66,8 @@ export async function GET(req: NextRequest) {
     const prevAppr = (prevReps || []).filter((r: any) => r.status === "approved");
     const prevTotalBrut = prevAppr.reduce((s: number, r: any) => s + (r.net_after_expenses || 0), 0);
     const prevRecettes = prevAppr.reduce((s: number, r: any) => s + (r.yango_gross || 0) + (r.yango_bonus || 0) + (r.off_yango_revenue || 0), 0);
-    const prevExpenses = (allExps || []).filter((e: any) => inPrev(e.expense_date || e.created_at?.slice(0, 10) || "") && (!e.status || e.status === "approved")).reduce((s: number, e: any) => s + (e.amount || 0), 0);
+    // Avances propriétaire exclues : neutres pour le résultat (cf. lib/expenseCategories CAT_AVANCE)
+    const prevExpenses = (allExps || []).filter((e: any) => e.category !== CAT_AVANCE && inPrev(e.expense_date || e.created_at?.slice(0, 10) || "") && (!e.status || e.status === "approved")).reduce((s: number, e: any) => s + (e.amount || 0), 0);
     const prevSalaries = (allPayments || []).filter((p: any) => inPrev(salaryDate(p)) && !technicalIds.has(p.driver_id)).reduce((s: number, p: any) => s + (p.amount || 0), 0);
     const prevNetFinal = prevTotalBrut - prevExpenses - prevSalaries;
 

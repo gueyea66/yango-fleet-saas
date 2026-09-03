@@ -639,6 +639,46 @@ export default function AdminPage() {
                     <KPICard label="TRÉSORERIE" value={kpis.tresorerie} color={kpis.tresorerie >= 0 ? "#22c55e" : "#ef4444"} big sub="cash net" />
                     <KPICard label="Avance immobilisée" value={kpis.avanceSolde + kpis.avanceCarburant} color="#a855f7" sub="solde + carburant avancés" />
                   </div>
+                  {/* Avances propriétaire : cash remis aux chauffeurs, neutre pour le
+                      résultat — la charge réelle est celle qu'ils déclarent ensuite. */}
+                  {kpis.avancesProprietaire > 0 && (
+                    <div className="mt-4 rounded-xl p-4" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-sm font-bold text-white">Avances propriétaire — remis vs justifié</h4>
+                        <span className="text-xs" style={{ color: "var(--sk-t3)" }}>
+                          {kpis.avancesProprietaire.toLocaleString("fr-FR")} XOF remis · période
+                        </span>
+                      </div>
+                      <p className="text-xs mb-3" style={{ color: "var(--sk-t4)" }}>
+                        Neutres pour le net (anti double comptage) — comptées en trésorerie. « Justifié » = charges déclarées par le chauffeur sur la période.
+                      </p>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs" style={{ color: "var(--sk-t2)" }}>
+                          <thead>
+                            <tr style={{ color: "var(--sk-t3)" }}>
+                              <th className="text-left py-1.5 pr-3 font-semibold">Chauffeur</th>
+                              <th className="text-right py-1.5 px-3 font-semibold">Remis</th>
+                              <th className="text-right py-1.5 px-3 font-semibold">Justifié</th>
+                              <th className="text-right py-1.5 pl-3 font-semibold">Restant</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {kpis.avancesParChauffeur.map((a) => (
+                              <tr key={a.driver_id || "none"} style={{ borderTop: "1px solid var(--sk-surface)" }}>
+                                <td className="py-1.5 pr-3 whitespace-nowrap">{a.name}</td>
+                                <td className="py-1.5 px-3 text-right whitespace-nowrap">{a.remis.toLocaleString("fr-FR")}</td>
+                                <td className="py-1.5 px-3 text-right whitespace-nowrap">{a.justifie.toLocaleString("fr-FR")}</td>
+                                <td className="py-1.5 pl-3 text-right whitespace-nowrap font-bold"
+                                  style={{ color: a.restant > 0 ? "#f59e0b" : "#22c55e" }}>
+                                  {a.restant > 0 ? a.restant.toLocaleString("fr-FR") : "✓ soldé"}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </AccordionSection>
 
                 {/* ── CHARTS ── */}

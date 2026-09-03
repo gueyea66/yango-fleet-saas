@@ -91,6 +91,21 @@ describe("Agrégats — net opérationnel et confiance dérivés des seules donn
     expect(agg.netOperationnel).toBe(105_000 - 8_000 - 15_000 - 2_000);
   });
 
+  it("une avance propriétaire (Décaissement propriétaire) est NEUTRE pour le net (anti double comptage 03/09)", () => {
+    const winAvance: TenantWindow = {
+      ...win,
+      expenses: [
+        ...win.expenses,
+        { driver_id: "founder", category: "Décaissement propriétaire", amount: 50_000, expense_date: "2026-07-22", status: null },
+      ],
+    };
+    const agg = computePeriodAggregates(winAvance, "2026-07-21", "2026-07-27", "2026-07-01");
+    // dépenses opé inchangées (2 000) : l'avance ne compte pas — la charge
+    // réelle sera celle que le chauffeur déclare ensuite avec preuve.
+    expect(agg.depensesOpe).toBe(2_000);
+    expect(agg.netOperationnel).toBe(105_000 - 8_000 - 15_000 - 2_000);
+  });
+
   it("le score de confiance est le taux de couverture, borné 0–1", () => {
     const agg = computePeriodAggregates(win, "2026-07-21", "2026-07-27", "2026-07-01");
     const c = confidenceFromCoverage(agg);
@@ -147,6 +162,7 @@ describe("Briefing palpable — faits calculés et parsing JSON", () => {
       exp("Entretien", 80_000, "2026-07-25"), exp("Entretien", 10_000, "2026-07-18"),
       exp("Lavage", 2_000, "2026-07-25"), exp("Lavage", 2_500, "2026-07-18"),
       exp("Carburant", 500_000, "2026-07-25"), // exclu
+      exp("Décaissement propriétaire", 300_000, "2026-07-25"), // avance : exclue aussi
     ];
     const out = topExpenseMovements(expenses, "2026-07-22", "2026-07-28", "2026-07-15", "2026-07-21");
     expect(out).toHaveLength(1); // Lavage sous minDelta, Carburant exclu
