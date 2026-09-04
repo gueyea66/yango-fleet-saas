@@ -32,7 +32,8 @@ export type NotifType =
   | "report_reminder"
   | "report_available"
   | "vehicle_expiry"
-  | "advance_unjustified"; // avance propriétaire sans charges déclarées à J+7/J+14
+  | "advance_unjustified" // avance propriétaire sans charges déclarées à J+7/J+14
+  | "push_test";          // bouton « Tester les notifications » (cloche)
 
 export async function sendNotification(
   tenantId: string,
@@ -54,7 +55,7 @@ export async function sendNotification(
   // Send web push (best-effort)
   if (!vapidConfigured) {
     console.warn("[notifications] VAPID non configuré — push sauté (in-app envoyé)");
-    return;
+    return { sent: 0, purged: 0 };
   }
   const { data: subs } = await admin
     .from("push_subscriptions")
@@ -62,21 +63,54 @@ export async function sendNotification(
     .eq("user_id", recipientId)
     .eq("tenant_id", tenantId);
 
-  if (!subs?.length) return;
+  if (!subs?.length) return { sent: 0, purged: 0 };
 
   const payload = JSON.stringify({ title, body, url: data.url ?? "/admin", tag: type });
 
+  let sent = 0, purged = 0;
   await Promise.allSettled(
-    subs.map((sub) =>
-      webpush.sendNotification(
-        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-        payload
-      ).catch(() => {
-        // Remove expired/invalid subscription
-        admin.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
-      })
-    )
+    subs.map(async (sub) => {
+      try {
+        await webpush.sendNotification(
+          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+          payload
+        );
+        sent++;
+      } catch {
+        // Souscription expirée/invalide (410) : purge. L'ancien code ne faisait
+        // JAMAIS le delete (promesse PostgREST ni await ni .then → jamais
+        // exécutée) : 11 souscriptions dont 9 mortes accumulées (audit 04/09).
+        await admin.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
+        purged++;
+      }
+    })
   );
+  return { sent, purged };
+}
+
+/**
+ * Relais Telegram du tenant (retour Abdou 04/09 « de vrais messages push ») :
+ * envoie UNE FOIS par événement (pas par destinataire) vers le chat configuré
+ * dans tenant_settings.telegram_chat_id (migration 047). Best-effort : sans
+ * token serveur ou chat configuré, ne fait rien — le web push reste le canal 1.
+ */
+export async function sendTelegramToTenant(tenantId: string, title: string, body: string) {
+  const token = (process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
+  if (!token) return;
+  try {
+    const { data: settings } = await admin
+      .from("tenant_settings").select("telegram_chat_id").eq("tenant_id", tenantId).maybeSingle();
+    const chatId = settings?.telegram_chat_id;
+    if (!chatId) return;
+    // Texte brut, pas de parse_mode (un underscore non apparié casse Markdown v1).
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: `${title}\n${body}` }),
+    });
+  } catch (e) {
+    console.warn("[notifications] relais Telegram échoué:", e instanceof Error ? e.message : e);
+  }
 }
 
 /** Tous les admins d'un tenant (un tenant peut en avoir plusieurs). */
