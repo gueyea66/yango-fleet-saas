@@ -150,6 +150,10 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
 
       let allReps: any[], allExps: any[], allPayments: any[], todayRep: any[], weekRep: any[], driverProfiles: any[];
       let prev: { netFinal: number; totalBrut: number; recettes: number; joursOuvres?: number } | null = null;
+      // Dernières déclarations AVANT la période (odomètre) : amorce de la chaîne
+      // km pour que le 1er jour de la période ait son delta (retour Abdou 03/09 —
+      // « toujours prendre le km de la dernière déclaration, peu importe le mois »).
+      let prevOdoReps: any[] = [];
 
       if (explicitTenantId) {
         // Admin context — bypass RLS via service-role API
@@ -165,6 +169,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         todayRep = json.todayRep || [];
         weekRep = json.weekRep || [];
         driverProfiles = json.driverProfiles || [];
+        prevOdoReps = json.prevOdoReps || [];
         prev = json.prev || null;
       } else {
         // Driver context — use anon client (driver reads their own data, RLS allows it)
@@ -177,7 +182,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         // ils comptent dans les KPIs comme promis par le module. Plus aucun
         // masquage par source — vérifié 05/08/2026 : zéro ligne legacy parasite.
         const saasQ = (q: any) => q;
-        const [r1, r2, r3, r4, r5, r6] = await Promise.all([
+        const [r1, r2, r3, r4, r5, r6, r7] = await Promise.all([
           saasQ(drvQ(repQ(supabase.from("daily_reports").select("*")))).gte("date", periodStart).lte("date", periodEnd).order("date"),
           saasQ(drvQ(repQ(supabase.from("expenses").select("*")))),
           drvQ(repQ(supabase.from("payments").select("*"))),
@@ -186,9 +191,13 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
           tid
             ? supabase.from("profiles").select("*").eq("tenant_id", tid).eq("role", "driver")
             : supabase.from("profiles").select("*").eq("role", "driver"),
+          saasQ(drvQ(repQ(supabase.from("daily_reports").select("driver_id,date,end_odometer,status"))))
+            .lt("date", periodStart).not("end_odometer", "is", null)
+            .order("date", { ascending: false }).limit(300),
         ]);
         allReps = r1.data || []; allExps = r2.data || []; allPayments = r3.data || [];
         todayRep = r4.data || []; weekRep = r5.data || []; driverProfiles = r6.data || [];
+        prevOdoReps = r7.data || [];
       }
 
       // Only approved reports count in real figures
@@ -255,13 +264,25 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       // le compteur d'un véhicule (~142 000) de celui d'un autre (~100 000) et on
       // fabrique des dizaines de milliers de km fantômes (bug historique).
       const MAX_KM_JOUR = 1500; // garde-fou anti-saisie aberrante (chiffre en trop au compteur)
+      // Amorce : dernier odomètre connu AVANT la période, par chauffeur — le
+      // 1er jour de la période a ainsi son delta vs la dernière déclaration,
+      // même si elle date du mois précédent (retour Abdou 03/09, déjà la règle
+      // côté couche IA kmPeriode — les deux restent alignés).
+      const seedByDriver: Record<string, any> = {};
+      for (const r of prevOdoReps) {
+        if (r.status !== "approved" || !r.end_odometer) continue;
+        const cur = seedByDriver[r.driver_id];
+        if (!cur || r.date > cur.date) seedByDriver[r.driver_id] = r;
+      }
       const kmByDate: Record<string, number> = {};
       const repsByDriverKm: Record<string, any[]> = {};
       reps.forEach((r: any) => { (repsByDriverKm[r.driver_id] ||= []).push(r); });
-      for (const driverReps of Object.values(repsByDriverKm)) {
+      for (const [driverId, driverReps] of Object.entries(repsByDriverKm)) {
         const sorted = driverReps.sort((a, b) => a.date.localeCompare(b.date));
-        for (let i = 1; i < sorted.length; i++) {
-          const cur = sorted[i], prev = sorted[i - 1];
+        const seed = seedByDriver[driverId];
+        const chain = seed ? [seed, ...sorted] : sorted;
+        for (let i = 1; i < chain.length; i++) {
+          const cur = chain[i], prev = chain[i - 1];
           if (cur.end_odometer && prev?.end_odometer && cur.end_odometer > prev.end_odometer) {
             const delta = cur.end_odometer - prev.end_odometer;
             if (delta <= MAX_KM_JOUR) kmByDate[cur.date] = (kmByDate[cur.date] || 0) + delta;
