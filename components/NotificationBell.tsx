@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { enablePushOnThisDevice } from "@/lib/push";
 
 interface Notification {
   id: string;
@@ -102,42 +103,12 @@ export default function NotificationBell() {
   }, []);
 
   const enablePush = async () => {
-    // Tout échec doit être VISIBLE (avant : throw silencieux, l'utilisateur
-    // croyait avoir activé et ne recevait jamais rien).
+    // Logique partagée avec l'invite de premier login (lib/push) — tout échec
+    // reste VISIBLE (avant : throw silencieux, l'utilisateur croyait avoir
+    // activé et ne recevait jamais rien).
     try {
-      if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
-        alert("Les notifications push ne sont pas supportées par ce navigateur.");
-        return;
-      }
-      if (!VAPID_PUBLIC) {
-        alert("Notifications push non configurées côté serveur (clé publique absente). Contactez le support.");
-        return;
-      }
-      const perm = await Notification.requestPermission();
-      if (perm !== "granted") {
-        alert("Permission refusée — autorisez les notifications dans les réglages du navigateur pour être alerté.");
-        return;
-      }
-
-      const reg = await navigator.serviceWorker.register("/sw.js");
-      await navigator.serviceWorker.ready;
-
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
-      });
-
-      const res = await fetch("/api/push/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sub.toJSON()),
-      });
-      if (!res.ok) {
-        const { error } = await res.json().catch(() => ({ error: res.statusText }));
-        alert(`Échec de l'activation des notifications push : ${error}`);
-        return;
-      }
-
+      const res = await enablePushOnThisDevice();
+      if (!res.ok) { alert(res.reason || "Activation impossible."); return; }
       setPushEnabled(true);
       alert("Notifications push activées ✅ Vous serez alerté même app fermée.");
     } catch (err) {
