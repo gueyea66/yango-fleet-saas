@@ -17,6 +17,7 @@ import { Home, Gauge, Users, LogOut, Car, Plus } from "lucide-react";
 import { displayLabel } from "@/lib/tenant/platformLabel";
 import { isDriverActiveToday } from "@/lib/drivers";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
+import ThemeToggle from "@/components/ThemeToggle";
 
 const EXPENSE_COLORS = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#a855f7"];
 
@@ -42,7 +43,7 @@ function TreemapCell(props: any) {
     <g>
       <rect x={x} y={y} width={width} height={height} rx={4} style={{ fill, stroke: "var(--sk-bg)", strokeWidth: 3 }} />
       {showName && <text x={x + 10} y={y + 22} fill="#fff" fontSize={13} fontWeight={700}>{name}</text>}
-      {showValue && <text x={x + 10} y={y + 42} fill="rgba(255,255,255,0.92)" fontSize={12} fontFamily="ui-monospace, monospace">{xof(value)} XOF</text>}
+      {showValue && <text x={x + 10} y={y + 42} fill="rgba(255,255,255,0.92)" fontSize={12} fontFamily="ui-monospace, monospace">{xof(value)}</text>}
       {showPercent && <text x={x + 10} y={y + 62} fill="rgba(255,255,255,0.75)" fontSize={12} fontFamily="ui-monospace, monospace">{typeof percent === "number" ? percent.toFixed(1) : "—"}%</text>}
     </g>
   );
@@ -300,7 +301,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
   const netParKm = totalKm > 0 ? kpis.netFinal / totalKm : 0;
 
   const inputCls = "w-full rounded-xl px-3 py-2.5 text-sm outline-none";
-  const inputStyle: React.CSSProperties = { background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "#fff" };
+  const inputStyle: React.CSSProperties = { background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" };
   const chartTooltip = { backgroundColor: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderRadius: 8, fontSize: 12 };
 
   const NAV = [
@@ -310,7 +311,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
   ];
 
   return (
-    <div className="min-h-screen pb-24" style={{ background: "var(--sk-deep)", color: "#fff" }}>
+    <div className="min-h-screen pb-24" style={{ background: "var(--sk-deep)", color: "var(--sk-t1)" }}>
       {/* ── Header ── */}
       <header className="sticky top-0 z-20 border-b" style={{ background: "var(--sk-deep)", borderColor: "var(--sk-surface)" }}>
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
@@ -319,7 +320,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
           </div>
           <div className="flex-1 min-w-0">
             <div className="font-bold text-[15px] truncate">{appName}</div>
-            <div className="text-[11px]" style={{ color: "var(--sk-t3)" }}>{period.label}</div>
+            <div className="text-[11px]" style={{ color: "var(--sk-t3)" }}>{period.label} · montants en XOF</div>
           </div>
           <div className="flex gap-1.5">
             {(["month", "prev-month", "7d"] as PeriodKey[]).map((k) => (
@@ -332,6 +333,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
               </button>
             ))}
           </div>
+          <ThemeToggle />
           <button onClick={onSignOut} title="Déconnexion" className="p-2 rounded-lg" style={{ color: "var(--sk-t3)" }}>
             <LogOut size={16} />
           </button>
@@ -346,7 +348,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
               <div className="col-span-2 md:col-span-1">
                 <KpiCard big label="Net final" value={`${kpis.netFinal >= 0 ? "+" : ""}${xof(kpis.netFinal)}`}
                   color={kpis.netFinal >= 0 ? "#22c55e" : "#ef4444"}
-                  sub={`${kpis.monthMarginPercent.toFixed(1)} % de marge · XOF`} />
+                  sub={`${kpis.monthMarginPercent.toFixed(1)} % de marge`} />
               </div>
               <KpiCard label="Recettes brutes" value={xof(recettesBrutes)} color="var(--tenant-color)" sub={`moy. ${xof(kpis.avgBrutPerDay)} / jour`} />
               <KpiCard label="Dépenses" value={`− ${xof(kpis.totalDepenses)}`} color="#ef4444" sub="carburant · solde · autres" />
@@ -369,7 +371,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold truncate">{driverNames[r.driver_id] || "Chauffeur"} · {r.date}</div>
                       <div className="text-[11.5px] font-mono" style={{ color: "var(--sk-t3)" }}>
-                        Brut {xof((r.yango_gross || 0) + (r.yango_bonus || 0) + (r.off_yango_revenue || 0))} · Net {xof(r.net_after_expenses || 0)} XOF
+                        Brut {xof((r.yango_gross || 0) + (r.yango_bonus || 0) + (r.off_yango_revenue || 0))} · Net {xof(r.net_after_expenses || 0)}
                       </div>
                     </div>
                     <span className="text-xs" style={{ color: "var(--sk-t3)", transform: expanded === r.id ? "rotate(180deg)" : "none" }}>▾</span>
@@ -423,7 +425,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
                         Dépense · {displayLabel(e.category || "Autre")} · {driverNames[e.driver_id] || e._profile?.full_name || "Chauffeur"}
                       </div>
                       <div className="text-[11.5px] font-mono" style={{ color: "var(--sk-t3)" }}>
-                        {xof(e.amount || 0)} XOF · {e.expense_date || e.created_at?.slice(0, 10)}
+                        {xof(e.amount || 0)} · {e.expense_date || e.created_at?.slice(0, 10)}
                       </div>
                     </div>
                     <span className="text-xs" style={{ color: "var(--sk-t3)", transform: expanded === e.id ? "rotate(180deg)" : "none" }}>▾</span>
@@ -465,7 +467,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
                     <CartesianGrid strokeDasharray="3 3" stroke="var(--sk-surface)" vertical={false} />
                     <XAxis dataKey="date" stroke="var(--sk-t3)" tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(d) => d.slice(5)} />
                     <YAxis stroke="var(--sk-t3)" tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
-                    <Tooltip contentStyle={chartTooltip} formatter={(v: any) => [Number(v).toLocaleString("fr-FR") + " XOF"]} />
+                    <Tooltip contentStyle={chartTooltip} formatter={(v: any) => [Number(v).toLocaleString("fr-FR")]} />
                     <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
                     <Bar dataKey="brutYango" fill="#f5a623" name={`Brut ${plat}`} radius={[3, 3, 0, 0]} />
                     <Bar dataKey="horsYango" fill="#a855f7" name={`Hors ${plat}`} radius={[3, 3, 0, 0]} />
@@ -486,7 +488,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
                       content={<TreemapCell />}>
                       <Tooltip contentStyle={chartTooltip}
                         formatter={(v: any, _n: any, entry: any) => [
-                          `${xof(Number(v))} XOF (${typeof entry?.payload?.percent === "number" ? entry.payload.percent.toFixed(1) : "—"} %)`,
+                          `${xof(Number(v))} (${typeof entry?.payload?.percent === "number" ? entry.payload.percent.toFixed(1) : "—"} %)`,
                           entry?.payload?.name,
                         ]} />
                     </Treemap>
@@ -498,7 +500,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
             <SectionTitle>KPI opérationnels</SectionTitle>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
               <KpiCard label="KM / jour" value={String(kpis.avgKmPerDay)} color="#3b82f6" sub={`${xof(totalKm)} km au total`} />
-              <KpiCard label="Solde conso. / jour" value={xof(kpis.soldeConsomme / nbDays)} color="#f97316" sub={`${xof(kpis.soldeConsomme)} XOF au total`} />
+              <KpiCard label="Solde conso. / jour" value={xof(kpis.soldeConsomme / nbDays)} color="#f97316" sub={`${xof(kpis.soldeConsomme)} au total`} />
               <KpiCard label="Coût au km" value={xof(coutKm)} sub="carburant + solde" />
               <KpiCard label="Net moyen / jour" value={xof(kpis.avgNetPerDay)} color="#22c55e" sub={`sur ${nbDays} jours`} />
             </div>

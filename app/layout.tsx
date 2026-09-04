@@ -41,6 +41,14 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        {/* Thème clair/sombre : appliqué AVANT le premier rendu (pas de flash).
+            Préférence par appareil — voir components/ThemeToggle. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              `try{if(localStorage.getItem("m3a-theme")==="light")document.documentElement.dataset.theme="light"}catch(e){}`,
+          }}
+        />
         <PwaRegister />
         <TenantProvider>
           <AuthProvider>{children}</AuthProvider>
