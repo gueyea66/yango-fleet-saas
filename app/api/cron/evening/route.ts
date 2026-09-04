@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isDriverActiveOn } from "@/lib/drivers";
-import { getTenantAdminIds, sendNotification } from "@/lib/notifications";
+import { getTenantAdminIds, sendNotification, sendTelegramToTenant } from "@/lib/notifications";
 import { CAT_AVANCE } from "@/lib/expenseCategories";
 
 export const dynamic = "force-dynamic";
@@ -72,6 +72,7 @@ async function handle(req: NextRequest) {
       const adminIds = await getTenantAdminIds(t.id);
       const notifyAdmins = async (type: Parameters<typeof sendNotification>[2], title: string, body: string, url: string) => {
         await Promise.allSettled(adminIds.map((aid) => sendNotification(t.id, aid, type, title, body, { url })));
+        await sendTelegramToTenant(t.id, title, body); // canal garanti, 1× par événement
       };
       for (const v of vehicles || []) {
         for (const [field, label] of [["insurance_expiry", "assurance"], ["visite_expiry", "visite technique"]] as const) {

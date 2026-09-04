@@ -3,7 +3,7 @@
 // données/API = jamais interceptées (network only) ;
 // seuls les assets statiques immuables (/_next/static, /icons) sont cache-first.
 
-const SW_VERSION = "v1";
+const SW_VERSION = "v2"; // v2 : auto-réabonnement sur pushsubscriptionchange
 const SHELL_CACHE = `m3a-shell-${SW_VERSION}`;
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png"];
@@ -94,6 +94,28 @@ self.addEventListener("push", (event) => {
     renotify: true,
   };
   event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Quand le navigateur invalide/tourne le token push (cause des 410 quotidiens
+// constatés le 04/09) : on resouscrit immédiatement avec la même clé VAPID et
+// on resynchronise le serveur — sans attendre que l'utilisateur rouvre l'app.
+self.addEventListener("pushsubscriptionchange", (event) => {
+  const key = event.oldSubscription && event.oldSubscription.options
+    ? event.oldSubscription.options.applicationServerKey
+    : null;
+  if (!key) return;
+  event.waitUntil(
+    self.registration.pushManager
+      .subscribe({ userVisibleOnly: true, applicationServerKey: key })
+      .then((sub) =>
+        fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(sub.toJSON()),
+        })
+      )
+      .catch(() => {})
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {

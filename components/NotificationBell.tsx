@@ -24,6 +24,7 @@ export default function NotificationBell() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
   const [pushEnabled, setPushEnabled] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   // Cloche en bas de la sidebar admin : le panneau doit s'ouvrir vers le HAUT
   // sinon il sort de l'écran (retour Abdou 03/09 « alertes illisibles »).
@@ -55,13 +56,41 @@ export default function NotificationBell() {
     return () => clearInterval(id);
   }, [fetchNotifs]);
 
-  // État RÉEL de l'abonnement push (avant : toujours false → bouton fantôme).
+  // AUTO-RÉPARATION de la souscription push (audit 04/09 : les tokens FCM
+  // meurent presque chaque jour — 9 souscriptions sur 11 expirées, code 410 —
+  // et rien ne se réabonnait sans reclic sur la cloche). À chaque ouverture de
+  // l'app, si la permission est déjà accordée : on (re)souscrit et on resynchronise
+  // le serveur. La souscription se répare donc toute seule.
   useEffect(() => {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
-    navigator.serviceWorker.getRegistration("/sw.js")
-      .then((reg) => reg?.pushManager.getSubscription())
-      .then((sub) => { if (sub) setPushEnabled(true); })
-      .catch(() => { /* état inconnu → bouton affiché */ });
+    if (typeof Notification === "undefined" || Notification.permission !== "granted" || !VAPID_PUBLIC) {
+      // Permission pas encore accordée : on affiche juste l'état réel.
+      navigator.serviceWorker.getRegistration("/sw.js")
+        .then((reg) => reg?.pushManager.getSubscription())
+        .then((sub) => { if (sub) setPushEnabled(true); })
+        .catch(() => { /* état inconnu → bouton affiché */ });
+      return;
+    }
+    (async () => {
+      try {
+        const reg = await navigator.serviceWorker.register("/sw.js");
+        await navigator.serviceWorker.ready;
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) {
+          sub = await reg.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
+          });
+        }
+        // Resync serveur systématique (upsert) : garde l'endpoint courant frais.
+        await fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(sub.toJSON()),
+        });
+        setPushEnabled(true);
+      } catch { /* réparation best-effort — le bouton manuel reste disponible */ }
+    })();
   }, []);
 
   useEffect(() => {
@@ -193,6 +222,30 @@ export default function NotificationBell() {
                 border: "none", borderBottom: "1px solid var(--sk-surface)",
               }}>
               🔔 Activer les alertes push — soyez prévenu dès qu'un rapport est soumis, même app fermée.
+            </button>
+          )}
+          {pushEnabled && (
+            <button
+              onClick={async () => {
+                setTesting(true);
+                try {
+                  const res = await fetch("/api/push/test", { method: "POST" });
+                  const j = await res.json().catch(() => ({}));
+                  if (!res.ok) alert("Test impossible : " + (j.error || res.statusText));
+                  else if (!j.sent) alert("Aucun appareil abonné actif — réactivez les alertes push sur cet appareil.");
+                  // Si sent > 0 : la notification elle-même EST le feedback.
+                } catch (e) {
+                  alert("Test impossible : " + (e instanceof Error ? e.message : e));
+                } finally { setTesting(false); }
+              }}
+              disabled={testing}
+              style={{
+                display: "block", width: "100%", textAlign: "left", cursor: "pointer",
+                padding: "8px 16px", fontSize: "11px",
+                color: "var(--sk-t3)", background: "none",
+                border: "none", borderBottom: "1px solid var(--sk-surface)",
+              }}>
+              {testing ? "Envoi du test…" : "📳 Tester les notifications sur cet appareil"}
             </button>
           )}
 

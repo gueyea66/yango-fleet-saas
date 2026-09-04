@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireAnyAuth } from "@/lib/auth/server";
-import { sendNotification, getTenantAdminIds, NotifType } from "@/lib/notifications";
+import { sendNotification, sendTelegramToTenant, getTenantAdminIds, NotifType } from "@/lib/notifications";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +75,9 @@ export async function POST(req: NextRequest) {
     const body = meta.body(safeData);
     await Promise.allSettled(recipientIds.map((rid) =>
       sendNotification(tenantId, rid, type as NotifType, meta.title, body, { url: meta.url, ...safeData })));
+    // Relais Telegram du tenant — UNE fois par événement admin (canal garanti,
+    // indépendant des souscriptions navigateur qui expirent).
+    if (meta.recipient === "admin") await sendTelegramToTenant(tenantId, meta.title, body);
 
     return NextResponse.json({ ok: true });
   } catch (err: any) {
