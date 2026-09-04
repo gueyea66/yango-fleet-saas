@@ -7,6 +7,7 @@ import {
 } from "@/lib/calc";
 
 import { CAT_AVANCE } from "@/lib/expenseCategories";
+import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
 
 // Catégories de dépenses au traitement spécial (front-load)
 const CAT_SOLDE = "Solde Yango";
@@ -154,7 +155,10 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         // Admin context — bypass RLS via service-role API
         const params = new URLSearchParams({ tenantId: explicitTenantId, dateFrom: periodStart, dateTo: periodEnd });
         if (fSet) params.set("driverIds", [...fSet].join(","));
-        const json = await fetch(`/api/admin/kpis?${params}`).then((r) => r.json());
+        // fetchJsonRetry : une erreur transitoire (401 course au refresh token,
+        // cold start) était avalée en tableaux vides → dashboard à zéro sans
+        // message, « il faut refresh à nouveau » (retour Abdou 03/09).
+        const json = await fetchJsonRetry(`/api/admin/kpis?${params}`);
         allReps = json.allReps || [];
         allExps = json.allExps || [];
         allPayments = json.allPayments || [];
@@ -512,7 +516,9 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
 
   useEffect(() => {
     setKPIs((prev) => ({ ...prev, loading: true }));
-    const timeout = setTimeout(() => setKPIs((prev) => ({ ...prev, loading: false })), 6000);
+    // 15 s : laisse le temps aux retries de fetchJsonRetry (2×~700 ms + requêtes)
+    // avant de couper le spinner — à 6 s on montrait des zéros pendant un retry.
+    const timeout = setTimeout(() => setKPIs((prev) => ({ ...prev, loading: false })), 15000);
     loadKPIs().finally(() => clearTimeout(timeout));
   }, [loadKPIs]);
 

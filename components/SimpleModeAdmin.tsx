@@ -16,6 +16,7 @@ import {
 import { Home, Gauge, Users, LogOut, Car, Plus } from "lucide-react";
 import { displayLabel } from "@/lib/tenant/platformLabel";
 import { isDriverActiveToday } from "@/lib/drivers";
+import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
 
 const EXPENSE_COLORS = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#a855f7"];
 
@@ -108,13 +109,13 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
   const loadPending = useCallback(async () => {
     try {
       const supabase = createClient() as any;
-      const [res, { data: profs }] = await Promise.all([
-        fetch(`/api/admin/reports?tenantId=${tenantId}`),
+      // fetchJsonRetry : un 401 transitoire (course au refresh token) laissait
+      // le bloc vide jusqu'au prochain refresh manuel (retour Abdou 03/09).
+      const [json, { data: profs }] = await Promise.all([
+        fetchJsonRetry(`/api/admin/reports?tenantId=${tenantId}`),
         supabase.from("profiles").select("id, full_name").eq("tenant_id", tenantId).eq("role", "driver"),
       ]);
       setDriverNames(Object.fromEntries((profs || []).map((p: any) => [p.id, p.full_name])));
-      if (!res.ok) return;
-      const json = await res.json();
       setPending((json.reports || []).filter((r: any) => r.status === "submitted"));
       setPendingExp((json.expenses || []).filter((e: any) => e.status === "submitted"));
     } catch { /* silencieux — le bloc s'affiche vide */ }

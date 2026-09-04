@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { CAT_AVANCE } from "@/lib/expenseCategories";
+import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
 
 // ── PARAMETERS ────────────────────────────────────────
 export const DEFAULT_PARAMS = {
@@ -586,9 +587,9 @@ export function usePilotage(params: PilotageParams = DEFAULT_PARAMS, tenantId?: 
 
       // Fetch via server-side API route (service role — bypasses RLS)
       const params_url = new URLSearchParams({ tenantId: tid, ...(driverId ? { driverId } : {}), ...(refMonth ? { refMonth } : {}) });
-      const res = await fetch(`/api/admin/pilotage-data?${params_url}`);
-      if (!res.ok) throw new Error((await res.json()).error || "Erreur API");
-      const json = await res.json();
+      // Retry sur erreur transitoire (401 refresh token, cold start) — fix
+      // « refresh ne charge pas, il faut refresh à nouveau » (03/09).
+      const json = await fetchJsonRetry(`/api/admin/pilotage-data?${params_url}`);
       setRaw({ reports: json.reports || [], expenses: json.expenses || [], payments: json.payments || [], profiles: json.profiles || [] });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur de chargement");
