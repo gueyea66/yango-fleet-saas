@@ -24,6 +24,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useDashboardKPIs } from "@/lib/hooks/useDashboardKPIs";
 import NotificationBell from "@/components/NotificationBell";
 import ThemeToggle from "@/components/ThemeToggle";
+import PushOnboarding from "@/components/PushOnboarding";
 import ImportHistoriqueModal from "@/components/ImportHistoriqueModal";
 import { useTenant, applyTenantBrandingOverride } from "@/lib/tenant/context";
 import SimpleModeAdmin from "@/components/SimpleModeAdmin";
@@ -249,13 +250,16 @@ export default function AdminPage() {
       );
     }
     return (
-      <SimpleModeAdmin
-        tenantId={adminTenantId}
-        appName={settings.app_name}
-        platformLabel={plat}
-        onSwitchToFull={() => toggleUiAdvanced(true)}
-        onSignOut={signOut}
-      />
+      <>
+        <SimpleModeAdmin
+          tenantId={adminTenantId}
+          appName={settings.app_name}
+          platformLabel={plat}
+          onSwitchToFull={() => toggleUiAdvanced(true)}
+          onSignOut={signOut}
+        />
+        <PushOnboarding role="admin" />
+      </>
     );
   }
 
@@ -300,6 +304,7 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen flex" style={{ background: "var(--sk-deep)" }}>
+      <PushOnboarding role="admin" />
 
       {/* ── SIDEBAR DESKTOP (lg+) ── */}
       <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-full z-50"

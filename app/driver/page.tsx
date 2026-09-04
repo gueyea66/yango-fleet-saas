@@ -12,6 +12,7 @@ import { setPlatformLabel, platLabel, displayLabel } from "@/lib/tenant/platform
 import { BrandLogo } from "@/components/brand/BrandShell";
 import NotificationBell from "@/components/NotificationBell";
 import ThemeToggle from "@/components/ThemeToggle";
+import PushOnboarding from "@/components/PushOnboarding";
 import { resolveRates, computeCommissions } from "@/lib/calc";
 import { computeElementsReels, hasElementsReels } from "@/lib/calcReel";
 import { compressImageToJpeg } from "@/lib/ai/imageCompressor";
@@ -174,6 +175,7 @@ export default function DriverApp() {
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row" style={{ background: "var(--sk-deep)" }}>
+      <PushOnboarding role="driver" />
 
       {/* ── DESKTOP SIDEBAR ── (hidden on mobile) */}
       <aside className="hidden md:flex flex-col sticky top-0 h-screen z-40 shrink-0"
