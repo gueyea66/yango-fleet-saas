@@ -49,6 +49,7 @@ export async function GET(req: NextRequest) {
       { data: weekRep },
       { data: driverProfiles },
       { data: prevReps },
+      { data: prevOdoReps },
     ] = await Promise.all([
       srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).gte("date", periodStart).lte("date", periodEnd).order("date"),
       srcQ(dQ(tQ(admin.from("expenses").select("*")))),
@@ -57,6 +58,10 @@ export async function GET(req: NextRequest) {
       srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).gte("date", weekAgo).lte("date", today),
       admin.from("profiles").select("*").eq("tenant_id", tenantId).eq("role", "driver"),
       srcQ(dQ(tQ(admin.from("daily_reports").select("date,status,yango_gross,yango_bonus,off_yango_revenue,net_after_expenses,driver_id,comment")))).gte("date", prevStart).lte("date", prevEnd),
+      // Amorce d'odomètre : dernières déclarations AVANT la période, pour que le
+      // km du 1er jour se calcule vs la dernière déclaration connue (peu importe
+      // le mois — retour Abdou 03/09). 2000 lignes ≈ plusieurs mois de flotte.
+      srcQ(dQ(tQ(admin.from("daily_reports").select("driver_id,date,end_odometer,status")))).lt("date", periodStart).not("end_odometer", "is", null).order("date", { ascending: false }).limit(2000),
     ]);
 
     // ── Évolution vs période précédente (Net final & Total recettes) ──
@@ -89,6 +94,7 @@ export async function GET(req: NextRequest) {
       todayRep: todayRep || [],
       weekRep: weekRep || [],
       driverProfiles: driverProfiles || [],
+      prevOdoReps: prevOdoReps || [],
       prev: { netFinal: prevNetFinal, totalBrut: prevTotalBrut, recettes: prevRecettes, start: prevStart, end: prevEnd, joursOuvres: prevJoursOuvres },
     });
   } catch (err: any) {
