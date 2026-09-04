@@ -90,6 +90,28 @@
   --sk-t4: #52525b;
 }
 
+/* ── MODE CLAIR (retour Abdou 04/09) ───────────────────────────────────────
+   Toggle utilisateur (préférence par appareil, data-theme posé sur <html>
+   avant le premier rendu — pas de flash). Placé APRÈS les skins : à
+   spécificité supérieure, il gagne quel que soit le skin choisi.
+   L'accent tenant (--tenant-color) est inchangé. */
+html[data-theme="light"] {
+  --sk-deep: #e9edf4;
+  --sk-bg: #ffffff;
+  --sk-surface: #e6eaf2;
+  --sk-border: #cbd5e1;
+  --sk-t1: #16202e;
+  --sk-t2: #3d4a61;
+  --sk-t3: #64748b;
+  --sk-t4: #94a3b8;
+  color-scheme: light;
+}
+/* Couche de compat : les classes « blanches » historiques (Tailwind) restent
+   lisibles en clair sans réécrire chaque composant. */
+html[data-theme="light"] .text-white { color: var(--sk-t1) !important; }
+html[data-theme="light"] .bg-gray-800 { background: var(--sk-surface) !important; }
+html[data-theme="light"] .border-gray-600 { border-color: var(--sk-border) !important; }
+
 /* Jamais de scroll horizontal de page : l'app ne doit pas exiger de dézoom sur mobile.
    Le scroll reste possible DANS les conteneurs overflow-x-auto (tableaux, barres d'onglets). */
 html,
@@ -105,9 +127,9 @@ body {
 
 .input-base {
   width: 100%;
-  background: #1e2330;
-  border: 1px solid #343b4f;
-  color: #f0f2f7;
+  background: var(--sk-surface);
+  border: 1px solid var(--sk-border);
+  color: var(--sk-t1);
   border-radius: 8px;
   padding: 10px 14px;
   font-size: 14px;

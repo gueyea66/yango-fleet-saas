@@ -11,6 +11,7 @@ import { useTenant, applyTenantBrandingOverride } from "@/lib/tenant/context";
 import { setPlatformLabel, platLabel, displayLabel } from "@/lib/tenant/platformLabel";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import NotificationBell from "@/components/NotificationBell";
+import ThemeToggle from "@/components/ThemeToggle";
 import { resolveRates, computeCommissions } from "@/lib/calc";
 import { computeElementsReels, hasElementsReels } from "@/lib/calcReel";
 import { compressImageToJpeg } from "@/lib/ai/imageCompressor";
@@ -54,7 +55,7 @@ function salaryLevel(net: number, cfg: Cfg) {
 }
 
 function xof(n: number) {
-  return new Intl.NumberFormat("fr-FR").format(Math.round(n)) + " XOF";
+  return new Intl.NumberFormat("fr-FR").format(Math.round(n));
 }
 
 type Tab = "home" | "report" | "expense" | "history" | "profil" | "pilotage" | "repos";
@@ -152,7 +153,7 @@ export default function DriverApp() {
           <h2 className="text-lg font-semibold text-white mb-2">Compte non configuré</h2>
           <p className="text-sm mb-6" style={{ color: "var(--sk-t3)" }}>{profileError}</p>
           <button onClick={() => signOut()} className="text-sm px-4 py-2 rounded-lg"
-            style={{ background: "var(--sk-surface)", color: "var(--sk-t2)", border: "1px solid #2a2f3d" }}>
+            style={{ background: "var(--sk-surface)", color: "var(--sk-t2)", border: "1px solid var(--sk-border)" }}>
             Se déconnecter
           </button>
         </div>
@@ -207,10 +208,10 @@ export default function DriverApp() {
         </nav>
         {/* Notifications + sign out */}
         <div className="p-4 border-t" style={{ borderColor: "var(--sk-surface)" }}>
-          <div className="flex justify-center mb-2"><NotificationBell /></div>
+          <div className="flex justify-center items-center mb-2"><ThemeToggle /><NotificationBell /></div>
           <button onClick={() => signOut()}
             className="w-full text-xs py-2 rounded-lg transition-all"
-            style={{ background: "var(--sk-surface)", color: "var(--sk-t2)", border: "1px solid #2a2f3d" }}>
+            style={{ background: "var(--sk-surface)", color: "var(--sk-t2)", border: "1px solid var(--sk-border)" }}>
             Se déconnecter →
           </button>
         </div>
@@ -230,10 +231,11 @@ export default function DriverApp() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <ThemeToggle />
             <NotificationBell />
             <button onClick={() => signOut()} aria-label="Se déconnecter"
               className="p-2 rounded-lg flex items-center justify-center"
-              style={{ background: "var(--sk-surface)", color: "var(--sk-t2)", border: "1px solid #2a2f3d" }}>
+              style={{ background: "var(--sk-surface)", color: "var(--sk-t2)", border: "1px solid var(--sk-border)" }}>
               <LogOut size={16} strokeWidth={2} />
             </button>
           </div>
@@ -822,7 +824,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
           {rejectedToday.rejection_reason && (
             <div className="text-xs mt-1" style={{ color: "#f87171" }}>Motif : {rejectedToday.rejection_reason}</div>
           )}
-          <div className="text-xs mt-1" style={{ color: "#9ca3af" }}>Les champs sont pré-remplis avec cette ancienne saisie — corrigez et soumettez : ça crée un nouveau rapport, l'ancien reste consultable dans l'historique.</div>
+          <div className="text-xs mt-1" style={{ color: "var(--sk-t2)" }}>Les champs sont pré-remplis avec cette ancienne saisie — corrigez et soumettez : ça crée un nouveau rapport, l'ancien reste consultable dans l'historique.</div>
         </div>
       )}
       <div className="space-y-4">
@@ -832,7 +834,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
               sinon impossible de choisir une autre date pour une nouvelle saisie. */}
           <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} max={today}
             className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-            style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", colorScheme: "dark" }} />
+            style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", colorScheme: "inherit" as any }} />
           {!canEdit && <div className="text-[10px] mt-1" style={{ color: "var(--sk-t4)" }}>Un rapport est déjà actif pour cette date — changez la date pour en saisir un autre, ou consultez l'historique.</div>}
         </Field>
         <Field label="Compteur km fin de journée" icon={Gauge}><InpText type="number" placeholder="ex: 48900" value={form.end_odometer} onChange={(v) => set("end_odometer", v)} disabled={!canEdit} /></Field>
@@ -923,7 +925,7 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
                 <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addFiles(e.target.files)} />
               </label>
               <label className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-center cursor-pointer"
-                style={{ background: "transparent", border: "1px solid #2a2f3d", color: "var(--sk-t3)" }}>
+                style={{ background: "transparent", border: "1px solid var(--sk-border)", color: "var(--sk-t3)" }}>
                 📁 Fichier
                 <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,video/*" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
               </label>
@@ -1006,7 +1008,7 @@ function UploadBlock({ driverId, refId, refType, label = "Photos / Reçus" }: { 
         </button>
         <button onClick={() => fileRef.current?.click()} disabled={uploading}
           className="flex-1 py-2.5 rounded-xl text-sm font-medium border-dashed border-2 transition-all"
-          style={{ background: "transparent", borderColor: uploading ? "var(--tenant-color)" : "#2a2f3d", color: uploading ? "var(--tenant-color)" : "var(--sk-t3)" }}>
+          style={{ background: "transparent", borderColor: uploading ? "var(--tenant-color)" : "var(--sk-border)", color: uploading ? "var(--tenant-color)" : "var(--sk-t3)" }}>
           {uploading ? "⏳" : "📁 Fichier / Galerie"}
         </button>
       </div>
@@ -1126,7 +1128,7 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
       </div>
       <div className="flex gap-3">
         <button onClick={() => { setForm({ expense_date: today, type: "Carburant", amount: "", odometer: "", fuel_liters: "", comment: "" }); setAdvanceTo(""); setSubmitted(false); setExpenseId(null); }}
-          className="flex-1 py-2.5 text-sm rounded-xl" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)", border: "1px solid #2a2f3d" }}>Nouvelle dépense</button>
+          className="flex-1 py-2.5 text-sm rounded-xl" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)", border: "1px solid var(--sk-border)" }}>Nouvelle dépense</button>
         <button onClick={onBack} className="flex-1 py-2.5 text-sm rounded-xl font-bold text-black" style={{ background: "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))" }}>Accueil</button>
       </div>
     </div>
@@ -1139,7 +1141,7 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
         <Field label="Date">
           <input type="date" value={form.expense_date} onChange={(e) => set("expense_date", e.target.value)} max={today}
             className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-            style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", colorScheme: "dark" }} />
+            style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", colorScheme: "inherit" as any }} />
         </Field>
         <Field label="Type">
           <select value={form.type} onChange={(e) => set("type", e.target.value)}
@@ -1190,7 +1192,7 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
               <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addFiles(e.target.files)} />
             </label>
             <label className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-center cursor-pointer"
-              style={{ background: "transparent", border: "1px solid #2a2f3d", color: "var(--sk-t3)" }}>
+              style={{ background: "transparent", border: "1px solid var(--sk-border)", color: "var(--sk-t3)" }}>
               📁 Fichier
               <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,video/*" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
             </label>
@@ -1367,7 +1369,7 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
     return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ color, background: bg }}>{status === "approved" ? "Validé" : status === "rejected" ? "Rejeté" : "En attente"}</span>;
   };
 
-  const inputStyle = { background: "var(--sk-bg)", border: "1px solid #2a2f3d", color: "var(--sk-t1)", borderRadius: 10, padding: "8px 12px", width: "100%", fontSize: 13, outline: "none" };
+  const inputStyle = { background: "var(--sk-bg)", border: "1px solid var(--sk-border)", color: "var(--sk-t1)", borderRadius: 10, padding: "8px 12px", width: "100%", fontSize: 13, outline: "none" };
 
   return (
     <div className="rounded-2xl" style={{ background: "var(--sk-bg)", border: `1px solid ${report.status === "rejected" ? "rgba(239,68,68,.3)" : "var(--sk-surface)"}` }}>
@@ -1465,7 +1467,7 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
               </button>
               <button onClick={archive} disabled={saving}
                 className="py-2.5 px-3 rounded-xl text-sm"
-                style={{ background: "var(--sk-surface)", color: "var(--sk-t3)", border: "1px solid #2a2f3d" }}>
+                style={{ background: "var(--sk-surface)", color: "var(--sk-t3)", border: "1px solid var(--sk-border)" }}>
                 Archiver
               </button>
             </div>
@@ -1474,7 +1476,7 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
             <div className="flex gap-2 pt-1">
               <button onClick={() => setEditing(false)}
                 className="py-2.5 px-4 rounded-xl text-sm"
-                style={{ background: "var(--sk-surface)", color: "var(--sk-t2)", border: "1px solid #2a2f3d" }}>
+                style={{ background: "var(--sk-surface)", color: "var(--sk-t2)", border: "1px solid var(--sk-border)" }}>
                 Annuler
               </button>
               <button onClick={saveAndResubmit} disabled={saving}
@@ -1576,7 +1578,7 @@ function ExpenseCard({ expense, driverId, profile, onRefresh }: { expense: any; 
               </button>
               <button onClick={archive} disabled={saving}
                 className="py-2.5 px-4 rounded-xl text-sm"
-                style={{ background: "var(--sk-surface)", color: "var(--sk-t3)", border: "1px solid #2a2f3d" }}>
+                style={{ background: "var(--sk-surface)", color: "var(--sk-t3)", border: "1px solid var(--sk-border)" }}>
                 Archiver
               </button>
             </div>
@@ -1779,7 +1781,7 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
             const uploaded = kycDocs[doc.type];
             const isUploading = uploading === doc.type;
             const docStatus = uploaded?.status || null;
-            const statusColor = docStatus === "approved" ? "#22c55e" : docStatus === "rejected" ? "#ef4444" : uploaded ? "var(--tenant-color)" : "#2a2f3d";
+            const statusColor = docStatus === "approved" ? "#22c55e" : docStatus === "rejected" ? "#ef4444" : uploaded ? "var(--tenant-color)" : "var(--sk-border)";
             return (
               <div key={doc.type} className="rounded-xl px-3 py-2.5 flex items-center justify-between gap-2"
                 style={{ background: "var(--sk-deep)", border: `1px solid ${statusColor}40` }}>
@@ -1807,7 +1809,7 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
         {canSubmit && (
           <button onClick={submitDossier} disabled={submitting}
             className="w-full mt-4 py-3 rounded-xl font-bold transition-all"
-            style={{ background: submitting ? "#2a2f3d" : "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))", color: submitting ? "var(--sk-t3)" : "#000" }}>
+            style={{ background: submitting ? "var(--sk-border)" : "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))", color: submitting ? "var(--sk-t3)" : "#000" }}>
             {submitting ? "Envoi en cours..." : "📤 Soumettre mon dossier pour vérification"}
           </button>
         )}
@@ -1871,7 +1873,7 @@ function DriverAvancesSection({ driverId }: { driverId: string }) {
         {pending > 0 && (
           <div className="text-xs font-mono font-bold px-3 py-1 rounded-full"
             style={{ background: "rgba(var(--tenant-color-rgb),.1)", color: "var(--tenant-color)" }}>
-            {xof(pending)} XOF à déduire
+            {xof(pending)} à déduire
           </div>
         )}
       </div>
@@ -1888,7 +1890,7 @@ function DriverAvancesSection({ driverId }: { driverId: string }) {
               </div>
               <div className="flex items-center gap-2">
                 <div className="font-mono text-sm font-bold" style={{ color: a.is_deducted ? "var(--sk-t4)" : "var(--tenant-color)" }}>
-                  {xof(a.amount)} XOF
+                  {xof(a.amount)}
                 </div>
                 {a.is_deducted
                   ? <span className="text-[10px] px-2 py-0.5 rounded-full" style={{ color: "#22c55e", background: "rgba(34,197,94,.1)" }}>✓ Déduit</span>
@@ -1995,7 +1997,7 @@ function ReposTab({ profile, onBack }: { profile: Profile; onBack: () => void })
         <Field label="Date du repos (passé ou futur)">
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
             className="w-full rounded-xl px-4 py-3 text-sm outline-none"
-            style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", colorScheme: "dark" }} />
+            style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", colorScheme: "inherit" as any }} />
         </Field>
 
         <Field label="Motif (optionnel)">
@@ -2199,7 +2201,7 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
         </div>
         <div className="text-[10px] mb-2" style={{ color: "var(--sk-t4)" }}>
           {cfg.model === "location"
-            ? `= CA projeté − loyer mensuel (${cfg.daily_rent.toLocaleString("fr-FR")} XOF/j × ${stats.daysInMonth}j)`
+            ? `= CA projeté − loyer mensuel (${cfg.daily_rent.toLocaleString("fr-FR")}/j × ${stats.daysInMonth}j)`
             : `= Brut ${platLabel()} − comm. ${platLabel()} (${cfg.comm_yango}%) − comm. partenaire (${cfg.comm_partner}%)`}
         </div>
         {cfg.model === "tiered" && (
@@ -2224,7 +2226,7 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
       <div className="rounded-2xl p-4 mb-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
         <div className="flex justify-between text-xs mb-2">
           <span style={{ color: "var(--sk-t3)" }}>MTD: <span className="font-mono font-bold text-white">{xof(stats.mtdNet)}</span></span>
-          <span style={{ color: "var(--sk-t4)" }}>Objectif: {xof(TARGET)} XOF</span>
+          <span style={{ color: "var(--sk-t4)" }}>Objectif: {xof(TARGET)}</span>
         </div>
         <div className="h-3 rounded-full overflow-hidden mb-2" style={{ background: "var(--sk-surface)" }}>
           <div className="h-full rounded-full relative transition-all" style={{ width: `${mtdPct}%`, background: "linear-gradient(90deg,var(--tenant-color),#22c55e)" }}>
@@ -2302,7 +2304,7 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
           style={{ background: "rgba(239,68,68,.07)", border: "1px solid rgba(239,68,68,.2)" }}>
           <span>🚨</span>
           <div className="text-xs" style={{ color: "#f87171" }}>
-            Rythme insuffisant. Il vous faut <strong>{xof(stats.needed - stats.dailyAvg)} XOF/j de plus</strong> pour atteindre l'objectif.
+            Rythme insuffisant. Il vous faut <strong>{xof(stats.needed - stats.dailyAvg)}/j de plus</strong> pour atteindre l'objectif.
             {cfg.model === "tiered" && stats.tier && ` Projection actuelle : ${stats.tier.label} (${xof(stats.tier.total_salary)}).`}
             {cfg.model === "location" && ` Loyer mensuel : ${xof(stats.rentProjected)}.`}
           </div>
@@ -2352,7 +2354,7 @@ function DriverPilotageTab({ profile, onBack, cfg }: { profile: Profile; onBack:
             return (
               <div key={i} className="flex items-center justify-between py-2" style={{ borderBottom: i < RULES.length - 1 ? "1px solid #0a0c10" : "none" }}>
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full" style={{ background: isActive ? "#22c55e" : isProjected ? "var(--tenant-color)" : "#2a2f3d" }} />
+                  <div className="w-2 h-2 rounded-full" style={{ background: isActive ? "#22c55e" : isProjected ? "var(--tenant-color)" : "var(--sk-border)" }} />
                   <span className="text-xs" style={{ color: isActive ? "#22c55e" : isProjected ? "var(--tenant-color)" : "var(--sk-t3)" }}>
                     {r.label} {isActive && "← actuel"} {isProjected && "← projeté"}
                   </span>

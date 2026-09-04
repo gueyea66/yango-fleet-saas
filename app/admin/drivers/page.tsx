@@ -476,14 +476,14 @@ export default function DriversPage() {
                         <input type="date" value={settingsForm.hire_date}
                           onChange={(e) => setSettingsForm({ ...settingsForm, hire_date: e.target.value })}
                           className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500"
-                          style={{ colorScheme: "dark" }} />
+                          style={{ colorScheme: "inherit" as any }} />
                       </div>
                       <div>
                         <label className="text-xs text-gray-400 block mb-1">Date fin de contrat (prorata salaire)</label>
                         <input type="date" value={settingsForm.contract_end_date}
                           onChange={(e) => setSettingsForm({ ...settingsForm, contract_end_date: e.target.value })}
                           className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500"
-                          style={{ colorScheme: "dark" }} />
+                          style={{ colorScheme: "inherit" as any }} />
                       </div>
                       <div>
                         <label className="text-xs text-gray-400 block mb-1">Solde wallet initial (XOF)</label>

@@ -271,7 +271,7 @@ export default function PilotagePage() {
 
        {/* MOBILE TOP BAR */}
        <div className="lg:hidden fixed top-0 left-0 right-0 z-50"
-         style={{ background: "rgba(13,17,23,.97)", borderBottom: "1px solid var(--sk-surface)", backdropFilter: "blur(12px)" }}>
+         style={{ background: "var(--sk-bg)", borderBottom: "1px solid var(--sk-surface)", backdropFilter: "blur(12px)" }}>
          <div className="px-4 py-2.5 flex items-center justify-between">
            <div className="flex items-center gap-3">
              <button onClick={() => router.push("/admin")} className="text-xs px-2.5 py-1.5 rounded-lg" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>← Admin</button>

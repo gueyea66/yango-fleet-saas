@@ -174,7 +174,7 @@ export default function NotificationBell() {
           setOpenUp(!!r && window.innerHeight - r.bottom < 440);
           setOpen((o) => !o);
         }}
-        style={{ position: "relative", background: "none", border: "none", cursor: "pointer", padding: "4px 8px", color: "#888" }}
+        style={{ position: "relative", background: "none", border: "none", cursor: "pointer", padding: "4px 8px", color: "var(--sk-t2)" }}
         title="Notifications"
       >
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -183,7 +183,7 @@ export default function NotificationBell() {
         {unread > 0 && (
           <span style={{
             position: "absolute", top: 0, right: 0, background: "#ef4444",
-            color: "#fff", borderRadius: "999px", fontSize: "10px",
+            color: "var(--sk-t1)", borderRadius: "999px", fontSize: "10px",
             width: "16px", height: "16px", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700,
           }}>
             {unread > 9 ? "9+" : unread}
@@ -199,11 +199,11 @@ export default function NotificationBell() {
               ? { position: "absolute" as const, left: 0, bottom: "36px", width: "320px" }
               : { position: "absolute" as const, right: 0, top: "36px", width: "320px" }),
           zIndex: 1000,
-          background: "var(--sk-bg, #0b0e15)", border: "1px solid var(--sk-surface, #232838)", borderRadius: "16px",
+          background: "var(--sk-bg, var(--sk-bg))", border: "1px solid var(--sk-surface, var(--sk-surface))", borderRadius: "16px",
           boxShadow: "0 8px 32px rgba(0,0,0,.6)", overflow: "hidden",
         }}>
           <div style={{ padding: "12px 16px", borderBottom: "1px solid var(--sk-surface)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ color: "#fff", fontWeight: 700, fontSize: "14px" }}>Notifications</span>
+            <span style={{ color: "var(--sk-t1)", fontWeight: 700, fontSize: "14px" }}>Notifications</span>
             <div style={{ display: "flex", gap: 8 }}>
               {unread > 0 && (
                 <button onClick={markAll} style={{ fontSize: "11px", color: "var(--tenant-color)", background: "none", border: "none", cursor: "pointer" }}>
@@ -265,10 +265,10 @@ export default function NotificationBell() {
                   }}
                 >
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                    <span style={{ color: "#fff", fontSize: "13px", fontWeight: n.read_at ? 400 : 600 }}>{n.title}</span>
+                    <span style={{ color: "var(--sk-t1)", fontSize: "13px", fontWeight: n.read_at ? 400 : 600 }}>{n.title}</span>
                     <span style={{ color: "var(--sk-t3)", fontSize: "10px", whiteSpace: "nowrap", marginLeft: 8 }}>{fmtTime(n.created_at)}</span>
                   </div>
-                  <div style={{ color: "#888", fontSize: "12px", marginTop: 2 }}>{n.body}</div>
+                  <div style={{ color: "var(--sk-t2)", fontSize: "12px", marginTop: 2 }}>{n.body}</div>
                   {!n.read_at && (
                     <div style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--tenant-color)", marginTop: 4 }} />
                   )}
