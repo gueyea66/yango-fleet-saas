@@ -35,6 +35,17 @@ export function checkNetCoherence(fields: ExtractedFields): CoherenceAlert | nul
     (fields.commission_partenaire ?? 0) -
     (fields.services_supplementaires ?? 0);
   if (Math.abs(expected - fields.net_affiche) <= 5) return null;
+  const ecart = fields.net_affiche - expected;
+  // Indice ciblé (bug Abdon 05/09) : un écart POSITIF avec « Carte » non lue
+  // correspond presque toujours à la pastille Carte manquée par la vision —
+  // dire au chauffeur QUOI vérifier plutôt qu'un simple constat d'écart.
+  if (fields.yango_card === null && ecart > 0) {
+    return {
+      field: "yango_card",
+      type: "net_mismatch",
+      message: `Il manque probablement le champ « Carte » : l'écran affiche un net de ${fmt(fields.net_affiche)} FCFA, soit ${fmt(ecart)} FCFA de plus que espèces + bonus − commissions − services. Si l'écran montre « Carte · ${fmt(ecart)} FCFA », saisis-le dans le champ Carte.`,
+    };
+  }
   return {
     field: "net_affiche",
     type: "net_mismatch",

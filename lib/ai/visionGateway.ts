@@ -4,9 +4,16 @@
  * AbortController, retour null en cas d'échec (JAMAIS de throw) — le
  * formulaire manuel reste le chemin nominal.
  *
- * Pipeline : claude-haiku (rapide, $1/$5) → si confiance moyenne < seuil ou
- * timeout, retry claude-sonnet-5 (fallback qualité). Si aucune clé Anthropic,
+ * Pipeline : claude-sonnet-5 primaire → retry fallback si confiance moyenne
+ * < seuil, timeout OU net qui ne se recoupe pas. Si aucune clé Anthropic,
  * un seul appel GPT-4o (fallback ultime, pattern narrate).
+ *
+ * 05/09 (bug « Carte » Abdon) : le primaire était Haiku — il a raté la pastille
+ * « Carte » avec 0 de confiance sur CE champ mais 0,98 partout ailleurs →
+ * moyenne au-dessus du seuil → fallback jamais déclenché → 1 000 F de trou.
+ * Deux verrous : primaire = Sonnet (règle projet : chiffres financiers sous
+ * contrainte stricte = jamais Haiku), et escalade si la reconstitution
+ * arithmétique du net échoue même quand la confiance moyenne est bonne.
  *
  * Règle d'or : le LLM lit, il ne calcule jamais. calc.ts = source de vérité.
  */
@@ -18,8 +25,9 @@ import {
   parseExtractionOutput,
 } from "./extractionParser";
 import { buildVisionPrompt } from "./visionPrompt";
+import { checkNetCoherence } from "./coherenceChecks";
 
-const DEFAULT_PRIMARY_MODEL = "claude-haiku-4-5-20251001";
+const DEFAULT_PRIMARY_MODEL = "claude-sonnet-5";
 const DEFAULT_FALLBACK_MODEL = "claude-sonnet-5";
 
 export interface VisionImage {
@@ -141,7 +149,7 @@ export async function extractVision(
 
   const primaryModel = (process.env.ANTHROPIC_VISION_MODEL_PRIMARY ?? "").trim() || DEFAULT_PRIMARY_MODEL;
   const fallbackModel = (process.env.ANTHROPIC_VISION_MODEL_FALLBACK ?? "").trim() || DEFAULT_FALLBACK_MODEL;
-  const primaryTimeout = envInt("ANTHROPIC_TIMEOUT_PRIMARY_MS", 10_000);
+  const primaryTimeout = envInt("ANTHROPIC_TIMEOUT_PRIMARY_MS", 20_000); // Sonnet primaire (05/09) : 10 s timeoutait
   const fallbackTimeout = envInt("ANTHROPIC_TIMEOUT_FALLBACK_MS", 20_000);
   const confidenceThreshold = envFloat("ANTHROPIC_FALLBACK_CONFIDENCE_THRESHOLD", 0.75);
 
@@ -159,16 +167,40 @@ export async function extractVision(
   if (anthropicKey) {
     const primary = await callAnthropicVision(primaryModel, prompt, images, primaryTimeout, anthropicKey);
     if (primary && computeAverageConfidence(primary.confidences) >= confidenceThreshold) {
+      // Escalade sur INCOHÉRENCE (bug « Carte » 05/09) : une confiance moyenne
+      // haute peut cacher UN champ raté. Si la reconstitution arithmétique du
+      // net échoue et qu'un autre modèle est disponible, on retente — sinon on
+      // rend quand même le résultat (l'alerte de cohérence guide le chauffeur).
+      const netMismatch = checkNetCoherence(primary.fields) !== null;
+      if (!netMismatch || primaryModel === fallbackModel) {
+        return {
+          output: primary,
+          modelUsed: primaryModel,
+          fallbackTriggered: false,
+          durationMs: Date.now() - started,
+          succeeded: true,
+        };
+      }
+      const retry = await callAnthropicVision(fallbackModel, prompt, images, fallbackTimeout, anthropicKey);
+      if (retry && checkNetCoherence(retry.fields) === null) {
+        return {
+          output: retry,
+          modelUsed: fallbackModel,
+          fallbackTriggered: true,
+          durationMs: Date.now() - started,
+          succeeded: true,
+        };
+      }
       return {
         output: primary,
         modelUsed: primaryModel,
-        fallbackTriggered: false,
+        fallbackTriggered: true,
         durationMs: Date.now() - started,
         succeeded: true,
       };
     }
 
-    // Confiance insuffisante ou échec primaire → fallback Sonnet
+    // Confiance insuffisante ou échec primaire → fallback
     const fallback = await callAnthropicVision(fallbackModel, prompt, images, fallbackTimeout, anthropicKey);
     if (fallback) {
       return {
