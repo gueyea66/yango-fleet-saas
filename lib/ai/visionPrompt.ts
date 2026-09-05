@@ -71,6 +71,9 @@ RÈGLES ABSOLUES :
 2. Les montants sont en FCFA — nombres ENTIERS. "41 900", "41,900" et "41.900" = 41900.
 3. Les commissions et services supplémentaires sont affichés en NÉGATIF (ex: -6254) : retourne la VALEUR ABSOLUE (6254).
 4. « Carte » n'apparaît que les jours avec paiement carte : absent → null.
+   MAIS avant de conclure null, cherche ACTIVEMENT la pastille « Carte » : elle
+   est souvent petite, sur la même rangée que « Espèces » ou juste en dessous,
+   parfois partiellement coupée. La manquer crée un trou dans les recettes.
 5. Le kilométrage compteur est un entier positif (ex: 187432) — uniquement sur photo du tableau de bord.
 6. En cas de conflit entre images pour un même champ, retiens la valeur la plus conservative (la plus basse) et liste le conflit.
 
