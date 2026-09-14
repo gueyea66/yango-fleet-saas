@@ -34,6 +34,7 @@ import TrialBanner from "@/components/TrialBanner";
 import AiBriefingSection from "@/components/ai/AiBriefingSection";
 import { computeCommissions } from "@/lib/calc";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
+import { logAction } from "@/lib/logAction";
 import {
   BarChart, Bar, Treemap, Cell as RCell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -1979,9 +1980,9 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
       const { error } = await supabase.from("expenses").update({ status }).eq("id", expense.id);
       if (error) throw error;
       // Log action (fire-and-forget — non-critical)
-      void supabase.from("action_logs").insert({
-        tenant_id: expense.tenant_id, actor_role: "admin",
-        entity_type: "expense", entity_id: expense.id, action: status,
+      logAction({
+        tenantId: expense.tenant_id, entityType: "expense", entityId: expense.id,
+        action: status,
         metadata: { category: expense.category, amount: expense.amount },
       });
       setCurrentStatus(status);
@@ -2244,9 +2245,9 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
       }).eq("id", report.id);
       if (error) throw error;
       // Log action (fire-and-forget — non-critical)
-      void supabase.from("action_logs").insert({
-        tenant_id: report.tenant_id, actor_role: "admin",
-        entity_type: "daily_report", entity_id: report.id, action: status,
+      logAction({
+        tenantId: report.tenant_id, entityType: "daily_report", entityId: report.id,
+        action: status,
         metadata: { date: report.date, net: parseFloat(netEdit) || report.net_after_expenses },
       });
       // Notification push au chauffeur
