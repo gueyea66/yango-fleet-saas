@@ -20,6 +20,7 @@ import { Home, ClipboardList, Wallet, BedDouble, History, Target, LogOut, Gauge,
 import type { LucideIcon } from "lucide-react";
 
 import type { RemunerationConfig } from "@/lib/tenant/types";
+import { logAction } from "@/lib/logAction";
 
 type Cfg = RemunerationConfig;
 
@@ -762,9 +763,9 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
             file_type: "report", file_size: f.size, ref_id: newReport.id,
           });
         }
-        void supabase.from("action_logs").insert({
-          tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
-          entity_type: "daily_report", entity_id: newReport.id, action: "submitted",
+        logAction({
+          tenantId: profile.tenant_id, entityType: "daily_report", entityId: newReport.id,
+          action: "submitted",
           metadata: { date: form.date, net: netTotalEffectif, mode: modeReel ? "elements_reels" : "theorique" },
         });
         // Notifie le gestionnaire (in-app + push) — l'événement manquait :
@@ -1103,9 +1104,9 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
         }
       }
       if (expId) {
-        void supabase.from("action_logs").insert({
-          tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
-          entity_type: "expense", entity_id: expId, action: "submitted",
+        logAction({
+          tenantId: profile.tenant_id, entityType: "expense", entityId: expId,
+          action: "submitted",
           metadata: { category: form.type, amount: parseFloat(form.amount) },
         });
         void fetch("/api/notifications/trigger", {
@@ -1342,9 +1343,9 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "report_submitted", data: { date: report.date } }),
       });
-      void supabase.from("action_logs").insert({
-        tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
-        entity_type: "daily_report", entity_id: newReport?.id, action: "submitted",
+      logAction({
+        tenantId: profile.tenant_id, entityType: "daily_report", entityId: newReport?.id,
+        action: "submitted",
         metadata: { date: report.date, resubmission: true, original_report_id: report.id },
       });
       setEditing(false);
@@ -1515,9 +1516,9 @@ function ExpenseCard({ expense, driverId, profile, onRefresh }: { expense: any; 
       const supabase = createClient() as any;
       const { error } = await supabase.from("expenses").update({ status: "submitted" }).eq("id", expense.id);
       if (error) throw error;
-      void supabase.from("action_logs").insert({
-        tenant_id: profile.tenant_id, actor_id: profile.id, actor_role: "driver",
-        entity_type: "expense", entity_id: expense.id, action: "submitted",
+      logAction({
+        tenantId: profile.tenant_id, entityType: "expense", entityId: expense.id,
+        action: "submitted",
         metadata: { category: expense.category, amount: expense.amount, resubmission: true },
       });
       onRefresh();
