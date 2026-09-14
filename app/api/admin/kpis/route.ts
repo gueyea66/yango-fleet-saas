@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
 import { requireAdminAuth } from "@/lib/auth/server";
 import { CAT_AVANCE } from "@/lib/expenseCategories";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +11,7 @@ const admin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   { db: { schema: "fleet" } }
 );
+
 
 export async function GET(req: NextRequest) {
   try {
@@ -42,26 +44,26 @@ export async function GET(req: NextRequest) {
     const prevStart = new Date(Date.parse(periodStart) - lenDays * msDay).toISOString().split("T")[0];
 
     const [
-      { data: allReps },
-      { data: allExps },
-      { data: allPayments },
-      { data: todayRep },
-      { data: weekRep },
-      { data: driverProfiles },
-      { data: prevReps },
-      { data: prevOdoReps },
+      allReps,
+      allExps,
+      allPayments,
+      todayRep,
+      weekRep,
+      driverProfiles,
+      prevReps,
+      prevOdoReps,
     ] = await Promise.all([
-      srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).gte("date", periodStart).lte("date", periodEnd).order("date"),
-      srcQ(dQ(tQ(admin.from("expenses").select("*")))),
-      dQ(tQ(admin.from("payments").select("*"))),
-      srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).eq("date", today),
-      srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).gte("date", weekAgo).lte("date", today),
-      admin.from("profiles").select("*").eq("tenant_id", tenantId).eq("role", "driver"),
-      srcQ(dQ(tQ(admin.from("daily_reports").select("date,status,yango_gross,yango_bonus,off_yango_revenue,net_after_expenses,driver_id,comment")))).gte("date", prevStart).lte("date", prevEnd),
-      // Amorce d'odomètre : dernières déclarations AVANT la période, pour que le
-      // km du 1er jour se calcule vs la dernière déclaration connue (peu importe
-      // le mois — retour Abdou 03/09). 2000 lignes ≈ plusieurs mois de flotte.
-      srcQ(dQ(tQ(admin.from("daily_reports").select("driver_id,date,end_odometer,status")))).lt("date", periodStart).not("end_odometer", "is", null).order("date", { ascending: false }).limit(2000),
+      fetchAllRows(() => srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).gte("date", periodStart).lte("date", periodEnd).order("date")),
+      fetchAllRows(() => srcQ(dQ(tQ(admin.from("expenses").select("*")))).order("expense_date")),
+      fetchAllRows(() => dQ(tQ(admin.from("payments").select("*"))).order("payment_date")),
+      srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).eq("date", today).then((r: any) => r.data || []),
+      srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).gte("date", weekAgo).lte("date", today).then((r: any) => r.data || []),
+      admin.from("profiles").select("*").eq("tenant_id", tenantId).eq("role", "driver").then((r: any) => r.data || []),
+      fetchAllRows(() => srcQ(dQ(tQ(admin.from("daily_reports").select("date,status,yango_gross,yango_bonus,off_yango_revenue,net_after_expenses,driver_id,comment")))).gte("date", prevStart).lte("date", prevEnd).order("date")),
+      // Amorce d'odomètre : seule la DERNIÈRE déclaration par chauffeur avant la
+      // période est utilisée — 1000 lignes triées du plus récent au plus ancien
+      // en couvrent largement l'ensemble (le plafond PostgREST est de 1000).
+      srcQ(dQ(tQ(admin.from("daily_reports").select("driver_id,date,end_odometer,status")))).lt("date", periodStart).not("end_odometer", "is", null).order("date", { ascending: false }).limit(1000).then((r: any) => r.data || []),
     ]);
 
     // ── Évolution vs période précédente (Net final & Total recettes) ──
