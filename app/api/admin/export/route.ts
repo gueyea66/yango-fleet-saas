@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminAuth } from "@/lib/auth/server";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { getPlanLimits } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
@@ -63,14 +64,19 @@ export async function GET(req: NextRequest) {
     let filename = "export.csv";
 
     if (resource === "reports") {
-      let q = admin.from("daily_reports")
-        .select("date,driver_id,vehicle_id,end_odometer,yango_gross,yango_bonus,off_yango_revenue,commission_amount,net_after_expenses,solde_yango,yango_trip_count,off_yango_trip_count,status,comment")
-        .eq("tenant_id", tenantId)
-        .order("date", { ascending: false }).limit(10000);
-      if (dateFrom) q = q.gte("date", dateFrom) as any;
-      if (dateTo) q = q.lte("date", dateTo) as any;
-      if (driverId) q = q.eq("driver_id", driverId) as any;
-      const { data } = await q;
+      // Export COMPLET : `limit(10000)` était illusoire — PostgREST plafonne
+      // chaque réponse à 1000 lignes, l'export d'une année de flotte était donc
+      // coupé sans le dire (cf. lib/fetchAllRows).
+      const data = await fetchAllRows(() => {
+        let q = admin.from("daily_reports")
+          .select("date,driver_id,vehicle_id,end_odometer,yango_gross,yango_bonus,off_yango_revenue,commission_amount,net_after_expenses,solde_yango,yango_trip_count,off_yango_trip_count,status,comment")
+          .eq("tenant_id", tenantId)
+          .order("date", { ascending: false });
+        if (dateFrom) q = q.gte("date", dateFrom) as any;
+        if (dateTo) q = q.lte("date", dateTo) as any;
+        if (driverId) q = q.eq("driver_id", driverId) as any;
+        return q;
+      });
       headers = ["Date", "Chauffeur", "Compteur km", "Brut Yango", "Bonus Yango", "Hors Yango",
         "Commission", "Net après charges", "Solde wallet", "Courses Yango", "Courses hors", "Statut", "Commentaire"];
       rows = (data || []).map((r: any) => ({
@@ -90,13 +96,15 @@ export async function GET(req: NextRequest) {
       }));
       filename = `rapports_${today()}.csv`;
     } else if (resource === "expenses") {
-      let q = admin.from("expenses")
-        .select("expense_date,driver_id,category,amount,description,status")
-        .eq("tenant_id", tenantId).order("expense_date", { ascending: false, nullsFirst: false }).limit(10000);
-      if (dateFrom) q = q.gte("expense_date", dateFrom) as any;
-      if (dateTo) q = q.lte("expense_date", dateTo) as any;
-      if (driverId) q = q.eq("driver_id", driverId) as any;
-      const { data } = await q;
+      const data = await fetchAllRows(() => {
+        let q = admin.from("expenses")
+          .select("expense_date,driver_id,category,amount,description,status")
+          .eq("tenant_id", tenantId).order("expense_date", { ascending: false, nullsFirst: false });
+        if (dateFrom) q = q.gte("expense_date", dateFrom) as any;
+        if (dateTo) q = q.lte("expense_date", dateTo) as any;
+        if (driverId) q = q.eq("driver_id", driverId) as any;
+        return q;
+      });
       headers = ["Date", "Chauffeur", "Catégorie", "Montant", "Description", "Statut"];
       rows = (data || []).map((e: any) => ({
         "Date": e.expense_date ?? "",
@@ -113,11 +121,13 @@ export async function GET(req: NextRequest) {
       // (retard) doit rester classé en juillet. Fallback sur payment_date
       // seulement si salary_month n'est pas renseigné (paiements anciens/avances).
       // Filtrage en JS (pas de COALESCE simple via le query builder Supabase).
-      let q = admin.from("payments")
-        .select("payment_date,salary_month,driver_id,amount,type,notes")
-        .eq("tenant_id", tenantId).limit(10000);
-      if (driverId) q = q.eq("driver_id", driverId) as any;
-      const { data: rawData } = await q;
+      const rawData = await fetchAllRows(() => {
+        let q = admin.from("payments")
+          .select("payment_date,salary_month,driver_id,amount,type,notes")
+          .eq("tenant_id", tenantId).order("payment_date", { ascending: false });
+        if (driverId) q = q.eq("driver_id", driverId) as any;
+        return q;
+      });
       const salaryDate = (p: any) => (p.salary_month ? String(p.salary_month).slice(0, 10) : p.payment_date) || "";
       const data = (rawData || [])
         .filter((p: any) => {
@@ -137,16 +147,24 @@ export async function GET(req: NextRequest) {
       filename = `paiements_${today()}.csv`;
     } else if (resource === "recap") {
       // Récap comptable consolidé : une ligne par chauffeur (totaux de la période) + TOTAL.
-      let repQ = admin.from("daily_reports")
-        .select("driver_id,yango_gross,yango_bonus,off_yango_revenue,commission_amount,net_after_expenses")
-        .eq("tenant_id", tenantId).eq("status", "approved").limit(20000);
-      if (dateFrom) repQ = repQ.gte("date", dateFrom) as any;
-      if (dateTo) repQ = repQ.lte("date", dateTo) as any;
-      let expQ = admin.from("expenses").select("driver_id,amount,expense_date").eq("tenant_id", tenantId).limit(20000);
-      if (dateFrom) expQ = expQ.gte("expense_date", dateFrom) as any;
-      if (dateTo) expQ = expQ.lte("expense_date", dateTo) as any;
-      const payQ = admin.from("payments").select("driver_id,amount,payment_date,salary_month").eq("tenant_id", tenantId).limit(20000);
-      const [{ data: reps }, { data: exps }, { data: pays }] = await Promise.all([repQ, expQ, payQ]);
+      const repQ = () => {
+        let q = admin.from("daily_reports")
+          .select("date,driver_id,yango_gross,yango_bonus,off_yango_revenue,commission_amount,net_after_expenses")
+          .eq("tenant_id", tenantId).eq("status", "approved").order("date");
+        if (dateFrom) q = q.gte("date", dateFrom) as any;
+        if (dateTo) q = q.lte("date", dateTo) as any;
+        return q;
+      };
+      const expQ = () => {
+        let q = admin.from("expenses").select("driver_id,amount,expense_date")
+          .eq("tenant_id", tenantId).order("expense_date");
+        if (dateFrom) q = q.gte("expense_date", dateFrom) as any;
+        if (dateTo) q = q.lte("expense_date", dateTo) as any;
+        return q;
+      };
+      const payQ = () => admin.from("payments").select("driver_id,amount,payment_date,salary_month")
+        .eq("tenant_id", tenantId).order("payment_date");
+      const [reps, exps, pays] = await Promise.all([fetchAllRows(repQ), fetchAllRows(expQ), fetchAllRows(payQ)]);
 
       const salaryDate = (p: any) => (p.salary_month ? String(p.salary_month).slice(0, 10) : p.payment_date) || "";
       const inPeriod = (d: string) => (!dateFrom || d >= dateFrom) && (!dateTo || d <= dateTo);

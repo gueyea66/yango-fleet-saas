@@ -73,6 +73,8 @@ export interface TenantWindow {
   expenses: RawExpense[];
 }
 
+import { fetchAllRows } from "@/lib/fetchAllRows";
+
 const n = (v: unknown): number => {
   const x = typeof v === "number" ? v : parseFloat(String(v ?? 0));
   return Number.isFinite(x) ? x : 0;
@@ -82,22 +84,26 @@ export async function fetchTenantWindow(tenantId: string, days = 70): Promise<Te
   const admin = aiAdmin();
   const from = new Date(Date.now() - days * 86_400_000).toISOString().slice(0, 10);
 
-  const [drv, rep, exp] = await Promise.all([
+  // Lectures paginées : 70 jours d'une flotte de 15 véhicules dépassent le
+  // plafond PostgREST de 1000 lignes (cf. lib/fetchAllRows) — les règles et le
+  // briefing tournaient sinon sur une fenêtre amputée.
+  const [drvRows, repRows, expRows] = await Promise.all([
     admin.from("profiles")
       .select("id, full_name, account_type, active, salary_model, hire_date, contract_end_date")
-      .eq("tenant_id", tenantId).eq("role", "driver"),
-    admin.from("daily_reports")
+      .eq("tenant_id", tenantId).eq("role", "driver")
+      .then((r: { data: unknown }) => (r.data ?? []) as RawDriver[]),
+    fetchAllRows<RawReport>(() => admin.from("daily_reports")
       .select("driver_id, date, status, yango_gross, yango_bonus, off_yango_revenue, solde_yango, end_odometer, yango_trip_count, off_yango_trip_count, commission_amount, comment")
       .eq("tenant_id", tenantId)
-      
       .gte("date", from)
-      .order("date", { ascending: true }),
-    admin.from("expenses")
+      .order("date", { ascending: true })),
+    fetchAllRows<RawExpense>(() => admin.from("expenses")
       .select("driver_id, category, amount, expense_date, status, description")
       .eq("tenant_id", tenantId)
-
-      .gte("expense_date", from),
+      .gte("expense_date", from)
+      .order("expense_date", { ascending: true })),
   ]);
+  const drv = { data: drvRows }, rep = { data: repRows }, exp = { data: expRows };
 
   const technical = new Set(
     (drv.data ?? []).filter((d) => d.account_type === "technical").map((d) => d.id)

@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
 import { requireAdminAuth } from "@/lib/auth/server";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 
 export const dynamic = "force-dynamic";
 
@@ -29,14 +30,17 @@ export async function GET(req: NextRequest) {
     const dQ = (q: any) => driverId ? q.eq("driver_id", driverId) : q;
     const srcQ = (q: any) => q;
 
-    const [{ data: reps }, { data: exps }, { data: pays }, { data: profs }, { data: vehs }] = await Promise.all([
-      (refEnd
+    // Lectures paginées : 6 mois d'une flotte de 15 véhicules dépassent le
+    // plafond PostgREST de 1000 lignes — la projection se calculait sinon sur
+    // une base tronquée (cf. lib/fetchAllRows).
+    const [reps, exps, pays, profs, vehs] = await Promise.all([
+      fetchAllRows(() => (refEnd
         ? srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).gte("date", sixAgo).lte("date", refEnd).neq("status", "rejected").order("date")
-        : srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).gte("date", sixAgo).neq("status", "rejected").order("date")),
-      srcQ(dQ(tQ(admin.from("expenses").select("*")))),
-      dQ(tQ(admin.from("payments").select("*"))),
-      tQ(admin.from("profiles").select("*").eq("role", "driver")),
-      tQ(admin.from("vehicles").select("id,plate,driver_id")),
+        : srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).gte("date", sixAgo).neq("status", "rejected").order("date"))),
+      fetchAllRows(() => srcQ(dQ(tQ(admin.from("expenses").select("*")))).order("expense_date")),
+      fetchAllRows(() => dQ(tQ(admin.from("payments").select("*"))).order("payment_date")),
+      tQ(admin.from("profiles").select("*").eq("role", "driver")).then((r: any) => r.data || []),
+      tQ(admin.from("vehicles").select("id,plate,driver_id")).then((r: any) => r.data || []),
     ]);
 
     return Response.json({
