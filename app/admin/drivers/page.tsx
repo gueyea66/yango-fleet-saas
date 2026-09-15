@@ -63,7 +63,7 @@ export default function DriversPage() {
 
   const resetPassword = async (driverProfileId: string) => {
     const password = pwInput[driverProfileId] || "";
-    if (password.length < 6) { setError("Mot de passe : 6 caractères minimum"); return; }
+    if (password.length < 8) { setError("Mot de passe : 8 caractères minimum"); return; }
     setPwBusy(driverProfileId); setError(null);
     try {
       const res = await fetch("/api/admin/drivers", {
@@ -333,8 +333,9 @@ export default function DriversPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, password: e.target.value })
                   }
-                  placeholder="••••••••"
+                  placeholder="8 caractères minimum"
                   className="w-full bg-gray-700 border border-gray-600 rounded px-4 py-2 text-white placeholder-gray-400 focus:outline-none focus:border-yellow-500"
+                  minLength={8}
                   required
                 />
               </div>
@@ -524,12 +525,12 @@ export default function DriversPage() {
                           type="text"
                           value={pwInput[driver.id] || ""}
                           onChange={(e) => setPwInput((s) => ({ ...s, [driver.id]: e.target.value }))}
-                          placeholder="Nouveau mot de passe (6 car. min)"
+                          placeholder="Nouveau mot de passe (8 car. min)"
                           autoComplete="new-password"
                           className="flex-1 bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500" />
                         <button
                           onClick={() => resetPassword(driver.id)}
-                          disabled={pwBusy === driver.id || (pwInput[driver.id] || "").length < 6}
+                          disabled={pwBusy === driver.id || (pwInput[driver.id] || "").length < 8}
                           className="bg-gray-700 hover:bg-gray-600 disabled:opacity-40 text-white font-semibold px-4 py-2 rounded text-sm shrink-0">
                           {pwBusy === driver.id ? "..." : "Réinitialiser"}
                         </button>

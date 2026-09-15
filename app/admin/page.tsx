@@ -32,7 +32,7 @@ import { setPlatformLabel, platLabel, displayLabel } from "@/lib/tenant/platform
 import { BrandLogo } from "@/components/brand/BrandShell";
 import TrialBanner from "@/components/TrialBanner";
 import AiBriefingSection from "@/components/ai/AiBriefingSection";
-import { computeCommissions } from "@/lib/calc";
+import { recomputeReportNet, DEFAULT_COMMISSION_RATE, DEFAULT_PARTNER_RATE } from "@/lib/reportNet";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
 import { logAction } from "@/lib/logAction";
 import {
@@ -2155,7 +2155,6 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
 function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () => void; onRefresh: () => void }) {
   const [saving, setSaving] = useState(false);
   const [note, setNote] = useState(report.comment || "");
-  const [netEdit, setNetEdit] = useState(String(report.net_after_expenses || ""));
   const [yangoGrossEdit, setYangoGrossEdit] = useState(String(report.yango_gross || ""));
   const [yangoBonus, setYangoBonus] = useState(String(report.yango_bonus || ""));
   const [horsYangoEdit, setHorsYangoEdit] = useState(String(report.off_yango_revenue || ""));
@@ -2186,6 +2185,16 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
     })();
   }, [report.driver_id]);
 
+  // Net recalculé dans le MODE D'ORIGINE du rapport (lib/reportNet) : éléments
+  // réels si des commissions lues dans l'app sont stockées, sinon taux figés.
+  const recalc = (yg: number, yb: number, hy: number, serviceSupp: number) => recomputeReportNet({
+    yangoGross: yg, yangoBonus: yb, horsYango: hy, serviceSupplementaire: serviceSupp,
+    commissionYangoReelle: report.commission_yango_reelle ?? null,
+    commissionPartenaireReelle: report.commission_partenaire_reelle ?? null,
+    commissionRate: report.commission_rate ?? null,
+    partnerRate: report.partner_rate ?? null,
+  });
+
   const saveFields = async () => {
     setSaving(true);
     try {
@@ -2194,18 +2203,13 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
       const yb = parseFloat(yangoBonus) || 0;
       const hy = parseFloat(horsYangoEdit) || 0;
       const serviceSupp = parseFloat(serviceSuppEdit) || 0;
-      // On garde les taux figés du rapport (fractions → %) et on recalcule via le moteur
-      const calc = computeCommissions({
-        brutYango: yg, bonusYango: yb, horsYango: hy,
-        rates: { yangoPct: (report.commission_rate ?? 0.15) * 100, partnerPct: (report.partner_rate ?? 0.0075) * 100 },
-        serviceSupplementaire: serviceSupp,
-      });
+      const calc = recalc(yg, yb, hy, serviceSupp);
       const { error } = await supabase.from("daily_reports").update({
         date: dateEdit || report.date,
         yango_gross: yg, yango_bonus: yb, off_yango_revenue: hy,
-        gross_earnings: calc.base + hy, commission_amount: calc.commYango + calc.commPartner,
+        gross_earnings: calc.grossEarnings, commission_amount: calc.commissionAmount,
         service_supplementaire: serviceSupp,
-        net_after_expenses: calc.netTotal,
+        net_after_expenses: calc.netAfterExpenses,
         solde_yango: parseFloat(soldeEdit) || 0,
         end_odometer: kmEdit ? parseInt(kmEdit) : null,
         yango_trip_count: yangoTripsEdit ? parseInt(yangoTripsEdit) : null,
@@ -2237,7 +2241,8 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
       }
       const { error } = await supabase.from("daily_reports").update({
         status,
-        net_after_expenses: parseFloat(netEdit) || report.net_after_expenses,
+        // Le net n'est plus réécrit ici (il écrasait une correction fraîchement
+        // enregistrée) : seul « Enregistrer les modifications » le recalcule.
         ...(note ? { comment: note } : {}),
         // Motif de rejet — colonne dédiée lue par l'écran chauffeur (report.rejection_reason),
         // distincte de `comment` : sans ça, le motif n'était jamais montré au chauffeur.
@@ -2248,7 +2253,7 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
       logAction({
         tenantId: report.tenant_id, entityType: "daily_report", entityId: report.id,
         action: status,
-        metadata: { date: report.date, net: parseFloat(netEdit) || report.net_after_expenses },
+        metadata: { date: report.date, net: report.net_after_expenses },
       });
       // Notification push au chauffeur
       void fetch("/api/notifications/trigger", {
@@ -2337,18 +2342,22 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
               </div>
               <div>
                 <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>Net calculé (auto)</label>
-                <div className="w-full rounded-xl px-3 py-2 text-sm font-mono font-bold" style={{ background: "var(--sk-deep)", border: "1px solid rgba(34,197,94,.2)", color: "#22c55e" }}>
-                  {(() => {
-                    const yg = parseFloat(yangoGrossEdit) || 0;
-                    const yb = parseFloat(yangoBonus) || 0;
-                    const hy = parseFloat(horsYangoEdit) || 0;
-                    const base = yg + yb;
-                    const comm = base * (0.15 + 0.0075);
-                    const net = base - comm + hy;
-                    return new Intl.NumberFormat("fr-FR").format(Math.round(net));
-                  })()}
-                </div>
-                <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>{`Brut − 15% ${platLabel()} − 0,75% part. + hors ${platLabel()}`}</div>
+                {(() => {
+                  const r = recalc(parseFloat(yangoGrossEdit) || 0, parseFloat(yangoBonus) || 0, parseFloat(horsYangoEdit) || 0, parseFloat(serviceSuppEdit) || 0);
+                  const pct = (f: number | null | undefined, d: number) => ((f ?? d) * 100).toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+                  return (
+                    <>
+                      <div className="w-full rounded-xl px-3 py-2 text-sm font-mono font-bold" style={{ background: "var(--sk-deep)", border: "1px solid rgba(34,197,94,.2)", color: "#22c55e" }}>
+                        {new Intl.NumberFormat("fr-FR").format(Math.round(r.netAfterExpenses))}
+                      </div>
+                      <div className="text-[10px] mt-0.5" style={{ color: "var(--sk-t4)" }}>
+                        {r.mode === "elements_reels"
+                          ? `Éléments réels : brut + bonus − commissions lues − services + hors ${platLabel()}`
+                          : `Brut − ${pct(report.commission_rate, DEFAULT_COMMISSION_RATE)}% ${platLabel()} − ${pct(report.partner_rate, DEFAULT_PARTNER_RATE)}% part. − services + hors ${platLabel()}`}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
               <div>
                 <label className="block text-xs mb-1" style={{ color: "var(--sk-t3)" }}>{`Brut ${platLabel()}`}</label>
@@ -3493,10 +3502,16 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
     finally { setSaving(false); }
   };
 
-  const deleteEvent = async (id: string) => {
-    if (!confirm("Supprimer cet événement ?")) return;
+  // Le calendrier ne supprime que des REPOS. Un jour travaillé est un vrai
+  // rapport (montants, pièces, paie) : il se corrige ou se rejette depuis sa
+  // fiche, jamais d'un clic ici.
+  const deleteRepos = async (e: { id: string; date: string; driver_id: string; comment?: string | null }) => {
+    if (!e.comment?.startsWith("[REPOS]")) return;
+    const jour = new Date(`${e.date}T00:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+    if (!confirm(`Supprimer le repos du ${jour} pour ${driverName(e.driver_id)} ?`)) return;
     const supabase = createClient() as any;
-    await supabase.from("daily_reports").delete().eq("id", id);
+    const { error } = await supabase.from("daily_reports").delete().eq("id", e.id);
+    if (error) { alert("Suppression impossible : " + error.message); return; }
     await load();
   };
 
@@ -3572,9 +3587,12 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
                           className="text-[10px] px-1.5 py-0.5 rounded font-semibold truncate flex items-center justify-between group"
                           style={{ background: color + "20", color, border: `1px solid ${color}40` }}>
                           <span className="truncate">{isRepos ? "Repos" : "✓"} {driverName(e.driver_id)}</span>
-                          <button onClick={(ev) => { ev.stopPropagation(); deleteEvent(e.id); }}
-                            className="ml-1 opacity-0 group-hover:opacity-100 text-[9px] flex-shrink-0"
-                            style={{ color: "#ef4444" }}>✕</button>
+                          {isRepos && (
+                            <button onClick={(ev) => { ev.stopPropagation(); deleteRepos(e); }}
+                              aria-label={`Supprimer le repos de ${driverName(e.driver_id)}`}
+                              className="ml-1 opacity-60 group-hover:opacity-100 text-[9px] flex-shrink-0"
+                              style={{ color: "#ef4444" }}>✕</button>
+                          )}
                         </div>
                       );
                     })}

@@ -244,8 +244,8 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
 
   const createDriver = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDriver.driverId || !newDriver.fullName || newDriver.password.length < 6) {
-      flash(null, "ID, nom et mot de passe (6 caractères min.) requis"); return;
+    if (!newDriver.driverId || !newDriver.fullName || newDriver.password.length < 8) {
+      flash(null, "ID, nom et mot de passe (8 caractères min.) requis"); return;
     }
     setBusy(true);
     try {
@@ -672,7 +672,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
                   <input value={newDriver.fullName} onChange={(e) => setNewDriver({ ...newDriver, fullName: e.target.value })}
                     placeholder="Nom complet" className={inputCls} style={inputStyle} />
                   <input type="password" value={newDriver.password} onChange={(e) => setNewDriver({ ...newDriver, password: e.target.value })}
-                    placeholder="Mot de passe (6 min.)" className={inputCls} style={inputStyle} />
+                    placeholder="Mot de passe (8 min.)" className={inputCls} style={inputStyle} />
                 </div>
                 <div className="flex gap-2">
                   <button type="submit" disabled={busy} className="text-xs px-4 py-2.5 rounded-xl font-bold" style={{ background: "#22c55e", color: "#06130a" }}>
