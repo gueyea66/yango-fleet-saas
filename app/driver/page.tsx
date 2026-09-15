@@ -15,8 +15,9 @@ import ThemeToggle from "@/components/ThemeToggle";
 import PushOnboarding from "@/components/PushOnboarding";
 import { resolveRates, computeCommissions } from "@/lib/calc";
 import { computeElementsReels, hasElementsReels } from "@/lib/calcReel";
+import { recomputeReportNet } from "@/lib/reportNet";
 import { compressImageToJpeg } from "@/lib/ai/imageCompressor";
-import { Home, ClipboardList, Wallet, BedDouble, History, Target, LogOut, Gauge, CheckCircle2, AlertTriangle, Paperclip, Calendar, Car, HandCoins, ScanLine } from "lucide-react";
+import { Home, ClipboardList, Wallet, BedDouble, History, Target, LogOut, Gauge, CheckCircle2, AlertTriangle, Paperclip, Calendar, Car, HandCoins, ScanLine, UserRound, FileText, LifeBuoy, Clock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import type { RemunerationConfig } from "@/lib/tenant/types";
@@ -208,6 +209,19 @@ export default function DriverApp() {
               <span>{label}</span>
             </button>
           ))}
+          {/* Profil : destination secondaire, séparée des onglets de saisie */}
+          <div className="pt-3 mt-3" style={{ borderTop: "1px solid var(--sk-surface)" }}>
+            <button onClick={() => setTab("profil")}
+              className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-left"
+              style={{
+                background: tab === "profil" ? "rgba(var(--tenant-color-rgb),.1)" : "transparent",
+                color: tab === "profil" ? "var(--tenant-color)" : "var(--sk-t3)",
+                border: tab === "profil" ? "1px solid rgba(var(--tenant-color-rgb),.2)" : "1px solid transparent",
+              }}>
+              <UserRound size={18} strokeWidth={2} />
+              <span>Mon profil &amp; KYC</span>
+            </button>
+          </div>
         </nav>
         {/* Notifications + sign out */}
         <div className="p-4 border-t" style={{ borderColor: "var(--sk-surface)" }}>
@@ -234,6 +248,17 @@ export default function DriverApp() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Accès profil & KYC : dans l'en-tête, la barre du bas compte déjà 6 onglets */}
+            <button onClick={() => setTab("profil")} aria-label="Mon profil et documents"
+              aria-current={tab === "profil" ? "page" : undefined}
+              className="p-2 rounded-lg flex items-center justify-center"
+              style={{
+                background: tab === "profil" ? "rgba(var(--tenant-color-rgb),.12)" : "var(--sk-surface)",
+                color: tab === "profil" ? "var(--tenant-color)" : "var(--sk-t2)",
+                border: "1px solid var(--sk-border)",
+              }}>
+              <UserRound size={16} strokeWidth={2} />
+            </button>
             <ThemeToggle />
             <NotificationBell />
             <button onClick={() => signOut()} aria-label="Se déconnecter"
@@ -248,7 +273,7 @@ export default function DriverApp() {
         <div className="hidden md:flex items-center justify-between px-8 py-5 border-b shrink-0"
           style={{ borderColor: "var(--sk-surface)", background: "#0a0c10" }}>
           <div className="font-semibold text-white text-base">
-            {navItems.find(([id]) => id === tab)?.[2] ?? "Accueil"}
+            {tab === "profil" ? "Mon profil & KYC" : navItems.find(([id]) => id === tab)?.[2] ?? "Accueil"}
           </div>
           <div className="text-xs" style={{ color: "#374151" }}>
             {new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
@@ -1316,6 +1341,17 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
         .select("id").eq("driver_id", report.driver_id).eq("tenant_id", report.tenant_id)
         .eq("date", report.date).in("status", ["submitted", "approved"]).limit(1).maybeSingle();
       if (dup) { alert("Un rapport actif existe déjà pour cette date."); setSaving(false); return; }
+      // Net recalculé avec les montants corrigés, dans le mode d'origine du
+      // rapport (éléments réels ou taux figés) — l'ancien net était recopié tel quel.
+      const recalc = recomputeReportNet({
+        yangoGross: n(editForm.yango_gross), yangoBonus: n(editForm.yango_bonus),
+        horsYango: n(editForm.off_yango_revenue),
+        serviceSupplementaire: report.service_supplementaire ?? 0,
+        commissionYangoReelle: report.commission_yango_reelle ?? null,
+        commissionPartenaireReelle: report.commission_partenaire_reelle ?? null,
+        commissionRate: report.commission_rate ?? null,
+        partnerRate: report.partner_rate ?? null,
+      });
       const { data: newReport, error } = await supabase.from("daily_reports").insert({
         driver_id: report.driver_id, tenant_id: report.tenant_id, date: report.date,
         source: report.source || "saas", status: "submitted",
@@ -1327,14 +1363,13 @@ function ReportHistoryCard({ report, profile, onRefresh }: { report: any; profil
         yango_trip_count: n(editForm.yango_trip_count) || null,
         off_yango_trip_count: n(editForm.off_yango_trip_count) || null,
         comment: editForm.comment || null,
-        gross_earnings: n(editForm.yango_gross) + n(editForm.off_yango_revenue),
-        // Champs non ré-éditables ici — repris tels quels de l'original,
-        // même comportement que l'ancienne UPDATE qui ne les touchait pas.
+        gross_earnings: recalc.grossEarnings,
+        // Champs non ré-éditables ici — repris tels quels de l'original.
         yango_cash: report.yango_cash, yango_card: report.yango_card,
         commission_yango_reelle: report.commission_yango_reelle,
         commission_partenaire_reelle: report.commission_partenaire_reelle,
         commission_rate: report.commission_rate, partner_rate: report.partner_rate,
-        commission_amount: report.commission_amount, net_after_expenses: report.net_after_expenses,
+        commission_amount: recalc.commissionAmount, net_after_expenses: recalc.netAfterExpenses,
         service_supplementaire: report.service_supplementaire,
         vehicle_id: report.vehicle_id ?? null, expense_count: report.expense_count ?? 0,
       }).select("id").single();
@@ -1623,9 +1658,6 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
   const [infoSaved, setInfoSaved] = useState(false);
 
   const [vehicle, setVehicle] = useState<any>(null);
-  const [vehicleForm, setVehicleForm] = useState({ plate: "", make: "", model: "", year: "", partner_rate: "0.75" });
-  const [savingVehicle, setSavingVehicle] = useState(false);
-  const [vehicleSaved, setVehicleSaved] = useState(false);
 
   const [kycDocs, setKycDocs] = useState<Record<string, any>>({});
   const [uploading, setUploading] = useState<string | null>(null);
@@ -1644,7 +1676,7 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
       setFullProfile(p);
       setInfoForm({ address: p.address || "", city: p.city || "", birth_date: p.birth_date || "", nationality: p.nationality || "", license_number: p.license_number || "", license_expiry: p.license_expiry || "", emergency_name: p.emergency_name || "", emergency_phone: p.emergency_phone || "", emergency_relation: p.emergency_relation || "", years_experience: String(p.years_experience ?? 0) });
     }
-    if (v) { setVehicle(v); setVehicleForm({ plate: v.plate || "", make: v.make || "", model: v.model || "", year: v.year ? String(v.year) : "", partner_rate: v.partner_rate != null ? String(v.partner_rate * 100) : "0.75" }); }
+    setVehicle(v || null);
     const docMap: Record<string, any> = {};
     (docs || []).forEach((d: any) => { docMap[d.doc_type] = d; });
     setKycDocs(docMap);
@@ -1662,18 +1694,6 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
     setInfoSaved(true);
     setTimeout(() => setInfoSaved(false), 2000);
     await loadData();
-  };
-
-  const saveVehicle = async () => {
-    if (!vehicleForm.plate) { alert("Plaque d'immatriculation requise"); return; }
-    setSavingVehicle(true);
-    const supabase = createClient() as any;
-    const payload = { driver_id: profile.id, tenant_id: profile.tenant_id, plate: vehicleForm.plate, make: vehicleForm.make, model: vehicleForm.model, year: vehicleForm.year ? parseInt(vehicleForm.year) : null, partner_rate: parseFloat(vehicleForm.partner_rate || "0.75") / 100 };
-    if (vehicle) await supabase.from("vehicles").update(payload).eq("id", vehicle.id);
-    else { const { data } = await supabase.from("vehicles").insert(payload).select().single(); setVehicle(data); }
-    setSavingVehicle(false);
-    setVehicleSaved(true);
-    setTimeout(() => setVehicleSaved(false), 2000);
   };
 
   const uploadDoc = async (file: File, docType: string) => {
@@ -1740,7 +1760,7 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
 
       {/* Infos personnelles */}
       <div className="rounded-2xl p-5" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
-        <div className="text-xs uppercase tracking-widest font-semibold mb-4" style={{ color: "var(--sk-t4)" }}>👤 Informations personnelles</div>
+        <div className="flex items-center gap-1.5 text-xs uppercase tracking-widest font-semibold mb-4" style={{ color: "var(--sk-t4)" }}><UserRound size={13} strokeWidth={2} />Informations personnelles</div>
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <Field label="Date de naissance"><InpText type="date" value={infoForm.birth_date} onChange={(v) => setInfo("birth_date", v)} /></Field>
@@ -1755,7 +1775,7 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
           <Field label="Années d'expérience"><InpText type="number" placeholder="0" value={infoForm.years_experience} onChange={(v) => setInfo("years_experience", v)} /></Field>
         </div>
         <div className="mt-4 pt-4" style={{ borderTop: "1px solid var(--sk-surface)" }}>
-          <div className="text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: "var(--sk-t4)" }}>🆘 Contact d'urgence</div>
+          <div className="flex items-center gap-1.5 text-xs uppercase tracking-widest font-semibold mb-3" style={{ color: "var(--sk-t4)" }}><LifeBuoy size={13} strokeWidth={2} />Contact d'urgence</div>
           <div className="space-y-3">
             <Field label="Nom"><InpText type="text" placeholder="Prénom Nom" value={infoForm.emergency_name} onChange={(v) => setInfo("emergency_name", v)} /></Field>
             <div className="grid grid-cols-2 gap-3">
@@ -1773,7 +1793,7 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
       {/* Documents KYC */}
       <div className="rounded-2xl p-5" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
         <div className="flex items-center justify-between mb-1">
-          <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: "var(--sk-t4)" }}>📄 Documents requis</div>
+          <div className="flex items-center gap-1.5 text-xs uppercase tracking-widest font-semibold" style={{ color: "var(--sk-t4)" }}><FileText size={13} strokeWidth={2} />Documents requis</div>
           <div className="text-xs font-semibold" style={{ color: completedRequired === requiredDocs.length ? "#22c55e" : "var(--tenant-color)" }}>
             {completedRequired}/{requiredDocs.length} complétés
           </div>
@@ -1802,7 +1822,7 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
                   style={{ background: "rgba(var(--tenant-color-rgb),.1)", color: isUploading ? "var(--sk-t3)" : "var(--tenant-color)", border: "1px solid rgba(var(--tenant-color-rgb),.15)" }}>
                   {isUploading ? "..." : uploaded ? "Remplacer" : "Uploader"}
                 </button>
-                <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,video/*" className="hidden"
+                <input type="file" accept="image/*,.pdf" className="hidden"
                   ref={(el) => { fileRefs.current[doc.type] = el; }}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadDoc(f, doc.type); }} />
               </div>
@@ -1813,31 +1833,31 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
           <button onClick={submitDossier} disabled={submitting}
             className="w-full mt-4 py-3 rounded-xl font-bold transition-all"
             style={{ background: submitting ? "var(--sk-border)" : "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))", color: submitting ? "var(--sk-t3)" : "#000" }}>
-            {submitting ? "Envoi en cours..." : "📤 Soumettre mon dossier pour vérification"}
+            {submitting ? "Envoi en cours..." : "Soumettre mon dossier pour vérification"}
           </button>
         )}
-        {status === "in_review" && <div className="mt-4 text-center text-xs" style={{ color: "#3b82f6" }}>🔍 Dossier en cours de vérification par l'équipe</div>}
+        {status === "in_review" && <div className="mt-4 flex items-center justify-center gap-1.5 text-xs" style={{ color: "#3b82f6" }}><Clock size={14} strokeWidth={2} />Dossier en cours de vérification par l'équipe</div>}
         {status === "approved" && <div className="mt-4 flex items-center justify-center gap-1.5 text-xs font-semibold" style={{ color: "#22c55e" }}><CheckCircle2 size={14} strokeWidth={2} />Dossier validé — Bienvenue !</div>}
       </div>
 
-      {/* Véhicule */}
+      {/* Véhicule — lecture seule : le registre de flotte et le taux de
+          commission partenaire (qui entre dans le calcul de la paie) sont
+          gérés par le gestionnaire, pas par le chauffeur. */}
       <div className="rounded-2xl p-5" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
         <div className="flex items-center gap-1.5 text-xs uppercase tracking-widest font-semibold mb-4" style={{ color: "var(--sk-t4)" }}><Car size={13} strokeWidth={2} />Véhicule assigné</div>
-        <div className="space-y-3">
-          <Field label="Plaque *"><InpText type="text" placeholder="ex: DK-1234-AA" value={vehicleForm.plate} onChange={(v) => setVehicleForm((f) => ({ ...f, plate: v }))} /></Field>
+        {vehicle ? (
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Marque"><InpText type="text" placeholder="Toyota" value={vehicleForm.make} onChange={(v) => setVehicleForm((f) => ({ ...f, make: v }))} /></Field>
-            <Field label="Modèle"><InpText type="text" placeholder="Corolla" value={vehicleForm.model} onChange={(v) => setVehicleForm((f) => ({ ...f, model: v }))} /></Field>
+            {([["Plaque", vehicle.plate], ["Marque", vehicle.make], ["Modèle", vehicle.model], ["Année", vehicle.year]] as [string, string | number | null][]).map(([l, v]) => (
+              <div key={l}>
+                <div className="text-[10px] uppercase tracking-wider" style={{ color: "var(--sk-t4)" }}>{l}</div>
+                <div className="text-sm font-semibold text-white">{v || "—"}</div>
+              </div>
+            ))}
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Année"><InpText type="number" placeholder="2020" value={vehicleForm.year} onChange={(v) => setVehicleForm((f) => ({ ...f, year: v }))} /></Field>
-            <Field label="Comm. partenaire (%)"><InpText type="number" placeholder="0.75" value={vehicleForm.partner_rate} onChange={(v) => setVehicleForm((f) => ({ ...f, partner_rate: v }))} /></Field>
-          </div>
-          <button onClick={saveVehicle} disabled={savingVehicle} className="w-full py-3 rounded-xl text-sm font-bold transition-all"
-            style={{ background: vehicleSaved ? "rgba(34,197,94,.1)" : "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))", color: vehicleSaved ? "#22c55e" : "#000", border: vehicleSaved ? "1px solid rgba(34,197,94,.3)" : "none" }}>
-            {vehicleSaved ? "✓ Enregistré" : savingVehicle ? "..." : vehicle ? "Mettre à jour" : "Enregistrer le véhicule"}
-          </button>
-        </div>
+        ) : (
+          <div className="text-sm" style={{ color: "var(--sk-t3)" }}>Aucun véhicule ne vous est encore attribué. Votre gestionnaire l'assigne depuis la flotte.</div>
+        )}
+        <div className="text-[11px] mt-3" style={{ color: "var(--sk-t4)" }}>Une information est fausse ? Signalez-la à votre gestionnaire.</div>
       </div>
 
       <DriverAvancesSection driverId={profile.id} />
