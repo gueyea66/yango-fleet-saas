@@ -1,0 +1,51 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE properties SYSTEM 'http://java.sun.com/dtd/properties.dtd'>
+
+<!--
+  Configuration Traccar — passerelle télématique M3A.
+
+  Traccar ne sert QUE de passerelle : il reçoit les boîtiers en TCP et
+  reverse chaque position vers l'ingestion M3A. Son interface web n'est pas
+  le produit, elle sert au diagnostic (voir un boîtier se connecter).
+
+  Fichier monté en lecture seule sur /opt/traccar/conf/traccar.xml.
+  Remplacer les deux valeurs marquées REMPLACER avant déploiement.
+-->
+<properties>
+  <entry key='config.default'>./conf/default.xml</entry>
+
+  <!-- ── Base interne Traccar (état des boîtiers, pas le métier M3A) ──
+       H2 sur volume : suffisant pour une passerelle de quelques boîtiers.
+       Pour une flotte importante, basculer sur PostgreSQL. -->
+  <entry key='database.driver'>org.h2.Driver</entry>
+  <entry key='database.url'>jdbc:h2:./data/database</entry>
+  <entry key='database.user'>sa</entry>
+  <entry key='database.password'></entry>
+
+  <!-- ── Reversement vers M3A (brief §6 : le métier ne voit pas le fabricant) ──
+       forward.url doit pointer sur le déploiement qui porte la base LAB,
+       jamais sur la production tant que le modèle n'est pas validé. -->
+  <entry key='forward.enable'>true</entry>
+  <entry key='forward.type'>json</entry>
+  <entry key='forward.url'>REMPLACER_URL/api/telematics/ingest</entry>
+  <entry key='forward.header'>x-telematics-key: REMPLACER_CLE</entry>
+  <entry key='forward.retry.enable'>true</entry>
+
+  <!-- ── Protocoles activés ──
+       5013 = H02, celui du SinoTrack ST-901 (K3, puis Orlando).
+       Ajouter un port par fabricant supplémentaire. Attention : Railway
+       n'expose qu'UN port TCP par service. -->
+  <entry key='h02.port'>5013</entry>
+
+  <!-- Interface de diagnostic -->
+  <entry key='web.port'>8082</entry>
+
+  <!-- Filtres : on écarte à la source ce qui polluerait les kilomètres.
+       Les points invalides et les coordonnées nulles sont le bruit
+       classique d'un boîtier qui cherche encore ses satellites. -->
+  <entry key='filter.enable'>true</entry>
+  <entry key='filter.invalid'>true</entry>
+  <entry key='filter.zero'>true</entry>
+  <entry key='filter.duplicate'>true</entry>
+  <entry key='filter.future'>86400</entry>
+</properties>

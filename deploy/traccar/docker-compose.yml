@@ -1,0 +1,30 @@
+# Passerelle télématique M3A — Traccar
+#
+# Démarrage local (banc d'essai, avant tout hébergement) :
+#   cd deploy/traccar && docker compose up -d
+#   node ../../scripts/h02-simulator.mjs --host 127.0.0.1 --port 5013 --speed 20
+#
+# Diagnostic : http://localhost:8082 (admin/admin au premier démarrage).
+# Le boîtier K3 reste sur SinoTrack tant qu'Abdou n'a pas donné son go.
+
+services:
+  traccar:
+    image: traccar/traccar:latest
+    container_name: m3a-traccar
+    hostname: m3a-traccar
+    restart: unless-stopped
+    ports:
+      - "8082:8082"      # interface de diagnostic
+      - "5013:5013"      # H02 — SinoTrack ST-901 (K3, Orlando)
+      - "5013:5013/udp"
+    volumes:
+      - ./traccar.xml:/opt/traccar/conf/traccar.xml:ro
+      - traccar-data:/opt/traccar/data
+      - traccar-logs:/opt/traccar/logs
+    environment:
+      # Fuseau des journaux ; les positions restent horodatées en UTC.
+      TZ: Africa/Dakar
+
+volumes:
+  traccar-data:
+  traccar-logs:
