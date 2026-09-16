@@ -133,16 +133,34 @@ C'est le §13 du brief (confidence engine) : mieux vaut un trou assumé qu'un ch
 
 ## 3. Roadmap GPS (remplace les phases 1-4 du brief)
 
-| Étape | Contenu | État |
+| Étape | Contenu | État au 16/09/2026 |
 |---|---|---|
 | **G0** | Copie isolée + analyse d'écart | ✅ fait |
-| **G1** | Modèle normalisé `telematics_devices` / `telematics_positions` (append-only, idempotent, multi-tenant) | migration `lab/049` écrite |
-| **G2** | Parser H02 pur + tests sur trames réelles | `lib/telematics/h02.ts` |
-| **G3** | Passerelle TCP + route d'ingestion + simulateur de trajet Dakar | à faire |
-| **G4** | Écran « Suivi » : dernière position, trace du jour, km GPS du jour | à faire |
-| **G5** | **Le premier chiffre qui vaut de l'argent** : km GPS vs km déclarés au compteur par le chauffeur, par jour et par véhicule | à faire |
-| **G6** | Bascule du K3 (SMS), observation 72 h, calibration ignition | sur go d'Abdou |
-| **G7** | Event Engine (départ / arrêt / arrêt long) puis Mission Engine | après G6 |
+| **G1** | Modèle normalisé `telematics_devices` / `telematics_positions` (append-only, idempotent, multi-tenant) | ✅ migrations 049 à 052 **appliquées en production** |
+| **G2** | Parser H02 pur + tests sur trames réelles | ✅ `lib/telematics/h02.ts` |
+| **G3** | Route d'ingestion + générateur de trajet + recalcul | ✅ 9 761 positions ingérées par la vraie chaîne |
+| **G4** | Écran « Suivi » : position, rejeu du trajet, trajets détectés | ✅ `/admin/suivi` |
+| **G5** | **Le premier chiffre qui vaut de l'argent** : km GPS vs km déclarés au compteur | ✅ vue `v_telematics_reconciliation`, écart détecté sur données réelles de déclaration |
+| **G6** | Bascule du K3 (SMS), observation 72 h, calibration ignition | ⏸ attend le go d'Abdou — le boîtier est enrôlé mais **toujours sur SinoTrack** |
+| **G7** | Passerelle Traccar hébergée (nécessaire seulement quand un vrai boîtier émet) | à faire avant G6 |
+| **G8** | Mission Engine (missions planifiées rapprochées des faits GPS déjà captés) | après G6 |
+
+### Ce que l'injection réelle a corrigé dans le moteur
+
+Deux défauts que seuls de vrais volumes révèlent, tous deux trouvés et corrigés
+le 16/09 :
+
+1. **La nuit comptée comme une panne.** Le silence entre le dernier point du
+   soir et le premier du lendemain (18 h) détruisait la couverture de chaque
+   journée (0 %) et produisait une fausse alerte par nuit. La couverture ne se
+   mesure désormais que sur la journée de travail observée.
+2. **La déperdition diffuse invisible.** Une journée ayant perdu 55 % de ses
+   points, sans jamais atteindre le seuil de coupure, s'affichait « 100 %
+   couverte ». La couverture retient maintenant la plus sévère des deux
+   mesures : part sans trou, et densité observée contre cadence nominale.
+
+C'est exactement pourquoi `method_version` existe : les deux corrections ont été
+rejouées sur l'historique complet sans perdre une seule position brute.
 
 G5 est le point où le GPS cesse d'être un gadget : M3A Fleet calcule déjà la consommation
 au km à partir de l'odomètre **déclaré**. Le jour où le GPS donne le km réel, l'écart

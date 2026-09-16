@@ -171,6 +171,35 @@ describe("buildTrips — honnêteté de la mesure", () => {
     expect(daily[0].coverage).toBeLessThan(1);
   });
 
+  it("ne compte pas la nuit comme une panne de boîtier", () => {
+    // Cas réel rencontré le 16/09/2026 sur les premières données injectées :
+    // le silence entre le dernier point du soir et le premier du lendemain
+    // détruisait la couverture (0 %) et produisait une alerte par nuit.
+    const jour1 = track({ startIso: "2026-09-15T08:00:00Z", count: 60, speedKmh: 40 });
+    const jour2 = track({ startIso: "2026-09-16T08:00:00Z", count: 60, speedKmh: 40 });
+
+    const { daily, events } = buildTrips([...jour1, ...jour2]);
+
+    expect(daily).toHaveLength(2);
+    expect(daily[0].coverage).toBe(1);
+    expect(daily[1].coverage).toBe(1);
+    expect(daily[0].gapsS).toBe(0);
+    // Aucune alerte : l'interruption nocturne n'est pas une perte de signal.
+    expect(events.filter((e) => e.type === "GPS_OFFLINE")).toHaveLength(0);
+  });
+
+  it("voit la déperdition diffuse de points, pas seulement les coupures", () => {
+    // Un point sur deux perdu, sans jamais atteindre le seuil de coupure :
+    // la journée est à moitié documentée et doit le dire.
+    const complet = track({ startIso: "2026-09-15T08:00:00Z", count: 80, speedKmh: 40 });
+    const troue = complet.filter((_, i) => i % 2 === 0);
+
+    expect(buildTrips(complet).daily[0].coverage).toBe(1);
+    const degrade = buildTrips(troue).daily[0].coverage;
+    expect(degrade).toBeLessThan(0.7);
+    expect(degrade).toBeGreaterThan(0.3);
+  });
+
   it("baisse la confiance quand les points sont trop espacés", () => {
     const dense = buildTrips(track({ startIso: "2026-09-15T08:00:00Z", count: 40, speedKmh: 40 }));
     const clairseme = buildTrips(

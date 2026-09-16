@@ -12,7 +12,18 @@
  * confirmer ces trajets, pas les fonder.
  */
 
-export const METHOD_VERSION = "trips/1.0.0";
+/**
+ * Version de la méthode d'inférence. Toute ligne dérivée la porte, ce qui
+ * permet de rejouer l'historique quand la méthode change, sans jamais toucher
+ * aux positions brutes.
+ *
+ * 1.2.0 — la couverture tient compte de la déperdition diffuse de points,
+ *         pas seulement des coupures franches.
+ * 1.1.0 — la couverture se mesure sur la journée de travail observée, et
+ *         l'interruption nocturne n'est plus comptée comme une panne.
+ * 1.0.0 — première version (couverture faussée par les nuits).
+ */
+export const METHOD_VERSION = "trips/1.2.0";
 
 export interface RawPoint {
   recordedAt: string;
@@ -151,6 +162,17 @@ interface Segment {
   moving: boolean;
   jump: boolean;
   gap: boolean;
+  /**
+   * Trou de couverture survenu À L'INTÉRIEUR d'une même journée locale.
+   *
+   * Distinction indispensable, constatée sur les premières données réelles :
+   * le silence entre le dernier point du soir et le premier du lendemain
+   * matin dure 18 h. Compté comme une panne, il détruisait la couverture de
+   * toutes les journées (0 %) et produisait une fausse alerte par nuit. Or un
+   * véhicule à l'arrêt hors service n'est pas un boîtier défaillant : on ne
+   * mesure la couverture que sur la journée de travail observée.
+   */
+  gapIntraDay: boolean;
 }
 
 export function buildTrips(
@@ -192,7 +214,10 @@ export function buildTrips(
     const implied = dtS > 0 ? (distM / dtS) * 3.6 : 0;
     const speedKmh = jump ? 0 : (b.speedKmh ?? implied);
     const moving = !jump && distM >= p.movingStepM && speedKmh >= p.movingSpeedKmh;
-    segs.push({ fromIdx: i - 1, toIdx: i, dtS, distM, speedKmh, moving, jump, gap });
+    const gapIntraDay =
+      gap &&
+      localDay(a.recordedAt, p.localOffsetH) === localDay(b.recordedAt, p.localOffsetH);
+    segs.push({ fromIdx: i - 1, toIdx: i, dtS, distM, speedKmh, moving, jump, gap, gapIntraDay });
   }
 
   // ── Découpage en trajets, séparés par une immobilité ≥ stopMinS ───────
@@ -238,7 +263,10 @@ export function buildTrips(
   };
 
   for (const s of segs) {
-    if (s.gap) {
+    // Seuls les silences SURVENUS PENDANT la journée de travail sont des
+    // pertes de couverture. L'interruption nocturne n'en est pas une : la
+    // signaler produirait une fausse alerte chaque nuit.
+    if (s.gapIntraDay) {
       const from = clean[s.fromIdx];
       events.push({
         type: "GPS_OFFLINE",
@@ -305,7 +333,7 @@ function assembleTrip(
 
   const movingS = segments.filter((s) => s.moving).reduce((sum, s) => sum + s.dtS, 0);
   const idleS = Math.max(0, durationS - movingS);
-  const gapsS = segments.filter((s) => s.gap).reduce((sum, s) => sum + s.dtS, 0);
+  const gapsS = segments.filter((s) => s.gapIntraDay).reduce((sum, s) => sum + s.dtS, 0);
   const jumpsDropped = segments.filter((s) => s.jump).length;
   const maxSpeedKmh = segments.reduce((m, s) => Math.max(m, s.speedKmh), 0);
   const nbPoints = segments.length + 1;
@@ -384,20 +412,54 @@ function aggregateDaily(
     if (!d.lastMovementAt || t.endedAt > d.lastMovementAt) d.lastMovementAt = t.endedAt;
   }
 
+  // Amplitude réellement observée par jour : du premier au dernier point reçu.
+  const span = new Map<string, { first: number; last: number }>();
   for (const pt of points) {
-    ensure(localDay(pt.recordedAt, p.localOffsetH)).points += 1;
+    const day = localDay(pt.recordedAt, p.localOffsetH);
+    ensure(day).points += 1;
+    const s = span.get(day);
+    if (!s) span.set(day, { first: pt.t, last: pt.t });
+    else {
+      if (pt.t < s.first) s.first = pt.t;
+      if (pt.t > s.last) s.last = pt.t;
+    }
   }
+
   for (const s of segs) {
-    if (s.gap) ensure(localDay(points[s.fromIdx].recordedAt, p.localOffsetH)).gapsS += s.dtS;
+    if (s.gapIntraDay) {
+      ensure(localDay(points[s.fromIdx].recordedAt, p.localOffsetH)).gapsS += s.dtS;
+    }
   }
 
   for (const d of byDay.values()) {
     d.distanceM = round(d.distanceM, 1);
     d.gapsS = round(d.gapsS, 0);
-    // Couverture : part du temps observé effectivement documentée par le
-    // boîtier. Sans elle, un écart de kilométrage n'est pas interprétable.
-    const observedS = d.movingS + d.idleS;
-    d.coverage = observedS > 0 ? round(Math.max(0, 1 - d.gapsS / observedS), 2) : 0;
+
+    // Couverture : à quel point la journée de travail OBSERVÉE (premier →
+    // dernier point du jour) est réellement documentée. On ne compte ni la
+    // nuit ni les heures hors service : le boîtier n'est pas en faute quand le
+    // véhicule ne travaille pas. Sans cette mesure, un écart de kilométrage
+    // n'est pas interprétable — et ne doit pas être affiché.
+    //
+    // Deux façons de mal documenter une journée, et il faut les deux :
+    //   • les coupures franches (boîtier hors réseau) → part sans trou ;
+    //   • la déperdition diffuse (un point sur deux perdu, sans jamais
+    //     atteindre le seuil de coupure) → densité observée vs cadence
+    //     nominale. Sans ce second terme, une journée à moitié captée
+    //     s'affichait « 100 % couverte », ce qui est faux.
+    // La couverture retenue est la plus sévère des deux.
+    const sp = span.get(d.day);
+    const amplitudeS = sp ? (sp.last - sp.first) / 1000 : 0;
+
+    if (amplitudeS < 600) {
+      // Moins de 10 minutes observées : on ne prétend pas avoir couvert la journée.
+      d.coverage = 0;
+    } else {
+      const sansTrou = Math.max(0, Math.min(1, 1 - d.gapsS / amplitudeS));
+      const attendus = amplitudeS / p.expectedIntervalS;
+      const densite = attendus > 0 ? Math.min(1, d.points / attendus) : 0;
+      d.coverage = round(Math.min(sansTrou, densite), 2);
+    }
   }
 
   return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day));

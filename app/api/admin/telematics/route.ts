@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
     const dayEnd = `${day}T23:59:59.999Z`;
 
     // ── Trace du jour, dernière position, événements, historique ─────────
-    const [positions, events, daily, reconciliation, lastPos] = await Promise.all([
+    const [positions, events, daily, reconciliation, lastPos, trips] = await Promise.all([
       fetchAllRows(() =>
         admin
           .from("telematics_positions")
@@ -127,6 +127,16 @@ export async function GET(req: NextRequest) {
         .order("recorded_at", { ascending: false })
         .limit(1)
         .then((r) => r.data?.[0] ?? null),
+      admin
+        .from("telematics_trips")
+        .select("id, started_at, ended_at, distance_m, duration_s, moving_s, idle_s, " +
+                "max_speed_kmh, avg_moving_speed_kmh, points, gaps_s, jumps_dropped, " +
+                "confidence, evidence, start_latitude, start_longitude, end_latitude, end_longitude")
+        .eq("device_id", selected.id)
+        .gte("started_at", dayStart)
+        .lte("started_at", dayEnd)
+        .order("started_at")
+        .then((r) => r.data ?? []),
     ]);
 
     return Response.json({
@@ -143,6 +153,7 @@ export async function GET(req: NextRequest) {
       positionCount: positions?.length ?? 0,
       lastPosition: lastPos,
       events,
+      trips,
       daily,
       reconciliation,
     });
