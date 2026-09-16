@@ -7,15 +7,21 @@ export const dynamic = "force-dynamic";
 const NAV_ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard, pending: Inbox, history: History, calendrier: Calendar,
   payments: Banknote, avances: HandCoins, pilotage: Gauge,
-  vehicles: Car, drivers: Users, kyc: BadgeCheck,
+  vehicles: Car, drivers: Users, kyc: BadgeCheck, suivi: MapPin,
   remuneration: Briefcase, journal: BookText, import: Upload, settings: Settings,
+};
+
+// Entrées de nav qui ouvrent leur propre page au lieu d'un onglet interne.
+const NAV_ROUTES: Record<string, string> = {
+  drivers: "/admin/drivers",
+  suivi: "/admin/suivi",
 };
 
 import React, { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard, Inbox, History, Calendar, Banknote, HandCoins, Gauge,
   Car, Users, BadgeCheck, Briefcase, BookText, Upload, Settings, BarChart3, Download, BellRing,
-  AlertTriangle, Info, TrendingUp, Fuel, Coins, Wallet, FileText, BedDouble, Paperclip, Trash2, ChevronRight, type LucideIcon,
+  AlertTriangle, Info, TrendingUp, Fuel, Coins, Wallet, FileText, BedDouble, Paperclip, Trash2, ChevronRight, MapPin, type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
@@ -285,6 +291,7 @@ export default function AdminPage() {
     {
       label: "Flotte",
       items: [
+        ["suivi",       "🛰", "Suivi GPS"],
         ["vehicles",    "🔧", "Véhicules"],
         ["drivers",     "🚗", "Conducteurs"],
         ["kyc",         "🪪", "KYC"],
@@ -342,7 +349,7 @@ export default function AdminPage() {
               {open && (
               <div className="space-y-0.5">
                 {group.items.map(([id, icon, label]) => (
-                  <button key={id} onClick={() => id === "drivers" ? router.push("/admin/drivers") : setTab(id)} className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150 flex items-center gap-2.5 hover:translate-x-0.5"
+                  <button key={id} onClick={() => NAV_ROUTES[id] ? router.push(NAV_ROUTES[id]) : setTab(id)} className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150 flex items-center gap-2.5 hover:translate-x-0.5"
                     style={{
                       background: tab === id ? "rgba(var(--tenant-color-rgb),.12)" : "transparent",
                       color: tab === id ? "var(--tenant-color)" : "var(--sk-t2)",
@@ -417,7 +424,7 @@ export default function AdminPage() {
           <React.Fragment key={group.label}>
             {gi > 0 && <div className="flex-shrink-0 w-px h-6 mx-1" style={{ background: "var(--sk-surface)" }} />}
             {group.items.map(([id, icon]) => (
-              <button key={id} onClick={() => id === "drivers" ? router.push("/admin/drivers") : setTab(id)}
+              <button key={id} onClick={() => NAV_ROUTES[id] ? router.push(NAV_ROUTES[id]) : setTab(id)}
                 className="flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium"
                 style={{ color: tab === id ? "var(--tenant-color)" : "var(--sk-t3)", borderBottom: tab === id ? "2px solid var(--tenant-color)" : "2px solid transparent" }}>
                 {(() => { const I = NAV_ICONS[id]; return I
