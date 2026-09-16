@@ -31,6 +31,15 @@ const nextConfig: NextConfig = {
   typescript: {
     tsconfigPath: "./tsconfig.json",
   },
+  // Origines acceptées en développement. Sans cette liste, ouvrir l'app sur
+  // une autre origine que celle annoncée par `next dev` (typiquement
+  // http://127.0.0.1:3000 au lieu de http://localhost:3000, ou l'IP LAN depuis
+  // un téléphone) fait renvoyer 403 sur les fichiers JavaScript : la page
+  // s'affiche, mais React ne démarre jamais et le formulaire de connexion
+  // devient inerte — il se soumet en HTML brut sans jamais appeler Supabase.
+  // Constaté le 16/09/2026, une demi-heure perdue à chercher côté mots de passe.
+  // Sans effet en production.
+  allowedDevOrigins: ["127.0.0.1", "localhost"],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
