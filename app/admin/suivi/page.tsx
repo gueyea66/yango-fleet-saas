@@ -138,20 +138,25 @@ export default function SuiviPage() {
   const [date, setDate] = useState(today());
   const [vehicleId, setVehicleId] = useState<string | null>(null);
 
-  // La journée consultée vit dans l'URL : un lien vers une journée précise
-  // se partage, et le retour arrière du navigateur reste cohérent.
+  // La journée consultée vit dans l'URL : un lien vers une journée précise se
+  // partage, et le retour arrière du navigateur reste cohérent.
+  //
+  // L'URL est lue une fois au montage, et n'est réécrite QUE sur un choix
+  // explicite de l'utilisateur (`chooseDate`). Un effet de synchronisation
+  // aurait été plus court, mais React remonte les composants deux fois en
+  // développement : au second montage il relisait une URL qu'il venait
+  // lui-même de réécrire avec la date du jour, écrasant la journée demandée.
   useEffect(() => {
     const p = new URLSearchParams(window.location.search).get("date");
     if (p && /^\d{4}-\d{2}-\d{2}$/.test(p)) setDate(p);
   }, []);
 
-  useEffect(() => {
+  const chooseDate = useCallback((d: string) => {
+    setDate(d);
     const url = new URL(window.location.href);
-    if (url.searchParams.get("date") !== date) {
-      url.searchParams.set("date", date);
-      window.history.replaceState(null, "", url.toString());
-    }
-  }, [date]);
+    url.searchParams.set("date", d);
+    window.history.replaceState(null, "", url.toString());
+  }, []);
   const [data, setData] = useState<Payload | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -354,7 +359,7 @@ export default function SuiviPage() {
                 <span className="block text-xs uppercase tracking-widest text-gray-400 mb-1">Journée</span>
                 <input
                   type="date" value={date} max={today()}
-                  onChange={(e) => setDate(e.target.value)}
+                  onChange={(e) => chooseDate(e.target.value)}
                   className="bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 min-h-[44px]
                              focus:outline-none focus:ring-2 focus:ring-yellow-500 cursor-pointer"
                 />
@@ -624,7 +629,7 @@ export default function SuiviPage() {
                           <tr key={r.day}
                               className={`transition-colors duration-150 cursor-pointer hover:bg-gray-700/40
                                           ${r.day === data.day ? "bg-gray-700/30" : ""}`}
-                              onClick={() => setDate(r.day)}>
+                              onClick={() => chooseDate(r.day)}>
                             <td className="px-4 py-3 text-gray-200 font-mono tabular-nums">{r.day}</td>
                             <td className="px-4 py-3 text-right text-white font-mono tabular-nums">{r.km_gps ?? "—"}</td>
                             <td className="px-4 py-3 text-right text-white font-mono tabular-nums">{r.km_declares ?? "—"}</td>
