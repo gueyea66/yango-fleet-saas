@@ -1,0 +1,82 @@
+-- ============================================================
+-- MIGRATION 055 — UNE JOURNÉE IMPORTÉE À MOITIÉ N'EST PAS UN ÉCART
+--
+-- Idempotente. Remplace la règle d'exploitabilité posée par la 054.
+--
+-- Constaté au premier import réel (Kia K3, 17/09/2026) : un export SinoTrack
+-- s'arrêtant le 4 septembre à 01h58 produisait « −143 km, soit −85 % » sur
+-- cette journée. Le véhicule n'avait rien de suspect : le fichier s'arrêtait,
+-- voilà tout.
+--
+-- La 054 jugeait une journée importée sur la seule présence de trajets. Elle
+-- doit l'être, comme nos propres mesures, sur la PART DE LA JOURNÉE observée :
+-- l'importateur inscrit désormais dans `coverage` la fraction du jour
+-- réellement contenue dans le fichier.
+-- ============================================================
+
+DROP VIEW IF EXISTS fleet.v_telematics_reconciliation;
+
+CREATE VIEW fleet.v_telematics_reconciliation AS
+WITH daily_prefere AS (
+  SELECT DISTINCT ON (tenant_id, vehicle_id, day) *
+  FROM fleet.telematics_daily
+  ORDER BY tenant_id, vehicle_id, day,
+           (CASE WHEN method_version LIKE 'import-%' THEN 2 ELSE 1 END),
+           computed_at DESC
+),
+reps AS (
+  SELECT
+    r.tenant_id, r.date, r.driver_id, r.end_odometer,
+    COALESCE(r.vehicle_id, v2.id) AS vehicle_id,
+    LAG(r.end_odometer) OVER (PARTITION BY r.driver_id ORDER BY r.date) AS prev_odometer,
+    LAG(r.date)         OVER (PARTITION BY r.driver_id ORDER BY r.date) AS prev_date
+  FROM fleet.daily_reports r
+  LEFT JOIN fleet.vehicles v2 ON v2.driver_id = r.driver_id
+  WHERE r.status = 'approved' AND r.end_odometer IS NOT NULL
+),
+declares AS (
+  SELECT tenant_id, date, driver_id, vehicle_id,
+         (date - prev_date)             AS jours_couverts,
+         (end_odometer - prev_odometer) AS km_declares
+  FROM reps
+  WHERE prev_odometer IS NOT NULL AND end_odometer >= prev_odometer
+)
+SELECT
+  d.tenant_id,
+  d.vehicle_id,
+  v.plate,
+  d.day,
+  round((d.distance_m / 1000.0)::numeric, 2)                 AS km_gps,
+  dc.km_declares,
+  dc.jours_couverts,
+  CASE WHEN dc.km_declares IS NULL THEN NULL
+       ELSE round((d.distance_m / 1000.0)::numeric - dc.km_declares, 2)
+  END                                                         AS ecart_km,
+  CASE
+    WHEN dc.km_declares IS NULL OR dc.km_declares = 0 THEN NULL
+    ELSE round(100 * ((d.distance_m / 1000.0)::numeric - dc.km_declares) / dc.km_declares, 1)
+  END                                                         AS ecart_pct,
+  d.coverage,
+  d.points,
+  d.gaps_s,
+  d.trips,
+  d.moving_s,
+  dc.driver_id,
+  (CASE WHEN d.method_version LIKE 'import-%' THEN 'import' ELSE 'gps' END) AS source,
+  -- Même exigence de couverture pour les deux origines. Seule différence :
+  -- un import ne fournit pas les positions brutes, on ne peut donc pas lui
+  -- demander un nombre de points.
+  (
+    dc.jours_couverts = 1
+    AND d.coverage >= 0.8
+    AND (d.method_version LIKE 'import-%' OR d.points >= 100)
+  )                                                           AS ecart_exploitable,
+  d.method_version
+FROM daily_prefere d
+JOIN fleet.vehicles v ON v.id = d.vehicle_id
+LEFT JOIN declares dc
+       ON dc.vehicle_id = d.vehicle_id
+      AND dc.date       = d.day
+      AND dc.tenant_id  = d.tenant_id;
+
+GRANT SELECT ON fleet.v_telematics_reconciliation TO anon, authenticated, service_role;
