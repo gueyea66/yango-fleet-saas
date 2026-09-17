@@ -155,6 +155,8 @@ export default function SuiviPage() {
 
   const chooseDate = useCallback((d: string) => {
     setDate(d);
+    // Choisir une journée passée sort du direct ; revenir à aujourd'hui y ramène.
+    setLive(d === today());
     const url = new URL(window.location.href);
     url.searchParams.set("date", d);
     window.history.replaceState(null, "", url.toString());
@@ -169,6 +171,15 @@ export default function SuiviPage() {
   const [speedIdx, setSpeedIdx] = useState(1);
   const [tripId, setTripId] = useState<string | null>(null);
 
+  /**
+   * Mode direct : sur la journée en cours, l'écran se rafraîchit seul et suit
+   * le véhicule. Dès que l'utilisateur touche au rejeu, il reprend la main et
+   * le suivi s'arrête — sinon le curseur sauterait sous ses doigts. Un bouton
+   * ramène au direct.
+   */
+  const [live, setLive] = useState(true);
+  const [refreshedAt, setRefreshedAt] = useState<number | null>(null);
+
   const mapEl = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const baseLine = useRef<Polyline | null>(null);
@@ -180,30 +191,72 @@ export default function SuiviPage() {
     if (!loading && !user) router.push("/auth/login");
   }, [user, loading, router]);
 
-  const load = useCallback(async () => {
-    setBusy(true);
+  const load = useCallback(async (opts: { silencieux?: boolean } = {}) => {
+    // Un rafraîchissement automatique ne doit ni faire clignoter l'écran ni
+    // remettre le rejeu à zéro : seul un changement de journée le fait.
+    if (!opts.silencieux) setBusy(true);
     setError(null);
     try {
       const qs = new URLSearchParams({ date });
       if (vehicleId) qs.set("vehicleId", vehicleId);
       const json = await fetchJsonRetry(`/api/admin/telematics?${qs}`);
       setData(json as Payload);
-      setCursor(0);
-      setPlaying(false);
-      setTripId(null);
+      setRefreshedAt(Date.now());
+      if (!opts.silencieux) {
+        setCursor(0);
+        setPlaying(false);
+        setTripId(null);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "chargement impossible");
     } finally {
-      setBusy(false);
+      if (!opts.silencieux) setBusy(false);
     }
   }, [date, vehicleId]);
 
   useEffect(() => { if (user) void load(); }, [user, load]);
 
+  // ── Suivi en direct ────────────────────────────────────────────────────
+  const enDirect = live && date === today();
+
+  useEffect(() => {
+    if (!user || !enDirect) return;
+    const t = setInterval(() => {
+      // Inutile d'interroger le serveur pour un onglet que personne ne regarde.
+      if (!document.hidden) void load({ silencieux: true });
+    }, 30000);
+    return () => clearInterval(t);
+  }, [user, enDirect, load]);
+
   const fixes = useMemo(
     () => (data?.positions ?? []).filter((p) => p.valid_fix),
     [data],
   );
+
+  // En direct, le curseur colle à la dernière position reçue : l'écran suit le
+  // véhicule au lieu de rester figé sur le point d'ouverture de la page.
+  useEffect(() => {
+    if (enDirect && !playing && fixes.length > 0) setCursor(fixes.length - 1);
+  }, [enDirect, playing, fixes.length]);
+
+  /** L'utilisateur reprend la main : le suivi automatique s'arrête. */
+  const reprendreLaMain = useCallback(() => setLive(false), []);
+
+  const revenirAuDirect = useCallback(() => {
+    setPlaying(false);
+    setTripId(null);
+    setLive(true);
+    const aujourdhui = today();
+    if (date !== aujourdhui) {
+      setDate(aujourdhui);
+      const url = new URL(window.location.href);
+      url.searchParams.set("date", aujourdhui);
+      window.history.replaceState(null, "", url.toString());
+    } else {
+      setCursor(Math.max(0, fixes.length - 1));
+      void load({ silencieux: true });
+    }
+  }, [date, fixes.length, load]);
 
   // ── Carte : chargée à la demande, hors du bundle initial ───────────────
   useEffect(() => {
@@ -288,6 +341,7 @@ export default function SuiviPage() {
   }, [playing, speedIdx, fixes.length]);
 
   const focusTrip = (trip: Trip) => {
+    reprendreLaMain();
     setTripId(trip.id);
     const idx = fixes.findIndex((p) => Date.parse(p.recorded_at) >= Date.parse(trip.started_at));
     if (idx >= 0) setCursor(idx);
@@ -314,6 +368,38 @@ export default function SuiviPage() {
   }
   if (!user) return null;
 
+  /**
+   * Ce que la vue montre réellement, en une phrase :
+   *   • direct         — rafraîchi seul, curseur collé à la dernière position ;
+   *   • direct muet    — rafraîchi, mais le boîtier ne dit plus rien ;
+   *   • rejeu          — l'utilisateur a pris la main sur la journée en cours ;
+   *   • historique     — journée passée, rien ne bougera.
+   */
+  const etatVue: { label: string; tone: "live" | "stale" | "static" } = (() => {
+    const jour = data?.day ?? date;
+    if (jour !== today()) {
+      return {
+        label: `Historique du ${new Date(`${jour}T12:00:00Z`).toLocaleDateString("fr-FR",
+          { day: "numeric", month: "long", timeZone: "UTC" })}`,
+        tone: "static",
+      };
+    }
+    if (!enDirect) return { label: "Rejeu — écran figé", tone: "static" };
+
+    const dernier = data?.lastPosition?.recorded_at ?? null;
+    const minutes = dernier ? Math.round((Date.now() - Date.parse(dernier)) / 60000) : null;
+    if (minutes === null) return { label: "En direct — aucune position reçue", tone: "stale" };
+    if (minutes > 15) {
+      return { label: `En direct — silencieux depuis ${minutes < 60 ? `${minutes} min` : `${Math.round(minutes / 60)} h`}`, tone: "stale" };
+    }
+    const age = refreshedAt ? Math.round((Date.now() - refreshedAt) / 1000) : null;
+    return {
+      label: `En direct${minutes <= 1 ? "" : ` · dernier point il y a ${minutes} min`}` +
+             (age !== null && age > 60 ? ` · actualisé il y a ${Math.round(age / 60)} min` : ""),
+      tone: "live",
+    };
+  })();
+
   const dayAgg = data?.daily?.find((d) => d.day === data.day);
   const device = data?.devices?.find((d) => d.vehicle_id === (vehicleId ?? data?.selectedVehicleId))
     ?? data?.devices?.[0];
@@ -338,6 +424,31 @@ export default function SuiviPage() {
               <p className="text-gray-400 mt-1 text-sm">
                 Position réelle, rejeu du trajet et écart avec les kilomètres déclarés
               </p>
+
+              {/* État de la vue : on ne laisse jamais deviner si l'écran est
+                  vivant ou figé sur un instant passé. */}
+              <div className="mt-3 flex flex-wrap items-center gap-3">
+                <span className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm ${
+                  etatVue.tone === "live" ? "border-emerald-700 bg-emerald-950/40 text-emerald-300"
+                  : etatVue.tone === "stale" ? "border-amber-700 bg-amber-950/40 text-amber-300"
+                  : "border-gray-600 bg-gray-800 text-gray-300"}`}>
+                  <span aria-hidden="true" className={`w-2 h-2 rounded-full ${
+                    etatVue.tone === "live" ? "bg-emerald-400 motion-safe:animate-pulse"
+                    : etatVue.tone === "stale" ? "bg-amber-400" : "bg-gray-500"}`} />
+                  {etatVue.label}
+                </span>
+
+                {!enDirect && (
+                  <button
+                    onClick={revenirAuDirect}
+                    className="min-h-[44px] px-4 rounded-lg bg-yellow-500 text-gray-900 font-semibold text-sm
+                               hover:bg-yellow-400 transition-colors duration-200 cursor-pointer
+                               focus:outline-none focus:ring-2 focus:ring-yellow-300"
+                  >
+                    Revenir au direct
+                  </button>
+                )}
+              </div>
             </div>
             <div className="flex flex-wrap gap-3">
               {(data?.devices?.length ?? 0) > 1 && (
@@ -481,6 +592,7 @@ export default function SuiviPage() {
                       <div className="flex items-center gap-3 flex-wrap">
                         <button
                           onClick={() => {
+                            reprendreLaMain();
                             if (cursor >= fixes.length - 1) setCursor(0);
                             setPlaying((p) => !p);
                           }}
@@ -495,7 +607,7 @@ export default function SuiviPage() {
                         </button>
 
                         <button
-                          onClick={() => { setCursor(0); setPlaying(false); }}
+                          onClick={() => { reprendreLaMain(); setCursor(0); setPlaying(false); }}
                           aria-label="Revenir au début du trajet"
                           className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] px-3
                                      rounded-lg border border-gray-600 text-gray-300
@@ -535,7 +647,7 @@ export default function SuiviPage() {
                         <span className="sr-only">Position dans la journée</span>
                         <input
                           type="range" min={0} max={Math.max(0, fixes.length - 1)} value={cursor}
-                          onChange={(e) => { setPlaying(false); setCursor(Number(e.target.value)); }}
+                          onChange={(e) => { reprendreLaMain(); setPlaying(false); setCursor(Number(e.target.value)); }}
                           className="w-full accent-yellow-500 cursor-pointer h-[44px]"
                         />
                       </label>
