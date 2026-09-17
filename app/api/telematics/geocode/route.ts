@@ -45,7 +45,7 @@ function autorise(req: NextRequest): boolean {
 export async function POST(req: NextRequest) {
   if (!autorise(req)) return Response.json({ error: "non autorisé" }, { status: 401 });
 
-  let body: { limit?: number } = {};
+  let body: { limit?: number; device?: string } = {};
   try {
     const t = await req.text();
     if (t) body = JSON.parse(t);
@@ -56,10 +56,23 @@ export async function POST(req: NextRequest) {
   const limite = Math.min(Math.max(Number(body.limit) || 8, 1), 20);
   const sql = db();
 
-  const { data: trajets, error } = await sql
+  // Un boîtier peut être visé explicitement : inutile de dépenser des appels
+  // de géocodage sur des données de démonstration.
+  let deviceId: string | null = null;
+  if (body.device) {
+    const { data } = await sql.from("telematics_devices")
+      .select("id").eq("external_id", String(body.device)).maybeSingle();
+    if (!data) return Response.json({ error: "boîtier inconnu" }, { status: 404 });
+    deviceId = data.id;
+  }
+
+  let requete = sql
     .from("telematics_trips")
     .select("id, start_latitude, start_longitude, end_latitude, end_longitude, start_address, end_address")
-    .or("start_address.is.null,end_address.is.null")
+    .or("start_address.is.null,end_address.is.null");
+  if (deviceId) requete = requete.eq("device_id", deviceId);
+
+  const { data: trajets, error } = await requete
     .order("started_at", { ascending: false })
     .limit(limite);
 
@@ -111,10 +124,12 @@ export async function POST(req: NextRequest) {
     renseignes++;
   }
 
-  const { count } = await sql
+  let reste = sql
     .from("telematics_trips")
     .select("id", { count: "exact", head: true })
     .or("start_address.is.null,end_address.is.null");
+  if (deviceId) reste = reste.eq("device_id", deviceId);
+  const { count } = await reste;
 
   return Response.json({ renseignes, restants: count ?? 0 });
 }
