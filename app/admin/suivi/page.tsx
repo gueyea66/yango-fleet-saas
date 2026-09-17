@@ -53,6 +53,8 @@ type Recon = {
   trips: number | null;
   jours_couverts: number | null;
   ecart_exploitable: boolean | null;
+  /** 'gps' = mesuré par M3A · 'import' = repris de la plateforme d'origine. */
+  source?: string | null;
 };
 
 type Device = {
@@ -650,6 +652,11 @@ export default function SuiviPage() {
                                   : !usable ? "couverture GPS insuffisante"
                                   : big ? "écart à examiner"
                                   : "cohérent"}
+                              {r.source === "import" && (
+                                // Un historique repris d'une autre plateforme n'est pas une
+                                // mesure M3A : le dire, sinon le chiffre serait sur-interprété.
+                                <span className="block text-gray-500">reprise de l&apos;historique d&apos;origine</span>
+                              )}
                             </td>
                           </tr>
                         );
