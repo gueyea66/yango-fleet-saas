@@ -45,6 +45,19 @@ function authorized(req: NextRequest): boolean {
   return constantEquals(bearer, process.env.CRON_SECRET);
 }
 
+/**
+ * Déclenchement planifié (Vercel Cron), qui appelle en GET avec
+ * `Authorization: Bearer <CRON_SECRET>`. Sans lui, les trajets ne seraient
+ * calculés que sur intervention manuelle — les positions s'accumuleraient en
+ * base sans jamais devenir des kilomètres exploitables.
+ */
+export async function GET(req: NextRequest) {
+  if (!authorized(req)) {
+    return Response.json({ error: "non autorisé" }, { status: 401 });
+  }
+  return rebuild({});
+}
+
 export async function POST(req: NextRequest) {
   if (!authorized(req)) {
     return Response.json({ error: "non autorisé" }, { status: 401 });
@@ -58,6 +71,10 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "JSON illisible" }, { status: 400 });
   }
 
+  return rebuild(body);
+}
+
+async function rebuild(body: { deviceId?: string; from?: string; to?: string }) {
   const sql = db();
 
   // Par défaut : les 7 derniers jours, fenêtre raisonnable pour un cron
