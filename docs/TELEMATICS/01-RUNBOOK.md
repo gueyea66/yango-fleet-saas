@@ -80,6 +80,29 @@ attribués : c'est ce couple qui ira dans le boîtier.
 
 ## 5. Bascule du K3 — sur go d'Abdou uniquement
 
+### Configuration d'origine relevée le 17/09/2026 (RCONF)
+
+```
+ST-901-868L:V4.35, ID:9170258210, UP:0000, MODE:GPRS,
+POWER ALARM:ON, OVERSPEED:80, SHAKE ALARM:50, GEOFENCE:OFF, SLEEP:OFF,
+ACC ALARM SMS:ON, APN:internet,internet,internet,
+IP:45.112.204.246,8090, GPRS UPLOAD TIME:30, TIME ZONE:E00
+```
+
+**Retour vers SinoTrack, à tout moment :**
+
+```
+8040000 45.112.204.246 8090
+```
+
+Mot de passe du boîtier : `0000` (valeur d'usine, confirmée par `UP:0000`).
+Le SMS passe par le réseau GSM, pas par Internet : le retour arrière reste
+possible même si la passerelle est injoignable.
+
+### Passerelle cible
+
+`iriguchi.proxy.rlwy.net`, port public `14728` (proxy TCP Railway → 5013 H02).
+
 **Avant tout SMS**, relever la configuration actuelle du boîtier pour pouvoir
 revenir en arrière :
 

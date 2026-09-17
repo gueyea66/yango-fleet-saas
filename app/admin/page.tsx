@@ -8,20 +8,21 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   dashboard: LayoutDashboard, pending: Inbox, history: History, calendrier: Calendar,
   payments: Banknote, avances: HandCoins, pilotage: Gauge,
   vehicles: Car, drivers: Users, kyc: BadgeCheck, suivi: MapPin,
-  remuneration: Briefcase, journal: BookText, import: Upload, settings: Settings,
+  remuneration: Briefcase, journal: BookText, import: Upload, settings: Settings, boitiers: Radio,
 };
 
 // Entrées de nav qui ouvrent leur propre page au lieu d'un onglet interne.
 const NAV_ROUTES: Record<string, string> = {
   drivers: "/admin/drivers",
   suivi: "/admin/suivi",
+  boitiers: "/admin/boitiers",
 };
 
 import React, { useState, useEffect, useRef } from "react";
 import {
   LayoutDashboard, Inbox, History, Calendar, Banknote, HandCoins, Gauge,
   Car, Users, BadgeCheck, Briefcase, BookText, Upload, Settings, BarChart3, Download, BellRing,
-  AlertTriangle, Info, TrendingUp, Fuel, Coins, Wallet, FileText, BedDouble, Paperclip, Trash2, ChevronRight, MapPin, type LucideIcon,
+  AlertTriangle, Info, TrendingUp, Fuel, Coins, Wallet, FileText, BedDouble, Paperclip, Trash2, ChevronRight, MapPin, Radio, type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
@@ -302,6 +303,7 @@ export default function AdminPage() {
       collapsible: true,
       items: [
         ["remuneration","💼", "Rémunération"],
+        ["boitiers",    "📡", "Boîtiers GPS"],
         ["journal",     "📋", "Journal"],
         ["import",      "📥", "Import historique"],
         ["settings",    "⚙️", "Paramètres"],
