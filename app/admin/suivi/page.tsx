@@ -40,6 +40,13 @@ type Trip = {
   gaps_s: number;
   jumps_dropped: number;
   confidence: number;
+  start_address: string | null;
+  end_address: string | null;
+  address_source: string | null;
+  start_latitude: number;
+  start_longitude: number;
+  end_latitude: number;
+  end_longitude: number;
 };
 
 type Recon = {
@@ -108,6 +115,46 @@ function ageLabel(iso: string | null): { text: string; tone: "ok" | "warn" | "ba
 const TONE: Record<string, string> = {
   ok: "text-emerald-400", warn: "text-amber-400", bad: "text-red-400",
 };
+
+/**
+ * Navigation vers un point.
+ *
+ * Formats universels, qui ouvrent l'application installée sur téléphone et
+ * basculent sur le site en l'absence d'application — donc utilisables depuis
+ * un bureau comme depuis la route, sans clé ni compte.
+ */
+const itineraireGoogle = (lat: number, lon: number) =>
+  `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}&travelmode=driving`;
+const itineraireWaze = (lat: number, lon: number) =>
+  `https://waze.com/ul?ll=${lat},${lon}&navigate=yes`;
+
+const lienCls =
+  "inline-flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg border border-gray-600 " +
+  "text-sm text-gray-200 hover:text-white hover:border-gray-400 transition-colors duration-200 " +
+  "focus:outline-none focus:ring-2 focus:ring-yellow-500";
+
+const IconNav = () => (
+  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+       strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M14 2L9.5 14l-1.8-5.7L2 6.5z" />
+  </svg>
+);
+
+/** Boutons d'itinéraire vers un point précis. */
+function AllerVers({ lat, lon, libelle }: { lat: number; lon: number; libelle: string }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <a href={itineraireGoogle(lat, lon)} target="_blank" rel="noopener noreferrer"
+         className={lienCls} aria-label={`Itinéraire Google Maps vers ${libelle}`}>
+        <IconNav /> Google Maps
+      </a>
+      <a href={itineraireWaze(lat, lon)} target="_blank" rel="noopener noreferrer"
+         className={lienCls} aria-label={`Itinéraire Waze vers ${libelle}`}>
+        <IconNav /> Waze
+      </a>
+    </div>
+  );
+}
 
 /** Vitesses de rejeu, exprimées en points avancés par battement de 120 ms. */
 const SPEEDS = [
@@ -529,6 +576,18 @@ export default function SuiviPage() {
                   {lastSeen.text}
                 </p>
                 <p className="text-xs text-gray-500 mt-1 font-mono">{(device?.plate ?? device?.external_id ?? "").trim()}</p>
+
+                {/* Aller au véhicule : une position sans itinéraire ne sert à
+                    rien quand il faut récupérer un camion en panne. */}
+                {data?.lastPosition && (
+                  <div className="mt-3">
+                    <AllerVers
+                      lat={data.lastPosition.latitude}
+                      lon={data.lastPosition.longitude}
+                      libelle={`le véhicule ${(device?.plate ?? "").trim()}`}
+                    />
+                  </div>
+                )}
               </article>
 
               <article className="bg-gray-800 border-l-4 border-blue-500 rounded-lg p-4">
@@ -652,10 +711,16 @@ export default function SuiviPage() {
                         />
                       </label>
 
-                      <p className="text-xs text-gray-500 font-mono tabular-nums">
-                        point {cursor + 1} / {fixes.length}
-                        {here && ` · ${here.latitude.toFixed(5)}, ${here.longitude.toFixed(5)}`}
-                      </p>
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <p className="text-xs text-gray-500 font-mono tabular-nums">
+                          point {cursor + 1} / {fixes.length}
+                          {here && ` · ${here.latitude.toFixed(5)}, ${here.longitude.toFixed(5)}`}
+                        </p>
+                        {here && (
+                          <AllerVers lat={here.latitude} lon={here.longitude}
+                                     libelle={`ce point à ${hhmm(here.recorded_at)}`} />
+                        )}
+                      </div>
                     </div>
                   </>
                 )}
@@ -688,6 +753,24 @@ export default function SuiviPage() {
                               {(t.distance_m / 1000).toFixed(1)} km
                             </span>
                           </div>
+
+                          {/* D'où à où : sans cela, un trajet reste une durée et
+                              un nombre. Tant qu'une adresse n'est pas résolue,
+                              on montre les coordonnées plutôt qu'un lieu inventé. */}
+                          <dl className="mt-1.5 space-y-0.5 text-xs">
+                            <div className="flex gap-2">
+                              <dt className="text-gray-500 font-mono tabular-nums shrink-0">{hhmm(t.started_at)}</dt>
+                              <dd className="text-gray-300 truncate">
+                                {t.start_address ?? `${t.start_latitude.toFixed(4)}, ${t.start_longitude.toFixed(4)}`}
+                              </dd>
+                            </div>
+                            <div className="flex gap-2">
+                              <dt className="text-gray-500 font-mono tabular-nums shrink-0">{hhmm(t.ended_at)}</dt>
+                              <dd className="text-gray-300 truncate">
+                                {t.end_address ?? `${t.end_latitude.toFixed(4)}, ${t.end_longitude.toFixed(4)}`}
+                              </dd>
+                            </div>
+                          </dl>
                           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400 tabular-nums">
                             <span>{fmtDuration(t.duration_s)}</span>
                             <span>{fmtDuration(t.idle_s)} à l&apos;arrêt</span>
@@ -698,6 +781,23 @@ export default function SuiviPage() {
                             </span>
                           </div>
                         </button>
+
+                        {/* Hors du bouton : un lien dans un bouton n'est pas
+                            navigable au clavier et casse l'accessibilité. */}
+                        <div className="flex flex-wrap gap-2 px-4 pb-3 -mt-1">
+                          <a href={itineraireGoogle(t.start_latitude, t.start_longitude)}
+                             target="_blank" rel="noopener noreferrer"
+                             className={`${lienCls} text-xs`}
+                             aria-label={`Itinéraire vers le départ de ${hhmm(t.started_at)}`}>
+                            <IconNav /> Départ
+                          </a>
+                          <a href={itineraireGoogle(t.end_latitude, t.end_longitude)}
+                             target="_blank" rel="noopener noreferrer"
+                             className={`${lienCls} text-xs`}
+                             aria-label={`Itinéraire vers l'arrivée de ${hhmm(t.ended_at)}`}>
+                            <IconNav /> Arrivée
+                          </a>
+                        </div>
                       </li>
                     ))}
                   </ul>

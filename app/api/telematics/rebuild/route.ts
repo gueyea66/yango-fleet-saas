@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { buildTrips, METHOD_VERSION, type RawPoint } from "@/lib/telematics/trips";
+import { resoudreAdresses, cleCache } from "@/lib/telematics/geocode";
 
 /**
  * Recalcul des données dérivées : positions brutes → trajets, événements,
@@ -222,15 +223,91 @@ async function rebuild(body: { deviceId?: string; from?: string; to?: string }) 
       if (error) return Response.json({ error: error.message }, { status: 500 });
     }
 
+    // ── Lieux de départ et d'arrivée ─────────────────────────────────────
+    // Un trajet « 07:03 → 09:13, 124 km » ne se lit pas sans savoir d'où à où.
+    // Le géocodage est borné et mis en cache : le fournisseur gratuit limite
+    // strictement le débit, et le dépasser couperait la fonction pour tous.
+    const adresses = await geocoderTrajets(sql, insertedTrips ?? [], trips);
+
     report.push({
       device: device.external_id,
       points: points.length,
       trips: trips.length,
       events: events.length,
       days: daily.length,
+      adresses,
       discarded,
     });
   }
 
   return Response.json({ methodVersion: METHOD_VERSION, from, to, devices: report });
+}
+
+/**
+ * Renseigne les lieux de départ et d'arrivée des trajets qui n'en ont pas.
+ *
+ * Le nombre d'appels est volontairement bas : la fenêtre d'exécution est
+ * limitée, et le fournisseur impose une requête par seconde. Les trajets non
+ * résolus lors d'une passe le seront à la suivante — un trajet sans adresse
+ * reste affiché avec ses coordonnées, jamais avec un lieu inventé.
+ */
+async function geocoderTrajets(
+  sql: ReturnType<typeof db>,
+  inserted: { id: string; started_at: string }[],
+  trips: { startedAt: string; startLatitude: number; startLongitude: number;
+           endLatitude: number; endLongitude: number }[],
+): Promise<number> {
+  if (!inserted.length) return 0;
+
+  const parDebut = new Map(trips.map((t) => [t.startedAt, t]));
+  const points: { lat: number; lon: number }[] = [];
+  for (const row of inserted) {
+    const t = parDebut.get(row.started_at);
+    if (!t) continue;
+    points.push({ lat: t.startLatitude, lon: t.startLongitude });
+    points.push({ lat: t.endLatitude, lon: t.endLongitude });
+  }
+
+  const resolus = await resoudreAdresses(points, {
+    maxAppels: 12,
+    contact: process.env.NEXT_PUBLIC_SUPPORT_EMAIL,
+    lire: async (cles) => {
+      const out = new Map<string, string>();
+      if (!cles.length) return out;
+      const { data } = await sql
+        .from("geocode_cache")
+        .select("lat, lon, label")
+        .in("lat", [...new Set(cles.map((c) => c.lat))])
+        .in("lon", [...new Set(cles.map((c) => c.lon))]);
+      for (const r of data ?? []) out.set(`${Number(r.lat)},${Number(r.lon)}`, r.label);
+      return out;
+    },
+    ecrire: async (lieux) => {
+      await sql.from("geocode_cache").upsert(
+        lieux.map((l) => ({ lat: l.lat, lon: l.lon, label: l.label, provider: "nominatim" })),
+        { onConflict: "lat,lon" },
+      );
+    },
+  });
+
+  const libelle = (lat: number, lon: number) => {
+    const c = cleCache(lat, lon);
+    return resolus.get(`${c.lat},${c.lon}`) ?? null;
+  };
+
+  let renseignes = 0;
+  for (const row of inserted) {
+    const t = parDebut.get(row.started_at);
+    if (!t) continue;
+    const depart = libelle(t.startLatitude, t.startLongitude);
+    const arrivee = libelle(t.endLatitude, t.endLongitude);
+    if (!depart && !arrivee) continue;
+    await sql.from("telematics_trips").update({
+      start_address: depart,
+      end_address: arrivee,
+      address_source: "nominatim",
+    }).eq("id", row.id);
+    renseignes++;
+  }
+  return renseignes;
 }
