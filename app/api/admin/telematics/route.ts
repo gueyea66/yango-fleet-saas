@@ -131,7 +131,8 @@ export async function GET(req: NextRequest) {
         .from("telematics_trips")
         .select("id, started_at, ended_at, distance_m, duration_s, moving_s, idle_s, " +
                 "max_speed_kmh, avg_moving_speed_kmh, points, gaps_s, jumps_dropped, " +
-                "confidence, evidence, start_latitude, start_longitude, end_latitude, end_longitude")
+                "confidence, evidence, start_latitude, start_longitude, end_latitude, end_longitude, " +
+                "start_address, end_address, address_source")
         .eq("device_id", selected.id)
         .gte("started_at", dayStart)
         .lte("started_at", dayEnd)

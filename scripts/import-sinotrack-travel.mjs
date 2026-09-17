@@ -134,6 +134,10 @@ const iKm = col("Drive mileage(km)", "Drive mileage");
 const iDrive = col("Drive time");
 const iMax = col("Max speed(km/h)", "Max speed");
 const iAvg = col("Average speed(km/h)", "Average speed");
+// L'export fournit déjà les adresses : inutile de géocoder ce que le
+// fournisseur a déjà résolu, et ses libellés sont ceux que le client connaît.
+const iSAddr = col("Start address");
+const iEAddr = col("End address");
 const iSLon = col("Start longitude(°)", "Start longitude");
 const iSLat = col("Start latitude(°)", "Start latitude");
 const iELon = col("End longitude(°)", "End longitude");
@@ -180,6 +184,9 @@ for (const line of lines.slice(1)) {
     confidence: 0.9,
     evidence: { source: "SinoTrack Travel Report", fichier: basename(FILE) },
     method_version: METHOD,
+    start_address: iSAddr !== -1 ? (f[iSAddr]?.replace(/\s+/g, " ").trim() || null) : null,
+    end_address: iEAddr !== -1 ? (f[iEAddr]?.replace(/\s+/g, " ").trim() || null) : null,
+    address_source: iSAddr !== -1 ? "import" : null,
   });
 }
 

@@ -40,6 +40,13 @@ type Trip = {
   gaps_s: number;
   jumps_dropped: number;
   confidence: number;
+  start_address: string | null;
+  end_address: string | null;
+  address_source: string | null;
+  start_latitude: number;
+  start_longitude: number;
+  end_latitude: number;
+  end_longitude: number;
 };
 
 type Recon = {
@@ -688,6 +695,24 @@ export default function SuiviPage() {
                               {(t.distance_m / 1000).toFixed(1)} km
                             </span>
                           </div>
+
+                          {/* D'où à où : sans cela, un trajet reste une durée et
+                              un nombre. Tant qu'une adresse n'est pas résolue,
+                              on montre les coordonnées plutôt qu'un lieu inventé. */}
+                          <dl className="mt-1.5 space-y-0.5 text-xs">
+                            <div className="flex gap-2">
+                              <dt className="text-gray-500 font-mono tabular-nums shrink-0">{hhmm(t.started_at)}</dt>
+                              <dd className="text-gray-300 truncate">
+                                {t.start_address ?? `${t.start_latitude.toFixed(4)}, ${t.start_longitude.toFixed(4)}`}
+                              </dd>
+                            </div>
+                            <div className="flex gap-2">
+                              <dt className="text-gray-500 font-mono tabular-nums shrink-0">{hhmm(t.ended_at)}</dt>
+                              <dd className="text-gray-300 truncate">
+                                {t.end_address ?? `${t.end_latitude.toFixed(4)}, ${t.end_longitude.toFixed(4)}`}
+                              </dd>
+                            </div>
+                          </dl>
                           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400 tabular-nums">
                             <span>{fmtDuration(t.duration_s)}</span>
                             <span>{fmtDuration(t.idle_s)} à l&apos;arrêt</span>
