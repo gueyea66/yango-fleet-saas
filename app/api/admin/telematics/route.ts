@@ -1,5 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
-import { NextRequest } from "next/server";
+import { NextRequest, after } from "next/server";
 import { requireAdminAuth } from "@/lib/auth/server";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 
@@ -140,9 +140,45 @@ export async function GET(req: NextRequest) {
         .then((r) => r.data ?? []),
     ]);
 
+    // ── Recalcul à l'ouverture ───────────────────────────────────────────
+    // Les positions arrivent en continu, mais les trajets et les kilomètres
+    // ne naissent que d'un calcul. Sans ce déclenchement, un gestionnaire qui
+    // ouvre l'écran à 10 h verrait les chiffres de la dernière passe horaire.
+    // Plancher de 5 minutes : au rythme d'un rafraîchissement toutes les 30 s,
+    // recalculer à chaque passage serait du gaspillage pur.
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const agregatDuJour = (daily ?? []).find((d: { day: string }) => d.day === day) as
+      { computed_at?: string } | undefined;
+    const dernierPoint = positions?.length ? positions[positions.length - 1].recorded_at : null;
+    const ageCalcul = agregatDuJour?.computed_at
+      ? Date.now() - Date.parse(agregatDuJour.computed_at)
+      : Number.POSITIVE_INFINITY;
+    const aRecalculer =
+      day === aujourdhui && dernierPoint && ageCalcul > 5 * 60_000 &&
+      (!agregatDuJour?.computed_at || Date.parse(agregatDuJour.computed_at) < Date.parse(dernierPoint));
+
+    if (aRecalculer && process.env.TELEMATICS_INGEST_KEY) {
+      // Après la réponse : l'écran ne doit pas attendre le calcul.
+      after(async () => {
+        try {
+          await fetch(new URL("/api/telematics/rebuild", req.url), {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-telematics-key": process.env.TELEMATICS_INGEST_KEY!,
+            },
+            body: JSON.stringify({ deviceId: selected.id, from: day, to: day }),
+          });
+        } catch {
+          // Le recalcul horaire rattrapera : rien ne justifie de casser l'écran.
+        }
+      });
+    }
+
     return Response.json({
       installed: true,
       day,
+      recalculEnCours: Boolean(aRecalculer),
       devices: (devices ?? []).map((d) => ({
         ...d,
         plate: vehicles?.find((v) => v.id === d.vehicle_id)?.plate ?? null,

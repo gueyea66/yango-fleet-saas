@@ -231,10 +231,14 @@ export default function SuiviPage() {
 
   const mapEl = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
+  const leaflet = useRef<typeof import("leaflet") | null>(null);
   const baseLine = useRef<Polyline | null>(null);
   const doneLine = useRef<Polyline | null>(null);
   const cursorMark = useRef<CircleMarker | null>(null);
   const overlays = useRef<LayerGroup | null>(null);
+  /** Journée déjà cadrée : empêche de recadrer à chaque rafraîchissement. */
+  const jourCadre = useRef<string | null>(null);
+  const [carteOuverte, setCarteOuverte] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) router.push("/auth/login");
@@ -307,62 +311,81 @@ export default function SuiviPage() {
     }
   }, [date, fixes.length, load]);
 
-  // ── Carte : chargée à la demande, hors du bundle initial ───────────────
+  // ── Carte : créée UNE fois, puis mise à jour en place ──────────────────
+  // Détruire et recréer la carte à chaque rafraîchissement recadrait la vue
+  // toutes les 30 secondes : le zoom de l'utilisateur sautait, et l'écran
+  // paraissait figé sur une image. La carte vit maintenant en dehors du cycle
+  // de rafraîchissement ; seules ses couches changent.
   useEffect(() => {
-    if (!fixes.length || !mapEl.current) return;
+    if (!mapEl.current || mapRef.current) return;
     let cancelled = false;
 
     (async () => {
-      const L = (await import("leaflet")).default;
+      const mod = await import("leaflet");
       await import("leaflet/dist/leaflet.css");
-      if (cancelled || !mapEl.current) return;
+      if (cancelled || !mapEl.current || mapRef.current) return;
+      const L = mod.default;
+      leaflet.current = L;
 
-      mapRef.current?.remove();
-      const pts = fixes.map((p) => [p.latitude, p.longitude] as [number, number]);
-
-      const map = L.map(mapEl.current, { attributionControl: true, zoomControl: true });
+      const map = L.map(mapEl.current, { attributionControl: true, zoomControl: true })
+        .setView([14.6937, -17.4441], 11); // Dakar, en attendant les points
       mapRef.current = map;
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19, attribution: "© OpenStreetMap",
       }).addTo(map);
 
       // Trace complète en sourdine, portion parcourue en évidence.
-      baseLine.current = L.polyline(pts, { color: "#6b7280", weight: 3, opacity: 0.55 }).addTo(map);
-      doneLine.current = L.polyline([pts[0]], { color: "#f5a623", weight: 5, opacity: 0.95 }).addTo(map);
-
-      const group = L.layerGroup().addTo(map);
-      overlays.current = group;
-
-      L.circleMarker(pts[0], { radius: 6, color: "#10b981", fillColor: "#10b981", fillOpacity: 1 })
-        .addTo(group).bindPopup("Premier point du jour");
-      L.circleMarker(pts[pts.length - 1], { radius: 6, color: "#ef4444", fillColor: "#ef4444", fillOpacity: 1 })
-        .addTo(group).bindPopup("Dernier point du jour");
-
-      for (const ev of data?.events ?? []) {
-        if (ev.latitude == null || ev.longitude == null) continue;
-        if (ev.type === "LONG_STOP") {
-          const minutes = Math.round(Number(ev.evidence?.duree_s ?? 0) / 60);
-          L.circleMarker([ev.latitude, ev.longitude], {
-            radius: 7, color: "#60a5fa", fillColor: "#1d4ed8", fillOpacity: 0.85, weight: 2,
-          }).addTo(group).bindPopup(`Arrêt de ${minutes} min · ${hhmm(ev.occurred_at)}`);
-        }
-        if (ev.type === "GPS_OFFLINE") {
-          const minutes = Math.round(Number(ev.evidence?.duree_s ?? 0) / 60);
-          L.circleMarker([ev.latitude, ev.longitude], {
-            radius: 7, color: "#f59e0b", fillColor: "#78350f", fillOpacity: 0.9, weight: 2,
-          }).addTo(group).bindPopup(`Perte de signal ${minutes} min · ${hhmm(ev.occurred_at)}`);
-        }
-      }
-
-      cursorMark.current = L.circleMarker(pts[0], {
+      baseLine.current = L.polyline([], { color: "#6b7280", weight: 3, opacity: 0.55 }).addTo(map);
+      doneLine.current = L.polyline([], { color: "#f5a623", weight: 5, opacity: 0.95 }).addTo(map);
+      overlays.current = L.layerGroup().addTo(map);
+      cursorMark.current = L.circleMarker([14.6937, -17.4441], {
         radius: 9, color: "#ffffff", weight: 3, fillColor: "#f5a623", fillOpacity: 1,
       }).addTo(map);
 
-      map.fitBounds(L.latLngBounds(pts), { padding: [28, 28] });
+      setCarteOuverte(true);
     })();
 
     return () => { cancelled = true; };
-  }, [fixes, data?.events]);
+    // Le conteneur n'existe qu'une fois des positions reçues : on retente
+    // donc l'initialisation quand elles arrivent.
+  }, [fixes.length]);
+
+  // Contenu de la carte : trace, arrêts, pertes de signal.
+  useEffect(() => {
+    const L = leaflet.current;
+    const map = mapRef.current;
+    if (!L || !map || !baseLine.current || !overlays.current) return;
+
+    const pts = fixes.map((p) => [p.latitude, p.longitude] as [number, number]);
+    baseLine.current.setLatLngs(pts);
+    overlays.current.clearLayers();
+    if (!pts.length) return;
+
+    L.circleMarker(pts[0], { radius: 6, color: "#10b981", fillColor: "#10b981", fillOpacity: 1 })
+      .addTo(overlays.current).bindPopup("Premier point du jour");
+
+    for (const ev of data?.events ?? []) {
+      if (ev.latitude == null || ev.longitude == null) continue;
+      const minutes = Math.round(Number(ev.evidence?.duree_s ?? 0) / 60);
+      if (ev.type === "LONG_STOP") {
+        L.circleMarker([ev.latitude, ev.longitude], {
+          radius: 7, color: "#60a5fa", fillColor: "#1d4ed8", fillOpacity: 0.85, weight: 2,
+        }).addTo(overlays.current).bindPopup(`Arrêt de ${minutes} min · ${hhmm(ev.occurred_at)}`);
+      }
+      if (ev.type === "GPS_OFFLINE") {
+        L.circleMarker([ev.latitude, ev.longitude], {
+          radius: 7, color: "#f59e0b", fillColor: "#78350f", fillOpacity: 0.9, weight: 2,
+        }).addTo(overlays.current).bindPopup(`Perte de signal ${minutes} min · ${hhmm(ev.occurred_at)}`);
+      }
+    }
+
+    // Recadrer seulement au changement de journée : sinon le zoom choisi par
+    // l'utilisateur serait réinitialisé à chaque rafraîchissement.
+    if (jourCadre.current !== data?.day) {
+      jourCadre.current = data?.day ?? null;
+      map.fitBounds(L.latLngBounds(pts), { padding: [28, 28] });
+    }
+  }, [fixes, data?.events, data?.day, carteOuverte]);
 
   useEffect(() => () => { mapRef.current?.remove(); mapRef.current = null; }, []);
 
