@@ -1,0 +1,64 @@
+name: Télématique — recalcul horaire
+
+# Un trajet dure environ trente minutes : calculé une fois par nuit, il
+# n'apprend plus rien à personne. Cette passe rend les trajets visibles dans
+# l'heure, et reconnaît ceux qui sont encore en cours.
+#
+# Elle ne recalcule QUE LA JOURNÉE EN COURS : les jours passés sont figés et
+# n'ont aucune raison d'être relus. La passe nocturne de Vercel garde, elle,
+# une fenêtre de sept jours pour rattraper les positions arrivées en retard
+# après une coupure réseau.
+#
+# Pourquoi ici plutôt qu'un cron Vercel : le plan Vercel ne permet qu'une
+# exécution quotidienne. GitHub Actions accepte l'heure et ne coûte rien sur
+# un dépôt privé de cette taille (24 exécutions de quelques secondes).
+
+on:
+  schedule:
+    - cron: "5 * * * *"    # à H+5 min, toutes les heures
+  workflow_dispatch:        # déclenchement manuel depuis l'onglet Actions
+
+concurrency:
+  # Deux recalculs simultanés se disputeraient les mêmes lignes : on préfère
+  # sauter une passe plutôt que d'écrire deux fois la même journée.
+  group: telematique-recalcul
+  cancel-in-progress: false
+
+jobs:
+  recalcul:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Recalculer la journée en cours
+        env:
+          CLE: ${{ secrets.TELEMATICS_INGEST_KEY }}
+        run: |
+          if [ -z "$CLE" ]; then
+            echo "::error::Secret TELEMATICS_INGEST_KEY absent du dépôt."
+            exit 1
+          fi
+          JOUR=$(date -u +%F)
+          REPONSE=$(curl -sS --max-time 120 -w "\n%{http_code}" \
+            -X POST "https://m3afleet.com/api/telematics/rebuild" \
+            -H "content-type: application/json" \
+            -H "x-telematics-key: $CLE" \
+            -d "{\"from\":\"$JOUR\",\"to\":\"$JOUR\"}")
+          CODE=$(echo "$REPONSE" | tail -1)
+          CORPS=$(echo "$REPONSE" | sed '$d')
+          echo "$CORPS"
+          if [ "$CODE" != "200" ]; then
+            echo "::error::Recalcul en échec (HTTP $CODE)"
+            exit 1
+          fi
+
+      - name: Surveiller les boîtiers muets
+        env:
+          CLE: ${{ secrets.TELEMATICS_INGEST_KEY }}
+        run: |
+          # Un boîtier qui se tait ne produit aucun recalcul : sans cette
+          # vérification, une panne de passerelle passerait inaperçue jusqu'au
+          # lendemain. Seuil à 3 h pour ne pas alerter sur un simple tunnel.
+          curl -sS --max-time 60 -X POST "https://m3afleet.com/api/telematics/watchdog" \
+            -H "content-type: application/json" \
+            -H "x-telematics-key: $CLE" \
+            -d '{"heures":3}'

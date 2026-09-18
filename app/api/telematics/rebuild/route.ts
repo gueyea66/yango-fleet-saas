@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { buildTrips, METHOD_VERSION, type RawPoint } from "@/lib/telematics/trips";
 import { resoudreAdresses, cleCache } from "@/lib/telematics/geocode";
+import { surveiller } from "@/lib/telematics/watchdog";
 
 /**
  * Recalcul des données dérivées : positions brutes → trajets, événements,
@@ -56,7 +57,12 @@ export async function GET(req: NextRequest) {
   if (!authorized(req)) {
     return Response.json({ error: "non autorisé" }, { status: 401 });
   }
-  return rebuild({});
+  // La passe nocturne surveille aussi les boîtiers muets : un traceur qui
+  // s'est tu ne produit aucun recalcul, donc rien ne signalerait son absence.
+  const surveillance = await surveiller(3).catch((e: unknown) => ({ erreur: String(e) }));
+  const resultat = await rebuild({});
+  const corps = await resultat.json();
+  return Response.json({ ...corps, surveillance });
 }
 
 export async function POST(req: NextRequest) {
@@ -130,7 +136,10 @@ async function rebuild(body: { deviceId?: string; from?: string; to?: string }) 
       continue;
     }
 
-    const { trips, events, daily, discarded } = buildTrips(points);
+    // L'heure du calcul permet de reconnaître un trajet encore en cours : à
+    // raison d'une passe par heure, la plupart tombent pendant que le véhicule
+    // roule.
+    const { trips, events, daily, discarded } = buildTrips(points, { maintenant: Date.now() });
 
     // ── Remplacement de la tranche recalculée, pour cette méthode ─────────
     // On supprime avant de réécrire : sinon un trajet qui rétrécit après
@@ -168,6 +177,7 @@ async function rebuild(body: { deviceId?: string; from?: string; to?: string }) 
       confidence: t.confidence,
       evidence: t.evidence,
       method_version: t.methodVersion,
+      en_cours: t.enCours,
     }));
 
     const { data: insertedTrips, error: tripErr } = tripRows.length

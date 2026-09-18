@@ -47,6 +47,8 @@ type Trip = {
   start_longitude: number;
   end_latitude: number;
   end_longitude: number;
+  /** Le véhicule roulait encore au moment du calcul : pas d'arrivée réelle. */
+  en_cours: boolean;
 };
 
 type Recon = {
@@ -747,33 +749,48 @@ export default function SuiviPage() {
                         >
                           <div className="flex items-baseline justify-between gap-2">
                             <span className="text-white font-mono tabular-nums text-sm">
-                              {hhmm(t.started_at)} → {hhmm(t.ended_at)}
+                              {hhmm(t.started_at)} → {t.en_cours ? "en cours" : hhmm(t.ended_at)}
                             </span>
                             <span className="text-yellow-500 font-mono tabular-nums text-sm font-semibold">
                               {(t.distance_m / 1000).toFixed(1)} km
                             </span>
                           </div>
 
+                          {t.en_cours && (
+                            <p className="mt-1 inline-flex items-center gap-1.5 text-xs text-emerald-300">
+                              <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-emerald-400 motion-safe:animate-pulse" />
+                              Trajet en cours — dernier point à {hhmm(t.ended_at)}, pas encore arrivé
+                            </p>
+                          )}
+
                           {/* D'où à où : sans cela, un trajet reste une durée et
                               un nombre. Tant qu'une adresse n'est pas résolue,
                               on montre les coordonnées plutôt qu'un lieu inventé. */}
                           <dl className="mt-1.5 space-y-0.5 text-xs">
                             <div className="flex gap-2">
-                              <dt className="text-gray-500 font-mono tabular-nums shrink-0">{hhmm(t.started_at)}</dt>
+                              <dt className="text-gray-500 shrink-0 w-[4.5rem]">Départ</dt>
                               <dd className="text-gray-300 truncate">
+                                <span className="font-mono tabular-nums text-gray-400 mr-1.5">{hhmm(t.started_at)}</span>
                                 {t.start_address ?? `${t.start_latitude.toFixed(4)}, ${t.start_longitude.toFixed(4)}`}
                               </dd>
                             </div>
                             <div className="flex gap-2">
-                              <dt className="text-gray-500 font-mono tabular-nums shrink-0">{hhmm(t.ended_at)}</dt>
+                              <dt className="text-gray-500 shrink-0 w-[4.5rem]">
+                                {t.en_cours ? "Position" : "Arrivée"}
+                              </dt>
                               <dd className="text-gray-300 truncate">
+                                <span className="font-mono tabular-nums text-gray-400 mr-1.5">{hhmm(t.ended_at)}</span>
                                 {t.end_address ?? `${t.end_latitude.toFixed(4)}, ${t.end_longitude.toFixed(4)}`}
                               </dd>
                             </div>
                           </dl>
-                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400 tabular-nums">
-                            <span>{fmtDuration(t.duration_s)}</span>
-                            <span>{fmtDuration(t.idle_s)} à l&apos;arrêt</span>
+                          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-400 tabular-nums">
+                            <span>{fmtDuration(t.duration_s)} au total</span>
+                            <span>{fmtDuration(t.moving_s)} en roulant</span>
+                            {t.idle_s > 60 && <span>{fmtDuration(t.idle_s)} à l&apos;arrêt</span>}
+                            {t.avg_moving_speed_kmh != null && (
+                              <span>moy {Math.round(t.avg_moving_speed_kmh)} km/h</span>
+                            )}
                             {t.max_speed_kmh != null && <span>max {Math.round(t.max_speed_kmh)} km/h</span>}
                             <span className={t.confidence >= 0.9 ? "text-emerald-400"
                                             : t.confidence >= 0.6 ? "text-amber-400" : "text-red-400"}>
