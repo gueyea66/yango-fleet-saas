@@ -64,6 +64,13 @@ type Recon = {
   ecart_exploitable: boolean | null;
   /** 'gps' = mesuré par M3A · 'import' = repris de la plateforme d'origine. */
   source?: string | null;
+  /** Recette déclarée et validée pour ce véhicule ce jour-là (migration 060). */
+  recette?: number | null;
+  repos?: boolean | null;
+  service_s?: number | null;
+  recette_par_heure_service?: number | null;
+  recette_par_km?: number | null;
+  rendement_exploitable?: boolean | null;
 };
 
 type Device = {
@@ -512,6 +519,12 @@ export default function SuiviPage() {
     };
   })();
 
+  // La recette du jour vient de la déclaration validée, pas d'une estimation :
+  // tant qu'elle n'est pas saisie, l'écran se tait (migration 060).
+  const rendementDuJour = (data?.reconciliation ?? []).find(
+    (r) => r.day === data?.day && r.recette != null && !r.repos && r.rendement_exploitable,
+  );
+
   return (
     <div className="min-h-screen bg-gray-900 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
@@ -752,6 +765,26 @@ export default function SuiviPage() {
                     <p className="text-xs text-gray-500 mt-2 tabular-nums">
                       {fmtDuration(dayAgg!.moving_s)} en mouvement sur {fmtDuration(service.amplitudeS)} de service
                     </p>
+
+                    {/* Ce que la journée a rapporté, dès que la déclaration est
+                        validée. Avant, le silence vaut mieux qu'un chiffre. */}
+                    {rendementDuJour && (
+                      <p className="text-sm text-gray-300 mt-3 tabular-nums">
+                        Recette déclarée{" "}
+                        <span className="text-white font-semibold font-mono">
+                          {Math.round(rendementDuJour.recette!).toLocaleString("fr-FR")} F
+                        </span>
+                        {rendementDuJour.recette_par_heure_service != null && (
+                          <>
+                            {" — soit "}
+                            <span className="text-white font-semibold font-mono">
+                              {Math.round(rendementDuJour.recette_par_heure_service).toLocaleString("fr-FR")} F
+                            </span>
+                            {" par heure de service"}
+                          </>
+                        )}
+                      </p>
+                    )}
                   </>
                 ) : (
                   <p className="text-sm text-gray-400">
@@ -971,10 +1004,15 @@ export default function SuiviPage() {
             {/* ── Rapprochement ─────────────────────────────────────────── */}
             <section className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
               <div className="px-4 py-3 border-b border-gray-700">
-                <h2 className="text-sm font-semibold text-white">Km réels contre km déclarés</h2>
+                <h2 className="text-sm font-semibold text-white">
+                  {urbain
+                    ? "Km déclarés et rendement de la journée"
+                    : "Km réels contre km déclarés"}
+                </h2>
                 <p className="text-xs text-gray-400 mt-1">
                   Un écart n&apos;est retenu que si la journée est bien couverte et que la
                   déclaration porte sur cette seule journée.
+                  {urbain && " Le rendement demande en plus une journée travaillée d'au moins 30 minutes."}
                 </p>
               </div>
 
@@ -995,6 +1033,14 @@ export default function SuiviPage() {
                         <th scope="col" className="text-right font-semibold px-4 py-3">Km déclarés</th>
                         <th scope="col" className="text-right font-semibold px-4 py-3">Écart</th>
                         <th scope="col" className="text-right font-semibold px-4 py-3">Couverture</th>
+                        {urbain && (
+                          <>
+                            <th scope="col" className="text-right font-semibold px-4 py-3">Recette</th>
+                            <th scope="col" className="text-right font-semibold px-4 py-3">
+                              F&nbsp;/&nbsp;h de service
+                            </th>
+                          </>
+                        )}
                         <th scope="col" className="text-left font-semibold px-4 py-3">Lecture</th>
                       </tr>
                     </thead>
@@ -1020,6 +1066,28 @@ export default function SuiviPage() {
                               (r.coverage ?? 0) >= 0.8 ? "text-gray-300" : TONE.warn}`}>
                               {r.coverage === null ? "—" : `${Math.round(r.coverage * 100)} %`}
                             </td>
+
+                            {/* Ce que la journée a rapporté, rapporté au temps
+                                qu'elle a coûté. Deux chauffeurs à 50 000 F ne se
+                                valent pas si l'un a tenu douze heures et l'autre six. */}
+                            {urbain && (
+                              <>
+                                <td className="px-4 py-3 text-right text-white font-mono tabular-nums">
+                                  {r.repos ? <span className="text-gray-500">repos</span>
+                                    : r.recette == null ? "—"
+                                    : Math.round(r.recette).toLocaleString("fr-FR")}
+                                </td>
+                                {/* Un ratio auquel on ne croit pas ne s'affiche
+                                    pas, même en gris : un chiffre douteux se
+                                    retient mieux qu'une nuance de couleur. */}
+                                <td className="px-4 py-3 text-right text-white font-mono tabular-nums">
+                                  {!r.rendement_exploitable || r.recette_par_heure_service == null
+                                    ? <span className="text-gray-600">—</span>
+                                    : Math.round(r.recette_par_heure_service).toLocaleString("fr-FR")}
+                                </td>
+                              </>
+                            )}
+
                             <td className="px-4 py-3 text-gray-400 text-xs">
                               {r.km_declares === null ? "aucune déclaration validée"
                                 : (r.jours_couverts ?? 1) > 1
