@@ -64,7 +64,7 @@ const FAQ_ITEMS = [
     // Le prix se compte en VÉHICULES ACTIFS, pas en chauffeurs : c'est l'unité
     // des devis, et une page qui en annoncerait une autre créerait un écart
     // entre ce qui est promis et ce qui est facturé.
-    a: "À partir de 35 000 XOF par mois, sans engagement. Le prix suit le nombre de véhicules actifs et les options retenues : la version Entreprise — vos couleurs, exports comptables et rapport mensuel inclus — est à 100 000 XOF par mois jusqu'à dix véhicules, puis 10 000 XOF par véhicule actif supplémentaire. Un véhicule à l'arrêt sur le mois n'est pas facturé, et le nombre de chauffeurs n'est jamais limité. L'essai de 14 jours est gratuit et complet.",
+    a: "Le prix suit le nombre de véhicules actifs, jamais le nombre de chauffeurs. 35 000 XOF par mois jusqu'à trois véhicules, 75 000 jusqu'à sept, et 100 000 en version Entreprise jusqu'à dix — vos couleurs, exports comptables et rapport mensuel inclus. Au-delà, 10 000 XOF par véhicule actif supplémentaire, dans tous les cas. Un véhicule à l'arrêt sur le mois n'est pas facturé. L'essai de 14 jours est gratuit et complet, sans engagement.",
   },
   {
     q: "J'ai déjà des mois d'historique dans un cahier ou un tableur — je les perds ?",
@@ -475,7 +475,7 @@ export default function Home() {
         </div>
         <div className="grid sm:grid-cols-2 gap-6">
           <div className="rounded-2xl p-8" style={surface}>
-            <h3 className="text-lg font-semibold mb-1">Instance dédiée entreprise</h3>
+            <h3 className="text-lg font-semibold mb-1">Instance dédiée</h3>
             <p className="text-sm mb-2" style={{ color: "var(--sk-t3)" }}>Grands comptes, exigences de sécurité élevées</p>
             <p className="mb-6 text-sm font-semibold" style={{ color: "var(--sk-t2)" }}>Sur devis, selon votre périmètre</p>
             <ul className="space-y-3 text-sm" style={{ color: "var(--sk-t2)" }}>
@@ -488,14 +488,16 @@ export default function Home() {
           <div className="rounded-2xl p-8" style={{ ...surface, borderColor: "#f5a623" }}>
             <h3 className="text-lg font-semibold mb-1">SaaS accompagné</h3>
             <p className="text-sm mb-2" style={{ color: "var(--sk-t3)" }}>PME, démarrage rapide</p>
-            <p className="mb-6"><span className="text-2xl font-bold" style={{ color: "#f5a623" }}>À partir de 35 000 XOF</span><span className="text-sm" style={{ color: "var(--sk-t3)" }}> /mois · essai gratuit 14 jours</span></p>
+            <p className="mb-6"><span className="text-2xl font-bold" style={{ color: "#f5a623" }}>À partir de 35 000 XOF</span><span className="text-sm" style={{ color: "var(--sk-t3)" }}> /mois jusqu&apos;à 3 véhicules · essai gratuit 14 jours</span></p>
             {/* La marche est annoncée ici, et non laissée à la découverte du
                 devis : le prix suit le parc, et le dire est le seul moyen
                 qu'un devis Entreprise ne contredise pas cette page. */}
             <p className="text-sm mb-6" style={{ color: "var(--sk-t3)" }}>
-              Jusqu&apos;à <span className="font-semibold" style={{ color: "var(--sk-t2)" }}>100 000 XOF /mois</span> en version
-              Entreprise — vos couleurs, exports comptables et rapport mensuel inclus, dix véhicules —
-              puis 10 000 XOF par véhicule actif supplémentaire. Les chauffeurs ne sont jamais limités.
+              Puis <span className="font-semibold" style={{ color: "var(--sk-t2)" }}>75 000 XOF</span> jusqu&apos;à 7 véhicules,
+              et <span className="font-semibold" style={{ color: "var(--sk-t2)" }}>100 000 XOF</span> en version Entreprise
+              jusqu&apos;à 10 — vos couleurs, exports comptables et rapport mensuel inclus.
+              Au-delà, 10 000 XOF par véhicule actif. Les chauffeurs ne sont jamais limités,
+              et un véhicule à l&apos;arrêt sur le mois n&apos;est pas facturé.
             </p>
             <ul className="space-y-3 text-sm" style={{ color: "var(--sk-t2)" }}>
               <li>Plateforme mutualisée, données isolées</li>

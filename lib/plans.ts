@@ -1,8 +1,25 @@
-export type Plan = "standard" | "pro";
+export type Plan = "standard" | "pro" | "enterprise";
 
+/**
+ * L'unité de facturation est le VÉHICULE ACTIF, jamais le chauffeur.
+ *
+ * Le plafond de chauffeurs a disparu : la page publique et les devis promettent
+ * des chauffeurs illimités, et un logiciel qui refuse le vingt-et-unième
+ * dément la promesse au pire moment. En ajouter un ne coûte rien, ni au client
+ * ni à nous.
+ *
+ * `includedVehicles` est DÉCLARATIF : il sert aux devis, aux offres et à
+ * l'affichage, pas à bloquer la création d'un véhicule. La facturation se fait
+ * à la main, et couper l'outil d'un client qui vient d'acheter une voiture
+ * serait une façon absurde de lui réclamer 10 000 XOF.
+ */
 export interface PlanLimits {
   label: string;
   maxDrivers: number;
+  /** Véhicules actifs compris dans l'abonnement — déclaratif (voir ci-dessus). */
+  includedVehicles: number;
+  /** Prix mensuel du véhicule actif au-delà du forfait. */
+  extraVehicleXOF: number;
   canExportCSV: boolean;
   canCustomBranding: boolean;
   canSalaryAdvance: boolean;
@@ -15,11 +32,15 @@ export interface PlanLimits {
 export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
   standard: {
     label: "Standard",
-    maxDrivers: 20,
+    maxDrivers: Infinity,
+    includedVehicles: 3,
+    extraVehicleXOF: 10000,
     canExportCSV: false,
     canCustomBranding: false,
     canSalaryAdvance: true,
-    canMultiVehicle: false,
+    // Trois véhicules sont compris : le multi-véhicules ne peut plus être
+    // refusé à ce palier sans contredire ce qui est vendu.
+    canMultiVehicle: true,
     canAccessAPI: false,
     price: "35 000 XOF/mois",
     priceXOF: 35000,
@@ -27,6 +48,8 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
   pro: {
     label: "Pro",
     maxDrivers: Infinity,
+    includedVehicles: 7,
+    extraVehicleXOF: 10000,
     canExportCSV: true,
     canCustomBranding: true,
     canSalaryAdvance: true,
@@ -34,6 +57,21 @@ export const PLAN_LIMITS: Record<Plan, PlanLimits> = {
     canAccessAPI: true,
     price: "75 000 XOF/mois",
     priceXOF: 75000,
+  },
+  // Le palier réellement vendu aux flottes (devis NMK du 17/09) : il manquait
+  // ici, si bien qu'un client à 100 000 XOF était compté 75 000 dans le MRR.
+  enterprise: {
+    label: "Entreprise",
+    maxDrivers: Infinity,
+    includedVehicles: 10,
+    extraVehicleXOF: 10000,
+    canExportCSV: true,
+    canCustomBranding: true,
+    canSalaryAdvance: true,
+    canMultiVehicle: true,
+    canAccessAPI: true,
+    price: "100 000 XOF/mois",
+    priceXOF: 100000,
   },
 };
 

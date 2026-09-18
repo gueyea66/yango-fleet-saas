@@ -203,7 +203,7 @@ export default function Dashboard({ superadminKey }: { superadminKey: string }) 
       if(!t.active) suspended++;
       else if(exp) expired++;
       else if(isTrial) trial++;
-      else { active++; mrr+=PLAN_LIMITS[t.plan as "standard"|"pro"]?.priceXOF||0; }
+      else { active++; mrr+=PLAN_LIMITS[t.plan as keyof typeof PLAN_LIMITS]?.priceXOF||0; }
       if(daysLeft!==null&&daysLeft>0&&daysLeft<=7) expiring7++;
       return {
         id:t.id,slug:t.slug,name:t.name,plan:t.plan,active:t.active,
@@ -363,6 +363,7 @@ export default function Dashboard({ superadminKey }: { superadminKey: string }) 
               {[
                 {label:"Standard payant",count:planCounts["standard"]||0,color:"#f5a623",revenue:(planCounts["standard"]||0)*PLAN_LIMITS.standard.priceXOF},
                 {label:"Pro payant",count:planCounts["pro"]||0,color:"#8b5cf6",revenue:(planCounts["pro"]||0)*PLAN_LIMITS.pro.priceXOF},
+                {label:"Entreprise payant",count:planCounts["enterprise"]||0,color:"#22c55e",revenue:(planCounts["enterprise"]||0)*PLAN_LIMITS.enterprise.priceXOF},
                 {label:"En essai",count:kpi!.trialTenants,color:"#374151",revenue:0},
                 {label:"Inactifs",count:kpi!.suspendedTenants+kpi!.expiredTenants,color:"var(--sk-surface)",revenue:0},
               ].map(({label,count,color,revenue})=>(
