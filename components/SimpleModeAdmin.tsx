@@ -11,15 +11,14 @@ import { createClient } from "@/lib/supabase/client";
 import { useDashboardKPIs } from "@/lib/hooks/useDashboardKPIs";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  ResponsiveContainer, Treemap,
+  ResponsiveContainer,
 } from "recharts";
 import { Home, Gauge, Users, LogOut, Car, Plus } from "lucide-react";
 import { displayLabel } from "@/lib/tenant/platformLabel";
 import { isDriverActiveToday } from "@/lib/drivers";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
 import ThemeToggle from "@/components/ThemeToggle";
-
-const EXPENSE_COLORS = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#3b82f6", "#a855f7"];
+import TreemapDepenses from "@/components/TreemapDepenses";
 
 const SALARY_MODELS: { value: string; label: string }[] = [
   { value: "", label: "Config par défaut" },
@@ -31,23 +30,6 @@ const SALARY_MODELS: { value: string; label: string }[] = [
 ];
 
 const xof = (n: number) => Math.round(n || 0).toLocaleString("fr-FR");
-
-function TreemapCell(props: any) {
-  const { x, y, width, height, index, name, value, percent, depth } = props;
-  if (depth === 0 || width <= 0 || height <= 0) return null;
-  const fill = EXPENSE_COLORS[index % EXPENSE_COLORS.length];
-  const showName = width > 60 && height > 28;
-  const showValue = width > 110 && height > 58;
-  const showPercent = width > 110 && height > 78;
-  return (
-    <g>
-      <rect x={x} y={y} width={width} height={height} rx={4} style={{ fill, stroke: "var(--sk-bg)", strokeWidth: 3 }} />
-      {showName && <text x={x + 10} y={y + 22} fill="#fff" fontSize={13} fontWeight={700}>{name}</text>}
-      {showValue && <text x={x + 10} y={y + 42} fill="rgba(255,255,255,0.92)" fontSize={12} fontFamily="ui-monospace, monospace">{xof(value)}</text>}
-      {showPercent && <text x={x + 10} y={y + 62} fill="rgba(255,255,255,0.75)" fontSize={12} fontFamily="ui-monospace, monospace">{typeof percent === "number" ? percent.toFixed(1) : "—"}%</text>}
-    </g>
-  );
-}
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h2 className="text-xs uppercase tracking-widest font-bold mt-7 mb-2.5" style={{ color: "var(--sk-t3)" }}>{children}</h2>;
@@ -481,18 +463,16 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
               <>
                 <SectionTitle>Dépenses par catégorie</SectionTitle>
                 <div className="rounded-2xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
-                  <ResponsiveContainer width="100%" height={240}>
-                    <Treemap
-                      data={kpis.expenseBreakdown.map((cat) => ({ name: displayLabel(cat.type), size: cat.amount, percent: cat.percent }))}
-                      dataKey="size" aspectRatio={16 / 9} isAnimationActive={false}
-                      content={<TreemapCell />}>
-                      <Tooltip contentStyle={chartTooltip}
-                        formatter={(v: any, _n: any, entry: any) => [
-                          `${xof(Number(v))} (${typeof entry?.payload?.percent === "number" ? entry.payload.percent.toFixed(1) : "—"} %)`,
-                          entry?.payload?.name,
-                        ]} />
-                    </Treemap>
-                  </ResponsiveContainer>
+                  {/* Même composant que le mode avancé : le propriétaire qui
+                      passe d'un mode à l'autre doit lire le même graphique.
+                      Le CA est celui affiché plus haut en recettes. */}
+                  <TreemapDepenses
+                    breakdown={kpis.expenseBreakdown}
+                    ca={kpis.brutYango + kpis.horsYango}
+                    hauteur={240}
+                    label={displayLabel}
+                    tooltipStyle={chartTooltip}
+                  />
                 </div>
               </>
             )}
