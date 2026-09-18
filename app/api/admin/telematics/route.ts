@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     // ── Boîtiers du tenant, avec leur véhicule ───────────────────────────
     const { data: devices, error: devErr } = await admin
       .from("telematics_devices")
-      .select("id, external_id, vendor, model, label, active, last_seen_at, vehicle_id")
+      .select("id, external_id, vendor, model, label, active, last_seen_at, vehicle_id, usage_profile")
       .eq("tenant_id", tenantId);
 
     if (devErr) {
@@ -186,6 +186,9 @@ export async function GET(req: NextRequest) {
       vehicles: vehicles ?? [],
       selectedDeviceId: selected.id,
       selectedVehicleId: selected.vehicle_id,
+      // Comment ce véhicule est exploité : la lecture de la journée en dépend,
+      // pas les chiffres eux-mêmes (migration 059).
+      usageProfile: selected.usage_profile ?? "mission",
       positions: sample(positions ?? []),
       positionCount: positions?.length ?? 0,
       lastPosition: lastPos,

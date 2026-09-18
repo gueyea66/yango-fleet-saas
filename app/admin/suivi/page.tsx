@@ -84,8 +84,11 @@ type Payload = {
             evidence: Record<string, unknown> }[];
   trips: Trip[];
   daily: { day: string; distance_m: number; moving_s: number; idle_s: number;
-           trips: number; coverage: number; points: number }[];
+           trips: number; coverage: number; points: number;
+           first_movement_at: string | null; last_movement_at: string | null }[];
   reconciliation: Recon[];
+  /** Comment ce véhicule est exploité (migration 059). */
+  usageProfile?: "mission" | "urbain";
 };
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -479,6 +482,36 @@ export default function SuiviPage() {
   const here = fixes[Math.min(cursor, Math.max(0, fixes.length - 1))];
   const isDemo = device?.vendor === "simulator";
 
+  /**
+   * Profil d'usage (migration 059) : mêmes positions, mêmes kilomètres, lecture
+   * différente. Pour une exploitation de mission — un camion qui part chargé et
+   * revient — le trajet est l'unité de travail. Pour une exploitation urbaine —
+   * VTC, taxi — il ne veut plus rien dire : la journée est une amplitude de
+   * service ponctuée d'arrêts clients, et c'est elle qui se pilote.
+   *
+   * Aucun chiffre n'est recalculé ici : un nombre qui changerait selon la
+   * manière de le regarder ne serait plus une mesure.
+   */
+  const urbain = data?.usageProfile === "urbain";
+  const service = (() => {
+    if (!dayAgg?.first_movement_at || !dayAgg?.last_movement_at) return null;
+    const amplitudeS = Math.max(
+      0,
+      (Date.parse(dayAgg.last_movement_at) - Date.parse(dayAgg.first_movement_at)) / 1000,
+    );
+    return {
+      debut: dayAgg.first_movement_at,
+      fin: dayAgg.last_movement_at,
+      amplitudeS,
+      // Bornée à 1 : un arrondi ne doit pas produire une barre qui déborde.
+      partMouvement: amplitudeS > 0 ? Math.min(1, dayAgg.moving_s / amplitudeS) : 0,
+      // Les arrêts courts (client qui monte, feu rouge) sont dans le roulage ;
+      // seuls les arrêts longs marquent une pause dans le service.
+      arretsLongs: (data?.events ?? []).filter((e) => e.type === "LONG_STOP").length,
+      kmParHeure: amplitudeS > 0 ? (dayAgg.distance_m / 1000) / (amplitudeS / 3600) : 0,
+    };
+  })();
+
   return (
     <div className="min-h-screen bg-gray-900 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
@@ -622,7 +655,9 @@ export default function SuiviPage() {
                   <span className="text-sm text-gray-400"> km</span>
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  {dayAgg ? `${dayAgg.trips} trajet${dayAgg.trips > 1 ? "s" : ""}` : "pas encore calculé"}
+                  {!dayAgg ? "pas encore calculé"
+                    : urbain ? `${dayAgg.trips} séquence${dayAgg.trips > 1 ? "s" : ""} de roulage`
+                    : `${dayAgg.trips} trajet${dayAgg.trips > 1 ? "s" : ""}`}
                 </p>
               </article>
 
@@ -647,6 +682,84 @@ export default function SuiviPage() {
                 </p>
               </article>
             </div>
+
+            {/* ── Journée de service (exploitation urbaine) ───────────────
+                Une journée de VTC n'est pas une suite de missions : compter
+                les trajets n'y apprend rien. Ce qui se pilote, c'est
+                l'amplitude, le temps réellement roulé et le temps mort. */}
+            {urbain && (
+              <section className="bg-gray-800 border border-gray-700 rounded-lg p-4 mb-6">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 mb-4">
+                  <h2 className="text-sm font-semibold text-white">Journée de service</h2>
+                  <p className="text-xs text-gray-500">
+                    Exploitation urbaine — ce qui se pilote est la journée, pas le trajet
+                  </p>
+                </div>
+
+                {service ? (
+                  <>
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div>
+                        <p className="text-xs uppercase text-gray-400 tracking-widest font-semibold">Amplitude</p>
+                        <p className="text-xl font-bold text-white font-mono mt-1 tabular-nums">
+                          {fmtDuration(service.amplitudeS)}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1 font-mono tabular-nums">
+                          {hhmm(service.debut)} → {hhmm(service.fin)}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase text-gray-400 tracking-widest font-semibold">Temps mort</p>
+                        <p className={`text-xl font-bold font-mono mt-1 tabular-nums ${
+                          service.partMouvement < 0.4 ? TONE.warn : "text-white"}`}>
+                          {fmtDuration(Math.max(0, service.amplitudeS - dayAgg!.moving_s))}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1 tabular-nums">
+                          {Math.round((1 - service.partMouvement) * 100)} % du service
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase text-gray-400 tracking-widest font-semibold">Pauses longues</p>
+                        <p className="text-xl font-bold text-white font-mono mt-1 tabular-nums">
+                          {service.arretsLongs}
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          arrêt{service.arretsLongs > 1 ? "s" : ""} de plus de 20 min
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase text-gray-400 tracking-widest font-semibold">Rendement</p>
+                        <p className="text-xl font-bold text-white font-mono mt-1 tabular-nums">
+                          {service.kmParHeure.toFixed(1)}
+                          <span className="text-sm text-gray-400"> km/h</span>
+                        </p>
+                        <p className="text-xs text-gray-500 mt-1">rapporté à l&apos;amplitude</p>
+                      </div>
+                    </div>
+
+                    {/* La proportion se lit mieux d'un coup d'œil qu'en
+                        comparant deux durées. */}
+                    <div
+                      className="mt-4 flex h-2 rounded-full overflow-hidden bg-gray-700"
+                      role="img"
+                      aria-label={`${Math.round(service.partMouvement * 100)} % du service en mouvement, le reste à l'arrêt`}
+                    >
+                      <div
+                        className="bg-emerald-500"
+                        style={{ width: `${service.partMouvement * 100}%` }}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2 tabular-nums">
+                      {fmtDuration(dayAgg!.moving_s)} en mouvement sur {fmtDuration(service.amplitudeS)} de service
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-gray-400">
+                    Aucun mouvement enregistré ce jour : la journée de service n&apos;a pas commencé.
+                  </p>
+                )}
+              </section>
+            )}
 
             <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-6">
               {/* ── Carte et rejeu ──────────────────────────────────────── */}
@@ -753,12 +866,22 @@ export default function SuiviPage() {
 
               {/* ── Trajets du jour ─────────────────────────────────────── */}
               <section className="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden flex flex-col">
-                <h2 className="px-4 py-3 text-sm font-semibold text-white border-b border-gray-700">
-                  Trajets détectés
-                </h2>
+                <div className="px-4 py-3 border-b border-gray-700">
+                  <h2 className="text-sm font-semibold text-white">
+                    {urbain ? "Séquences de roulage" : "Trajets détectés"}
+                  </h2>
+                  {urbain && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      Séparées par un arrêt de plus de 5 minutes — une course client
+                      n&apos;est pas forcément une séquence.
+                    </p>
+                  )}
+                </div>
                 {(data.trips ?? []).length === 0 ? (
                   <div className="p-6 text-center text-gray-400 text-sm">
-                    Aucun trajet reconstruit pour cette journée.
+                    {urbain
+                      ? "Aucune séquence de roulage pour cette journée."
+                      : "Aucun trajet reconstruit pour cette journée."}
                   </div>
                 ) : (
                   <ul className="divide-y divide-gray-700 overflow-y-auto max-h-[520px]">

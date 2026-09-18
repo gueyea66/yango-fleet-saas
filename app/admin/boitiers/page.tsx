@@ -34,6 +34,8 @@ type Device = {
   installedAt: string | null;
   originalServer: string | null;
   hasPassword: boolean;
+  /** Comment le véhicule est exploité : change la lecture, pas les calculs. */
+  usageProfile: "mission" | "urbain";
   plan: { ok: boolean; errors: string[]; steps: Step[]; rollback: Step | null };
 };
 type Vehicle = { id: string; plate: string; name: string };
@@ -373,6 +375,28 @@ export default function BoitiersPage() {
                       <option key={v.id} value={v.id}>{v.plate}{v.name ? ` · ${v.name}` : ""}</option>
                     ))}
                   </select>
+                </div>
+
+                {/* Profil d'usage : il ne change aucun calcul, seulement la
+                    manière dont l'écran de suivi lit la journée. Un camion de
+                    mission et un taxi produisent les mêmes kilomètres, mais ne
+                    se pilotent pas avec les mêmes indicateurs. */}
+                <div>
+                  <label htmlFor="profil" className="block text-sm font-medium text-gray-200 mb-1.5">
+                    Type d&apos;exploitation
+                  </label>
+                  <select id="profil" value={device.usageProfile ?? "mission"} disabled={busy}
+                    onChange={async (e) => { if (await send("PATCH", { id: device.id, action: "profile", usageProfile: e.target.value })) await load(); }}
+                    className={`${inputCls} cursor-pointer`}>
+                    <option value="mission">Mission — le véhicule part et revient (transport, chantier)</option>
+                    <option value="urbain">Service urbain — VTC, taxi, tournée à arrêts multiples</option>
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    {(device.usageProfile ?? "mission") === "urbain"
+                      ? "Le suivi met en avant la journée de service : amplitude, temps mort, pauses longues."
+                      : "Le suivi met en avant les trajets : départ, arrivée, durée, vitesse."}
+                    {" "}Les kilomètres mesurés sont les mêmes dans les deux cas.
+                  </p>
                 </div>
 
                 {/* Relevé RCONF : condition de la bascule */}

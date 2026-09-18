@@ -54,7 +54,7 @@ function scrubRconf(text: string): string {
 const DEVICE_COLUMNS =
   "id, vehicle_id, vendor, model, external_id, protocol, label, active, last_seen_at, " +
   "original_server_ip, original_server_port, sms_password, firmware, apn, " +
-  "upload_interval_s, rconf_at, installed_at, created_at";
+  "upload_interval_s, rconf_at, installed_at, created_at, usage_profile";
 
 function present(d: Record<string, any>, plates: Map<string, string>) {
   const gw = gateway();
@@ -83,6 +83,7 @@ function present(d: Record<string, any>, plates: Map<string, string>) {
       : null,
     hasPassword: Boolean(d.sms_password),
     uploadIntervalS: d.upload_interval_s,
+    usageProfile: d.usage_profile ?? "mission",
     plan,
   };
 }
@@ -246,6 +247,17 @@ export async function PATCH(req: NextRequest) {
           warnings = ["Bascule confirmée : le boîtier pointe vers M3A. Le chemin de retour d'origine est conservé."];
         }
         warnings = [...warnings, ...r.warnings];
+        break;
+      }
+      case "profile": {
+        // Le profil ne touche à aucun calcul : il dit comment LIRE la journée.
+        // Un chiffre qui changerait selon la manière de le regarder ne serait
+        // plus une mesure.
+        const profil = String(body.usageProfile ?? "");
+        if (profil !== "mission" && profil !== "urbain") {
+          fail(400, "Profil d'usage inconnu.");
+        }
+        patch.usage_profile = profil;
         break;
       }
       case "activate":
