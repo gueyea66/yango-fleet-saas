@@ -17,13 +17,15 @@
  * permet de rejouer l'historique quand la méthode change, sans jamais toucher
  * aux positions brutes.
  *
+ * 1.3.0 — un arrêt se juge sur la géométrie, plus seulement sur la durée :
+ *         un embouteillage ne coupe plus une course en deux.
  * 1.2.0 — la couverture tient compte de la déperdition diffuse de points,
  *         pas seulement des coupures franches.
  * 1.1.0 — la couverture se mesure sur la journée de travail observée, et
  *         l'interruption nocturne n'est plus comptée comme une panne.
  * 1.0.0 — première version (couverture faussée par les nuits).
  */
-export const METHOD_VERSION = "trips/1.2.0";
+export const METHOD_VERSION = "trips/1.3.0";
 
 export interface RawPoint {
   recordedAt: string;
@@ -36,6 +38,19 @@ export interface RawPoint {
 export interface TripParams {
   /** Durée d'immobilité qui clôt un trajet (s). */
   stopMinS: number;
+  /**
+   * Rayon dans lequel le véhicule doit être resté pour que l'immobilité
+   * compte comme un arrêt (m).
+   *
+   * La durée seule ne distingue pas un arrêt d'un embouteillage : à Dakar, un
+   * bouchon dépasse couramment cinq minutes, et le découpage par le temps
+   * coupait alors une course en deux. Or un véhicule pris dans la circulation
+   * n'est jamais immobile — il avance, lentement mais continûment, cent à
+   * trois cents mètres pendant que l'horloge tourne. C'est la géométrie qui
+   * les sépare, pas la durée. Seuil choisi bien au-dessus du bruit GPS
+   * (≈ 15 m) et bien en dessous de toute progression réelle.
+   */
+  stopRadiusM: number;
   /** Écart entre deux points au-delà duquel on parle de saut de fix (m). */
   jumpMaxM: number;
   /** En deçà, le véhicule est considéré à l'arrêt (km/h). */
@@ -65,6 +80,7 @@ export interface TripParams {
 
 export const DEFAULT_PARAMS: TripParams = {
   stopMinS: 300,
+  stopRadiusM: 50,
   jumpMaxM: 3000,
   movingSpeedKmh: 5,
   movingStepM: 20,
@@ -241,11 +257,44 @@ export function buildTrips(
   let current: Segment[] = [];
   let pendingStopS = 0;
   let pendingStopStart: number | null = null;
+  let pendingStopMuet = false;
+  let bouchonsAbsorbes = 0;
+
+  /**
+   * L'immobilité en cours est-elle un vrai arrêt ?
+   *
+   * Le temps ne suffit pas à répondre : un embouteillage immobilise les
+   * compteurs sans immobiliser le véhicule. On regarde donc où il se trouve
+   * par rapport au début de l'immobilité. S'il a progressé, c'est de la
+   * circulation dense : la course continue, et la fenêtre repart d'ici pour
+   * qu'un véritable arrêt, plus loin, soit tout de même reconnu.
+   */
+  const arretConfirme = (idxCourant: number): boolean => {
+    if (pendingStopS < p.stopMinS || pendingStopStart === null) return false;
+    // Le raisonnement géométrique suppose d'avoir vu le véhicule pendant toute
+    // l'immobilité. Après un silence du boîtier — une nuit, une coupure — on
+    // n'a rien vu : le réveil à cinq kilomètres de là n'est pas une progression
+    // au pas, c'est un trou. Le trajet se ferme, et l'écart se lit dans les
+    // événements GPS_OFFLINE plutôt que d'être avalé dans une course fictive.
+    if (pendingStopMuet) return true;
+    const depuis = clean[pendingStopStart];
+    const ici = clean[idxCourant];
+    const ecartM = haversineM(
+      depuis.latitude, depuis.longitude, ici.latitude, ici.longitude,
+    );
+    if (ecartM <= p.stopRadiusM) return true;
+    bouchonsAbsorbes++;
+    pendingStopS = 0;
+    pendingStopStart = idxCourant;
+    pendingStopMuet = false;
+    return false;
+  };
 
   const flush = () => {
     if (current.length === 0) return;
     const trip = assembleTrip(current, clean, p);
     if (trip) {
+      trip.evidence = { ...trip.evidence, bouchons_absorbes: bouchonsAbsorbes };
       const idx = trips.length;
       trips.push(trip);
       events.push({
@@ -268,12 +317,14 @@ export function buildTrips(
         evidence: {
           points: trip.points,
           distance_m: trip.distanceM,
-          methode: `immobilité ≥ ${p.stopMinS} s`,
+          methode: `immobilité ≥ ${p.stopMinS} s dans un rayon de ${p.stopRadiusM} m`,
+          bouchons_absorbes: bouchonsAbsorbes,
         },
         methodVersion: METHOD_VERSION,
       });
     }
     current = [];
+    bouchonsAbsorbes = 0;
   };
 
   for (const s of segs) {
@@ -296,14 +347,16 @@ export function buildTrips(
     }
 
     if (s.moving) {
-      if (pendingStopS >= p.stopMinS) flush();
+      if (arretConfirme(s.fromIdx)) flush();
       // Un arrêt court fait partie du trajet (feu rouge, client) : on le garde.
       pendingStopS = 0;
       pendingStopStart = null;
+      pendingStopMuet = false;
       current.push(s);
     } else {
       if (pendingStopStart === null) pendingStopStart = s.fromIdx;
       pendingStopS += s.dtS;
+      if (s.gap) pendingStopMuet = true;
 
       if (pendingStopS >= p.longStopS && pendingStopStart !== null) {
         const at = clean[pendingStopStart];
@@ -323,8 +376,8 @@ export function buildTrips(
           });
         }
       }
-      if (pendingStopS >= p.stopMinS) flush();
-      else if (current.length > 0) current.push(s); // arrêt court, dans le trajet
+      if (arretConfirme(s.toIdx)) flush();
+      else if (current.length > 0) current.push(s); // arrêt court ou bouchon : dans le trajet
     }
   }
   flush();
