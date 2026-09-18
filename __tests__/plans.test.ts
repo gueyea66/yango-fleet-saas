@@ -1,28 +1,55 @@
 import { getPlanLimits, canDo, getTrialStatus, PLAN_LIMITS } from "../lib/plans";
 
 describe("PLAN_LIMITS", () => {
-  test("standard: maxDrivers = 20", () => {
-    expect(PLAN_LIMITS.standard.maxDrivers).toBe(20);
+  // L'unité facturée est le véhicule actif. Aucun palier ne plafonne les
+  // chauffeurs : la page publique et les devis promettent l'inverse, et un
+  // quota qui refuserait le vingt-et-unième démentirait la promesse.
+  test("aucun palier ne plafonne les chauffeurs", () => {
+    for (const p of Object.values(PLAN_LIMITS)) {
+      expect(p.maxDrivers).toBe(Infinity);
+    }
   });
 
-  test("pro: maxDrivers = Infinity", () => {
-    expect(PLAN_LIMITS.pro.maxDrivers).toBe(Infinity);
+  test("les véhicules compris suivent le barème public 3 / 7 / 10", () => {
+    expect(PLAN_LIMITS.standard.includedVehicles).toBe(3);
+    expect(PLAN_LIMITS.pro.includedVehicles).toBe(7);
+    expect(PLAN_LIMITS.enterprise.includedVehicles).toBe(10);
+  });
+
+  test("le véhicule supplémentaire vaut 10 000 XOF dans tous les paliers", () => {
+    for (const p of Object.values(PLAN_LIMITS)) {
+      expect(p.extraVehicleXOF).toBe(10000);
+    }
+  });
+
+  // Le barème se referme sur lui-même : chaque palier s'arrête là où le
+  // suivant devient moins cher, sinon un client resterait piégé au mauvais.
+  test("chaque palier cède au suivant au bon nombre de véhicules", () => {
+    const cout = (p: keyof typeof PLAN_LIMITS, vehicules: number) => {
+      const l = PLAN_LIMITS[p];
+      return l.priceXOF + Math.max(0, vehicules - l.includedVehicles) * l.extraVehicleXOF;
+    };
+    expect(cout("standard", 7)).toBe(PLAN_LIMITS.pro.priceXOF);
+    expect(cout("pro", 10)).toBeGreaterThan(PLAN_LIMITS.enterprise.priceXOF);
+  });
+
+  test("le palier vendu aux flottes existe et vaut 100 000", () => {
+    expect(PLAN_LIMITS.enterprise.priceXOF).toBe(100000);
+    expect(PLAN_LIMITS.enterprise.canExportCSV).toBe(true);
+    expect(PLAN_LIMITS.enterprise.canCustomBranding).toBe(true);
   });
 });
 
 describe("getPlanLimits", () => {
-  test("returns standard limits for 'standard'", () => {
-    expect(getPlanLimits("standard").maxDrivers).toBe(20);
+  test("rend le palier demandé", () => {
+    expect(getPlanLimits("standard").includedVehicles).toBe(3);
+    expect(getPlanLimits("pro").includedVehicles).toBe(7);
+    expect(getPlanLimits("enterprise").includedVehicles).toBe(10);
   });
 
-  test("returns pro limits for 'pro'", () => {
-    expect(getPlanLimits("pro").maxDrivers).toBe(Infinity);
-  });
-
-  test("unknown plan falls back to standard", () => {
-    expect(getPlanLimits("enterprise").maxDrivers).toBe(20);
-    expect(getPlanLimits("trial").maxDrivers).toBe(20);
-    expect(getPlanLimits("").maxDrivers).toBe(20);
+  test("un plan inconnu retombe sur standard", () => {
+    expect(getPlanLimits("trial").includedVehicles).toBe(3);
+    expect(getPlanLimits("").includedVehicles).toBe(3);
   });
 });
 

@@ -8,7 +8,7 @@ import BrandingEditor from "./BrandingEditor";
 
 // Key is verified server-side via /api/superadmin/verify
 
-const PLAN_COLORS: Record<string, string> = { standard: "#f5a623", pro: "#8b5cf6" };
+const PLAN_COLORS: Record<string, string> = { standard: "#f5a623", pro: "#8b5cf6", enterprise: "#22c55e" };
 
 const HORIZON_COLORS: Record<string, string> = {
   "14d": "#22c55e", "7d": "#f5a623", "3d": "#f97316", "1d": "#ef4444", expired: "#ef4444",
@@ -524,7 +524,8 @@ export default function SuperAdminPage() {
               <div style={{ fontWeight: 700, color: PLAN_COLORS[plan], fontSize: 13, marginBottom: 4 }}>{l.label}</div>
               <div style={{ color: "#f5a623", fontSize: 12, marginBottom: 6 }}>{l.price}</div>
               <div style={{ color: "#6b7280", fontSize: 11 }}>
-                {l.maxDrivers === Infinity ? "Chauffeurs illimités" : `Max ${l.maxDrivers} chauffeurs`}
+                {`${l.includedVehicles} véhicules · +${l.extraVehicleXOF.toLocaleString("fr-FR")} au-delà`}
+                {" · Chauffeurs illimités"}
                 {l.canExportCSV ? " · Export CSV" : ""}
                 {l.canCustomBranding ? " · Branding" : ""}
                 {l.canAccessAPI ? " · API" : ""}
