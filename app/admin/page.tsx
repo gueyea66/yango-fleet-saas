@@ -2460,6 +2460,14 @@ function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () 
 function DailyTable({ data, periodFrom, periodTo }: { data: any[]; periodFrom: string; periodTo: string }) {
   const [filter, setFilter] = useState("");
   const xof = (n: number) => n > 0 ? new Intl.NumberFormat("fr-FR").format(Math.round(n)) : "—";
+  // Un jour déficitaire est une info, pas un vide : on affiche « - 3 630 » au lieu de « — ».
+  // Seul le zéro réel reste neutralisé.
+  const xofSigned = (n: number) => {
+    const r = Math.round(n || 0);
+    if (r === 0) return "—";
+    const abs = new Intl.NumberFormat("fr-FR").format(Math.abs(r));
+    return r < 0 ? `- ${abs}` : abs;
+  };
   const filtered = filter ? data.filter((d: any) => d.date === filter) : data;
   const tot = { brutYango: 0, horsYango: 0, netRecettes: 0, depenses: 0, netFinal: 0, km: 0, nbCourses: 0 };
   filtered.forEach((d: any) => {
@@ -2473,7 +2481,7 @@ function DailyTable({ data, periodFrom, periodTo }: { data: any[]; periodFrom: s
     { k: "horsYango", label: `Hors ${platLabel()}`, fmt: xof, color: () => "#a855f7" },
     { k: "netRecettes", label: "Net recettes", fmt: xof, color: () => "#3b82f6" },
     { k: "depenses", label: "Dépenses", fmt: (v: number) => v > 0 ? `- ${xof(v)}` : "—", color: () => "#ef4444" },
-    { k: "netFinal", label: "NET FINAL", fmt: xof, color: (v: number) => v >= 0 ? "#22c55e" : "#ef4444" },
+    { k: "netFinal", label: "NET FINAL", fmt: xofSigned, color: (v: number) => v >= 0 ? "#22c55e" : "#ef4444" },
     { k: "km", label: "KM", fmt: (v: number) => v > 0 ? `${v} km` : "—", color: () => "var(--sk-t3)" },
     { k: "nbCourses", label: "Courses", fmt: (v: number) => v > 0 ? String(v) : "—", color: () => "var(--sk-t3)" },
   ];
@@ -2520,7 +2528,7 @@ function DailyTable({ data, periodFrom, periodTo }: { data: any[]; periodFrom: s
               <td className="px-3 py-2.5 font-mono font-bold" style={{ color: "#a855f7" }}>{xof(tot.horsYango)}</td>
               <td className="px-3 py-2.5 font-mono font-bold" style={{ color: "#3b82f6" }}>{xof(tot.netRecettes)}</td>
               <td className="px-3 py-2.5 font-mono font-bold" style={{ color: "#ef4444" }}>- {xof(tot.depenses)}</td>
-              <td className="px-3 py-2.5 font-mono font-bold" style={{ color: tot.netFinal >= 0 ? "#22c55e" : "#ef4444" }}>{xof(tot.netFinal)}</td>
+              <td className="px-3 py-2.5 font-mono font-bold" style={{ color: tot.netFinal >= 0 ? "#22c55e" : "#ef4444" }}>{xofSigned(tot.netFinal)}</td>
               <td className="px-3 py-2.5 font-mono" style={{ color: "var(--sk-t3)" }}>{tot.km > 0 ? `${tot.km} km` : "—"}</td>
               <td className="px-3 py-2.5 font-mono" style={{ color: "var(--sk-t3)" }}>{tot.nbCourses > 0 ? tot.nbCourses : "—"}</td>
             </tr>
@@ -3998,6 +4006,7 @@ function KPICard({ label, value, color, sub, negative, big, hideWhenZero, showZe
   if (hideWhenZero && !showZeros && Math.round(value) === 0) return null;
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(Math.abs(n)));
   const txt = xof(value);
+  const signed = negative || Math.round(value) < 0;
   // Présentation épurée (retour Abdou 04/09) : devise annoncée une fois en
   // entête de page — jamais collée aux chiffres ; le nombre ne déborde ni ne
   // passe à la ligne (taille adaptée à la longueur + nowrap).
@@ -4008,7 +4017,7 @@ function KPICard({ label, value, color, sub, negative, big, hideWhenZero, showZe
     <div className="rounded-xl p-4 min-w-0" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderLeft: `3px solid ${color}` }}>
       <div className="text-xs uppercase tracking-wider font-semibold mb-2" style={{ color: "var(--sk-t3)" }}>{label}</div>
       <div className={`font-mono font-bold whitespace-nowrap ${size}`} style={{ color, fontVariantNumeric: "tabular-nums" }}>
-        {negative ? "- " : ""}{txt}
+        {signed ? "- " : ""}{txt}
       </div>
       {sub && <div className="text-xs mt-1" style={{ color: "var(--sk-t4)" }}>{sub}</div>}
     </div>
