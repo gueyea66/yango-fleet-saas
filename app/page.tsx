@@ -61,7 +61,10 @@ const FAQ_ITEMS = [
   },
   {
     q: "Combien ça coûte ?",
-    a: "À partir de 35 000 XOF par mois pour une flotte jusqu'à 20 chauffeurs, sans engagement. L'essai de 14 jours est gratuit et complet — les conditions précises s'ajustent à votre périmètre lors de la démonstration.",
+    // Le prix se compte en VÉHICULES ACTIFS, pas en chauffeurs : c'est l'unité
+    // des devis, et une page qui en annoncerait une autre créerait un écart
+    // entre ce qui est promis et ce qui est facturé.
+    a: "À partir de 35 000 XOF par mois, sans engagement. Le prix suit le nombre de véhicules actifs et les options retenues : la version Entreprise — vos couleurs, exports comptables et rapport mensuel inclus — est à 100 000 XOF par mois jusqu'à dix véhicules, puis 10 000 XOF par véhicule actif supplémentaire. Un véhicule à l'arrêt sur le mois n'est pas facturé, et le nombre de chauffeurs n'est jamais limité. L'essai de 14 jours est gratuit et complet.",
   },
   {
     q: "J'ai déjà des mois d'historique dans un cahier ou un tableur — je les perds ?",
@@ -92,7 +95,15 @@ export default function Home() {
     description:
       "Gestion de flotte pour le transport à Dakar : déclaration chauffeur en 2 minutes, validation avec justificatifs, résultat net par véhicule.",
     url: "https://m3afleet.com",
-    offers: { "@type": "Offer", price: "35000", priceCurrency: "XOF", description: "À partir de 35 000 FCFA/mois — essai gratuit 14 jours" },
+    // AggregateOffer et non Offer : publier « 35000 » comme prix unique laissait
+    // les moteurs et les assistants répondre « M3A Fleet coûte 35 000 XOF »,
+    // sans le « à partir de » — un chiffre hors contexte, impossible à tenir
+    // face à un devis Entreprise.
+    offers: {
+      "@type": "AggregateOffer", priceCurrency: "XOF",
+      lowPrice: "35000", highPrice: "100000", offerCount: "3",
+      description: "De 35 000 à 100 000 FCFA/mois selon le nombre de véhicules actifs — essai gratuit 14 jours",
+    },
     provider: { "@type": "Organization", name: "M3A Group", address: { "@type": "PostalAddress", addressLocality: "Dakar", addressCountry: "SN" }, email: "contact@m3afleet.com", telephone: "+221787600330" },
   };
 
@@ -478,9 +489,17 @@ export default function Home() {
             <h3 className="text-lg font-semibold mb-1">SaaS accompagné</h3>
             <p className="text-sm mb-2" style={{ color: "var(--sk-t3)" }}>PME, démarrage rapide</p>
             <p className="mb-6"><span className="text-2xl font-bold" style={{ color: "#f5a623" }}>À partir de 35 000 XOF</span><span className="text-sm" style={{ color: "var(--sk-t3)" }}> /mois · essai gratuit 14 jours</span></p>
+            {/* La marche est annoncée ici, et non laissée à la découverte du
+                devis : le prix suit le parc, et le dire est le seul moyen
+                qu'un devis Entreprise ne contredise pas cette page. */}
+            <p className="text-sm mb-6" style={{ color: "var(--sk-t3)" }}>
+              Jusqu&apos;à <span className="font-semibold" style={{ color: "var(--sk-t2)" }}>100 000 XOF /mois</span> en version
+              Entreprise — vos couleurs, exports comptables et rapport mensuel inclus, dix véhicules —
+              puis 10 000 XOF par véhicule actif supplémentaire. Les chauffeurs ne sont jamais limités.
+            </p>
             <ul className="space-y-3 text-sm" style={{ color: "var(--sk-t2)" }}>
               <li>Plateforme mutualisée, données isolées</li>
-              <li>Marque blanche (logo, couleurs)</li>
+              <li>Marque blanche (logo, couleurs) — à partir de la version Pro</li>
               <li>Essai gratuit de 14 jours, sans engagement</li>
               <li>Espace prêt immédiatement</li>
               <li>Support standard</li>
