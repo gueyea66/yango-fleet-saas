@@ -225,6 +225,32 @@ describe("buildTrips — honnêteté de la mesure", () => {
   });
 });
 
+describe("buildTrips — trajet en cours", () => {
+  const pts = track({ startIso: "2026-09-18T08:00:00Z", count: 40, speedKmh: 40 });
+  const finIso = pts[pts.length - 1].recordedAt;
+
+  it("marque en cours le trajet dont le véhicule roule encore", () => {
+    // Calcul lancé 2 minutes après le dernier point : aucun arrêt de fin
+    // n'a pu être constaté.
+    const { trips } = buildTrips(pts, { maintenant: Date.parse(finIso) + 120_000 });
+    expect(trips).toHaveLength(1);
+    expect(trips[0].enCours).toBe(true);
+    expect(trips[0].evidence.etat).toBe("en cours au moment du calcul");
+  });
+
+  it("ne marque pas en cours un trajet suivi d'un vrai arrêt", () => {
+    // Calcul lancé bien après le seuil d'arrêt : le trajet est termine.
+    const { trips } = buildTrips(pts, { maintenant: Date.parse(finIso) + 3_600_000 });
+    expect(trips[0].enCours).toBe(false);
+  });
+
+  it("ne marque jamais rien quand aucune heure de référence n'est donnée", () => {
+    // Rejeu d'historique : le résultat doit être identique à chaque exécution.
+    const { trips } = buildTrips(pts);
+    expect(trips[0].enCours).toBe(false);
+  });
+});
+
 describe("buildTrips — agrégat journalier", () => {
   it("sépare les journées et calcule les bornes de service", () => {
     const jour1 = track({ startIso: "2026-09-15T08:00:00Z", count: 30, speedKmh: 40 });

@@ -33,6 +33,8 @@ export type NotifType =
   | "report_available"
   | "vehicle_expiry"
   | "advance_unjustified" // avance propriétaire sans charges déclarées à J+7/J+14
+  | "gps_silencieux"      // un boîtier qui émettait s'est tu (panne, réseau, débranchement)
+  | "gps_retabli"         // le même boîtier réémet
   | "push_test";          // bouton « Tester les notifications » (cloche)
 
 export async function sendNotification(

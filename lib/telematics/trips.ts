@@ -54,6 +54,13 @@ export interface TripParams {
   expectedIntervalS: number;
   /** Décalage du jour local par rapport à UTC (h). Dakar = 0 toute l'année. */
   localOffsetH: number;
+  /**
+   * Horodatage de référence (ms) pour décider qu'un trajet est ENCORE EN
+   * COURS. Absent : aucun trajet n'est marqué en cours — le calcul reste
+   * purement déterministe, ce qui est indispensable aux tests et au rejeu de
+   * l'historique.
+   */
+  maintenant?: number;
 }
 
 export const DEFAULT_PARAMS: TripParams = {
@@ -88,6 +95,13 @@ export interface Trip {
   confidence: number;
   evidence: Record<string, number | string>;
   methodVersion: string;
+  /**
+   * Trajet non terminé au moment du calcul : le véhicule roulait encore.
+   * L'heure et le lieu d'arrivée sont ceux du DERNIER POINT CONNU, pas d'une
+   * arrivée réelle — l'écran doit le dire, sinon un trajet en cours serait lu
+   * comme un trajet accompli.
+   */
+  enCours: boolean;
 }
 
 export type DerivedEventType =
@@ -315,6 +329,25 @@ export function buildTrips(
   }
   flush();
 
+  // ── Trajet encore en cours ───────────────────────────────────────────
+  // Un véhicule qui roule au moment du calcul a un trajet ouvert : son
+  // arrivée n'existe pas encore. Le marquer évite qu'un gestionnaire lise
+  // « arrivé à 14h32 » alors que le camion est toujours sur la route.
+  // Critère : le dernier point est trop récent pour qu'un arrêt de fin de
+  // trajet ait pu être constaté.
+  const dernier = trips[trips.length - 1];
+  if (p.maintenant && dernier) {
+    const silenceDepuisFin = p.maintenant - Date.parse(dernier.endedAt);
+    if (silenceDepuisFin < p.stopMinS * 1000) {
+      dernier.enCours = true;
+      dernier.evidence = {
+        ...dernier.evidence,
+        etat: "en cours au moment du calcul",
+        dernier_point_il_y_a_s: Math.round(silenceDepuisFin / 1000),
+      };
+    }
+  }
+
   return { trips, events, daily: aggregateDaily(trips, segs, clean, p), discarded };
 }
 
@@ -373,6 +406,7 @@ function assembleTrip(
       sauts_ecartes: jumpsDropped,
     },
     methodVersion: METHOD_VERSION,
+    enCours: false,
   };
 }
 
