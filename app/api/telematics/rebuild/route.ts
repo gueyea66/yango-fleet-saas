@@ -146,21 +146,25 @@ async function rebuild(body: { deviceId?: string; from?: string; to?: string }) 
     // amélioration de la méthode laisserait un fantôme de l'ancien calcul.
     // Les événements partent en premier : ils référencent les trajets.
     //
-    // La suppression ignore volontairement `method_version`. Pour un boîtier
-    // et une fenêtre donnés, il n'existe qu'une vérité dérivée : celle du
-    // dernier calcul. Ne retirer que les lignes de la méthode courante
+    // La suppression ne cible plus une version précise, mais TOUT CE QUE NOUS
+    // AVONS CALCULÉ. Ne retirer que les lignes de la méthode courante
     // laisserait, au changement de version, les trajets de l'ancienne — que
     // l'écran, qui lit une journée et non une méthode, afficherait en double.
-    // La version reste inscrite sur chaque ligne : elle dit COMMENT le chiffre
-    // a été produit, elle ne partitionne pas l'historique.
+    //
+    // En revanche l'historique IMPORTÉ (`import-…`) est épargné, et ce n'est
+    // pas un détail : il vient de la plateforme du fournisseur, qui seule
+    // disposait des points bruts. Nous ne pouvons pas le reconstruire. Le
+    // supprimer au motif qu'il occupe la même journée reviendrait à détruire
+    // une preuve irremplaçable pour la remplacer par un calcul fondé sur des
+    // positions que nous n'avons pas (migration 054).
     await sql.from("telematics_events").delete()
-      .eq("device_id", device.id)
+      .eq("device_id", device.id).not("method_version", "like", "import-%")
       .gte("occurred_at", fromTs).lte("occurred_at", toTs);
     await sql.from("telematics_trips").delete()
-      .eq("device_id", device.id)
+      .eq("device_id", device.id).not("method_version", "like", "import-%")
       .gte("started_at", fromTs).lte("started_at", toTs);
     await sql.from("telematics_daily").delete()
-      .eq("device_id", device.id)
+      .eq("device_id", device.id).not("method_version", "like", "import-%")
       .gte("day", from).lte("day", to);
 
     const tripRows = trips.map((t) => ({
