@@ -103,6 +103,54 @@ describe("buildTrips — découpage", () => {
     expect(trips[0].movingS).toBeLessThan(trips[0].durationS);
   });
 
+  it("ne coupe pas une course à cause d'un embouteillage", () => {
+    // Le cas Dakar : six minutes au pas, plus longues que le seuil d'arrêt,
+    // mais le véhicule progresse — ce n'est pas un arrêt, c'est la circulation.
+    const debut = track({ startIso: "2026-09-15T08:00:00Z", count: 20, speedKmh: 40 });
+    const last = debut[debut.length - 1];
+    const bouchon = track({
+      startIso: new Date(Date.parse(last.recordedAt) + 30_000).toISOString(),
+      count: 12, speedKmh: 3, // 6 min à 3 km/h ≈ 300 m parcourus
+      fromLat: last.latitude, fromLon: last.longitude,
+    });
+    const sortie = bouchon[bouchon.length - 1];
+    const suite = track({
+      startIso: new Date(Date.parse(sortie.recordedAt) + 30_000).toISOString(),
+      count: 20, speedKmh: 40,
+      fromLat: sortie.latitude, fromLon: sortie.longitude,
+    });
+
+    const { trips } = buildTrips([...debut, ...bouchon, ...suite]);
+    expect(trips).toHaveLength(1);
+    expect(trips[0].evidence.bouchons_absorbes).toBeGreaterThanOrEqual(1);
+  });
+
+  it("coupe malgré tout si le véhicule s'immobilise après l'embouteillage", () => {
+    // La fenêtre repart après le bouchon : un vrai arrêt derrière doit rester
+    // visible, sinon la règle anti-bouchon masquerait les arrivées.
+    const debut = track({ startIso: "2026-09-15T08:00:00Z", count: 20, speedKmh: 40 });
+    const last = debut[debut.length - 1];
+    const bouchon = track({
+      startIso: new Date(Date.parse(last.recordedAt) + 30_000).toISOString(),
+      count: 12, speedKmh: 3,
+      fromLat: last.latitude, fromLon: last.longitude,
+    });
+    const sortie = bouchon[bouchon.length - 1];
+    const arret = track({
+      startIso: new Date(Date.parse(sortie.recordedAt) + 30_000).toISOString(),
+      count: 24, speedKmh: 0, // 12 min immobile au même endroit
+      fromLat: sortie.latitude, fromLon: sortie.longitude,
+    });
+    const reprise = track({
+      startIso: new Date(Date.parse(arret[arret.length - 1].recordedAt) + 30_000).toISOString(),
+      count: 20, speedKmh: 40,
+      fromLat: sortie.latitude, fromLon: sortie.longitude,
+    });
+
+    const { trips } = buildTrips([...debut, ...bouchon, ...arret, ...reprise]);
+    expect(trips).toHaveLength(2);
+  });
+
   it("signale un arrêt long", () => {
     const debut = track({ startIso: "2026-09-15T08:00:00Z", count: 20, speedKmh: 40 });
     const last = debut[debut.length - 1];

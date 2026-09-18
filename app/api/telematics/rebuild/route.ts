@@ -141,18 +141,26 @@ async function rebuild(body: { deviceId?: string; from?: string; to?: string }) 
     // roule.
     const { trips, events, daily, discarded } = buildTrips(points, { maintenant: Date.now() });
 
-    // ── Remplacement de la tranche recalculée, pour cette méthode ─────────
+    // ── Remplacement de la tranche recalculée ────────────────────────────
     // On supprime avant de réécrire : sinon un trajet qui rétrécit après
     // amélioration de la méthode laisserait un fantôme de l'ancien calcul.
     // Les événements partent en premier : ils référencent les trajets.
+    //
+    // La suppression ignore volontairement `method_version`. Pour un boîtier
+    // et une fenêtre donnés, il n'existe qu'une vérité dérivée : celle du
+    // dernier calcul. Ne retirer que les lignes de la méthode courante
+    // laisserait, au changement de version, les trajets de l'ancienne — que
+    // l'écran, qui lit une journée et non une méthode, afficherait en double.
+    // La version reste inscrite sur chaque ligne : elle dit COMMENT le chiffre
+    // a été produit, elle ne partitionne pas l'historique.
     await sql.from("telematics_events").delete()
-      .eq("device_id", device.id).eq("method_version", METHOD_VERSION)
+      .eq("device_id", device.id)
       .gte("occurred_at", fromTs).lte("occurred_at", toTs);
     await sql.from("telematics_trips").delete()
-      .eq("device_id", device.id).eq("method_version", METHOD_VERSION)
+      .eq("device_id", device.id)
       .gte("started_at", fromTs).lte("started_at", toTs);
     await sql.from("telematics_daily").delete()
-      .eq("device_id", device.id).eq("method_version", METHOD_VERSION)
+      .eq("device_id", device.id)
       .gte("day", from).lte("day", to);
 
     const tripRows = trips.map((t) => ({

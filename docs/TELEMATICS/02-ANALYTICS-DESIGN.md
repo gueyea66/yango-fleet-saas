@@ -115,7 +115,7 @@ immédiatement.
 |---|---|---|
 | Position, vitesse instantanée, cap | **mesuré** | lu dans la trame |
 | Distance | **calculé** | Haversine entre points consécutifs, sauts > 3 km écartés et comptés |
-| Trajet (début/fin) | **déduit** | déplacement continu, séparé par un arrêt ≥ 5 min |
+| Trajet (début/fin) | **déduit** | déplacement continu, séparé par un arrêt ≥ 5 min **dans un rayon de 50 m** |
 | Temps en mouvement / à l'arrêt | **déduit** | somme des segments selon la vitesse |
 | Arrêt long | **déduit** | immobilité ≥ 20 min hors trajet |
 | **État moteur** | **refusé pour l'instant** | masque de statut non calibré (runbook §6) |
@@ -126,6 +126,36 @@ immédiatement.
 Les seuils (5 min, 20 min, 3 km) sont des **paramètres**, pas des constantes
 enfouies : ils seront ajustés après observation du terrain dakarois, et tout
 recalcul se fera depuis le brut.
+
+### 3.1 Pourquoi un arrêt se juge sur la géométrie, pas sur la durée
+
+Le premier découpage fermait un trajet dès cinq minutes d'immobilité. À Dakar,
+la règle se retourne contre elle-même : un embouteillage dépasse couramment ce
+seuil, et une course unique ressortait coupée en deux, trois, quatre trajets —
+inexploitable pour une exploitation VTC où les arrêts clients s'enchaînent.
+
+La durée ne distingue pas les deux situations. La position, si : **un véhicule
+pris dans la circulation n'est jamais immobile.** Il avance au pas, cent à
+trois cents mètres pendant que le seuil s'écoule. Un véhicule réellement arrêté
+reste, lui, dans le bruit du GPS — une quinzaine de mètres.
+
+D'où la règle retenue : l'immobilité ne clôt un trajet que si le véhicule **est
+resté dans un rayon de 50 m** pendant toute la fenêtre. Sinon la fenêtre repart
+du point courant, de sorte qu'un arrêt véritable survenant après le bouchon
+reste reconnu. Chaque trajet porte dans son `evidence` le nombre de bouchons
+absorbés : le chiffre reste auditable, conformément au brief §13.
+
+Une exception : **si le boîtier s'est tu pendant l'immobilité**, le raisonnement
+géométrique ne s'applique pas. On n'a rien observé ; un réveil à cinq kilomètres
+n'est pas une progression au pas. Le trajet se ferme, et le trou se lit dans les
+événements `GPS_OFFLINE` plutôt que d'être avalé dans une course fictive.
+
+Reste une limite assumée : pour une exploitation VTC, **le trajet n'est pas la
+bonne unité de pilotage**. Une journée de taxi, c'est une amplitude de service
+avec trente arrêts clients — ce qui se pilote, ce sont les km/jour, les heures
+en service, le temps mort et la recette au kilomètre. Le trajet reste l'unité
+juste pour une exploitation de mission (A→B). Un profil d'usage par véhicule
+est le chantier suivant.
 
 ---
 
