@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { PLAN_LIMITS } from "@/lib/plans";
 
 export const dynamic = "force-dynamic";
 
@@ -22,10 +23,13 @@ export async function GET() {
     wavePhone: map["wave_phone"] || "",
     omPhone: map["om_phone"] || "",
     companyName: map["company_name"] || "M3A Solutions",
+    // Repli sur le barème réel (lib/plans.ts) et non des constantes figées :
+    // les anciens 25 000 / 50 000 divergeaient des prix réellement facturés
+    // (35 000 / 75 000 / 100 000) et sous-affichaient le tarif au prospect.
     prices: {
-      standard: parseInt(map["price_standard"] || "25000"),
-      pro: parseInt(map["price_pro"] || "50000"),
-      enterprise: parseInt(map["price_enterprise"] || "100000"),
+      standard: parseInt(map["price_standard"] || String(PLAN_LIMITS.standard.priceXOF)),
+      pro: parseInt(map["price_pro"] || String(PLAN_LIMITS.pro.priceXOF)),
+      enterprise: parseInt(map["price_enterprise"] || String(PLAN_LIMITS.enterprise.priceXOF)),
     },
   });
 }

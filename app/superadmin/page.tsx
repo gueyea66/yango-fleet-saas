@@ -900,6 +900,16 @@ function ImportsTab({ superadminKey, notify }: { superadminKey: string; notify: 
                     ✓ {imp.injected_count} injectés le {fmtDate(imp.injected_at)}
                   </div>
                 )}
+                {imp.status === "partial" && (
+                  <div style={{ fontSize: 11, color: "#f5a623", marginTop: 4 }}>
+                    ⚠ Injection partielle — {imp.injected_count} injectés, {imp.error_count} en erreur ({fmtDate(imp.injected_at)})
+                  </div>
+                )}
+                {imp.status === "failed" && (
+                  <div style={{ fontSize: 11, color: "#ef4444", marginTop: 4 }}>
+                    ✗ Injection échouée — aucune ligne insérée ({fmtDate(imp.injected_at)})
+                  </div>
+                )}
               </div>
 
               <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
