@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { checkSuperadminKey, getClientIp } from "@/lib/auth/server";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 
 export const dynamic = "force-dynamic";
 
@@ -112,17 +113,20 @@ export async function POST(req: NextRequest) {
       case "dashboard": {
         const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
         const since30 = new Date(Date.now() - 30 * 864e5).toISOString().slice(0, 10);
-        const [
-          { data: tenants }, { data: profiles }, { data: rMonth }, { data: rAll }, { data: rDaily }, { data: settings },
-        ] = await Promise.all([
-          admin.from("tenants").select("id,slug,name,plan,active,trial_ends_at,plan_expires_at,created_at"),
-          admin.from("profiles").select("id,tenant_id,role"),
-          admin.from("daily_reports").select("tenant_id,driver_id,gross_earnings,net_after_expenses").gte("date", monthStart),
-          admin.from("daily_reports").select("gross_earnings,net_after_expenses"),
-          admin.from("daily_reports").select("date,gross_earnings,net_after_expenses").gte("date", since30).order("date"),
-          admin.from("tenant_settings").select("tenant_id,app_name,primary_color"),
+        // Toutes ces lectures sont multi-tenants (agrégées sur TOUTE la base) et
+        // dépassent vite le plafond PostgREST de 1000 lignes : sans pagination,
+        // les totaux MRR/CA du dashboard étaient silencieusement tronqués.
+        // `order` sur une clé stable (`id`) est requis pour paginer sans doublon
+        // ni omission ; les sommes côté client sont indépendantes de l'ordre.
+        const [tenants, profiles, rMonth, rAll, rDaily, settings] = await Promise.all([
+          fetchAllRows(() => admin.from("tenants").select("id,slug,name,plan,active,trial_ends_at,plan_expires_at,created_at").order("id")),
+          fetchAllRows(() => admin.from("profiles").select("id,tenant_id,role").order("id")),
+          fetchAllRows(() => admin.from("daily_reports").select("tenant_id,driver_id,gross_earnings,net_after_expenses").gte("date", monthStart).order("id")),
+          fetchAllRows(() => admin.from("daily_reports").select("gross_earnings,net_after_expenses").order("id")),
+          fetchAllRows(() => admin.from("daily_reports").select("date,gross_earnings,net_after_expenses").gte("date", since30).order("date").order("id")),
+          fetchAllRows(() => admin.from("tenant_settings").select("tenant_id,app_name,primary_color").order("tenant_id")),
         ]);
-        return NextResponse.json({ tenants: tenants ?? [], profiles: profiles ?? [], rMonth: rMonth ?? [], rAll: rAll ?? [], rDaily: rDaily ?? [], settings: settings ?? [] });
+        return NextResponse.json({ tenants, profiles, rMonth, rAll, rDaily, settings });
       }
 
       default:
