@@ -1,0 +1,1591 @@
+<title>Système M3A</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --paper:        #F4F5F1;
+    --sheet:        #FBFBF8;
+    --sheet-2:      #EBEEE7;
+    --ink:          #111716;
+    --ink-2:        #4E5A56;
+    --ink-3:        #7C8884;
+    --line:         #D6DCD4;
+    --line-soft:    #E4E8E0;
+
+    --p1:           #10836B;   /* Advisory  */
+    --p2:           #3C63E0;   /* Solutions */
+    --p3:           #C0782A;   /* Ventures  */
+    --p1-wash:      #E2EFEB;
+    --p2-wash:      #E5EAFB;
+    --p3-wash:      #F6EBDC;
+
+    --good:         #0F7B3E;
+    --warn:         #9A6A00;
+    --crit:         #A8322C;
+
+    --accent:       var(--p1);
+    --shadow:       0 1px 2px rgba(17,23,22,.05), 0 8px 24px -16px rgba(17,23,22,.28);
+
+    --display: "Fraunces", "Iowan Old Style", Georgia, serif;
+    --body:    "IBM Plex Sans", "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono:    "IBM Plex Mono", "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:     #101414;
+      --sheet:     #151A1B;
+      --sheet-2:   #1C2323;
+      --ink:       #EDF1EE;
+      --ink-2:     #A7B2AD;
+      --ink-3:     #7E8B86;
+      --line:      #2A3332;
+      --line-soft: #222A29;
+
+      --p1:        #16A184;
+      --p2:        #6E8BF0;
+      --p3:        #BC8030;
+      --p1-wash:   #15302B;
+      --p2-wash:   #1C2444;
+      --p3-wash:   #2E2415;
+
+      --good:      #34A45F;
+      --warn:      #C79322;
+      --crit:      #D96A62;
+      --shadow:    0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.9);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:     #101414;
+    --sheet:     #151A1B;
+    --sheet-2:   #1C2323;
+    --ink:       #EDF1EE;
+    --ink-2:     #A7B2AD;
+    --ink-3:     #7E8B86;
+    --line:      #2A3332;
+    --line-soft: #222A29;
+    --p1:        #16A184;
+    --p2:        #6E8BF0;
+    --p3:        #BC8030;
+    --p1-wash:   #15302B;
+    --p2-wash:   #1C2444;
+    --p3-wash:   #2E2415;
+    --good:      #34A45F;
+    --warn:      #C79322;
+    --crit:      #D96A62;
+    --shadow:    0 1px 2px rgba(0,0,0,.4), 0 10px 28px -18px rgba(0,0,0,.9);
+  }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  * { box-sizing: border-box; }
+  h1, h2, h3, h4 { margin: 0; text-wrap: balance; font-weight: 600; }
+  p { margin: 0; }
+  ul { margin: 0; padding-left: 1.1em; }
+  a { color: inherit; }
+
+  .shell {
+    max-width: 1140px;
+    margin-inline: auto;
+    padding-inline: clamp(16px, 4vw, 36px);
+  }
+
+  /* ---------- nav ---------- */
+  .topbar {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 40;
+    background: color-mix(in srgb, var(--paper) 88%, transparent);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar-in {
+    display: flex; align-items: center; gap: 18px;
+    min-height: 52px; flex-wrap: wrap;
+  }
+  .brand {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--ink); white-space: nowrap;
+  }
+  .brand b { color: var(--p1); font-weight: 500; }
+  .navlinks {
+    display: flex; gap: 2px; overflow-x: auto; flex: 1;
+    scrollbar-width: none; padding-block: 6px;
+  }
+  .navlinks::-webkit-scrollbar { display: none; }
+  .navlinks a {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .04em;
+    color: var(--ink-3); text-decoration: none; white-space: nowrap;
+    padding: 5px 9px; border-radius: 3px;
+  }
+  .navlinks a:hover { color: var(--ink); background: var(--sheet-2); }
+  .navlinks a.on { color: var(--p1); background: var(--p1-wash); }
+  a:focus-visible, button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+    outline: 2px solid var(--p1); outline-offset: 2px; border-radius: 3px;
+  }
+
+  /* ---------- masthead ---------- */
+  .masthead { padding-block: clamp(36px, 7vw, 64px) 8px; }
+  .kicker {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  .masthead h1 {
+    font-family: var(--display); font-size: clamp(38px, 7.4vw, 74px);
+    line-height: .98; letter-spacing: -.02em; margin-top: 14px;
+    font-variation-settings: "opsz" 120, "SOFT" 0;
+  }
+  .masthead h1 em { font-style: italic; color: var(--p1); }
+  .lede {
+    margin-top: 20px; max-width: 62ch; font-size: clamp(16px, 2.1vw, 19px);
+    color: var(--ink-2); line-height: 1.55;
+  }
+  .meta-row {
+    display: flex; flex-wrap: wrap; gap: 10px 26px; margin-top: 26px;
+    padding-top: 18px; border-top: 1px solid var(--line);
+    font-family: var(--mono); font-size: 11px; letter-spacing: .06em;
+    color: var(--ink-3); text-transform: uppercase;
+  }
+  .meta-row span b { color: var(--ink-2); font-weight: 500; }
+
+  /* ---------- section frame ---------- */
+  section { padding-block: clamp(40px, 6vw, 72px); scroll-margin-top: 76px; }
+  .sec-head { display: flex; gap: 16px; align-items: baseline; margin-bottom: 8px; }
+  .sec-num {
+    font-family: var(--mono); font-size: 11px; color: var(--p1);
+    letter-spacing: .1em; padding-top: 6px;
+  }
+  .sec-head h2 {
+    font-family: var(--display); font-size: clamp(26px, 4vw, 38px);
+    letter-spacing: -.015em; line-height: 1.08;
+  }
+  .sec-sub { color: var(--ink-2); max-width: 66ch; margin: 10px 0 30px 0; }
+  .sec-sub.tight { margin-bottom: 20px; }
+
+  .card {
+    background: var(--sheet); border: 1px solid var(--line);
+    border-radius: 6px; padding: clamp(16px, 2.6vw, 26px);
+  }
+  .grid { display: grid; gap: 16px; }
+  .g3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .g2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  @media (max-width: 860px) { .g3, .g2 { grid-template-columns: 1fr; } }
+
+  .label {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  .mono { font-family: var(--mono); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .note {
+    font-size: 13px; color: var(--ink-3); line-height: 1.5;
+  }
+  .flag {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase; padding: 3px 8px; border-radius: 99px;
+    border: 1px solid var(--line); color: var(--ink-3); background: var(--sheet-2);
+  }
+</style>
+<style>
+  /* ---------- one pager ---------- */
+  .onepager {
+    border: 1.5px solid var(--ink); border-radius: 8px;
+    background: var(--sheet); box-shadow: var(--shadow); overflow: hidden;
+  }
+  .op-bar {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    flex-wrap: wrap; padding: 10px clamp(14px, 2.4vw, 24px);
+    background: var(--ink); color: var(--paper);
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .16em; text-transform: uppercase;
+  }
+  .op-body { padding: clamp(18px, 3vw, 30px); display: grid; gap: 22px; }
+  .op-star {
+    display: grid; gap: 10px; padding-bottom: 20px; border-bottom: 1px solid var(--line);
+  }
+  .op-star .en {
+    font-family: var(--display); font-size: clamp(20px, 3.1vw, 30px);
+    line-height: 1.18; letter-spacing: -.01em;
+  }
+  .op-star .fr { color: var(--ink-2); font-size: 15px; max-width: 70ch; }
+
+  .chain { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chain .step {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em;
+    padding: 5px 9px; border: 1px solid var(--line); border-radius: 3px;
+    background: var(--sheet-2); color: var(--ink-2); white-space: nowrap;
+  }
+  .chain .step.hot { border-color: var(--p1); color: var(--p1); background: var(--p1-wash); }
+  .chain .arr { color: var(--ink-3); font-size: 11px; }
+
+  .op-pillars { display: grid; gap: 14px; grid-template-columns: repeat(3, minmax(0,1fr)); }
+  @media (max-width: 800px) { .op-pillars { grid-template-columns: 1fr; } }
+  .op-pill {
+    border: 1px solid var(--line); border-radius: 5px; padding: 14px;
+    background: var(--paper); display: grid; gap: 8px; align-content: start;
+  }
+  .op-pill .top { display: flex; align-items: center; gap: 8px; }
+  .dot { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+  .op-pill h4 { font-size: 13px; letter-spacing: .04em; font-family: var(--mono); text-transform: uppercase; }
+  .op-pill p { font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
+  .op-pill .assets {
+    font-family: var(--mono); font-size: 10.5px; color: var(--ink-3);
+    padding-top: 8px; border-top: 1px dashed var(--line);
+  }
+
+  .op-split { display: grid; gap: 22px; grid-template-columns: 1.15fr 1fr; }
+  @media (max-width: 800px) { .op-split { grid-template-columns: 1fr; } }
+  .rules { display: grid; gap: 10px; counter-reset: r; }
+  .rule { display: grid; grid-template-columns: 22px 1fr; gap: 10px; align-items: start; }
+  .rule::before {
+    counter-increment: r; content: counter(r);
+    font-family: var(--mono); font-size: 10px; color: var(--paper);
+    background: var(--ink); width: 18px; height: 18px; border-radius: 50%;
+    display: grid; place-items: center; margin-top: 2px;
+  }
+  .rule p { font-size: 14px; line-height: 1.5; }
+  .horizon { display: grid; gap: 8px; }
+  .horizon .hr-row {
+    display: grid; grid-template-columns: 96px 1fr; gap: 12px;
+    font-size: 13.5px; padding-bottom: 8px; border-bottom: 1px dotted var(--line);
+  }
+  .horizon .hr-row:last-child { border-bottom: 0; }
+  .horizon .hr-row b { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--ink-3); font-weight: 500; padding-top: 3px; }
+  .horizon .hr-row span { color: var(--ink-2); }
+
+  .creed {
+    margin-top: 2px; padding: 16px 18px; border-radius: 5px;
+    background: var(--p1-wash); border: 1px solid color-mix(in srgb, var(--p1) 35%, transparent);
+    display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+  }
+  .creed .big {
+    font-family: var(--display); font-size: clamp(17px, 2.6vw, 23px);
+    letter-spacing: -.01em; color: var(--p1);
+  }
+  .creed .sm { font-size: 13.5px; color: var(--ink-2); flex: 1; min-width: 220px; }
+</style>
+
+<header class="topbar">
+  <div class="shell topbar-in">
+    <div class="brand">Système&nbsp;<b>M3A</b></div>
+    <nav class="navlinks" id="nav">
+      <a href="#nutshell">One-pager</a>
+      <a href="#moteur">Le moteur</a>
+      <a href="#piliers">3 piliers</a>
+      <a href="#boucle">Boucle vertueuse</a>
+      <a href="#router">Router un problème</a>
+      <a href="#labo">Laboratoire</a>
+      <a href="#filtre">Filtre 10 questions</a>
+      <a href="#bascule">Point de bascule</a>
+      <a href="#horizon">Horizon 2031</a>
+      <a href="#gardefous">Garde-fous</a>
+    </nav>
+  </div>
+</header>
+
+<main class="shell">
+
+  <div class="masthead">
+    <div class="kicker">Document stratégique de référence · v1.0</div>
+    <h1>Un système,<br>pas une collection<br>de <em>projets.</em></h1>
+    <p class="lede">
+      Comprendre en profondeur les problèmes des entreprises africaines, améliorer leur performance,
+      puis construire — lorsque c'est justifié — les outils qui rendent l'amélioration durable.
+      Ce document est le cadre de référence : il décide ce qui entre dans le système et ce qui reste dehors.
+    </p>
+    <div class="meta-row">
+      <span>Auteur&nbsp;· <b>Abdoulaye</b></span>
+      <span>Statut&nbsp;· <b>Cadre vivant</b></span>
+      <span>Horizon&nbsp;· <b>2030 / 2031</b></span>
+      <span>Piliers&nbsp;· <b>Advisory · Solutions · Ventures</b></span>
+    </div>
+  </div>
+
+  <!-- ============ ONE PAGER ============ -->
+  <section id="nutshell">
+    <div class="sec-head">
+      <div class="sec-num">00</div>
+      <h2>La vision en une page</h2>
+    </div>
+    <p class="sec-sub tight">Si tu ne dois relire qu'un seul écran avant une décision, c'est celui-ci.</p>
+
+    <article class="onepager">
+      <div class="op-bar">
+        <span>Vision in a nutshell</span>
+        <span>Transform · Operate · Compound</span>
+      </div>
+      <div class="op-body">
+
+        <div class="op-star">
+          <div class="label">North Star</div>
+          <div class="en">Transform African businesses through strategy, operations and technology.</div>
+          <div class="fr">
+            <b>Version opérationnelle —</b> nous comprenons les entreprises, nous résolvons leurs problèmes
+            opérationnels les plus durs, et nous construisons les outils qui font tenir les améliorations.
+          </div>
+        </div>
+
+        <div>
+          <div class="label" style="margin-bottom:10px">La chaîne de valeur</div>
+          <div class="chain">
+            <span class="step hot">Discover</span><span class="arr">→</span>
+            <span class="step hot">Understand</span><span class="arr">→</span>
+            <span class="step hot">Solve</span><span class="arr">→</span>
+            <span class="step">Build</span><span class="arr">→</span>
+            <span class="step">Test</span><span class="arr">→</span>
+            <span class="step">Productize</span><span class="arr">→</span>
+            <span class="step">Scale</span>
+          </div>
+        </div>
+
+        <div>
+          <div class="label" style="margin-bottom:10px">L'architecture</div>
+          <div class="op-pillars">
+            <div class="op-pill">
+              <div class="top"><span class="dot" style="background:var(--p1)"></span><h4>Advisory</h4></div>
+              <p>Comprendre, diagnostiquer, prioriser, <b>exécuter</b>, mesurer. Pas un cabinet à slides :
+                un partenaire de transformation qui reste jusqu'au résultat.</p>
+              <div class="assets">PME · ETI · Groupes · Institutionnels</div>
+            </div>
+            <div class="op-pill">
+              <div class="top"><span class="dot" style="background:var(--p2)"></span><h4>Solutions</h4></div>
+              <p>Des outils B2B de gestion, contrôle, automatisation et décision — construits seulement
+                quand un problème réel et répété le justifie.</p>
+              <div class="assets">M3A Fleet · GNITT</div>
+            </div>
+            <div class="op-pill">
+              <div class="top"><span class="dot" style="background:var(--p3)"></span><h4>Ventures / Operations</h4></div>
+              <p>Un portefeuille <b>limité</b> d'activités exploitées en direct : cash, intelligence terrain,
+                laboratoire produit, détection d'opportunités.</p>
+              <div class="assets">Flotte Yango</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="op-split">
+          <div>
+            <div class="label" style="margin-bottom:12px">Les trois non-négociables</div>
+            <div class="rules">
+              <div class="rule"><p><b>Aucun produit sans preuve.</b> Un problème devient produit quand il est
+                constaté chez plusieurs entreprises et que quelqu'un paie déjà pour le résoudre.</p></div>
+              <div class="rule"><p><b>Un nouveau secteur est un marché, pas une entreprise.</b> Par défaut il
+                alimente Advisory ou Solutions. Créer une structure demande une justification forte.</p></div>
+              <div class="rule"><p><b>Étanchéité avec le 9-to-5.</b> Clients, données, PI, ressources et temps
+                restent strictement séparés. Pas d'exception.</p></div>
+            </div>
+          </div>
+          <div>
+            <div class="label" style="margin-bottom:12px">Horizon 2030 / 2031</div>
+            <div class="horizon">
+              <div class="hr-row"><b>Advisory</b><span>Une signature reconnue en transformation d'entreprises.</span></div>
+              <div class="hr-row"><b>Solutions</b><span>Un portefeuille restreint, éprouvé, à revenus récurrents.</span></div>
+              <div class="hr-row"><b>Ventures</b><span>Quelques activités générant cash et valeur stratégique.</span></div>
+              <div class="hr-row"><b>Équipe</b><span>Capable d'exécuter sans passer systématiquement par moi.</span></div>
+              <div class="hr-row"><b>Capital</b><span>Profits réinvestis : produits, acquisitions, talents.</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="creed">
+          <div class="big">Creativity must compound, not scatter.</div>
+          <div class="sm">Chaque nouvelle brique doit rendre les autres plus fortes — sinon ce n'est pas
+            une brique, c'est une distraction.</div>
+        </div>
+
+        <div class="op-split" style="gap:14px">
+          <div class="note"><b style="color:var(--ink)">Le point de bascule —</b> je ne quitte pas le salariat
+            à une date. Je le quitte quand y rester coûte plus cher que la valeur qu'il apporte.
+            Le critère est chiffré, pas émotionnel (§07).</div>
+          <div class="note"><b style="color:var(--ink)">Mon rôle —</b> entrepreneur de la transformation
+            d'entreprises, à l'intersection Stratégie × Opérations × Technologie × Entrepreneuriat.</div>
+        </div>
+
+      </div>
+    </article>
+  </section>
+
+<style>
+  /* ---------- moteur ---------- */
+  .engine { display: grid; gap: 10px; }
+  .engine-row {
+    display: grid; grid-template-columns: 34px 150px 1fr; gap: 14px; align-items: start;
+    padding: 12px 14px; border: 1px solid var(--line); border-radius: 5px; background: var(--sheet);
+  }
+  @media (max-width: 640px) { .engine-row { grid-template-columns: 30px 1fr; }
+    .engine-row .e-desc { grid-column: 1 / -1; } }
+  .engine-row .e-n {
+    font-family: var(--mono); font-size: 11px; color: var(--p1); padding-top: 2px;
+  }
+  .engine-row .e-t {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .1em; text-transform: uppercase;
+  }
+  .engine-row .e-desc { color: var(--ink-2); font-size: 14.5px; line-height: 1.5; }
+  .engine-row.is-build { border-left: 3px solid var(--p2); }
+  .engine-row.is-op { border-left: 3px solid var(--p3); }
+  .engine-row.is-adv { border-left: 3px solid var(--p1); }
+
+  /* ---------- piliers ---------- */
+  .pillar {
+    border: 1px solid var(--line); border-radius: 6px; background: var(--sheet);
+    overflow: hidden; display: grid; align-content: start;
+  }
+  .pillar-hd { padding: 16px 18px 14px; border-bottom: 1px solid var(--line-soft); }
+  .pillar-hd .ptag {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+    display: inline-block; padding: 3px 8px; border-radius: 3px; margin-bottom: 10px;
+  }
+  .pillar-hd h3 { font-family: var(--display); font-size: 25px; letter-spacing: -.01em; }
+  .pillar-hd p { margin-top: 8px; font-size: 14px; color: var(--ink-2); line-height: 1.5; }
+  .pillar-bd { padding: 16px 18px; display: grid; gap: 16px; }
+  .pillar-bd .label { margin-bottom: 7px; display: block; }
+  .taglist { display: flex; flex-wrap: wrap; gap: 5px; }
+  .taglist span {
+    font-size: 12px; padding: 3px 8px; border-radius: 3px;
+    background: var(--sheet-2); color: var(--ink-2); border: 1px solid var(--line-soft);
+  }
+  .credo {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: .04em; line-height: 1.9;
+    padding: 10px 12px; border-radius: 4px;
+  }
+
+  /* ---------- diagram shared ---------- */
+  .figure {
+    border: 1px solid var(--line); border-radius: 6px; background: var(--sheet);
+    padding: clamp(14px, 2.4vw, 22px);
+  }
+  .figure figcaption {
+    font-size: 13px; color: var(--ink-3); margin-top: 12px; padding-top: 12px;
+    border-top: 1px dashed var(--line); line-height: 1.5;
+  }
+  .svg-wrap { overflow-x: auto; }
+  .svg-wrap svg { display: block; width: 100%; height: auto; max-width: 560px; margin-inline: auto; }
+  .n-label { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; fill: var(--ink); }
+  .n-sub   { font-family: var(--mono); font-size: 9.5px; fill: var(--ink-3); letter-spacing: .06em; }
+  .n-hit   { cursor: pointer; }
+  .n-hit:hover circle, .n-hit.on circle { stroke-width: 3; }
+  .loop-caption {
+    margin-top: 14px; padding: 13px 15px; border-radius: 5px; background: var(--sheet-2);
+    border: 1px solid var(--line-soft); min-height: 74px;
+  }
+  .loop-caption h4 { font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--p1); }
+  .loop-caption p { margin-top: 6px; font-size: 14px; color: var(--ink-2); line-height: 1.5; }
+</style>
+
+  <!-- ============ MOTEUR ============ -->
+  <section id="moteur">
+    <div class="sec-head"><div class="sec-num">01</div><h2>Le moteur</h2></div>
+    <p class="sec-sub">
+      Sept mouvements. Ils décrivent une entreprise qu'on découvre, un problème qu'on résout, et —
+      seulement si le problème se répète — un produit qui en sort. Les trois premiers appartiennent
+      toujours à l'Advisory ; les quatre derniers ne se déclenchent pas automatiquement.
+    </p>
+    <div class="engine">
+      <div class="engine-row is-adv"><div class="e-n">01</div><div class="e-t">Discover</div>
+        <div class="e-desc">Entrer dans l'entreprise, ou l'exploiter soi-même. Le terrain d'abord.</div></div>
+      <div class="engine-row is-adv"><div class="e-n">02</div><div class="e-t">Understand</div>
+        <div class="e-desc">Comprendre le fonctionnement réel — pas l'organigramme, le flux réel.</div></div>
+      <div class="engine-row is-adv"><div class="e-n">03</div><div class="e-t">Solve</div>
+        <div class="e-desc">Isoler les quelques problèmes à plus fort impact, construire un plan réaliste, l'exécuter.</div></div>
+      <div class="engine-row is-build"><div class="e-n">04</div><div class="e-t">Build</div>
+        <div class="e-desc">Outiller — uniquement si l'amélioration ne tient pas sans outil.</div></div>
+      <div class="engine-row is-build"><div class="e-n">05</div><div class="e-t">Test</div>
+        <div class="e-desc">Éprouver en conditions réelles, idéalement sur nos propres opérations avant celles d'un client.</div></div>
+      <div class="engine-row is-build"><div class="e-n">06</div><div class="e-t">Productize</div>
+        <div class="e-desc">Industrialiser seulement si le même problème existe ailleurs et que d'autres paieraient.</div></div>
+      <div class="engine-row is-op"><div class="e-n">07</div><div class="e-t">Scale</div>
+        <div class="e-desc">Distribuer, récurrer, déléguer. C'est ici que se crée l'actif, pas avant.</div></div>
+    </div>
+  </section>
+
+  <!-- ============ PILIERS ============ -->
+  <section id="piliers">
+    <div class="sec-head"><div class="sec-num">02</div><h2>Les trois piliers</h2></div>
+    <p class="sec-sub">
+      Deux activités cœur complémentaires, et un portefeuille limité d'opérations. Toute nouvelle
+      idée doit entrer dans l'une de ces trois colonnes — ou être refusée.
+    </p>
+
+    <div class="grid g3">
+      <article class="pillar">
+        <div class="pillar-hd">
+          <span class="ptag" style="background:var(--p1-wash);color:var(--p1)">Pilier 01 · Cœur</span>
+          <h3>Advisory</h3>
+          <p>Accompagner PME, ETI et grands groupes africains sur leurs problèmes complexes —
+             et rester jusqu'à ce que le résultat soit mesuré.</p>
+        </div>
+        <div class="pillar-bd">
+          <div>
+            <span class="label">Philosophie</span>
+            <div class="credo" style="background:var(--p1-wash);color:var(--p1)">
+              Understand → Diagnose → Prioritize → Execute → Measure
+            </div>
+          </div>
+          <div>
+            <span class="label">Terrains</span>
+            <div class="taglist">
+              <span>Stratégie</span><span>Transformation</span><span>Restructuration</span>
+              <span>Performance opérationnelle</span><span>Supply chain</span><span>Logistique</span>
+              <span>Organisation</span><span>Digitalisation</span><span>Processus</span>
+              <span>Gouvernance</span><span>Pilotage</span><span>Aide à la décision</span><span>PMO</span>
+            </div>
+          </div>
+          <div>
+            <span class="label">Règle</span>
+            <p class="note">La taille du client ne définit pas le positionnement. C'est la complexité
+              et l'importance du problème qui décident.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="pillar">
+        <div class="pillar-hd">
+          <span class="ptag" style="background:var(--p2-wash);color:var(--p2)">Pilier 02 · Cœur</span>
+          <h3>Solutions</h3>
+          <p>Construire des outils B2B de gestion, d'automatisation, de contrôle et de décision
+             adaptés aux réalités opérationnelles africaines.</p>
+        </div>
+        <div class="pillar-bd">
+          <div>
+            <span class="label">Philosophie</span>
+            <div class="credo" style="background:var(--p2-wash);color:var(--p2)">
+              Pas de technologie pour la technologie.<br>Un outil naît d'un problème prouvé.
+            </div>
+          </div>
+          <div>
+            <span class="label">Formes possibles</span>
+            <div class="taglist">
+              <span>SaaS B2B</span><span>ERP spécialisés</span><span>TMS</span><span>Fleet management</span>
+              <span>Réconciliation</span><span>Automatisation</span><span>Dashboards</span>
+              <span>IA métier</span><span>Workflows</span><span>Contrôle opérationnel</span>
+              <span>Intégrations</span><span>Apps mobiles métier</span><span>Collecte de données</span>
+            </div>
+          </div>
+          <div>
+            <span class="label">Règle</span>
+            <p class="note">Tout problème se range d'abord en Consulting, Custom ou Product (§04).
+              Une idée intéressante n'est jamais automatiquement un produit.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="pillar">
+        <div class="pillar-hd">
+          <span class="ptag" style="background:var(--p3-wash);color:var(--p3)">Pilier 03 · Support</span>
+          <h3>Ventures / Operations</h3>
+          <p>Exploiter en direct un petit nombre d'activités. Elles ne sont pas le cœur stratégique —
+             elles nourrissent le cœur.</p>
+        </div>
+        <div class="pillar-bd">
+          <div>
+            <span class="label">Quatre fonctions</span>
+            <div class="credo" style="background:var(--p3-wash);color:var(--p3)">
+              CASH — du cash-flow indépendant du salaire<br>
+              INTELLIGENCE — la réalité du marché de l'intérieur<br>
+              LABORATORY — tester les produits en conditions réelles<br>
+              OPPORTUNITY — faire émerger missions et produits
+            </div>
+          </div>
+          <div>
+            <span class="label">Boucle</span>
+            <p class="note mono" style="font-size:11.5px;letter-spacing:.04em">
+              OPERATE → EXPERIENCE PROBLEMS → COLLECT DATA → SOLVE → TEST → PRODUCTIZE</p>
+          </div>
+          <div>
+            <span class="label">Règle</span>
+            <p class="note">Portefeuille volontairement <b>limité</b>. Une venture qui ne remplit aucune
+              des quatre fonctions est une distraction déguisée.</p>
+          </div>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  <!-- ============ BOUCLE ============ -->
+  <section id="boucle">
+    <div class="sec-head"><div class="sec-num">03</div><h2>La boucle vertueuse</h2></div>
+    <p class="sec-sub">
+      Advisory et Solutions ne doivent jamais fonctionner en silos. L'avantage compétitif ne vient
+      ni du conseil seul ni du logiciel seul : il vient du tour complet, répété.
+      <span class="flag" style="margin-left:6px">Cliquez une étape</span>
+    </p>
+
+    <figure class="figure">
+      <div class="svg-wrap">
+        <svg viewBox="0 0 560 520" role="img" aria-label="Cycle : Advisory, Diagnostic, Transformation, Solutions, Data, retour à Advisory">
+          <title>Le cercle vertueux Advisory ↔ Solutions</title>
+          <circle cx="280" cy="255" r="150" fill="none" stroke="var(--line)" stroke-width="1.5" stroke-dasharray="4 7"/>
+          <g id="loop-arrows" fill="var(--ink-3)">
+            <path d="M0,-6 L10,0 L0,6 Z" transform="translate(368.15,133.65) rotate(36)"/>
+            <path d="M0,-6 L10,0 L0,6 Z" transform="translate(422.66,301.38) rotate(108)"/>
+            <path d="M0,-6 L10,0 L0,6 Z" transform="translate(280,405) rotate(180)"/>
+            <path d="M0,-6 L10,0 L0,6 Z" transform="translate(137.34,301.38) rotate(252)"/>
+            <path d="M0,-6 L10,0 L0,6 Z" transform="translate(191.85,133.65) rotate(324)"/>
+          </g>
+
+          <text x="280" y="248" text-anchor="middle" class="n-label" style="font-size:12px;letter-spacing:.2em;fill:var(--ink-3)">CERCLE</text>
+          <text x="280" y="266" text-anchor="middle" class="n-label" style="font-size:12px;letter-spacing:.2em;fill:var(--ink-3)">VERTUEUX</text>
+
+          <g class="n-hit" data-node="advisory" tabindex="0" role="button" aria-label="Advisory">
+            <circle cx="280" cy="105" r="31" fill="var(--p1-wash)" stroke="var(--p1)" stroke-width="2"/>
+            <text x="280" y="109" text-anchor="middle" class="n-label" style="fill:var(--p1);font-size:10px">01</text>
+            <text x="280" y="58" text-anchor="middle" class="n-label">ADVISORY</text>
+            <text x="280" y="73" text-anchor="middle" class="n-sub">découvre les problèmes</text>
+          </g>
+
+          <g class="n-hit" data-node="diagnostic" tabindex="0" role="button" aria-label="Diagnostic">
+            <circle cx="422.66" cy="208.62" r="31" fill="var(--sheet-2)" stroke="var(--ink-2)" stroke-width="2"/>
+            <text x="422.66" y="212.6" text-anchor="middle" class="n-label" style="font-size:10px">02</text>
+            <text x="466" y="205" text-anchor="start" class="n-label">DIAGNOSTIC</text>
+            <text x="466" y="220" text-anchor="start" class="n-sub">causes &amp; opportunités</text>
+          </g>
+
+          <g class="n-hit" data-node="transformation" tabindex="0" role="button" aria-label="Transformation">
+            <circle cx="368.15" cy="376.38" r="31" fill="var(--sheet-2)" stroke="var(--ink-2)" stroke-width="2"/>
+            <text x="368.15" y="380.4" text-anchor="middle" class="n-label" style="font-size:10px">03</text>
+            <text x="368.15" y="432" text-anchor="middle" class="n-label">TRANSFORMATION</text>
+            <text x="368.15" y="447" text-anchor="middle" class="n-sub">processus &amp; organisation</text>
+          </g>
+
+          <g class="n-hit" data-node="solutions" tabindex="0" role="button" aria-label="Solutions">
+            <circle cx="191.85" cy="376.38" r="31" fill="var(--p2-wash)" stroke="var(--p2)" stroke-width="2"/>
+            <text x="191.85" y="380.4" text-anchor="middle" class="n-label" style="fill:var(--p2);font-size:10px">04</text>
+            <text x="191.85" y="478" text-anchor="middle" class="n-label">SOLUTIONS</text>
+            <text x="191.85" y="493" text-anchor="middle" class="n-sub">construit si nécessaire</text>
+          </g>
+
+          <g class="n-hit" data-node="data" tabindex="0" role="button" aria-label="Data">
+            <circle cx="137.34" cy="208.62" r="31" fill="var(--p3-wash)" stroke="var(--p3)" stroke-width="2"/>
+            <text x="137.34" y="212.6" text-anchor="middle" class="n-label" style="fill:var(--p3);font-size:10px">05</text>
+            <text x="94" y="205" text-anchor="end" class="n-label">DATA</text>
+            <text x="94" y="220" text-anchor="end" class="n-sub">mesure les résultats</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="loop-caption" id="loopCaption" aria-live="polite">
+        <h4 id="loopTitle">Advisory</h4>
+        <p id="loopText">Le point d'entrée. C'est en travaillant à l'intérieur des entreprises qu'on découvre
+          des problèmes que personne ne décrit correctement depuis l'extérieur — et qu'on gagne le droit
+          de proposer une solution.</p>
+      </div>
+      <figcaption>
+        Le tour complet crée un actif que ni un cabinet ni un éditeur ne possèdent seuls :
+        une connaissance vérifiée du fonctionnement réel des entreprises africaines.
+      </figcaption>
+    </figure>
+  </section>
+
+<style>
+  /* ---------- router ---------- */
+  .router { display: grid; gap: 18px; grid-template-columns: 340px 1fr; }
+  @media (max-width: 880px) { .router { grid-template-columns: 1fr; } }
+  .qbox { display: grid; gap: 16px; }
+  .q { display: grid; gap: 8px; }
+  .q > p { font-size: 14.5px; font-weight: 500; }
+  .opts { display: grid; gap: 6px; }
+  .opt {
+    display: flex; gap: 9px; align-items: flex-start; padding: 9px 11px;
+    border: 1px solid var(--line); border-radius: 4px; cursor: pointer;
+    background: var(--sheet); font-size: 13.5px; color: var(--ink-2); line-height: 1.4;
+  }
+  .opt:hover { border-color: var(--ink-3); }
+  .opt input { margin: 3px 0 0 0; accent-color: var(--p1); flex: none; }
+  .opt:has(input:checked) { border-color: var(--p1); background: var(--p1-wash); color: var(--ink); }
+
+  .paths { display: grid; gap: 10px; align-content: start; }
+  .path {
+    border: 1px solid var(--line); border-radius: 5px; padding: 14px 16px;
+    background: var(--sheet); opacity: .42; transition: opacity .18s, border-color .18s, box-shadow .18s;
+  }
+  .path .ph { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+  .path h4 { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+  .path p { margin-top: 7px; font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
+  .path .who { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); margin-top: 8px; }
+  .path.active { opacity: 1; box-shadow: var(--shadow); }
+  .path.active.p-consult { border-color: var(--p1); border-left: 4px solid var(--p1); }
+  .path.active.p-custom  { border-color: var(--p3); border-left: 4px solid var(--p3); }
+  .path.active.p-product { border-color: var(--p2); border-left: 4px solid var(--p2); }
+  .verdict-pill {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 99px; border: 1px solid currentColor;
+  }
+</style>
+
+  <!-- ============ ROUTER ============ -->
+  <section id="router">
+    <div class="sec-head"><div class="sec-num">04</div><h2>Router un problème</h2></div>
+    <p class="sec-sub">
+      Un problème découvert chez un client ne suit que trois chemins. Les confondre, c'est fabriquer
+      un produit à partir d'un cas unique — l'erreur la plus coûteuse du système.
+    </p>
+
+    <div class="card router">
+      <div class="qbox">
+        <div class="q">
+          <p>Chez combien d'entreprises ai-je constaté ce problème ?</p>
+          <div class="opts">
+            <label class="opt"><input type="radio" name="r-spread" value="1" checked><span>Une seule — c'est le contexte de ce client</span></label>
+            <label class="opt"><input type="radio" name="r-spread" value="2"><span>Deux ou trois, avec des variantes</span></label>
+            <label class="opt"><input type="radio" name="r-spread" value="3"><span>Cinq ou plus, avec le même fond</span></label>
+          </div>
+        </div>
+        <div class="q">
+          <p>La résolution exige-t-elle un outil ?</p>
+          <div class="opts">
+            <label class="opt"><input type="radio" name="r-tool" value="0" checked><span>Non — processus, organisation, décision suffisent</span></label>
+            <label class="opt"><input type="radio" name="r-tool" value="1"><span>Oui — sans outil, l'amélioration ne tient pas</span></label>
+          </div>
+        </div>
+        <div class="q">
+          <p>Quelqu'un paierait-il aujourd'hui pour cet outil ?</p>
+          <div class="opts">
+            <label class="opt"><input type="radio" name="r-pay" value="0" checked><span>Pas de preuve — c'est une hypothèse</span></label>
+            <label class="opt"><input type="radio" name="r-pay" value="1"><span>Ce client, oui, pour son cas</span></label>
+            <label class="opt"><input type="radio" name="r-pay" value="2"><span>Plusieurs acteurs ont exprimé le besoin ou dépensent déjà</span></label>
+          </div>
+        </div>
+      </div>
+
+      <div class="paths" id="paths">
+        <div class="path p-consult" data-path="consult">
+          <div class="ph"><h4>Chemin A · Consulting</h4><span class="verdict-pill" style="color:var(--p1)">Advisory</span></div>
+          <p>Le problème est spécifique à ce client. Il se traite dans la mission — diagnostic, plan,
+             exécution, mesure. Aucun code n'est écrit.</p>
+          <div class="who">Facturation : mission · Actif créé : connaissance</div>
+        </div>
+        <div class="path p-custom" data-path="custom">
+          <div class="ph"><h4>Chemin B · Custom solution</h4><span class="verdict-pill" style="color:var(--p3)">Advisory + Solutions</span></div>
+          <p>Un outil est nécessaire mais le besoin reste spécifique. On le construit et on le facture
+             au client. Le produit n'est pas encore justifié — mais les briques réutilisables, oui.</p>
+          <div class="who">Facturation : projet · Actif créé : briques + données</div>
+        </div>
+        <div class="path p-product" data-path="product">
+          <div class="ph"><h4>Chemin C · Product / SaaS</h4><span class="verdict-pill" style="color:var(--p2)">Solutions</span></div>
+          <p>Le même problème existe chez plusieurs entreprises et quelqu'un paie déjà pour le résoudre.
+             Il peut devenir un produit industrialisé. Passer alors par le filtre complet (§06).</p>
+          <div class="who">Facturation : récurrente · Actif créé : produit + PI</div>
+        </div>
+        <p class="note" id="routerNote" style="margin-top:4px"></p>
+      </div>
+    </div>
+  </section>
+
+<style>
+  /* ---------- labo ---------- */
+  .labo-grid { display: grid; gap: 16px; grid-template-columns: 1.25fr 1fr; }
+  @media (max-width: 900px) { .labo-grid { grid-template-columns: 1fr; } }
+  .kpis { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line);
+    border-radius: 5px; overflow: hidden; grid-template-columns: repeat(3, 1fr); }
+  @media (max-width: 520px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+  .kpi { background: var(--sheet); padding: 11px 12px; }
+  .kpi .k { font-size: 12.5px; color: var(--ink-2); line-height: 1.35; }
+  .kpi .u { font-family: var(--mono); font-size: 9.5px; letter-spacing: .1em; color: var(--ink-3);
+    text-transform: uppercase; margin-top: 4px; display: block; }
+  .prodcard { display: grid; gap: 10px; align-content: start; }
+  .prodcard .ph { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .prodcard h4 { font-family: var(--display); font-size: 21px; }
+  .stage {
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 3px; background: var(--p2-wash); color: var(--p2);
+  }
+  .caplist { columns: 2; column-gap: 20px; font-size: 13px; color: var(--ink-2); line-height: 1.75; }
+  @media (max-width: 560px) { .caplist { columns: 1; } }
+  .caplist li { break-inside: avoid; }
+
+  /* ---------- filtre ---------- */
+  .filtre-grid { display: grid; gap: 18px; grid-template-columns: 1fr 340px; align-items: start; }
+  @media (max-width: 960px) { .filtre-grid { grid-template-columns: 1fr; } }
+  .qrow {
+    display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; align-items: center;
+    padding: 9px 0; border-bottom: 1px dotted var(--line);
+  }
+  .qrow:last-of-type { border-bottom: 0; }
+  .qrow .qn { font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); }
+  .qrow .qt { font-size: 14px; line-height: 1.4; }
+  .qrow .qt small { display: block; color: var(--ink-3); font-size: 12px; }
+  .seg { display: flex; gap: 3px; }
+  .seg button {
+    font-family: var(--mono); font-size: 11px; width: 30px; height: 28px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--sheet); color: var(--ink-3);
+    border-radius: 3px; line-height: 1;
+  }
+  .seg button:hover { border-color: var(--ink-3); color: var(--ink); }
+  .seg button[aria-pressed="true"] { background: var(--p1); border-color: var(--p1); color: var(--paper); }
+  @media (max-width: 520px) {
+    .qrow { grid-template-columns: 22px 1fr; row-gap: 8px; }
+    .qrow .seg { grid-column: 2; }
+  }
+
+  .scorepanel { display: grid; gap: 14px; position: sticky; top: 76px; }
+  .score-big { display: flex; align-items: baseline; gap: 8px; }
+  .score-big .v { font-family: var(--display); font-size: 58px; line-height: 1; letter-spacing: -.02em; }
+  .score-big .d { font-family: var(--mono); font-size: 13px; color: var(--ink-3); }
+  .verdict {
+    display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border-radius: 4px;
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase;
+  }
+  .bars { display: grid; gap: 7px; }
+  .bar-row { display: grid; grid-template-columns: 1fr 34px; gap: 9px; align-items: center; }
+  .bar-track { height: 9px; background: var(--sheet-2); border-radius: 2px; overflow: hidden;
+    border: 1px solid var(--line-soft); }
+  .bar-fill { height: 100%; border-radius: 0 2px 2px 0; transition: width .25s ease; }
+  .bar-lab { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+  .bar-val { font-family: var(--mono); font-size: 11px; text-align: right;
+    font-variant-numeric: tabular-nums; color: var(--ink-2); }
+  .btnrow { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+    padding: 8px 13px; border-radius: 4px; border: 1px solid var(--line);
+    background: var(--sheet); color: var(--ink-2); cursor: pointer;
+  }
+  .btn:hover { border-color: var(--ink-3); color: var(--ink); }
+  .btn.primary { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+</style>
+
+  <!-- ============ LABO ============ -->
+  <section id="labo">
+    <div class="sec-head"><div class="sec-num">05</div><h2>Le laboratoire</h2></div>
+    <p class="sec-sub">
+      La flotte Yango est un vrai business : rentable, contrôlé, scalable, documenté, piloté par la donnée.
+      Mais c'est aussi la preuve que la boucle fonctionne — c'est elle qui a produit M3A&nbsp;Fleet.
+    </p>
+
+    <div class="labo-grid">
+      <div class="card">
+        <div class="label" style="margin-bottom:12px">Ce que la flotte doit optimiser</div>
+        <div class="kpis">
+          <div class="kpi"><div class="k">Chiffre d'affaires<br>par véhicule</div><span class="u">Revenu</span></div>
+          <div class="kpi"><div class="k">Taux d'utilisation</div><span class="u">Revenu</span></div>
+          <div class="kpi"><div class="k">Coût carburant<br>/ énergie</div><span class="u">Coût</span></div>
+          <div class="kpi"><div class="k">Performance chauffeur</div><span class="u">Opérations</span></div>
+          <div class="kpi"><div class="k">Maintenance</div><span class="u">Coût</span></div>
+          <div class="kpi"><div class="k">Fraude</div><span class="u">Contrôle</span></div>
+          <div class="kpi"><div class="k">Cash-flow</div><span class="u">Finance</span></div>
+          <div class="kpi"><div class="k">Commissions</div><span class="u">Finance</span></div>
+          <div class="kpi"><div class="k">Géolocalisation</div><span class="u">Contrôle</span></div>
+          <div class="kpi"><div class="k">Disponibilité<br>des véhicules</div><span class="u">Opérations</span></div>
+          <div class="kpi"><div class="k">EBITDA<br>par véhicule</div><span class="u">Finance</span></div>
+          <div class="kpi" style="background:var(--p3-wash)"><div class="k" style="color:var(--p3)"><b>Données<br>d'apprentissage</b></div><span class="u" style="color:var(--p3)">Actif</span></div>
+        </div>
+        <p class="note" style="margin-top:14px">
+          Chacune de ces lignes est simultanément un levier de rentabilité <b>et</b> une spécification produit.
+          C'est ce double usage qui justifie de garder l'activité en direct.
+        </p>
+      </div>
+
+      <div class="grid" style="gap:16px">
+        <div class="card prodcard">
+          <div class="ph"><h4>M3A Fleet</h4><span class="stage">Solutions · en construction</span></div>
+          <p class="note">Gestion intelligente de flotte et de chauffeurs. Testée sur nos propres opérations
+            avant toute commercialisation auprès d'autres propriétaires ou gestionnaires.</p>
+          <ul class="caplist">
+            <li>Véhicules</li><li>Chauffeurs</li><li>KYC</li><li>Affectations</li>
+            <li>Collecte quotidienne</li><li>Chiffre d'affaires</li><li>Dépenses</li><li>Carburant</li>
+            <li>Kilométrage</li><li>Maintenance</li><li>Géolocalisation</li><li>Documents</li>
+            <li>Réconciliation</li><li>Reporting</li><li>Contrôle &amp; alertes</li><li>Analytics</li>
+            <li>Simulations</li><li>Rentabilité / véhicule</li>
+          </ul>
+          <p class="note" style="border-left:2px solid var(--p2);padding-left:10px">
+            <b>Ce n'est pas la finalité du groupe.</b> C'est le premier produit issu de la philosophie générale.
+          </p>
+        </div>
+        <div class="card prodcard">
+          <div class="ph"><h4>GNITT</h4><span class="stage" style="background:var(--sheet-2);color:var(--ink-2)">Solutions · exploration</span></div>
+          <p class="note">Réconciliation et contrôle automatisé des transactions et flux financiers.
+            Même logique : problème opérationnel réel → automatiser → contrôler → fournir de l'intelligence décisionnelle.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ FILTRE ============ -->
+  <section id="filtre">
+    <div class="sec-head"><div class="sec-num">06</div><h2>Le filtre à dix questions</h2></div>
+    <p class="sec-sub">
+      Toute idée, opportunité, relation ou proposition passe ici avant de consommer du temps ou du capital.
+      Notez chaque critère de 0 (non / inconnu) à 3 (oui, avéré). Le score n'autorise rien — il empêche de
+      s'auto-convaincre.
+    </p>
+
+    <div class="filtre-grid">
+      <div class="card">
+        <div id="qlist"></div>
+        <div class="btnrow" style="margin-top:18px">
+          <button class="btn" id="filtreReset" type="button">Réinitialiser</button>
+        </div>
+      </div>
+
+      <aside class="card scorepanel">
+        <div>
+          <div class="label">Score de cohérence</div>
+          <div class="score-big"><span class="v num" id="scoreVal">0</span><span class="d">/ 30</span></div>
+        </div>
+        <div><span class="verdict" id="verdict">—</span></div>
+        <p class="note" id="verdictText"></p>
+        <div>
+          <div class="label" style="margin-bottom:9px">Profil de l'opportunité</div>
+          <div class="bars" id="scoreBars"></div>
+          <p class="note" style="margin-top:9px">Un critère à 0 sur « problème réel », « payeur » ou
+            « preuve » disqualifie, quel que soit le total.</p>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+<style>
+  /* ---------- bascule ---------- */
+  .basc { display: grid; gap: 16px; grid-template-columns: 1fr 1fr; align-items: start; }
+  @media (max-width: 920px) { .basc { grid-template-columns: 1fr; } }
+  .inp-row {
+    display: grid; grid-template-columns: 1fr 120px; gap: 10px; align-items: center;
+    padding: 8px 0; border-bottom: 1px dotted var(--line);
+  }
+  .inp-row:last-child { border-bottom: 0; }
+  .inp-row label { font-size: 13.5px; line-height: 1.35; }
+  .inp-row label small { display: block; color: var(--ink-3); font-size: 11.5px; font-family: var(--mono); }
+  .inp-row input {
+    font-family: var(--mono); font-size: 13px; text-align: right; width: 100%;
+    padding: 7px 9px; border: 1px solid var(--line); border-radius: 4px;
+    background: var(--paper); color: var(--ink); font-variant-numeric: tabular-nums;
+  }
+  .gauge-wrap { display: grid; justify-items: center; gap: 4px; }
+  .gauge-wrap svg { width: 100%; max-width: 330px; height: auto; display: block; }
+  .g-val { font-family: var(--display); font-size: 46px; fill: var(--ink); letter-spacing: -.02em; }
+  .g-cap { font-family: var(--mono); font-size: 10px; letter-spacing: .14em; fill: var(--ink-3); }
+  .band-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; justify-content: center; }
+  .band-legend span { font-family: var(--mono); font-size: 10px; color: var(--ink-3); display: flex; gap: 5px; align-items: center; }
+  .band-legend i { width: 9px; height: 9px; border-radius: 2px; display: inline-block; }
+
+  .crit-row { display: grid; grid-template-columns: 1fr 52px; gap: 10px; align-items: center; padding: 6px 0; }
+  .crit-row .cl { font-size: 12.5px; color: var(--ink-2); }
+  .crit-row .ct { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+
+  .cmp { display: grid; gap: 12px; }
+  .cmp-row { display: grid; grid-template-columns: 150px 1fr; gap: 12px; align-items: center; }
+  @media (max-width: 520px) { .cmp-row { grid-template-columns: 1fr; gap: 4px; } }
+  .cmp-row .cn { font-size: 13px; display: flex; align-items: center; gap: 7px; }
+  .cmp-bar { height: 26px; background: var(--sheet-2); border: 1px solid var(--line-soft); border-radius: 3px; position: relative; }
+  .cmp-fill { height: 100%; border-radius: 0 3px 3px 0; display: flex; align-items: center;
+    justify-content: flex-end; padding-right: 8px; transition: width .28s ease; min-width: 2px; }
+  .cmp-fill span { font-family: var(--mono); font-size: 11px; font-variant-numeric: tabular-nums;
+    color: var(--paper); white-space: nowrap; }
+  .cmp-fill.outside { justify-content: flex-start; padding-right: 0; }
+  .cmp-fill.outside span { color: var(--ink-2); margin-left: calc(100% + 8px); }
+
+  /* ---------- horizon ---------- */
+  .tl-scroll { overflow-x: auto; }
+  .tl { min-width: 680px; display: grid; grid-template-columns: 132px repeat(6, 1fr); gap: 6px 0; }
+  .tl .yr { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; color: var(--ink-3);
+    text-align: center; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .tl .sw { font-family: var(--mono); font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--ink-2); padding: 10px 10px 10px 0; display: flex; align-items: center; }
+  .tl .lane { grid-column: 2 / -1; display: grid; grid-template-columns: repeat(6, 1fr);
+    border-top: 1px dotted var(--line); padding: 8px 0; }
+  .tl .bar { border-radius: 3px; padding: 6px 9px; font-size: 12px; color: var(--ink); line-height: 1.3;
+    display: flex; align-items: center; }
+  .tl .bar.ghost { background: transparent; color: var(--ink-3); border: 1px dashed var(--line); }
+
+  /* ---------- rôle ---------- */
+  .role-grid { display: grid; gap: 18px; grid-template-columns: 1fr 1fr; align-items: center; }
+  @media (max-width: 880px) { .role-grid { grid-template-columns: 1fr; } }
+  .v-label { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; }
+  .abilities { display: grid; gap: 7px; }
+  .abilities li { list-style: none; display: grid; grid-template-columns: 16px 1fr; gap: 10px;
+    font-size: 14.5px; color: var(--ink-2); line-height: 1.45; }
+  .abilities li b { color: var(--ink); font-weight: 600; }
+  .abilities li::before { content: "→"; color: var(--p1); font-family: var(--mono); font-size: 12px; }
+
+  /* ---------- garde-fous ---------- */
+  .guards { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0,1fr)); }
+  @media (max-width: 760px) { .guards { grid-template-columns: 1fr; } }
+  .guard { border: 1px solid var(--line); border-radius: 5px; padding: 13px 15px; background: var(--sheet); }
+  .guard h4 { font-size: 14px; margin-bottom: 5px; }
+  .guard p { font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
+  .guard.danger { border-left: 3px solid var(--crit); }
+  .guard.ok { border-left: 3px solid var(--good); }
+
+  footer.pagefoot {
+    border-top: 1px solid var(--line); margin-top: 20px; padding-block: 30px 56px;
+    display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+</style>
+
+  <!-- ============ BASCULE ============ -->
+  <section id="bascule">
+    <div class="sec-head"><div class="sec-num">07</div><h2>Le point de bascule</h2></div>
+    <p class="sec-sub">
+      Je ne quitte pas le salariat à une date. Je le quitte quand l'écosystème atteint une masse critique
+      telle que rester coûte plus que ce que ça rapporte. Voici les critères — chiffrés, suivis,
+      revus trimestriellement.
+      <span class="flag" style="margin-left:6px">Valeurs d'exemple — à remplacer</span>
+    </p>
+
+    <div class="basc">
+      <div class="card">
+        <div class="label" style="margin-bottom:6px">Mes chiffres</div>
+        <div id="bascInputs"></div>
+        <div class="btnrow" style="margin-top:16px">
+          <button class="btn" id="bascReset" type="button">Revenir à l'exemple</button>
+          <button class="btn" id="bascClear" type="button">Vider</button>
+        </div>
+      </div>
+
+      <div class="grid" style="gap:16px">
+        <div class="card gauge-wrap">
+          <svg viewBox="0 0 300 186" role="img" aria-labelledby="gaugeTitle">
+            <title id="gaugeTitle">Indice de préparation à la bascule</title>
+            <path d="M 40 150 A 110 110 0 0 1 260 150" fill="none" stroke="var(--sheet-2)" stroke-width="18" stroke-linecap="round"/>
+            <path d="M 40 150 A 110 110 0 0 1 260 150" fill="none" stroke="var(--line)" stroke-width="18"
+                  stroke-linecap="round" stroke-dasharray="138.2 207.4" opacity=".55"/>
+            <path id="gaugeArc" d="M 40 150 A 110 110 0 0 1 260 150" fill="none" stroke="var(--p1)"
+                  stroke-width="18" stroke-linecap="round" stroke-dasharray="0 345.6"/>
+            <circle id="gaugeDot" cx="40" cy="150" r="6" fill="var(--sheet)" stroke="var(--p1)" stroke-width="3"/>
+            <text x="150" y="132" text-anchor="middle" class="g-val num" id="gaugeVal">0</text>
+            <text x="150" y="152" text-anchor="middle" class="g-cap">INDICE DE BASCULE</text>
+            <text x="34" y="175" text-anchor="middle" class="g-cap">0</text>
+            <text x="266" y="175" text-anchor="middle" class="g-cap">100</text>
+          </svg>
+          <div><span class="verdict" id="bascVerdict">—</span></div>
+          <p class="note" id="bascText" style="text-align:center;max-width:44ch"></p>
+          <div class="band-legend">
+            <span><i style="background:var(--crit)"></i>0–39 Construire</span>
+            <span><i style="background:var(--warn)"></i>40–69 Consolider</span>
+            <span><i style="background:var(--p1)"></i>70–89 Préparer</span>
+            <span><i style="background:var(--good)"></i>90+ Basculer</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="label" style="margin-bottom:10px">Salariat vs écosystème · revenu mensuel net</div>
+          <div class="cmp">
+            <div class="cmp-row">
+              <div class="cn"><span class="dot" style="background:var(--ink);border-radius:50%"></span>Salariat (net)</div>
+              <div class="cmp-bar"><div class="cmp-fill" id="cmpSalary" style="background:var(--ink);width:0"><span>—</span></div></div>
+            </div>
+            <div class="cmp-row">
+              <div class="cn"><span class="dot" style="background:var(--p1);border-radius:50%"></span>Écosystème (cash-flow net)</div>
+              <div class="cmp-bar"><div class="cmp-fill" id="cmpEco" style="background:var(--p1);width:0"><span>—</span></div></div>
+            </div>
+          </div>
+          <p class="note" id="cmpNote" style="margin-top:12px"></p>
+        </div>
+
+        <div class="card">
+          <div class="label" style="margin-bottom:8px">Détail par critère · atteinte de la cible</div>
+          <div id="critBars"></div>
+        </div>
+      </div>
+    </div>
+    <p class="note" style="margin-top:14px;max-width:80ch">
+      <b style="color:var(--ink)">Ce que l'indice ne mesure pas —</b> la valeur non financière du 9-to-5 :
+      exposition à des problématiques complexes, développement professionnel, réseau, capacité
+      d'investissement. Tant que cette valeur reste élevée et que l'indice est bas, rester est la
+      décision rationnelle. La bascule se prépare, elle ne s'improvise pas.
+    </p>
+  </section>
+
+  <!-- ============ HORIZON ============ -->
+  <section id="horizon">
+    <div class="sec-head"><div class="sec-num">08</div><h2>Horizon 2030 / 2031</h2></div>
+    <p class="sec-sub">
+      L'état final est décidé ; la séquence ne l'est pas encore.
+      <span class="flag" style="margin-left:6px">Hypothèse de séquence — à challenger</span>
+    </p>
+
+    <figure class="figure">
+      <div class="tl-scroll">
+        <div class="tl">
+          <div></div>
+          <div class="yr">2026</div><div class="yr">2027</div><div class="yr">2028</div>
+          <div class="yr">2029</div><div class="yr">2030</div><div class="yr">2031</div>
+
+          <div class="sw" style="color:var(--p1)">Advisory</div>
+          <div class="lane">
+            <div class="bar" style="background:var(--p1-wash);border-left:3px solid var(--p1);grid-column:1/3">Premières missions · références</div>
+            <div class="bar" style="background:var(--p1-wash);border-left:3px dotted var(--p1);grid-column:3/5">Offre structurée · récurrence</div>
+            <div class="bar ghost" style="grid-column:5/7">Signature reconnue · grands comptes</div>
+          </div>
+
+          <div class="sw" style="color:var(--p2)">Solutions</div>
+          <div class="lane">
+            <div class="bar" style="background:var(--p2-wash);border-left:3px solid var(--p2);grid-column:1/3">M3A Fleet éprouvé en interne</div>
+            <div class="bar" style="background:var(--p2-wash);border-left:3px dotted var(--p2);grid-column:3/5">Premiers clients payants · MRR</div>
+            <div class="bar ghost" style="grid-column:5/7">Portefeuille restreint · ARR significatif</div>
+          </div>
+
+          <div class="sw" style="color:var(--p3)">Ventures</div>
+          <div class="lane">
+            <div class="bar" style="background:var(--p3-wash);border-left:3px solid var(--p3);grid-column:1/4">Flotte rentable, contrôlée, documentée</div>
+            <div class="bar ghost" style="grid-column:4/7">Sélection : garder, céder, ou dupliquer</div>
+          </div>
+
+          <div class="sw">Équipe</div>
+          <div class="lane">
+            <div class="bar" style="background:var(--sheet-2);border-left:3px solid var(--ink-2);grid-column:2/4">Premiers relais opérationnels</div>
+            <div class="bar ghost" style="grid-column:4/7">Exécution sans dépendance à moi</div>
+          </div>
+
+          <div class="sw">Capital</div>
+          <div class="lane">
+            <div class="bar" style="background:var(--sheet-2);border-left:3px dotted var(--ink-2);grid-column:3/5">Réinvestissement des profits</div>
+            <div class="bar ghost" style="grid-column:5/7">Structure de groupe / holding</div>
+          </div>
+        </div>
+      </div>
+      <figcaption>
+        Traits pleins : engagements. Traits pointillés : conséquences attendues, pas des promesses.
+        Le point de bascule (§07) se situe quelque part dans la zone pointillée — déterminé par les
+        critères, pas par le calendrier.
+      </figcaption>
+    </figure>
+
+    <div class="grid g2" style="margin-top:22px">
+      <div class="card">
+        <div class="label" style="margin-bottom:10px">Les secteurs ne sont pas la stratégie</div>
+        <div class="taglist" style="margin-bottom:12px">
+          <span>Transport</span><span>Logistique</span><span>Énergie</span><span>Fintech</span>
+          <span>Industrie</span><span>Distribution</span><span>Services</span><span>Commerce</span>
+          <span>Mobilité</span><span>Supply chain</span><span>Autres B2B</span>
+        </div>
+        <p class="note">Par défaut, un nouveau secteur est <b>un marché</b> pour Advisory ou Solutions.
+          Une activité autonome ne se crée que sur justification stratégique et économique forte.</p>
+      </div>
+      <div class="card">
+        <div class="label" style="margin-bottom:10px">Le réseau accélère, il ne décide pas</div>
+        <p class="note mono" style="font-size:12px;letter-spacing:.04em;line-height:2;color:var(--p1)">
+          VISION → STRATEGY → NEEDS → PEOPLE</p>
+        <p class="note mono" style="font-size:12px;letter-spacing:.04em;line-height:2;color:var(--crit);text-decoration:line-through">
+          PEOPLE → OPPORTUNITY → RANDOM BUSINESS</p>
+        <p class="note" style="margin-top:8px">Les relations restent d'abord authentiques. Les synergies
+          s'explorent quand elles existent naturellement — jamais l'inverse.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ RÔLE ============ -->
+  <section id="role">
+    <div class="sec-head"><div class="sec-num">09</div><h2>Mon rôle</h2></div>
+    <p class="sec-sub">
+      Pas consultant indépendant. Pas développeur. Pas exploitant. Entrepreneur de la transformation
+      d'entreprises — ce qui n'existe qu'à l'intersection.
+    </p>
+
+    <div class="role-grid">
+      <figure class="figure">
+        <div class="svg-wrap">
+          <svg viewBox="0 0 480 390" role="img" aria-label="Intersection stratégie, opérations, technologie dans un cadre entrepreneurial">
+            <title>Mon rôle à l'intersection</title>
+            <ellipse cx="240" cy="190" rx="184" ry="158" fill="none" stroke="var(--p3)" stroke-width="1.5" stroke-dasharray="5 6"/>
+            <text x="240" y="48" text-anchor="middle" class="v-label" style="fill:var(--p3)">ENTREPRENEURIAT</text>
+            <circle cx="195" cy="155" r="95" fill="var(--p1)" fill-opacity=".14" stroke="var(--p1)" stroke-width="1.5"/>
+            <circle cx="285" cy="155" r="95" fill="var(--p2)" fill-opacity=".14" stroke="var(--p2)" stroke-width="1.5"/>
+            <circle cx="240" cy="235" r="95" fill="var(--ink-2)" fill-opacity=".12" stroke="var(--ink-2)" stroke-width="1.5"/>
+            <text x="148" y="100" text-anchor="middle" class="v-label" style="fill:var(--p1)">STRATÉGIE</text>
+            <text x="332" y="100" text-anchor="middle" class="v-label" style="fill:var(--p2)">OPÉRATIONS</text>
+            <text x="240" y="318" text-anchor="middle" class="v-label" style="fill:var(--ink-2)">TECHNOLOGIE</text>
+            <text x="240" y="182" text-anchor="middle" class="v-label" style="fill:var(--ink);font-size:13px;letter-spacing:.16em">MON RÔLE</text>
+            <text x="240" y="200" text-anchor="middle" class="n-sub">là où les trois se recoupent</text>
+          </svg>
+        </div>
+      </figure>
+
+      <div>
+        <div class="label" style="margin-bottom:12px">Ce que je veux pouvoir faire, de bout en bout</div>
+        <ul class="abilities">
+          <li><span><b>Comprendre</b> une entreprise de l'intérieur.</span></li>
+          <li><span><b>Identifier</b> ce qui bloque réellement sa croissance ou sa performance.</span></li>
+          <li><span><b>Concevoir</b> une solution qui tient dans son contexte.</span></li>
+          <li><span><b>Mobiliser</b> les bonnes compétences autour du problème.</span></li>
+          <li><span><b>Construire</b> lorsque c'est nécessaire — et seulement alors.</span></li>
+          <li><span><b>Mesurer</b> les résultats obtenus, pas ceux annoncés.</span></li>
+          <li><span><b>Transformer</b> certaines solutions en produits scalables.</span></li>
+        </ul>
+        <div class="card" style="margin-top:18px;background:var(--p1-wash);border-color:color-mix(in srgb, var(--p1) 30%, transparent)">
+          <div class="label" style="color:var(--p1);margin-bottom:6px">Besoin personnel — et son risque</div>
+          <p class="note" style="color:var(--ink-2)">La stimulation intellectuelle et la création font partie
+            de la vision : nouveaux problèmes, nouveaux secteurs, nouveaux modèles, décisions complexes.
+            <b style="color:var(--ink)">C'est aussi le principal risque du système.</b> D'où le filtre (§06)
+            et les garde-fous (§10).</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ GARDE-FOUS ============ -->
+  <section id="gardefous">
+    <div class="sec-head"><div class="sec-num">10</div><h2>Les garde-fous</h2></div>
+    <p class="sec-sub">
+      Ce document sert de cadre de référence permanent. Il ne sert pas à exécuter des idées —
+      il sert à les challenger.
+    </p>
+
+    <div class="guards">
+      <div class="guard ok"><h4>Replacer avant d'évaluer</h4>
+        <p>Toute idée est d'abord située dans l'architecture : quel pilier, quelles synergies, quel effet
+          de levier sur l'existant.</p></div>
+      <div class="guard ok"><h4>Distinguer les trois chemins</h4>
+        <p>Consulting, custom solution, produit scalable. Ne jamais glisser de l'un à l'autre par
+          enthousiasme.</p></div>
+      <div class="guard ok"><h4>Tester avant de construire</h4>
+        <p>Privilégier l'expérience la moins coûteuse qui teste réellement l'hypothèse. Le code est le
+          dernier recours, pas le premier réflexe.</p></div>
+      <div class="guard ok"><h4>Protéger le cash et le temps</h4>
+        <p>Ce sont les deux ressources rares. Toute nouvelle brique en consomme — il faut nommer ce
+          qu'on arrête en échange.</p></div>
+      <div class="guard ok"><h4>Chercher l'actif</h4>
+        <p>Privilégier récurrence, propriété intellectuelle, données. Une mission qui ne laisse aucun
+          actif derrière elle est un revenu, pas une construction.</p></div>
+      <div class="guard danger"><h4>Ne pas encourager systématiquement</h4>
+        <p>Une idée séduisante n'est pas une idée cohérente. L'incohérence avec la vision doit être
+          signalée clairement, pas contournée.</p></div>
+      <div class="guard danger"><h4>Ne pas multiplier les projets</h4>
+        <p>Un nouveau projet qui ne renforce aucun des trois piliers affaiblit les trois.</p></div>
+      <div class="guard danger"><h4>Ne pas franchir la ligne du 9-to-5</h4>
+        <p>Clients, données, propriété intellectuelle, ressources, temps de travail, conflits d'intérêts :
+          séparation stricte, sans exception tolérée.</p></div>
+    </div>
+
+    <div class="card" style="margin-top:20px;border-color:var(--ink);border-width:1.5px">
+      <div class="label" style="margin-bottom:10px">La question finale, avant tout engagement</div>
+      <p style="font-family:var(--display);font-size:clamp(19px,3vw,27px);line-height:1.25;letter-spacing:-.01em">
+        « Est-ce que cette brique rend les autres plus fortes ? »
+      </p>
+      <p class="note" style="margin-top:12px">Si la réponse n'est pas évidente, la réponse est non.
+        Construire un système entrepreneurial cohérent, pas une collection de projets.</p>
+    </div>
+  </section>
+
+  <footer class="pagefoot">
+    <span>Système M3A · Cadre stratégique de référence</span>
+    <span>Version 1.0 · Document vivant</span>
+  </footer>
+</main>
+
+<script>
+(function () {
+  "use strict";
+  var LS = {
+    get: function (k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; }
+      catch (e) { return d; } },
+    set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  };
+  var fmtInt = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
+
+  /* ---------- scrollspy ---------- */
+  var links = Array.prototype.slice.call(document.querySelectorAll("#nav a"));
+  var targets = links.map(function (a) { return document.querySelector(a.getAttribute("href")); })
+                     .filter(Boolean);
+  if ("IntersectionObserver" in window && targets.length) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) {
+          a.classList.toggle("on", a.getAttribute("href") === "#" + en.target.id);
+        });
+      });
+    }, { rootMargin: "-56px 0px -68% 0px", threshold: 0 });
+    targets.forEach(function (t) { io.observe(t); });
+  }
+
+  /* ---------- boucle vertueuse ---------- */
+  var LOOP = {
+    advisory: ["Advisory", "Le point d'entrée. C'est en travaillant à l'intérieur des entreprises qu'on découvre des problèmes que personne ne décrit correctement depuis l'extérieur — et qu'on gagne le droit de proposer une solution."],
+    diagnostic: ["Diagnostic", "On sépare les symptômes des causes. Quelques problèmes portent l'essentiel de l'impact ; le reste est du bruit coûteux. C'est ici que se décide ce qu'on ne fera pas."],
+    transformation: ["Transformation", "Processus, organisation, gouvernance. L'amélioration est réelle avant tout outil — si elle ne tient pas sans logiciel, c'est souvent que le problème n'est pas encore compris."],
+    solutions: ["Solutions", "On construit seulement quand l'outil est la condition pour que l'amélioration dure. La mission a déjà financé la découverte : le risque produit est massivement réduit."],
+    data: ["Data", "L'outil mesure. Les résultats deviennent preuve commerciale pour Advisory, et matière première pour le produit suivant. C'est ce retour qui referme la boucle."]
+  };
+  var lt = document.getElementById("loopTitle"), lx = document.getElementById("loopText");
+  function selectNode(g) {
+    var k = g.getAttribute("data-node"); if (!LOOP[k]) return;
+    document.querySelectorAll(".n-hit").forEach(function (n) { n.classList.remove("on"); });
+    g.classList.add("on"); lt.textContent = LOOP[k][0]; lx.textContent = LOOP[k][1];
+  }
+  document.querySelectorAll(".n-hit").forEach(function (g) {
+    g.addEventListener("click", function () { selectNode(g); });
+    g.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); selectNode(g); }
+    });
+    g.addEventListener("mouseenter", function () { selectNode(g); });
+  });
+
+  /* ---------- router ---------- */
+  var routerNote = document.getElementById("routerNote");
+  function val(name) {
+    var el = document.querySelector('input[name="' + name + '"]:checked');
+    return el ? parseInt(el.value, 10) : 0;
+  }
+  function routeUpdate() {
+    var spread = val("r-spread"), tool = val("r-tool"), pay = val("r-pay"), pick, note;
+    if (tool === 0) {
+      pick = "consult";
+      note = "Pas d'outil requis : la valeur se crée dans la mission. Si l'envie de coder apparaît ici, c'est une distraction — nommez-la comme telle.";
+    } else if (spread >= 3 && pay >= 2) {
+      pick = "product";
+      note = "Problème répandu + preuve de paiement : c'est le seul cas qui justifie un produit. Faites-le passer par le filtre à dix questions avant d'engager quoi que ce soit.";
+    } else if (spread >= 2 && pay >= 2) {
+      pick = "custom";
+      note = "Le signal est bon mais incomplet. Construisez en custom, facturé, et comptez les clients qui rencontrent le même problème. Le produit se décide à la 3e ou 4e occurrence, pas avant.";
+    } else {
+      pick = "custom";
+      note = "Outil nécessaire mais besoin encore spécifique : custom facturé au client. Réutilisez les briques, ne promettez pas un produit.";
+    }
+    document.querySelectorAll("#paths .path").forEach(function (p) {
+      p.classList.toggle("active", p.getAttribute("data-path") === pick);
+    });
+    routerNote.textContent = note;
+  }
+  document.querySelectorAll('#router input[type="radio"]').forEach(function (r) {
+    r.addEventListener("change", routeUpdate);
+  });
+  routeUpdate();
+
+  /* ---------- filtre 10 questions ---------- */
+  var QS = [
+    { s: "Pilier",      t: "Dans quel pilier entre-t-elle ?", h: "Advisory, Solutions ou Ventures — sans ambiguïté." },
+    { s: "Problème",    t: "Quel problème réel résout-elle ?", h: "Nommable en une phrase, par celui qui le subit.", key: 1 },
+    { s: "Payeur",      t: "Qui paiera pour le résoudre ?", h: "Un budget et un décideur identifiés.", key: 1 },
+    { s: "Preuve",      t: "Existe-t-il déjà une preuve du problème ?", h: "Constat terrain, dépense actuelle, contournement observé.", key: 1 },
+    { s: "Cash",        t: "Peut-elle générer du cash ?", h: "Et à quelle échéance — pas « un jour »." },
+    { s: "Actif / PI",  t: "Génère-t-elle de la PI ou des données utiles ?", h: "Ce qui reste quand la mission s'arrête." },
+    { s: "Scalabilité", t: "Est-elle scalable ?", h: "Le revenu croît-il sans que mon temps croisse autant ?" },
+    { s: "Synergies",   t: "Crée-t-elle des synergies avec l'existant ?", h: "Rend-elle Advisory, Solutions ou Ventures plus forts ?" },
+    { s: "Coût faible", t: "Temps et capital consommés", h: "3 = faible consommation ; 0 = engloutit tout." },
+    { s: "Arbitrage",   t: "Ce que je dois arrêter est-il acceptable ?", h: "Nommez explicitement ce qui recule." }
+  ];
+  var scores = LS.get("m3a.filtre", QS.map(function () { return 0; }));
+  if (!Array.isArray(scores) || scores.length !== QS.length) scores = QS.map(function () { return 0; });
+
+  var qlist = document.getElementById("qlist");
+  QS.forEach(function (q, i) {
+    var row = document.createElement("div");
+    row.className = "qrow";
+    row.innerHTML = '<div class="qn">' + String(i + 1).padStart(2, "0") + '</div>' +
+      '<div class="qt">' + q.t + '<small>' + q.h + '</small></div>' +
+      '<div class="seg" role="group" aria-label="' + q.s + '"></div>';
+    var seg = row.querySelector(".seg");
+    [0, 1, 2, 3].forEach(function (n) {
+      var b = document.createElement("button");
+      b.type = "button"; b.textContent = n; b.id = "q" + i + "s" + n;
+      b.setAttribute("aria-label", q.s + " : " + n + " sur 3");
+      b.addEventListener("click", function () { scores[i] = n; renderFiltre(); LS.set("m3a.filtre", scores); });
+      seg.appendChild(b);
+    });
+    qlist.appendChild(row);
+  });
+
+  var scoreVal = document.getElementById("scoreVal"),
+      verdictEl = document.getElementById("verdict"),
+      verdictText = document.getElementById("verdictText"),
+      scoreBars = document.getElementById("scoreBars");
+
+  QS.forEach(function (q, i) {
+    var r = document.createElement("div");
+    r.className = "bar-row";
+    r.innerHTML = '<div><div class="bar-lab">' + q.s.toUpperCase() + '</div>' +
+      '<div class="bar-track"><div class="bar-fill" id="bf' + i + '" style="width:0;background:var(--p1)"></div></div></div>' +
+      '<div class="bar-val" id="bv' + i + '">0</div>';
+    scoreBars.appendChild(r);
+  });
+
+  function renderFiltre() {
+    var total = 0, blocked = false;
+    QS.forEach(function (q, i) {
+      var v = scores[i]; total += v;
+      if (q.key && v === 0) blocked = true;
+      for (var n = 0; n <= 3; n++) {
+        var b = document.getElementById("q" + i + "s" + n);
+        b.setAttribute("aria-pressed", String(n === v));
+      }
+      var f = document.getElementById("bf" + i);
+      f.style.width = (v / 3 * 100) + "%";
+      f.style.background = q.key && v === 0 ? "var(--crit)" : "var(--p1)";
+      document.getElementById("bv" + i).textContent = v + "/3";
+    });
+    scoreVal.textContent = total;
+    var label, color, bg, txt;
+    if (blocked) {
+      label = "Refuser"; color = "var(--crit)";
+      txt = "Un critère bloquant est à 0 (problème réel, payeur ou preuve). Le total n'a plus d'importance : il n'y a pas encore d'opportunité, seulement une intuition.";
+    } else if (total >= 24) {
+      label = "Go — construire"; color = "var(--good)";
+      txt = "Cohérente avec le système. Définissez maintenant ce que vous arrêtez pour lui faire de la place, et la première mesure de succès.";
+    } else if (total >= 18) {
+      label = "Test peu coûteux"; color = "var(--p1)";
+      txt = "Le potentiel est là, la preuve manque. Conception d'une expérience la moins chère possible, avec un critère d'arrêt écrit à l'avance.";
+    } else if (total >= 12) {
+      label = "Parquer"; color = "var(--warn)";
+      txt = "À revisiter si de nouvelles preuves apparaissent. Notez-la, datez-la, et n'y consacrez ni temps ni capital d'ici là.";
+    } else {
+      label = "Refuser"; color = "var(--crit)";
+      txt = "Incohérente avec la vision dans son état actuel. Le coût réel n'est pas l'argent : c'est l'attention détournée des trois piliers.";
+    }
+    verdictEl.textContent = label;
+    verdictEl.style.color = color;
+    verdictEl.style.background = "color-mix(in srgb, " + color + " 12%, transparent)";
+    verdictEl.style.border = "1px solid " + color;
+    verdictText.textContent = txt;
+  }
+  document.getElementById("filtreReset").addEventListener("click", function () {
+    scores = QS.map(function () { return 0; }); renderFiltre(); LS.set("m3a.filtre", scores);
+  });
+  renderFiltre();
+
+  /* ---------- point de bascule ---------- */
+  var EXEMPLE = { salaire: 2500000, mrr: 350000, cashflow: 850000, pipeline: 2,
+                  concentration: 55, tresorerie: 7, autonomie: 25, refusees: 2 };
+  var VIDE    = { salaire: 0, mrr: 0, cashflow: 0, pipeline: 0,
+                  concentration: 0, tresorerie: 0, autonomie: 0, refusees: 0 };
+
+  var CRIT = [
+    { k: "salaire",       l: "Salaire net mensuel (9-to-5)", h: "FCFA / mois — référence, non noté", unit: "FCFA", score: false },
+    { k: "mrr",           l: "MRR Solutions", h: "revenus récurrents, FCFA / mois", unit: "FCFA",
+      target: 3000000, w: 0.20, dir: "up", money: true },
+    { k: "cashflow",      l: "Cash-flow net de l'écosystème", h: "FCFA / mois, hors salaire", unit: "FCFA",
+      target: null, w: 0.25, dir: "up", money: true },
+    { k: "pipeline",      l: "Pipeline Advisory signé", h: "mois de charges déjà couverts", unit: "mois",
+      target: 6, w: 0.15, dir: "up" },
+    { k: "concentration", l: "Concentration client", h: "part du plus gros client, %", unit: "%",
+      target: 30, w: 0.10, dir: "down" },
+    { k: "tresorerie",    l: "Trésorerie personnelle", h: "mois de dépenses couverts", unit: "mois",
+      target: 12, w: 0.15, dir: "up" },
+    { k: "autonomie",     l: "Autonomie de l'équipe", h: "% des opérations sans moi", unit: "%",
+      target: 70, w: 0.10, dir: "up" },
+    { k: "refusees",      l: "Opportunités refusées faute de temps", h: "par trimestre", unit: "/ trim.",
+      target: 4, w: 0.05, dir: "up" }
+  ];
+
+  var basc = LS.get("m3a.basc", null);
+  if (!basc || typeof basc !== "object") basc = Object.assign({}, EXEMPLE);
+
+  var bascInputs = document.getElementById("bascInputs");
+  CRIT.forEach(function (c) {
+    var row = document.createElement("div");
+    row.className = "inp-row";
+    var targetTxt = c.score === false ? "référence"
+      : (c.target === null ? "cible : 1,5 × salaire"
+        : "cible : " + (c.dir === "down" ? "≤ " : "≥ ") + fmtInt.format(c.target) + " " + c.unit);
+    row.innerHTML = '<label for="in-' + c.k + '">' + c.l + '<small>' + c.h + ' · ' + targetTxt + '</small></label>';
+    var inp = document.createElement("input");
+    inp.type = "number"; inp.id = "in-" + c.k; inp.min = "0"; inp.step = "1";
+    inp.value = basc[c.k];
+    inp.addEventListener("input", function () {
+      var v = parseFloat(inp.value); basc[c.k] = isNaN(v) || v < 0 ? 0 : v;
+      renderBasc(); LS.set("m3a.basc", basc);
+    });
+    row.appendChild(inp);
+    bascInputs.appendChild(row);
+  });
+
+  var critBars = document.getElementById("critBars");
+  CRIT.filter(function (c) { return c.score !== false; }).forEach(function (c) {
+    var r = document.createElement("div");
+    r.className = "crit-row";
+    r.innerHTML = '<div><div class="cl">' + c.l + ' <span class="ct">· poids ' +
+      Math.round(c.w * 100) + '%</span></div>' +
+      '<div class="bar-track" style="margin-top:5px"><div class="bar-fill" id="cb-' + c.k +
+      '" style="width:0;background:var(--p1)"></div></div></div>' +
+      '<div class="bar-val" id="cv-' + c.k + '">0%</div>';
+    critBars.appendChild(r);
+  });
+
+  var gaugeArc = document.getElementById("gaugeArc"),
+      gaugeDot = document.getElementById("gaugeDot"),
+      gaugeVal = document.getElementById("gaugeVal"),
+      bascVerdict = document.getElementById("bascVerdict"),
+      bascText = document.getElementById("bascText"),
+      cmpSalary = document.getElementById("cmpSalary"),
+      cmpEco = document.getElementById("cmpEco"),
+      cmpNote = document.getElementById("cmpNote");
+  var ARC = Math.PI * 110;
+
+  function achievement(c) {
+    var v = basc[c.k] || 0;
+    var target = c.target === null ? Math.max(1, (basc.salaire || 0) * 1.5) : c.target;
+    if (c.dir === "down") {
+      if (v <= 0) return 1;
+      return Math.min(1, target / v);
+    }
+    if (target <= 0) return 0;
+    return Math.min(1, v / target);
+  }
+
+  function setBar(el, txtEl, pct) {
+    el.style.width = Math.max(0, Math.min(100, pct)) + "%";
+    txtEl.textContent = Math.round(pct) + "%";
+  }
+
+  function renderBasc() {
+    var index = 0;
+    CRIT.forEach(function (c) {
+      if (c.score === false) return;
+      var a = achievement(c);
+      index += a * c.w;
+      var bar = document.getElementById("cb-" + c.k);
+      bar.style.background = a >= 1 ? "var(--good)" : a >= 0.6 ? "var(--p1)"
+        : a >= 0.3 ? "var(--warn)" : "var(--crit)";
+      setBar(bar, document.getElementById("cv-" + c.k), a * 100);
+    });
+    var pct = Math.round(index * 100);
+    gaugeVal.textContent = pct;
+    gaugeArc.setAttribute("stroke-dasharray", (ARC * index).toFixed(1) + " " + ARC.toFixed(1));
+    var ang = Math.PI * (1 - index);
+    gaugeDot.setAttribute("cx", (150 + 110 * Math.cos(ang)).toFixed(1));
+    gaugeDot.setAttribute("cy", (150 - 110 * Math.sin(ang)).toFixed(1));
+
+    var label, color, txt;
+    if (pct >= 90) { label = "Basculer"; color = "var(--good)";
+      txt = "Rester salarié est devenu le choix coûteux. Préparez la sortie : préavis, transition clients, trésorerie de sécurité."; }
+    else if (pct >= 70) { label = "Préparer la sortie"; color = "var(--p1)";
+      txt = "La masse critique approche. Fixez la date en fonction du dernier critère manquant, pas du calendrier."; }
+    else if (pct >= 40) { label = "Consolider"; color = "var(--warn)";
+      txt = "Le socle existe mais il est fragile. Travaillez le critère au poids le plus lourd encore sous la cible."; }
+    else { label = "Construire"; color = "var(--crit)";
+      txt = "Le salariat reste la bonne décision : il finance la construction et réduit le risque. Aucune urgence à partir."; }
+    gaugeArc.setAttribute("stroke", color);
+    gaugeDot.setAttribute("stroke", color);
+    bascVerdict.textContent = label;
+    bascVerdict.style.color = color;
+    bascVerdict.style.background = "color-mix(in srgb, " + color + " 12%, transparent)";
+    bascVerdict.style.border = "1px solid " + color;
+    bascText.textContent = txt;
+
+    var sal = basc.salaire || 0, eco = basc.cashflow || 0, max = Math.max(sal, eco, 1);
+    [[cmpSalary, sal], [cmpEco, eco]].forEach(function (pair) {
+      var el = pair[0], v = pair[1], w = v / max * 100;
+      el.style.width = w + "%";
+      el.querySelector("span").textContent = fmtInt.format(v) + " FCFA";
+      el.classList.toggle("outside", w < 34);
+    });
+    if (sal <= 0) {
+      cmpNote.textContent = "Renseignez votre salaire net pour situer le coût d'opportunité.";
+    } else {
+      var ratio = Math.round(eco / sal * 100);
+      cmpNote.innerHTML = "L'écosystème couvre <b style=\"color:var(--ink)\">" + ratio +
+        " %</b> du revenu salarial. La cible de sécurité retenue est <b style=\"color:var(--ink)\">150 %</b> — " +
+        "de quoi absorber une mauvaise année sans toucher à la trésorerie personnelle.";
+    }
+  }
+
+  function fillInputs() {
+    CRIT.forEach(function (c) { document.getElementById("in-" + c.k).value = basc[c.k]; });
+  }
+  document.getElementById("bascReset").addEventListener("click", function () {
+    basc = Object.assign({}, EXEMPLE); fillInputs(); renderBasc(); LS.set("m3a.basc", basc);
+  });
+  document.getElementById("bascClear").addEventListener("click", function () {
+    basc = Object.assign({}, VIDE); fillInputs(); renderBasc(); LS.set("m3a.basc", basc);
+  });
+  renderBasc();
+})();
+</script>
