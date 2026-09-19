@@ -24,6 +24,8 @@ export type NotifType =
   | "expense_submitted"
   | "report_approved"
   | "report_rejected"
+  | "expense_approved"
+  | "expense_rejected"
   | "advance_requested"
   | "advance_approved"
   | "advance_rejected"

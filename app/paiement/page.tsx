@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
+import { PLAN_LIMITS, type Plan } from "@/lib/plans";
 
 interface PaymentSettings {
   wavePhone: string;
@@ -13,7 +14,7 @@ interface PaymentSettings {
 }
 
 const PLANS: Record<string, { label: string; features: string[] }> = {
-  standard: { label: "Standard", features: ["Jusqu'à 20 chauffeurs", "Rapports journaliers", "Gestion des paiements", "Avances sur salaire"] },
+  standard: { label: "Standard", features: ["Chauffeurs illimités", "3 véhicules inclus", "Rapports journaliers", "Gestion des paiements", "Avances sur salaire"] },
   pro: { label: "Pro", features: ["Chauffeurs illimités", "Export CSV", "Branding personnalisé", "Multi-véhicules", "Accès API"] },
   enterprise: { label: "Enterprise", features: ["Tout Pro", "Support prioritaire", "Formation incluse", "SLA garanti"] },
 };
@@ -50,7 +51,8 @@ function PaymentPageInner() {
   }, []);
 
   const planInfo = PLANS[plan] || PLANS.standard;
-  const amount = settings?.prices[plan as keyof typeof settings.prices] ?? 25000;
+  const amount = settings?.prices[plan as keyof typeof settings.prices]
+    ?? PLAN_LIMITS[plan as Plan]?.priceXOF ?? PLAN_LIMITS.standard.priceXOF;
   const note = encodeURIComponent(`${ref} - Abonnement ${planInfo.label} Fleet Manager`);
 
   const waveLink = settings?.wavePhone

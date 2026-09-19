@@ -192,16 +192,23 @@ export async function POST(
     if (expErr) errors.push(`Dépenses batch ${i / 50 + 1}: ${expErr.message}`);
   }
 
+  // Statut réel : "injected" seulement si tout est passé ; "partial" si une
+  // partie a échoué mais qu'il reste des lignes injectées ; "failed" si rien
+  // n'a été inséré. Marquer "injected" malgré des erreurs masquait des pertes
+  // de données (ex. un batch en échec sur 5).
+  const finalStatus =
+    errors.length === 0 ? "injected" : injectedCount > 0 ? "partial" : "failed";
+
   // Mettre à jour le statut du batch
   await serviceClient.schema("fleet").from("import_batches").update({
-    status: errors.length === 0 ? "injected" : "injected",
+    status: finalStatus,
     injected_at: new Date().toISOString(),
     injected_count: injectedCount,
   }).eq("id", id);
 
   return NextResponse.json({
-    ok: true,
-    action: "injected",
+    ok: errors.length === 0,
+    action: finalStatus,
     injectedCount,
     skippedDuplicates: validRows.filter((r) => r.is_duplicate).length,
     errors: errors.length > 0 ? errors : undefined,

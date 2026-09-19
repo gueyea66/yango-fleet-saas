@@ -1944,6 +1944,16 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
         action: status,
         metadata: { category: expense.category, amount: expense.amount },
       });
+      // Notification push/Telegram au chauffeur (comme pour les rapports).
+      // Le type expense_${status} correspond à expense_approved / expense_rejected.
+      void fetch("/api/notifications/trigger", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: `expense_${status === "approved" ? "approved" : "rejected"}`,
+          tenantId: expense.tenant_id, driverId: expense.driver_id,
+          data: { amount: expense.amount, category: expense.category },
+        }),
+      });
       setCurrentStatus(status);
       onRefresh();
     } catch (err: any) { alert("Erreur : " + err.message); }
