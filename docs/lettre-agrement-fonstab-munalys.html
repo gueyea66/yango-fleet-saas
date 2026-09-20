@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Munalys — Demande d'agrément FONSTAB</title>
+<style>
+  @page { size: A4; margin: 0; }
+  :root {
+    --vert: #1e3a2e;
+    --or: #c9a227;
+    --ink: #22282a;
+    --gris: #6b7472;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  body {
+    font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
+    font-size: 10.4pt;
+    line-height: 1.5;
+    color: var(--ink);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .feuille { position: relative; width: 210mm; height: 297mm; overflow: hidden; display: flex; flex-direction: column; }
+
+  /* filigrane */
+  .filigrane {
+    position: absolute; top: 155mm; left: 50%; transform: translate(-50%, -50%);
+    width: 120mm; opacity: .045; z-index: 0;
+  }
+
+  /* bandeau */
+  .bandeau { background: var(--vert); padding: 6mm 0 4.5mm; text-align: center; }
+  .bandeau img { width: 60mm; display: inline-block; }
+  .filet-or { height: 2.2mm; background: var(--or); }
+  .coord {
+    text-align: center; font-size: 7.6pt; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--gris); padding: 3.5mm 0 0;
+  }
+
+  .corps { position: relative; z-index: 1; padding: 6mm 22mm 0; flex: 1 0 auto; }
+
+  .haut { display: flex; justify-content: space-between; align-items: flex-start; gap: 14mm; margin-bottom: 6mm; }
+  .lieu { font-size: 10pt; color: var(--gris); padding-top: 1mm; }
+  .dest { text-align: right; line-height: 1.45; }
+  .dest .nom { font-weight: 700; color: var(--vert); letter-spacing: .04em; }
+
+  .objet {
+    border-left: 2.4pt solid var(--or); background: #f7f6f1;
+    padding: 3mm 5mm; margin-bottom: 6mm; font-size: 10.4pt;
+  }
+  .objet span { text-transform: uppercase; letter-spacing: .12em; font-size: 7.6pt; color: var(--gris); display: block; margin-bottom: .8mm; }
+  .objet strong { color: var(--vert); font-weight: 700; }
+
+  p { margin: 0 0 3.2mm; text-align: justify; }
+
+  table.presta { width: 100%; border-collapse: collapse; margin: 1mm 0 4.5mm; }
+  table.presta td { padding: 2mm 0; border-bottom: .5pt solid #e3e1d8; vertical-align: top; font-size: 10pt; }
+  table.presta td.quoi { width: 62mm; color: var(--vert); font-weight: 700; padding-right: 6mm; }
+  table.presta td.quand { color: #4a5250; }
+  table.presta tr:last-child td { border-bottom: 0; }
+
+  .signature { margin-top: 6mm; margin-bottom: 4mm; text-align: right; }
+  .signature .nom { font-weight: 700; color: var(--vert); margin-top: 9mm; letter-spacing: .03em; }
+  .signature .role { font-size: 9.4pt; color: var(--gris); }
+
+  .pied {
+    position: relative; z-index: 1; margin-top: auto;
+    border-top: .75pt solid #e3e1d8; padding: 3mm 22mm 6mm;
+    font-size: 7.4pt; letter-spacing: .04em; color: var(--gris); text-align: center;
+  }
+  .pied .barre { color: var(--or); }
+</style>
+</head>
+<body>
+<div class="feuille">
+
+  <img class="filigrane" src="assets/filigrane-munalys.png" alt="" />
+
+  <div class="bandeau"><img src="assets/logo-munalys.jpg" alt="Munalys — Pâtisserie &amp; Cake Design" /></div>
+  <div class="filet-or"></div>
+  <div class="coord">Ngor Almadies, Zone 13 — Dakar &nbsp;·&nbsp; +221 78 958 58 48</div>
+
+  <div class="corps">
+
+    <div class="haut">
+      <div class="lieu">Dakar, le 20 septembre 2026</div>
+      <div class="dest">
+        <span class="nom">FONSTAB</span><br />
+        Madame l'Administratrice<br />
+        Sphères ministérielles Ousmane Tanor Dieng<br />
+        Bâtiment C — Diamniadio
+      </div>
+    </div>
+
+    <div class="objet">
+      <span>Objet</span>
+      <strong>Demande d'agrément — pâtisserie et service traiteur</strong>
+    </div>
+
+    <p>Madame l'Administratrice,</p>
+
+    <p>Je me permets de vous écrire pour solliciter l'agrément de Munalys Sweet by My-Mouna Cake
+    auprès du FONSTAB.</p>
+
+    <p>Mon atelier, installé à Ngor Almadies, prépare de la pâtisserie et du cake design pour les
+    réceptions professionnelles et les cérémonies. Je réalise des pièces montées, des gâteaux
+    personnalisés aux couleurs d'une institution ou d'un projet, des buffets sucrés et salés, ainsi
+    que des coffrets à offrir.</p>
+
+    <p>Pour vos rencontres de travail, je peux assurer :</p>
+
+    <table class="presta">
+      <tr><td class="quoi">Pauses-café et collations</td><td class="quand">ateliers, séminaires, sessions de formation</td></tr>
+      <tr><td class="quoi">Buffets et cocktails</td><td class="quand">lancements, remises officielles, réceptions</td></tr>
+      <tr><td class="quoi">Gâteaux et pièces montées</td><td class="quand">anniversaires d'institution, signatures de convention</td></tr>
+      <tr><td class="quoi">Coffrets et dragées</td><td class="quand">cadeaux protocolaires, invités d'honneur</td></tr>
+    </table>
+
+    <p>Les commandes sont préparées dans mon atelier, livrées sur le lieu de la manifestation et
+    dressées par mon équipe. Je travaille sur devis, et propose une dégustation préalable lorsque le
+    volume le justifie.</p>
+
+    <p>Munalys Sweet by My-Mouna Cake est immatriculée au Registre du commerce sous le numéro
+    SN DKR 2025 A 19114 et dispose du NINEA 012149698.</p>
+
+    <p>Vous trouverez ci-joint l'accusé d'immatriculation au registre du commerce et l'avis NINEA.
+    Je me tiens à votre disposition pour vous présenter un échantillon de mes réalisations.</p>
+
+    <p>Je vous prie d'agréer, Madame l'Administratrice, l'assurance de ma considération
+    respectueuse.</p>
+
+    <div class="signature">
+      <div class="nom">Maimouna Ousmane DIAGANA</div>
+      <div class="role">Gérante</div>
+    </div>
+
+  </div>
+
+  <div class="pied">
+    MUNALYS SWEET BY MY-MOUNA CAKE <span class="barre">·</span> RCCM SN DKR 2025 A 19114
+    <span class="barre">·</span> NINEA 012149698 <span class="barre">·</span> Ngor Almadies, Zone 13, Dakar
+    <span class="barre">·</span> +221 78 958 58 48
+  </div>
+
+</div>
+</body>
+</html>
