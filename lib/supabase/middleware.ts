@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { tenantAccessState } from "@/lib/tenant/access";
 
 const PROTECTED_PREFIXES = ["/admin", "/driver"];
 
@@ -47,26 +48,18 @@ export const updateSession = async (request: NextRequest) => {
     }
 
     if (profile?.tenant_id) {
+      // select("*") : `never_expires` arrive avec la migration 061 — tolérer
+      // son absence évite de verrouiller tout le monde si le code part avant.
       const { data: tenant } = await supabase
         .from("tenants")
-        .select("active, trial_ends_at, plan_expires_at")
+        .select("*")
         .eq("id", profile.tenant_id)
         .single();
 
-      if (tenant) {
-        // Suspended by superadmin
-        if (!tenant.active) {
-          return NextResponse.redirect(new URL("/locked?reason=inactive", request.url));
-        }
-
-        // Check expiry: plan_expires_at takes priority over trial_ends_at
-        const expiresAt = tenant.plan_expires_at ?? tenant.trial_ends_at;
-        if (expiresAt) {
-          const expired = new Date(expiresAt).getTime() < Date.now();
-          if (expired && path !== "/locked") {
-            return NextResponse.redirect(new URL("/locked?reason=expired", request.url));
-          }
-        }
+      // Règle d'accès unique (lib/tenant/access) — même verdict qu'en API.
+      const access = tenant ? tenantAccessState(tenant) : null;
+      if (access?.locked && path !== "/locked") {
+        return NextResponse.redirect(new URL(`/locked?reason=${access.reason}`, request.url));
       }
     }
   }

@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
         // `order` sur une clé stable (`id`) est requis pour paginer sans doublon
         // ni omission ; les sommes côté client sont indépendantes de l'ordre.
         const [tenants, profiles, rMonth, rAll, rDaily, settings] = await Promise.all([
-          fetchAllRows(() => admin.from("tenants").select("id,slug,name,plan,active,trial_ends_at,plan_expires_at,created_at").order("id")),
+          fetchAllRows(() => admin.from("tenants").select("*").order("id")),
           fetchAllRows(() => admin.from("profiles").select("id,tenant_id,role").order("id")),
           fetchAllRows(() => admin.from("daily_reports").select("tenant_id,driver_id,gross_earnings,net_after_expenses").gte("date", monthStart).order("id")),
           fetchAllRows(() => admin.from("daily_reports").select("gross_earnings,net_after_expenses").order("id")),

@@ -10,6 +10,31 @@ import { BrandLogo, PoweredBy } from "@/components/brand/BrandShell";
 
 type UserRole = "admin" | "driver";
 
+/**
+ * Traduit le refus renvoyé par Supabase. « Invalid login credentials » en
+ * anglais, pour un gestionnaire qui sait que son mot de passe est bon, ne dit
+ * rien de ce qu'il faut faire — et trois causes très différentes tombent sous
+ * ce même message.
+ */
+function messageDeRefus(brut: string, role: UserRole): string {
+  const m = brut.toLowerCase();
+  if (m.includes("invalid login credentials")) {
+    return role === "admin"
+      ? "Email ou mot de passe incorrect. Si vous êtes sûr de vos identifiants, l'adresse du compte a peut-être changé — utilisez « Mot de passe oublié » ou contactez l'opérateur."
+      : "ID conducteur ou mot de passe incorrect. Demandez à votre gestionnaire de réinitialiser votre mot de passe.";
+  }
+  if (m.includes("email not confirmed")) {
+    return "Ce compte n'est pas encore confirmé. Contactez l'opérateur pour l'activer.";
+  }
+  if (m.includes("too many requests") || m.includes("rate limit")) {
+    return "Trop de tentatives. Patientez quelques minutes avant de réessayer.";
+  }
+  if (m.includes("user is banned")) {
+    return "Ce compte est temporairement bloqué. Contactez l'opérateur.";
+  }
+  return brut;
+}
+
 export default function LoginPage() {
   const { settings } = useTenant();
   const brand = settings.primary_color || "var(--tenant-color)";
@@ -40,7 +65,7 @@ export default function LoginPage() {
         return;
       }
       const { data, error: signInError } = await supabase.auth.signInWithPassword({ email: loginEmail, password });
-      if (signInError) { setError(signInError.message); return; }
+      if (signInError) { setError(messageDeRefus(signInError.message, role)); return; }
       const session = data?.session ?? (await supabase.auth.getSession()).data.session;
       if (session?.user) {
         localStorage.setItem("yango-session", JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token, user: session.user }));

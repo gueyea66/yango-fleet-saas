@@ -2,7 +2,8 @@
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
-import { PLAN_LIMITS, getTrialStatus, type Plan } from "@/lib/plans";
+import { PLAN_LIMITS, getTrialStatus, type Plan, type TrialStatus } from "@/lib/plans";
+import { tenantAccessState } from "@/lib/tenant/access";
 import Dashboard from "./Dashboard";
 import BrandingEditor from "./BrandingEditor";
 
@@ -17,7 +18,7 @@ const HORIZON_COLORS: Record<string, string> = {
 interface AdminUser { id: string; email: string; full_name: string; }
 interface Tenant {
   id: string; slug: string; name: string; plan: string; active: boolean; created_at: string;
-  trial_ends_at: string | null; plan_expires_at: string | null; notifications_sent: Record<string, string>;
+  trial_ends_at: string | null; plan_expires_at: string | null; never_expires?: boolean; notifications_sent: Record<string, string>;
   settings?: { app_name: string; primary_color: string; operator_name?: string; logo_url?: string | null; skin?: string | null; ui_mode?: string | null; platform_label?: string | null };
   remuneration?: { model: string; base_amount: number; commission_rate: number };
   admins?: AdminUser[];
@@ -214,6 +215,12 @@ export default function SuperAdminPage() {
     const d = await apiPost("/api/superadmin/update-plan", { tenantId, active: !current });
     if (d.error) return notify(d.error, false);
     notify(current ? "⏸ Suspendu" : "✓ Réactivé"); load();
+  }
+
+  async function toggleNeverExpires(tenantId: string, never: boolean) {
+    const d = await apiPost("/api/superadmin/update-plan", { tenantId, never_expires: never });
+    if (d.error) return notify(d.error, false);
+    notify(never ? "✓ Accès permanent activé" : "✓ Accès repassé sous échéance"); load();
   }
 
   async function extendAccess(tenantId: string) {
@@ -549,8 +556,9 @@ export default function SuperAdminPage() {
 
           {loading ? <p style={{ color: "#6b7280" }}>Chargement...</p> : tenants.map(t => {
             const planColor = PLAN_COLORS[t.plan] || "#6b7280";
-            const trialStatus = getTrialStatus(t.trial_ends_at, t.plan_expires_at);
-            const expiresAt = t.plan_expires_at ?? t.trial_ends_at;
+            const access = tenantAccessState(t);
+            const expiresAt = access.expiresAt;
+            const trialStatus: TrialStatus = expiresAt ? getTrialStatus(null, expiresAt) : { state: "active", daysLeft: Infinity };
             const horizonColor = trialStatus.state === "warning" ? HORIZON_COLORS[trialStatus.horizon] : trialStatus.state === "expired" ? "#ef4444" : "#22c55e";
             const isExpanded = expandedId === t.id;
 
@@ -683,6 +691,7 @@ export default function SuperAdminPage() {
                           {[
                             ["Essai", t.trial_ends_at ? new Date(t.trial_ends_at).toLocaleDateString("fr-FR") : "—"],
                             ["Accès payant", t.plan_expires_at ? new Date(t.plan_expires_at).toLocaleDateString("fr-FR") : "Non défini"],
+                            ["Échéance qui fait foi", expiresAt ? new Date(expiresAt).toLocaleDateString("fr-FR") : "Aucune (accès permanent)"],
                             ["Statut", trialStatus.state === "expired" ? "🔴 Expiré" : trialStatus.state === "warning" ? `🟡 J-${(trialStatus as any).daysLeft}` : "🟢 Actif"],
                           ].map(([l, v]) => (
                             <div key={l} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 5 }}>
@@ -701,6 +710,14 @@ export default function SuperAdminPage() {
                             Étendre
                           </button>
                         </div>
+                        {/* Accès permanent : pour le tenant de l'opérateur et les
+                            comptes internes, qui n'ont aucune raison de tomber
+                            en « expiré » un matin sans que personne l'ait décidé. */}
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, fontSize: 11, color: "#9ca3af", cursor: "pointer" }}>
+                          <input type="checkbox" checked={!!t.never_expires}
+                            onChange={e => toggleNeverExpires(t.id, e.target.checked)} />
+                          Accès permanent (n&apos;expire jamais)
+                        </label>
                       </div>
 
                       {/* Notification horizons */}
