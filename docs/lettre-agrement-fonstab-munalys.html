@@ -29,16 +29,21 @@
     width: 120mm; opacity: .045; z-index: 0;
   }
 
-  /* bandeau */
-  .bandeau { background: #fff; padding: 7mm 0 5mm; text-align: center; flex: 0 0 auto; }
-  .bandeau img { width: 68mm; display: inline-block; }
-  .filet-or { height: 1.6mm; background: var(--or); flex: 0 0 auto; }
-  .coord {
-    text-align: center; font-size: 7.6pt; letter-spacing: .13em; text-transform: uppercase;
-    color: var(--vert); padding: 3mm 0 0; flex: 0 0 auto;
+  /* en-tête */
+  .entete {
+    display: flex; align-items: flex-end; justify-content: space-between; gap: 12mm;
+    padding: 13mm 22mm 4mm; flex: 0 0 auto;
   }
+  .entete img { width: 45mm; display: block; }
+  .coord {
+    text-align: right; font-size: 7.4pt; line-height: 1.75; letter-spacing: .06em;
+    color: var(--gris); padding-bottom: 1mm;
+  }
+  .coord .tel { color: var(--vert); letter-spacing: .08em; }
+  .filet { padding: 0 22mm; flex: 0 0 auto; }
+  .filet div { height: .5mm; background: var(--or); opacity: .85; }
 
-  .corps { position: relative; z-index: 1; padding: 6mm 22mm 0; flex: 1 0 auto; }
+  .corps { position: relative; z-index: 1; padding: 9mm 22mm 0; flex: 1 0 auto; }
 
   .haut { display: flex; justify-content: space-between; align-items: flex-start; gap: 14mm; margin-bottom: 6mm; }
   .lieu { font-size: 10pt; color: var(--gris); padding-top: 1mm; }
@@ -77,9 +82,14 @@
 
   <img class="filigrane" src="assets/filigrane-munalys.png" alt="" />
 
-  <div class="bandeau"><img src="assets/logo-munalys.jpg" alt="Munalys — Pâtisserie &amp; Cake Design" /></div>
-  <div class="filet-or"></div>
-  <div class="coord">Ngor Almadies, Zone 13 — Dakar &nbsp;·&nbsp; +221 78 958 58 48</div>
+  <div class="entete">
+    <img src="assets/logo-munalys-entete.png" alt="Munalys — Pâtisserie &amp; Cake Design" />
+    <div class="coord">
+      Ngor Almadies, Zone 13 — Dakar, Sénégal<br />
+      <span class="tel">+221 78 958 58 48</span>
+    </div>
+  </div>
+  <div class="filet"><div></div></div>
 
   <div class="corps">
 
