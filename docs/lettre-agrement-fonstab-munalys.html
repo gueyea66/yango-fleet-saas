@@ -30,18 +30,15 @@
   }
 
   /* en-tête */
-  .entete {
-    display: flex; align-items: flex-end; justify-content: space-between; gap: 12mm;
-    padding: 13mm 22mm 4mm; flex: 0 0 auto;
-  }
-  .entete img { width: 45mm; display: block; }
+  .entete { text-align: center; padding: 12mm 22mm 4.5mm; flex: 0 0 auto; }
+  .entete img { width: 52mm; display: inline-block; }
   .coord {
-    text-align: right; font-size: 7.4pt; line-height: 1.75; letter-spacing: .06em;
-    color: var(--gris); padding-bottom: 1mm;
+    font-size: 7.4pt; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--gris); margin-top: 3.5mm;
   }
-  .coord .tel { color: var(--vert); letter-spacing: .08em; }
-  .filet { padding: 0 22mm; flex: 0 0 auto; }
-  .filet div { height: .5mm; background: var(--or); opacity: .85; }
+  .coord .sep { color: var(--or); margin: 0 2mm; }
+  .filet { padding: 0 34mm; flex: 0 0 auto; }
+  .filet div { height: .4mm; background: var(--or); opacity: .8; }
 
   .corps { position: relative; z-index: 1; padding: 9mm 22mm 0; flex: 1 0 auto; }
 
@@ -85,8 +82,7 @@
   <div class="entete">
     <img src="assets/logo-munalys-entete.png" alt="Munalys — Pâtisserie &amp; Cake Design" />
     <div class="coord">
-      Ngor Almadies, Zone 13 — Dakar, Sénégal<br />
-      <span class="tel">+221 78 958 58 48</span>
+      Ngor Almadies, Zone 13 — Dakar <span class="sep">◆</span> +221 78 958 58 48
     </div>
   </div>
   <div class="filet"><div></div></div>
