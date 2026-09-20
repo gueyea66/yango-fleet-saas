@@ -30,12 +30,12 @@
   }
 
   /* bandeau */
-  .bandeau { background: var(--vert); padding: 6mm 0 4.5mm; text-align: center; }
-  .bandeau img { width: 60mm; display: inline-block; }
-  .filet-or { height: 2.2mm; background: var(--or); }
+  .bandeau { background: #fff; padding: 7mm 0 5mm; text-align: center; flex: 0 0 auto; }
+  .bandeau img { width: 68mm; display: inline-block; }
+  .filet-or { height: 1.6mm; background: var(--or); flex: 0 0 auto; }
   .coord {
     text-align: center; font-size: 7.6pt; letter-spacing: .13em; text-transform: uppercase;
-    color: var(--gris); padding: 3.5mm 0 0;
+    color: var(--vert); padding: 3mm 0 0; flex: 0 0 auto;
   }
 
   .corps { position: relative; z-index: 1; padding: 6mm 22mm 0; flex: 1 0 auto; }
@@ -65,7 +65,7 @@
   .signature .role { font-size: 9.4pt; color: var(--gris); }
 
   .pied {
-    position: relative; z-index: 1; margin-top: auto;
+    position: relative; z-index: 1; margin-top: auto; flex: 0 0 auto;
     border-top: .75pt solid #e3e1d8; padding: 3mm 22mm 6mm;
     font-size: 7.4pt; letter-spacing: .04em; color: var(--gris); text-align: center;
   }
