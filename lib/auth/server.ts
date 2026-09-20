@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
+import { tenantAccessState } from "@/lib/tenant/access";
 
 /**
  * Rate-limit PERSISTANT (fix audit V4) — partagé entre toutes les instances
@@ -85,28 +86,30 @@ export async function requireAdminAuth(): Promise<AuthedAdmin> {
 }
 
 /**
- * Lève 402 si le tenant est suspendu (active=false) ou expiré
- * (plan_expires_at prioritaire, sinon trial_ends_at). Fail-open sur erreur
- * de lecture pour ne jamais bloquer à tort en cas d'incident base.
+ * Lève 402 si le tenant est suspendu ou expiré. La règle vit dans
+ * lib/tenant/access — le middleware pages et l'API rendent le MÊME verdict,
+ * sans copie de l'expression d'échéance. Fail-open sur erreur de lecture pour
+ * ne jamais bloquer à tort en cas d'incident base.
  */
 export async function assertTenantActive(
   supabase: Awaited<ReturnType<typeof createClient>>,
   tenantId: string,
 ): Promise<void> {
+  // select("*") : `never_expires` arrive avec la migration 061 — tolérer son
+  // absence évite un 402 généralisé si le code est déployé avant la migration.
   const { data: tenant, error } = await supabase
     .from("tenants")
-    .select("active, trial_ends_at, plan_expires_at")
+    .select("*")
     .eq("id", tenantId)
     .single();
   if (error || !tenant) return; // fail-open : ne pas bloquer sur incident
-  const deny = (reason: string) => {
-    const err = new Error(`TENANT_LOCKED: ${reason}`) as Error & { status: number };
+
+  const access = tenantAccessState(tenant);
+  if (access.locked) {
+    const err = new Error(`TENANT_LOCKED: ${access.reason}`) as Error & { status: number };
     err.status = 402;
     throw err;
-  };
-  if (tenant.active === false) deny("inactive");
-  const expiresAt = tenant.plan_expires_at ?? tenant.trial_ends_at;
-  if (expiresAt && new Date(expiresAt).getTime() < Date.now()) deny("expired");
+  }
 }
 
 /**

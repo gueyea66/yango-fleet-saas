@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth/context";
 import { getTrialStatus, type TrialStatus } from "@/lib/plans";
+import { tenantAccessState } from "@/lib/tenant/access";
 
 const HORIZON_CONFIG = {
   "14d": { bg: "#1a2a1a", border: "#22c55e40", color: "#22c55e", icon: "🟢", urgency: "Info" },
@@ -30,12 +31,15 @@ export default function TrialBanner() {
       const { data: profile } = await sb.from("profiles").select("tenant_id").eq("id", user.id).maybeSingle();
       if (!profile?.tenant_id) return;
       const { data: tenant } = await sb.from("tenants")
-        .select("trial_ends_at, plan_expires_at")
+        .select("*")
         .eq("id", profile.tenant_id)
         .maybeSingle();
       if (!tenant) return;
-      setExpiresAt(tenant.plan_expires_at ?? tenant.trial_ends_at);
-      setStatus(getTrialStatus(tenant.trial_ends_at, tenant.plan_expires_at));
+      // Échéance qui fait foi (lib/tenant/access) : rien à annoncer pour un
+      // tenant à accès permanent (never_expires).
+      const access = tenantAccessState(tenant);
+      setExpiresAt(access.expiresAt);
+      setStatus(access.expiresAt ? getTrialStatus(null, access.expiresAt) : null);
     })();
   }, [user]);
 

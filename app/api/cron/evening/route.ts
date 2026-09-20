@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { isDriverActiveOn } from "@/lib/drivers";
 import { getTenantAdminIds, sendNotification, sendTelegramToTenant } from "@/lib/notifications";
 import { CAT_AVANCE } from "@/lib/expenseCategories";
+import { accessExpiresAt } from "@/lib/tenant/access";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -37,7 +38,9 @@ async function handle(req: NextRequest) {
 
   const today = new Date().toISOString().slice(0, 10);
   const { data: tenants } = await admin.from("tenants")
-    .select("id, name, plan, active, trial_ends_at, plan_expires_at").eq("active", true);
+    // select("*") : tolère l'absence de `never_expires` (migration 061) — un
+    // nom de colonne inconnu ferait échouer la requête et taire tout le cron.
+    .select("*").eq("active", true);
 
   let reminders = 0, expiries = 0, plans = 0, avancesAlerts = 0;
   const errors: string[] = [];
@@ -128,7 +131,7 @@ async function handle(req: NextRequest) {
       } catch { /* colonne advance_driver_id absente (migration 046 pas encore appliquée) : étape ignorée */ }
 
       // 3) abonnement / essai
-      const planEnd = t.plan_expires_at ?? t.trial_ends_at;
+      const planEnd = accessExpiresAt(t);
       if (planEnd) {
         const dd = daysUntil(String(planEnd).slice(0, 10), today);
         if (PLAN_STEPS.has(dd)) {

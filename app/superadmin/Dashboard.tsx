@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { PLAN_LIMITS } from "@/lib/plans";
+import { tenantAccessState } from "@/lib/tenant/access";
 
 /* ─── Types ─────────────────────────────────────────────── */
 interface KPI {
@@ -16,7 +17,7 @@ interface KPI {
 }
 interface TenantRow {
   id: string; slug: string; name: string; plan: string; active: boolean;
-  trial_ends_at: string | null; plan_expires_at: string | null;
+  trial_ends_at: string | null; plan_expires_at: string | null; never_expires: boolean;
   app_name: string; primary_color: string; created_at: string;
   driverCount: number; reportsMonth: number; grossMonth: number; netMonth: number;
   daysLeft: number | null;
@@ -196,10 +197,12 @@ export default function Dashboard({ superadminKey }: { superadminKey: string }) 
 
     let mrr=0,active=0,trial=0,suspended=0,expired=0,expiring7=0;
     const tRows:TenantRow[]=(tenants||[]).map((t:any)=>{
-      const expiresAt=t.plan_expires_at??t.trial_ends_at;
-      const daysLeft=expiresAt?Math.ceil((new Date(expiresAt).getTime()-Date.now())/864e5):null;
-      const exp=daysLeft!==null&&daysLeft<=0;
-      const isTrial=!t.plan_expires_at&&!!t.trial_ends_at;
+      const access=tenantAccessState(t);
+      const daysLeft=access.daysLeft;
+      const exp=access.locked&&access.reason==="expired";
+      // « Essai » = une échéance d'essai qui fait foi ; un accès permanent
+      // (never_expires) n'est ni un essai ni un compte expiré.
+      const isTrial=!t.never_expires&&!t.plan_expires_at&&!!t.trial_ends_at;
       if(!t.active) suspended++;
       else if(exp) expired++;
       else if(isTrial) trial++;
@@ -207,7 +210,7 @@ export default function Dashboard({ superadminKey }: { superadminKey: string }) 
       if(daysLeft!==null&&daysLeft>0&&daysLeft<=7) expiring7++;
       return {
         id:t.id,slug:t.slug,name:t.name,plan:t.plan,active:t.active,
-        trial_ends_at:t.trial_ends_at,plan_expires_at:t.plan_expires_at,created_at:t.created_at,
+        trial_ends_at:t.trial_ends_at,plan_expires_at:t.plan_expires_at,never_expires:!!t.never_expires,created_at:t.created_at,
         app_name:sMap[t.id]?.app_name||t.name,primary_color:sMap[t.id]?.primary_color||"#f5a623",
         driverCount:drivers[t.id]||0,
         reportsMonth:rByT[t.id]?.count||0,grossMonth:rByT[t.id]?.gross||0,netMonth:rByT[t.id]?.net||0,
@@ -451,7 +454,7 @@ export default function Dashboard({ superadminKey }: { superadminKey: string }) 
                     </td>
                     <td style={{padding:"10px 14px"}}>
                       <span style={{color:t.active&&!exp?"#22c55e":"#ef4444",fontSize:10}}>
-                        {!t.active?"Suspendu":exp?"Expiré":t.plan_expires_at?"Payant":"Essai"}
+                        {!t.active?"Suspendu":exp?"Expiré":t.never_expires?"Permanent":t.plan_expires_at?"Payant":"Essai"}
                       </span>
                     </td>
                     <td style={{padding:"10px 14px",color:"var(--sk-t1)",fontWeight:600,textAlign:"right"}}>{t.driverCount}</td>

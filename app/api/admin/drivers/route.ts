@@ -176,19 +176,36 @@ export async function POST(request: Request) {
         return Response.json({ error: "driver_id manquant" }, { status: 400 });
       }
 
-      // Vérifier que le chauffeur appartient bien au tenant de l'admin
-      const { data: profile } = await adminClient
-        .from("profiles")
-        .select("id, tenant_id")
-        .eq("driver_id", driverId)
-        .single();
+      // La cible est TOUJOURS résolue dans le tenant de l'admin et sur
+      // role='driver'. L'UI envoie `driver.driver_id || driver.id` : le code
+      // chauffeur quand il existe, sinon l'UUID du profil — les deux formes
+      // sont donc acceptées, mais résolues, jamais utilisées telles quelles.
+      //
+      // L'ancienne version cherchait sur `driver_id` seul puis retombait sur
+      // `profileId = driverId` quand rien ne matchait : l'UUID passait la
+      // garde de tenant (jamais évaluée, faute de ligne) et allait supprimer
+      // le profil ET le compte Auth portant cet id — un compte admin compris.
+      // Un compte admin effacé, c'est un « mon identifiant ne marche plus »
+      // sans la moindre trace.
+      const cible = String(driverId);
+      const estUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cible);
 
-      if (profile && profile.tenant_id !== tenantId) {
-        return Response.json({ error: "Chauffeur non trouvé dans ce tenant" }, { status: 403 });
+      const requete = adminClient
+        .from("profiles")
+        .select("id, tenant_id, role")
+        .eq("tenant_id", tenantId)
+        .eq("role", "driver");
+
+      const { data: profile } = estUuid
+        ? await requete.eq("id", cible).maybeSingle()
+        : await requete.eq("driver_id", cible.toUpperCase()).maybeSingle();
+
+      if (!profile) {
+        return Response.json({ error: "Chauffeur non trouvé dans ce tenant" }, { status: 404 });
       }
 
-      const profileId = profile?.id ?? driverId;
-      await adminClient.from("profiles").delete().eq("id", profileId);
+      const profileId = profile.id;
+      await adminClient.from("profiles").delete().eq("id", profileId).eq("tenant_id", tenantId);
       await adminClient.auth.admin.deleteUser(profileId).catch(() => {});
       audit({ tenantId, userId, action: "driver.delete", resourceType: "driver", resourceId: driverId, ip });
 

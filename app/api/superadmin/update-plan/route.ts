@@ -28,7 +28,7 @@ async function toggleTenantList(key: string, tenantId: string, enabled: boolean)
 }
 
 export async function POST(req: NextRequest) {
-  const { superadminKey, tenantId, plan, active, plan_expires_at, report_addon, report_premium } = await req.json();
+  const { superadminKey, tenantId, plan, active, plan_expires_at, never_expires, report_addon, report_premium } = await req.json();
 
   const storedKey = await getStoredKey();
   if (!checkSuperadminKey(superadminKey, storedKey, getClientIp(req))) {
@@ -52,7 +52,15 @@ export async function POST(req: NextRequest) {
   const update: Record<string, unknown> = {};
   if (plan !== undefined) update.plan = plan;
   if (active !== undefined) update.active = active;
-  if (plan_expires_at !== undefined) update.plan_expires_at = plan_expires_at;
+  if (never_expires !== undefined) update.never_expires = !!never_expires;
+  if (plan_expires_at !== undefined) {
+    update.plan_expires_at = plan_expires_at;
+    // Un tenant qui paie n'est plus en essai. Laisser `trial_ends_at` derrière
+    // soi, c'est garder une seconde échéance qui ne sert qu'à réapparaître le
+    // jour où quelqu'un efface `plan_expires_at` — exactement le piège qui
+    // avait fini par verrouiller le tenant de l'opérateur.
+    if (plan_expires_at) update.trial_ends_at = null;
+  }
 
   if (Object.keys(update).length > 0) {
     const { error } = await adminClient.from("tenants").update(update).eq("id", tenantId);
