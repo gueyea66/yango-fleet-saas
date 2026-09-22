@@ -92,6 +92,97 @@ function addDays(iso: string, n: number): Date {
   return d;
 }
 
+/**
+ * Une liste de controle. Definie au niveau module, et non dans le composant :
+ * une fonction recreee a chaque rendu est un type neuf pour React, qui
+ * demonterait puis remonterait les champs — le curseur sauterait a chaque
+ * frappe.
+ */
+function Checklist({ doc, groupe, liste, labels, onCycle, onNote }: {
+  doc: OnbDoc | null;
+  groupe: "a" | "b" | "c";
+  liste: OnbPoint[];
+  labels: readonly string[];
+  onCycle: (groupe: "a" | "b" | "c", id: string) => void;
+  onNote: (groupe: "a" | "b" | "c", id: string, note: string) => void;
+}) {
+  return (
+    <div style={{ display: "grid", gap: 8 }}>
+      {liste.map((x) => {
+        const e = etat(doc, groupe, x.id);
+        return (
+          <div key={x.id} style={{
+            display: "grid", gridTemplateColumns: "44px 1fr 132px 200px", gap: 12, alignItems: "start",
+            background: "var(--sk-deep)", border: "0.5px solid var(--sk-surface)", borderRadius: 8, padding: "10px 12px",
+          }}>
+            <span style={{ fontSize: 12, color: "var(--sk-t3)", fontVariantNumeric: "tabular-nums", paddingTop: 8 }}>{x.id}</span>
+            <div style={{ paddingTop: 6 }}>
+              <div style={{ fontSize: 13, color: "var(--sk-t1)", fontWeight: 500 }}>
+                {x.t}
+                {x.blk && (
+                  <span style={{
+                    marginLeft: 8, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em",
+                    color: "#f87171", border: "0.5px solid #ef444455", borderRadius: 4, padding: "1px 6px",
+                  }}>Bloquant</span>
+                )}
+              </div>
+              {x.w && <div style={{ fontSize: 12, color: "var(--sk-t3)", marginTop: 3, lineHeight: 1.5 }}>{x.w}</div>}
+            </div>
+            <button type="button" onClick={() => onCycle(groupe, x.id)}
+              aria-label={`${x.t} : ${labels[e.s]}, changer l'état`}
+              style={{
+                ...BTN, background: TEINTE_ETAT[e.s] + "1f", borderColor: TEINTE_ETAT[e.s] + "55",
+                color: TEINTE_ETAT[e.s], fontWeight: 600, fontSize: 12, padding: "7px 10px",
+              }}>
+              {labels[e.s]}
+            </button>
+            <input type="text" value={e.n} placeholder="Note"
+              aria-label={`Note pour ${x.t}`}
+              onChange={(ev) => onNote(groupe, x.id, ev.target.value)}
+              style={{ ...CHAMP, fontSize: 12, padding: "7px 9px" }} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Un champ de la fiche. Hors du composant, meme raison que `Checklist`. */
+function Champ({ chemin, label, valeur, type, aide, pleine, set }: {
+  chemin: string; label: string; valeur: string; type?: string; aide?: string; pleine?: boolean;
+  set: (chemin: string, valeur: string) => void;
+}) {
+  const id = "onb-" + chemin.replace(/\./g, "-");
+  return (
+    <div style={{ gridColumn: pleine ? "1/-1" : undefined }}>
+      <label htmlFor={id} style={{ display: "block", fontSize: 12, color: "var(--sk-t2)", marginBottom: 5 }}>{label}</label>
+      {type === "mode" ? (
+        <select id={id} value={valeur} onChange={(e) => set(chemin, e.target.value)} style={CHAMP}>
+          {MODES.map((m) => <option key={m} value={m}>{m}</option>)}
+        </select>
+      ) : type === "zone" ? (
+        <textarea id={id} rows={3} value={valeur} onChange={(e) => set(chemin, e.target.value)}
+          style={{ ...CHAMP, resize: "vertical", fontFamily: "inherit" }} />
+      ) : (
+        <input id={id} type={type || "text"} value={valeur} onChange={(e) => set(chemin, e.target.value)} style={CHAMP} />
+      )}
+      {aide && <div style={{ fontSize: 11, color: "var(--sk-t3)", marginTop: 4 }}>{aide}</div>}
+    </div>
+  );
+}
+
+/** Une cellule de tableau editable. Hors du composant, meme raison. */
+function CelluleTexte({ valeur, onChange, label, placeholder, type }: {
+  valeur: string; onChange: (v: string) => void; label: string; placeholder?: string; type?: string;
+}) {
+  return (
+    <td style={{ padding: "4px 4px" }}>
+      <input type={type || "text"} value={valeur} placeholder={placeholder} aria-label={label}
+        onChange={(e) => onChange(e.target.value)} style={{ ...CHAMP, fontSize: 12, padding: "7px 9px" }} />
+    </td>
+  );
+}
+
 export default function Onboarding({ superadminKey, notify }: Props) {
   const [fiches, setFiches] = useState<OnbFileRow[]>([]);
   const [ficheId, setFicheId] = useState<string | null>(null);
@@ -288,80 +379,8 @@ export default function Onboarding({ superadminKey, notify }: Props) {
 
   /* ── Fragments d'interface ──────────────────────────────── */
 
-  function Checklist({ groupe, liste, labels }: { groupe: "a" | "b" | "c"; liste: OnbPoint[]; labels: readonly string[] }) {
-    return (
-      <div style={{ display: "grid", gap: 8 }}>
-        {liste.map((x) => {
-          const e = etat(doc, groupe, x.id);
-          return (
-            <div key={x.id} style={{
-              display: "grid", gridTemplateColumns: "44px 1fr 132px 200px", gap: 12, alignItems: "start",
-              background: "var(--sk-deep)", border: "0.5px solid var(--sk-surface)", borderRadius: 8, padding: "10px 12px",
-            }}>
-              <span style={{ fontSize: 12, color: "var(--sk-t3)", fontVariantNumeric: "tabular-nums", paddingTop: 8 }}>{x.id}</span>
-              <div style={{ paddingTop: 6 }}>
-                <div style={{ fontSize: 13, color: "var(--sk-t1)", fontWeight: 500 }}>
-                  {x.t}
-                  {x.blk && (
-                    <span style={{
-                      marginLeft: 8, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em",
-                      color: "#f87171", border: "0.5px solid #ef444455", borderRadius: 4, padding: "1px 6px",
-                    }}>Bloquant</span>
-                  )}
-                </div>
-                {x.w && <div style={{ fontSize: 12, color: "var(--sk-t3)", marginTop: 3, lineHeight: 1.5 }}>{x.w}</div>}
-              </div>
-              <button type="button" onClick={() => cyclerEtat(groupe, x.id)}
-                aria-label={`${x.t} : ${labels[e.s]}, changer l'état`}
-                style={{
-                  ...BTN, background: TEINTE_ETAT[e.s] + "1f", borderColor: TEINTE_ETAT[e.s] + "55",
-                  color: TEINTE_ETAT[e.s], fontWeight: 600, fontSize: 12, padding: "7px 10px",
-                }}>
-                {labels[e.s]}
-              </button>
-              <input type="text" value={e.n} placeholder="Note"
-                aria-label={`Note pour ${x.t}`}
-                onChange={(ev) => setNote(groupe, x.id, ev.target.value)}
-                style={{ ...CHAMP, fontSize: 12, padding: "7px 9px" }} />
-            </div>
-          );
-        })}
-      </div>
-    );
-  }
 
-  function Champ({ chemin, label, valeur, type, aide, pleine }: {
-    chemin: string; label: string; valeur: string; type?: string; aide?: string; pleine?: boolean;
-  }) {
-    const id = "onb-" + chemin.replace(/\./g, "-");
-    return (
-      <div style={{ gridColumn: pleine ? "1/-1" : undefined }}>
-        <label htmlFor={id} style={{ display: "block", fontSize: 12, color: "var(--sk-t2)", marginBottom: 5 }}>{label}</label>
-        {type === "mode" ? (
-          <select id={id} value={valeur} onChange={(e) => setChamp(chemin, e.target.value)} style={CHAMP}>
-            {MODES.map((m) => <option key={m} value={m}>{m}</option>)}
-          </select>
-        ) : type === "zone" ? (
-          <textarea id={id} rows={3} value={valeur} onChange={(e) => setChamp(chemin, e.target.value)}
-            style={{ ...CHAMP, resize: "vertical", fontFamily: "inherit" }} />
-        ) : (
-          <input id={id} type={type || "text"} value={valeur} onChange={(e) => setChamp(chemin, e.target.value)} style={CHAMP} />
-        )}
-        {aide && <div style={{ fontSize: 11, color: "var(--sk-t3)", marginTop: 4 }}>{aide}</div>}
-      </div>
-    );
-  }
 
-  function CelluleTexte({ valeur, onChange, label, placeholder, type }: {
-    valeur: string; onChange: (v: string) => void; label: string; placeholder?: string; type?: string;
-  }) {
-    return (
-      <td style={{ padding: "4px 4px" }}>
-        <input type={type || "text"} value={valeur} placeholder={placeholder} aria-label={label}
-          onChange={(e) => onChange(e.target.value)} style={{ ...CHAMP, fontSize: 12, padding: "7px 9px" }} />
-      </td>
-    );
-  }
 
   /* ── Panneaux ───────────────────────────────────────────── */
 
@@ -374,7 +393,7 @@ export default function Onboarding({ superadminKey, notify }: Props) {
           Touchez l&apos;état pour le faire avancer : à demander, demandé, reçu.
           Les éléments bloquants conditionnent le J0.
         </p>
-        <Checklist groupe="a" liste={LISTE_CLIENT} labels={ETATS_CLIENT} />
+        <Checklist doc={doc} groupe="a" liste={LISTE_CLIENT} labels={ETATS_CLIENT} onCycle={cyclerEtat} onNote={setNote} />
         <div style={{ ...CARTE, marginTop: 20, background: "var(--sk-deep)" }}>
           <div style={TITRE}>Message de relance</div>
           <textarea readOnly rows={7} value={relance} aria-label="Message de relance généré"
@@ -547,41 +566,41 @@ export default function Onboarding({ superadminKey, notify }: Props) {
 
         <div style={TITRE}>Le client</div>
         <div style={grille}>
-          <Champ chemin="nom" label="Nom du client" valeur={doc.nom} />
-          <Champ chemin="contact" label="Interlocuteur (prénom)" valeur={doc.contact} aide="Utilisé dans le message de relance" />
-          <Champ chemin="sousDomaine" label="Sous-domaine" valeur={doc.sousDomaine} aide="Par exemple nmktransports.m3afleet.com" />
-          <Champ chemin="gestionnaire" label="Gestionnaire qui valide" valeur={doc.gestionnaire} />
+          <Champ chemin="nom" label="Nom du client" valeur={doc.nom} set={setChamp} />
+          <Champ chemin="contact" label="Interlocuteur (prénom)" valeur={doc.contact} aide="Utilisé dans le message de relance" set={setChamp} />
+          <Champ chemin="sousDomaine" label="Sous-domaine" valeur={doc.sousDomaine} aide="Par exemple nmktransports.m3afleet.com" set={setChamp} />
+          <Champ chemin="gestionnaire" label="Gestionnaire qui valide" valeur={doc.gestionnaire} set={setChamp} />
           <Champ chemin="gestionnaireEmail" label="Son adresse e-mail" valeur={doc.gestionnaireEmail || ""} type="email"
-            aide="Son compte administrateur sera créé à la mise en service" />
-          <Champ chemin="j0" label="Date du J0" valeur={doc.j0} type="date" aide="Le jour de l'acceptation et du premier versement" />
+            aide="Son compte administrateur sera créé à la mise en service" set={setChamp} />
+          <Champ chemin="j0" label="Date du J0" valeur={doc.j0} type="date" aide="Le jour de l'acceptation et du premier versement" set={setChamp} />
         </div>
 
         <div style={{ ...TITRE, marginTop: 24 }}>La règle de versement</div>
         <div style={grille}>
-          <Champ chemin="regle.mode" label="Modèle de rémunération" valeur={doc.regle.mode} type="mode" />
-          <Champ chemin="regle.versement" label="Versement attendu par véhicule et par jour (XOF)" valeur={doc.regle.versement} type="number" />
+          <Champ chemin="regle.mode" label="Modèle de rémunération" valeur={doc.regle.mode} type="mode" set={setChamp} />
+          <Champ chemin="regle.versement" label="Versement attendu par véhicule et par jour (XOF)" valeur={doc.regle.versement} type="number" set={setChamp} />
           {doc.regle.mode === "Commission sur le brut" && (
             <Champ chemin="regle.commission" label="Taux de commission (% du brut)" valeur={doc.regle.commission || ""} type="number"
-              aide="Le taux, pas le montant : c'est lui qui part dans le calcul de l'application" />
+              aide="Le taux, pas le montant : c'est lui qui part dans le calcul de l'application" set={setChamp} />
           )}
-          <Champ chemin="regle.repos" label="Jours de repos" valeur={doc.regle.repos} aide="Par exemple : un jour par semaine, le dimanche" />
-          <Champ chemin="regle.immobilise" label="Véhicule immobilisé" valeur={doc.regle.immobilise} aide="Ce qui est dû quand le véhicule ne roule pas" />
-          <Champ chemin="regle.carburant" label="Ce que la direction fournit" valeur={doc.regle.carburant} />
-          <Champ chemin="regle.seuilCarb" label="Seuil d'alerte carburant (% du chiffre d'affaires)" valeur={doc.regle.seuilCarb} type="number" />
-          <Champ chemin="regle.objectif" label="Objectif de flotte" valeur={doc.regle.objectif} pleine />
+          <Champ chemin="regle.repos" label="Jours de repos" valeur={doc.regle.repos} aide="Par exemple : un jour par semaine, le dimanche" set={setChamp} />
+          <Champ chemin="regle.immobilise" label="Véhicule immobilisé" valeur={doc.regle.immobilise} aide="Ce qui est dû quand le véhicule ne roule pas" set={setChamp} />
+          <Champ chemin="regle.carburant" label="Ce que la direction fournit" valeur={doc.regle.carburant} set={setChamp} />
+          <Champ chemin="regle.seuilCarb" label="Seuil d'alerte carburant (% du chiffre d'affaires)" valeur={doc.regle.seuilCarb} type="number" set={setChamp} />
+          <Champ chemin="regle.objectif" label="Objectif de flotte" valeur={doc.regle.objectif} pleine set={setChamp} />
         </div>
 
         <div style={{ ...TITRE, marginTop: 24 }}>La formation</div>
         <div style={grille}>
-          <Champ chemin="formation.date" label="Date" valeur={doc.formation.date} type="date" />
-          <Champ chemin="formation.lieu" label="Lieu" valeur={doc.formation.lieu} />
+          <Champ chemin="formation.date" label="Date" valeur={doc.formation.date} type="date" set={setChamp} />
+          <Champ chemin="formation.lieu" label="Lieu" valeur={doc.formation.lieu} set={setChamp} />
           <Champ chemin="formation.participants" label="Participants" valeur={doc.formation.participants} type="zone"
-            aide="Gestionnaire, direction, chauffeurs — trois séances le même jour" pleine />
+            aide="Gestionnaire, direction, chauffeurs — trois séances le même jour" pleine set={setChamp} />
         </div>
 
         <div style={{ ...TITRE, marginTop: 24 }}>Notes</div>
         <div style={grille}>
-          <Champ chemin="notes" label="Notes libres" valeur={doc.notes} type="zone" pleine />
+          <Champ chemin="notes" label="Notes libres" valeur={doc.notes} type="zone" pleine set={setChamp} />
         </div>
       </>
     );
@@ -837,22 +856,22 @@ export default function Onboarding({ superadminKey, notify }: Props) {
           </div>
 
           <div style={CARTE}>
-            {onglet === "a" && <PanneauClient />}
-            {onglet === "v" && <PanneauParc />}
-            {onglet === "c" && <PanneauChauffeurs />}
-            {onglet === "r" && <PanneauRegles />}
+            {onglet === "a" && PanneauClient()}
+            {onglet === "v" && PanneauParc()}
+            {onglet === "c" && PanneauChauffeurs()}
+            {onglet === "r" && PanneauRegles()}
             {onglet === "b" && (<>
               <p style={LEAD}>À boucler avant l&apos;installation, sans attendre le client.</p>
-              <Checklist groupe="b" liste={LISTE_M3A} labels={ETATS_M3A} />
+              <Checklist doc={doc} groupe="b" liste={LISTE_M3A} labels={ETATS_M3A} onCycle={cyclerEtat} onNote={setNote} />
             </>)}
             {onglet === "k" && (<>
               <p style={LEAD}>
                 Hors déploiement Yango : les pièces à réunir pour le cadrage du module bennes, facturé à part.
               </p>
-              <Checklist groupe="c" liste={LISTE_BENNES} labels={ETATS_CLIENT} />
+              <Checklist doc={doc} groupe="c" liste={LISTE_BENNES} labels={ETATS_CLIENT} onCycle={cyclerEtat} onNote={setNote} />
             </>)}
-            {onglet === "t" && <PanneauCalendrier />}
-            {onglet === "m" && <PanneauMiseEnService />}
+            {onglet === "t" && PanneauCalendrier()}
+            {onglet === "m" && PanneauMiseEnService()}
           </div>
         </>
       )}
