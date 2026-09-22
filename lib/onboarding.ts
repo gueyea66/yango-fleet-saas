@@ -137,13 +137,20 @@ export async function provisionOnboarding(args: ProvisionArgs): Promise<Provisio
 
   /* 2 ── La règle de versement */
   const model = mapRemunerationModel(doc.regle?.mode || "");
+  // Deux champs distincts, et c'est voulu : `versement` est un montant par jour,
+  // `commission` un taux. Les confondre écrirait « 40 000 % » de commission dans
+  // la base le jour où le client est en commission sur le brut.
   const versement = numFromField(doc.regle?.versement);
+  const tauxSaisi = numFromField(doc.regle?.commission);
   const remun = {
     tenant_id: tenantId,
     model,
-    // « Commission sur le brut » : la fiche note un pourcentage, la base un ratio.
-    base_amount: model === "percent" ? 0 : versement,
-    commission_rate: model === "percent" ? Math.min(1, versement > 1 ? versement / 100 : versement) : 0,
+    base_amount: versement,
+    // La fiche note « 12 » pour 12 % ; la base attend un ratio. Un taux déjà
+    // écrit en ratio (0,12) est pris tel quel, et rien ne dépasse 100 %.
+    commission_rate: model === "percent"
+      ? Math.min(1, Math.max(0, tauxSaisi > 1 ? tauxSaisi / 100 : tauxSaisi))
+      : 0,
     updated_at: new Date().toISOString(),
   };
   const { data: existingRemun } = await admin.from("remuneration_config")

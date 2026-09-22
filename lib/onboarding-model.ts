@@ -31,7 +31,10 @@ export interface OnbChauffeur {
 
 export interface OnbRegle {
   mode: string;
+  /** Montant brut attendu par vehicule et par jour, quel que soit le mode. */
   versement: string;
+  /** Taux de commission, en % du brut. Ne sert qu'au mode « Commission sur le brut ». */
+  commission?: string;
   repos: string;
   immobilise: string;
   carburant: string;
@@ -163,7 +166,7 @@ export function ficheVide(nom: string): OnbDoc {
     vehiculesPrevus: 0, j0: "",
     a: {}, b: {}, c: {},
     vehicules: [], chauffeurs: [],
-    regle: { mode: MODES[0], versement: "", repos: "", immobilise: "", carburant: "", seuilCarb: "", objectif: "" },
+    regle: { mode: MODES[0], versement: "", commission: "", repos: "", immobilise: "", carburant: "", seuilCarb: "", objectif: "" },
     formation: { date: "", lieu: "", participants: "" },
     notes: "", maj: "",
   };

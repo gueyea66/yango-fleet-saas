@@ -47,3 +47,16 @@ COMMENT ON TABLE  fleet.onboarding_files IS
   'Fiches de mise en service client (console superadmin). Accès service_role uniquement.';
 COMMENT ON COLUMN fleet.onboarding_files.provisioned_at IS
   'Renseigné à la première mise en service ; rend l''opération rejouable sans doublon.';
+
+-- ── Reprise de la fiche NMK ─────────────────────────────
+-- La fiche existait déjà dans la page isolée : elle est reprise telle quelle
+-- pour que personne ne la ressaisisse. ON CONFLICT DO NOTHING — rejouer cette
+-- migration n'écrase jamais le travail fait depuis dans la console.
+--
+-- Une réserve utile : le mode est « Commission sur le brut » et le taux n'a
+-- jamais été donné par le client. Le champ reste vide, donc la mise en service
+-- écrira un taux nul tant qu'il n'est pas renseigné — à demander à Nicolas.
+
+INSERT INTO fleet.onboarding_files (id, nom, doc)
+VALUES ('nmk-transports', 'NMK Transports', '{"nom": "NMK Transports", "contact": "Nicolas", "sousDomaine": "", "gestionnaire": "Daniel", "gestionnaireEmail": "", "vehiculesPrevus": 8, "j0": "", "a": {"A1": {"s": 1, "n": "Accord oral le 22/09, demarrage en octobre. Facture du 1er versement a emettre."}, "A2": {"s": 1, "n": "Teste le 22/09 : le code part vers l''ancien numero. Pistes : nouvelle puce sur ce numero ou contact Yango."}, "A3": {"s": 1, "n": "Demande dans l''email du compte rendu (brouillon du 22/09)."}, "A4": {"s": 1, "n": "Demande dans l''email du compte rendu (brouillon du 22/09)."}, "A5": {"s": 1, "n": "Modele cite : 40 000 XOF brut par vehicule et par jour. Repos et vehicule immobilise a preciser."}, "A6": {"s": 0, "n": "Versements de 130 000 a 150 000 cites sans periode."}, "A8": {"s": 2, "n": "Nicolas veut que Daniel soit forme en priorite. - C''est Daniel"}, "A10": {"s": 2, "n": "Logo recupere sur nmktransports.sn."}}, "b": {"B4": {"s": 0, "n": "L''espace nmk actuel est une demonstration (donnees simulees) : creer un espace separe."}}, "c": {"C1": {"s": 1, "n": "Demande en seance et dans l''email du 22/09."}}, "vehicules": [], "chauffeurs": [], "regle": {"mode": "Commission sur le brut", "versement": "40000", "commission": "", "repos": "1 par semaine", "immobilise": "", "carburant": "Carburant, soldes Yango et salaires fournis par la direction", "seuilCarb": "30", "objectif": "10 vehicules, 400 000 XOF de versement par jour"}, "formation": {"date": "", "lieu": "", "participants": "Daniel (gestionnaire), Nicolas (direction), les chauffeurs"}, "notes": "Devis M3A-2026-NMK-001 : 1 400 000 XOF HT en deux versements (700 000 a l''acceptation, 700 000 a la fin de la formation), puis 100 000 XOF HT/mois jusqu''a 10 vehicules. Demarrage en octobre.", "maj": "2026-09-22T19:28:50.993Z"}'::jsonb)
+ON CONFLICT (id) DO NOTHING;

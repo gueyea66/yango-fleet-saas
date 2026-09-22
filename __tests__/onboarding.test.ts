@@ -274,16 +274,37 @@ describe("mise en service", () => {
     expect(r.lignes[0].etat).toBe("inchange");
   });
 
-  it("convertit une commission saisie en pourcentage", async () => {
+  it("convertit le taux de commission, sans le confondre avec le versement", async () => {
     const { admin, tables } = fauxAdmin();
     const doc = ficheNMK();
     doc.regle.mode = "Commission sur le brut";
-    doc.regle.versement = "12";
+    doc.regle.versement = "40000";   // montant brut attendu par jour
+    doc.regle.commission = "12";     // le taux, lui, est à part
     await provisionOnboarding({ admin, fileId: "nmk", doc, tenantId: null });
 
     expect(tables.remuneration_config[0].model).toBe("percent");
     expect(tables.remuneration_config[0].commission_rate).toBe(0.12);
-    expect(tables.remuneration_config[0].base_amount).toBe(0);
+    expect(tables.remuneration_config[0].base_amount).toBe(40000);
+  });
+
+  it("ne laisse jamais une commission dépasser 100 %", async () => {
+    const { admin, tables } = fauxAdmin();
+    const doc = ficheNMK();
+    doc.regle.mode = "Commission sur le brut";
+    doc.regle.commission = "40000";  // saisie erronée : un montant dans la case taux
+    await provisionOnboarding({ admin, fileId: "nmk", doc, tenantId: null });
+
+    expect(tables.remuneration_config[0].commission_rate).toBe(1);
+  });
+
+  it("prend un taux déjà écrit en ratio tel quel", async () => {
+    const { admin, tables } = fauxAdmin();
+    const doc = ficheNMK();
+    doc.regle.mode = "Commission sur le brut";
+    doc.regle.commission = "0,15";
+    await provisionOnboarding({ admin, fileId: "nmk", doc, tenantId: null });
+
+    expect(tables.remuneration_config[0].commission_rate).toBe(0.15);
   });
 
   it("refuse une fiche sans raison sociale", async () => {

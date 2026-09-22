@@ -560,6 +560,10 @@ export default function Onboarding({ superadminKey, notify }: Props) {
         <div style={grille}>
           <Champ chemin="regle.mode" label="Modèle de rémunération" valeur={doc.regle.mode} type="mode" />
           <Champ chemin="regle.versement" label="Versement attendu par véhicule et par jour (XOF)" valeur={doc.regle.versement} type="number" />
+          {doc.regle.mode === "Commission sur le brut" && (
+            <Champ chemin="regle.commission" label="Taux de commission (% du brut)" valeur={doc.regle.commission || ""} type="number"
+              aide="Le taux, pas le montant : c'est lui qui part dans le calcul de l'application" />
+          )}
           <Champ chemin="regle.repos" label="Jours de repos" valeur={doc.regle.repos} aide="Par exemple : un jour par semaine, le dimanche" />
           <Champ chemin="regle.immobilise" label="Véhicule immobilisé" valeur={doc.regle.immobilise} aide="Ce qui est dû quand le véhicule ne roule pas" />
           <Champ chemin="regle.carburant" label="Ce que la direction fournit" valeur={doc.regle.carburant} />
