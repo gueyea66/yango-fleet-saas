@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { checkSuperadminKey, getClientIp } from "@/lib/auth/server";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { provisionOnboarding, slugify, type OnbDoc } from "@/lib/onboarding";
 
 export const dynamic = "force-dynamic";
 
@@ -107,6 +108,89 @@ export async function POST(req: NextRequest) {
           base_amount: parseFloat(f.base_amount) || 0, commission_rate: parseFloat(f.commission_rate) || 0,
         });
         return NextResponse.json({ ok: true, slug, trialDays, trialEnd });
+      }
+
+      /* ── Fiches de mise en service (Onboarding.tsx) ──
+         Une fiche prépare un client AVANT qu'il ait un espace : elle vit donc
+         ici, dans la console, et non derrière une session de tenant. */
+      case "onb-list": {
+        const { data, error } = await admin.from("onboarding_files")
+          .select("id, nom, tenant_id, provisioned_at, updated_at")
+          .order("updated_at", { ascending: false });
+        if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+        return NextResponse.json({ files: data ?? [] });
+      }
+
+      case "onb-get": {
+        const { id } = payload;
+        if (!id) return NextResponse.json({ error: "Fiche non désignée" }, { status: 400 });
+        const { data, error } = await admin.from("onboarding_files").select("*").eq("id", id).maybeSingle();
+        if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+        if (!data) return NextResponse.json({ error: "Fiche introuvable" }, { status: 404 });
+        return NextResponse.json({ file: data });
+      }
+
+      case "onb-save": {
+        const { id, nom, doc } = payload;
+        const key = slugify(id || nom || "");
+        if (!key) return NextResponse.json({ error: "Nom de client requis" }, { status: 400 });
+        if (!doc || typeof doc !== "object") return NextResponse.json({ error: "Fiche vide" }, { status: 400 });
+        const { error } = await admin.from("onboarding_files").upsert({
+          id: key,
+          nom: String(nom || doc.nom || key),
+          doc,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "id" });
+        if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+        return NextResponse.json({ ok: true, id: key });
+      }
+
+      /* Supprime la FICHE seule. L'espace client, ses véhicules et ses
+         chauffeurs déjà mis en service ne sont jamais touchés ici — la
+         suppression d'un client passe par l'onglet Clients, à dessein. */
+      case "onb-delete": {
+        const { id } = payload;
+        if (!id) return NextResponse.json({ error: "Fiche non désignée" }, { status: 400 });
+        const { error } = await admin.from("onboarding_files").delete().eq("id", id);
+        if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+        return NextResponse.json({ ok: true });
+      }
+
+      /* Verse la fiche dans l'application. Rejouable : voir lib/onboarding.ts. */
+      case "onb-provision": {
+        const { id } = payload;
+        if (!id) return NextResponse.json({ error: "Fiche non désignée" }, { status: 400 });
+        const { data: file, error: readError } = await admin.from("onboarding_files")
+          .select("*").eq("id", id).maybeSingle();
+        if (readError) return NextResponse.json({ error: readError.message }, { status: 400 });
+        if (!file) return NextResponse.json({ error: "Fiche introuvable" }, { status: 404 });
+
+        const result = await provisionOnboarding({
+          admin,
+          fileId: file.id,
+          doc: file.doc as OnbDoc,
+          tenantId: file.tenant_id ?? null,
+          plan: payload.plan,
+          trialDays: parseInt(payload.trial_days) || undefined,
+        });
+
+        // La fiche garde les identifiants attribués (jamais les mots de passe)
+        // et la date de première mise en service : c'est ce qui rend le rejeu
+        // sûr la fois suivante.
+        const { error: writeError } = await admin.from("onboarding_files").update({
+          doc: result.doc,
+          tenant_id: result.tenantId,
+          provisioned_at: file.provisioned_at ?? new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }).eq("id", file.id);
+        if (writeError) {
+          return NextResponse.json({
+            ...result,
+            ok: false,
+            lignes: [...result.lignes, { quoi: "Fiche", etat: "erreur", detail: "Mise en service faite, fiche non mise à jour : " + writeError.message }],
+          });
+        }
+        return NextResponse.json(result);
       }
 
       /* ── Données brutes du dashboard (Dashboard.tsx → load) ── */
