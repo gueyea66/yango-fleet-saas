@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>html{background:#16181d}body{margin:0;min-height:100%;background:#16181d;font-family:Geist,Arial,sans-serif;color:#f0f2f7}a{color:#f5a623;text-decoration:none}a:hover{color:#ffc15c}input{font-family:inherit}@keyframes spin{to{transform:rotate(360deg)}}</style>
+</helmet>
+<div style="padding:32px 40px;display:flex;flex-direction:column;gap:20px">
+  <div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap">
+    <span style="font:600 10px 'Geist Mono',monospace;padding:3px 7px;background:#f5a623;color:#080a0f;border-radius:4px">PROTOTYPE</span>
+    <span style="font-size:15px;font-weight:600">Rapport du soir → validation, de bout en bout</span>
+    <span style="font-size:13px;color:#8b92a8">Envoie le rapport côté chauffeur : il arrive dans la file du gestionnaire. Valide-le : le net du mois change.</span>
+    <span style="margin-left:auto;height:32px;padding:0 12px;border-radius:8px;border:1px solid #343b4f;font-size:12px;display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap" style-hover="border-color:#8b92a8" onClick="{{ reset }}"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>Recommencer</span>
+  </div>
+  <div style="display:flex;gap:36px;align-items:flex-start">
+
+    <div style="display:flex;flex-direction:column;gap:10px;flex:none">
+      <div style="font-size:12px;color:#8b92a8">Téléphone de Moussa Diop</div>
+      <x-import component-from-global-scope="AndroidDevice" from="./android-frame.jsx" dark="{{ true }}" hint-size="412px,892px">
+        <div style="height:812px;display:flex;flex-direction:column;background:#080a0f;font-family:Geist,Arial,sans-serif;color:#f0f2f7">
+
+          <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 12px 10px 16px;background:#0d1117;border-bottom:1px solid #1e2330">
+              <div style="width:32px;height:32px;border-radius:8px;background:#f5a623;color:#080a0f;display:flex;align-items:center;justify-content:center;font-weight:600;font-size:13px;flex:none">M3</div>
+              <div style="flex:1;font-size:16px;font-weight:600">Moussa Diop</div>
+              <div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:#555e75"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M10.268 21a2 2 0 0 0 3.464 0"></path><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"></path></svg></div>
+            </div>
+            <div style="flex:1;padding:24px 16px;display:flex;flex-direction:column;gap:16px">
+              <div><div style="font-size:13px;color:#94a3b8">Mardi 23 septembre</div><div style="font-size:24px;font-weight:600;margin-top:2px">Bonsoir Moussa</div></div>
+              <sc-if value="{{ notSent }}" hint-placeholder-val="{{ true }}">
+                <div style="border-radius:18px;background:#0d1117;border:1px solid #1e2330;padding:18px 16px;display:flex;flex-direction:column;gap:14px">
+                  <div style="display:flex;align-items:center;gap:10px"><span style="width:8px;height:8px;border-radius:50%;background:#f97316;flex:none"></span><div style="font-size:15px;font-weight:600;line-height:1.35">{{ todoTitle }}</div></div>
+                  <div style="display:flex;align-items:center;justify-content:center;gap:10px;height:58px;border-radius:14px;background:#f5a623;color:#080a0f;font-size:17px;font-weight:700;cursor:pointer" style-hover="filter:brightness(1.1)" onClick="{{ goCapture }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /><path d="M7 12h10" /></svg>Faire mon rapport</div>
+                </div>
+              </sc-if>
+              <sc-if value="{{ wasSent }}" hint-placeholder-val="{{ false }}">
+                <div style="border-radius:18px;background:#0d1117;border:1px solid #1e2330;padding:18px 16px;display:flex;align-items:center;gap:12px">
+                  <span style="width:8px;height:8px;border-radius:50%;background:{{ sentDot }};flex:none"></span>
+                  <div style="flex:1"><div style="font-size:15px;font-weight:600">{{ sentTitle }}</div><div style="font-size:13px;color:#94a3b8;margin-top:2px">Net du jour {{ netStr }} XOF</div></div>
+                </div>
+              </sc-if>
+              <div style="border-radius:18px;background:#0d1117;border:1px solid #1e2330;padding:20px 16px;display:flex;flex-direction:column;gap:4px">
+                <div style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#94a3b8">Il vous manque</div>
+                <div style="font-family:'Geist Mono',monospace;font-size:28px;font-weight:600;color:#facc15">{{ missingStr }} <span style="font-size:14px;color:#94a3b8">XOF</span></div>
+                <div style="font-size:14px">pour atteindre <span style="font-weight:600">Palier 1</span></div>
+                <div style="font-size:13px;color:#94a3b8">salaire : <span style="font-family:'Geist Mono',monospace;color:#f0f2f7">230 000 XOF</span>/mois</div>
+                <div style="height:6px;border-radius:3px;background:#1e2330;margin-top:14px;overflow:hidden"><div style="width:{{ progress }};height:100%;background:#facc15;border-radius:3px;transition:width .6s"></div></div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isCapture }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 8px 4px;background:#0d1117;border-bottom:1px solid #1e2330">
+              <div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer" onClick="{{ goHome }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg></div>
+              <div style="flex:1;font-size:16px;font-weight:600">Rapport du 23/09</div>
+            </div>
+            <div style="flex:1;padding:24px 16px;display:flex;flex-direction:column;gap:18px">
+              <div><div style="font-size:22px;font-weight:600">Ajoute tes captures</div><div style="font-size:14px;color:#94a3b8;margin-top:6px">Touche chaque ligne pour simuler l'ajout.</div></div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <sc-for list="{{ caps }}" as="c" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:center;gap:14px;padding:12px;border-radius:16px;background:{{ c.bg }};border:1px {{ c.bs }} {{ c.bd }};cursor:pointer" onClick="{{ c.toggle }}">
+                    <div style="width:52px;height:72px;border-radius:8px;flex:none;background:{{ c.thumb }};border:1px solid #1e2330"></div>
+                    <div style="flex:1"><div style="font-size:15px;font-weight:600">{{ c.title }}</div><div style="font-size:13px;color:#94a3b8;margin-top:2px">{{ c.sub }}</div></div>
+                    <div style="font-size:13px;font-weight:600;color:{{ c.stateColor }};white-space:nowrap">{{ c.state }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;align-items:center;justify-content:center;gap:10px;height:58px;border-radius:14px;background:{{ readBg }};color:{{ readFg }};font-size:17px;font-weight:700;cursor:pointer" onClick="{{ read }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /><path d="M7 12h10" /></svg>Lire mes captures</div>
+                <div style="text-align:center;font-size:14px;color:#8b92a8;padding:12px;cursor:pointer" style-hover="color:#f0f2f7" onClick="{{ manual }}">Saisir à la main</div>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isReading }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px">
+              <div style="width:44px;height:44px;border-radius:50%;border:3px solid #1e2330;border-top-color:#f5a623;animation:spin .8s linear infinite"></div>
+              <div style="font-size:16px;font-weight:600">Lecture des captures…</div>
+              <div style="font-size:13px;color:#94a3b8">Espèces, carte, bonus, commissions, solde, compteur</div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isReview }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 8px 4px;background:#0d1117;border-bottom:1px solid #1e2330">
+              <div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer" onClick="{{ goCapture }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg></div>
+              <div style="flex:1;font-size:16px;font-weight:600">Vérifie ton rapport</div>
+            </div>
+            <div style="flex:1;padding:18px 16px;display:flex;flex-direction:column;gap:14px">
+              <div style="display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:14px;background:{{ checkBg }};border:1px solid {{ checkBd }}">
+                <span style="color:{{ checkFg }};display:flex"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></span>
+                <div style="flex:1;font-size:13px;line-height:1.4">{{ checkText }}</div>
+              </div>
+              <div style="border-radius:16px;background:#0d1117;border:1px solid #1e2330;overflow:hidden">
+                <div style="display:flex;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1e2330"><span style="flex:1;font-size:14px;color:#8b92a8">Espèces</span><span style="font-family:'Geist Mono',monospace;font-size:16px">41 200</span></div>
+                <div style="display:flex;align-items:center;gap:8px;padding:0 16px;height:56px;border-bottom:1px solid #1e2330;background:rgba(249,115,22,.07)">
+                  <span style="flex:1;font-size:14px;color:#8b92a8">Carte</span>
+                  <span style="font-size:11px;font-weight:600;color:#f97316;padding:3px 8px;border-radius:10px;background:rgba(249,115,22,.14);white-space:nowrap">à vérifier</span>
+                  <input value="{{ carteStr }}" onChange="{{ onCarte }}" inputmode="numeric" style="width:96px;height:40px;box-sizing:border-box;text-align:right;font-family:'Geist Mono',monospace;font-size:16px;color:#f0f2f7;background:#080a0f;border:1px solid #f97316;border-radius:8px;padding:0 10px;outline:none">
+                </div>
+                <div style="display:flex;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1e2330"><span style="flex:1;font-size:14px;color:#8b92a8">Bonus</span><span style="font-family:'Geist Mono',monospace;font-size:16px">2 500</span></div>
+                <div style="display:flex;align-items:center;padding:0 16px;height:52px;border-bottom:1px solid #1e2330"><span style="flex:1;font-size:14px;color:#8b92a8">Commissions (15,75 %)</span><span style="font-family:'Geist Mono',monospace;font-size:16px;color:#f87171">− {{ commStr }}</span></div>
+                <div style="display:flex;align-items:center;padding:0 16px;height:52px"><span style="flex:1;font-size:14px;color:#8b92a8">Compteur</span><span style="font-family:'Geist Mono',monospace;font-size:16px">151 461 km</span></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;padding:0 4px;font-size:13px;color:#8b92a8">
+                <span style="flex:1">Hors Yango aujourd'hui</span>
+                <input value="{{ hyStr }}" onChange="{{ onHy }}" inputmode="numeric" style="width:96px;height:40px;box-sizing:border-box;text-align:right;font-family:'Geist Mono',monospace;font-size:15px;color:#f0f2f7;background:#0d1117;border:1px solid #343b4f;border-radius:8px;padding:0 10px;outline:none">
+              </div>
+              <div style="margin-top:auto;display:flex;align-items:baseline;justify-content:space-between;padding:0 4px">
+                <span style="font-size:14px;color:#8b92a8">Net du jour</span>
+                <span style="font-family:'Geist Mono',monospace;font-size:26px;font-weight:600;color:#4ade80">{{ netStr }} <span style="font-size:13px;color:#94a3b8">XOF</span></span>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:center;height:58px;border-radius:14px;background:#f5a623;color:#080a0f;font-size:17px;font-weight:700;cursor:pointer" style-hover="filter:brightness(1.1)" onClick="{{ send }}">Envoyer le rapport</div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isSent }}" hint-placeholder-val="{{ false }}">
+            <div style="flex:1;padding:24px 20px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;text-align:center">
+              <div style="width:72px;height:72px;border-radius:50%;background:rgba(74,222,128,.12);color:#4ade80;display:flex;align-items:center;justify-content:center"><svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M20 6 9 17l-5-5"></path></svg></div>
+              <div style="font-size:24px;font-weight:600">{{ sentScreenTitle }}</div>
+              <div style="font-size:15px;color:#94a3b8;line-height:1.5;max-width:300px">{{ sentScreenSub }}</div>
+            </div>
+            <div style="padding:16px"><div style="height:52px;display:flex;align-items:center;justify-content:center;font-size:15px;border-radius:14px;border:1px solid #343b4f;cursor:pointer" style-hover="border-color:#8b92a8" onClick="{{ goHome }}">Retour à l'accueil</div></div>
+          </sc-if>
+
+          <sc-if value="{{ isReportDone }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;padding:14px 16px;background:#0d1117;border-bottom:1px solid #1e2330"><div style="flex:1;font-size:17px;font-weight:600">Rapport</div><span style="font-size:13px;color:#94a3b8">mar. 23/09</span></div>
+            <div style="flex:1;padding:22px 16px;display:flex;flex-direction:column;gap:16px">
+              <div style="border-radius:18px;background:#0d1117;border:1px solid #1e2330;padding:18px 16px;display:flex;flex-direction:column;gap:12px">
+                <div style="display:flex;align-items:center;gap:10px"><span style="width:10px;height:10px;border-radius:50%;background:{{ doneDot }};flex:none"></span><div style="font-size:16px;font-weight:600;line-height:1.35;white-space:nowrap">{{ doneTitle }}</div></div>
+                <div style="font-size:14px;color:#94a3b8;line-height:1.5">{{ doneSub }}</div>
+                <div style="display:flex;align-items:baseline;justify-content:space-between;padding-top:10px;border-top:1px solid #1e2330"><span style="font-size:14px;color:#8b92a8">Net du jour</span><span style="font-family:'Geist Mono',monospace;font-size:22px;font-weight:600;color:#4ade80">{{ doneNet }} XOF</span></div>
+              </div>
+              <div style="font-size:13px;color:#94a3b8;line-height:1.5">Un seul rapport par jour. Le prochain pourra être fait demain soir.</div>
+              <div style="margin-top:auto;height:52px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:600;border-radius:14px;border:1px solid #343b4f;cursor:pointer;white-space:nowrap" style-hover="border-color:#8b92a8" onClick="{{ goExpense }}">Ajouter une dépense</div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isExpense }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px 8px 4px;background:#0d1117;border-bottom:1px solid #1e2330">
+              <div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;cursor:pointer" onClick="{{ goHome }}"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg></div>
+              <div style="flex:1;font-size:16px;font-weight:600">Nouvelle dépense</div>
+            </div>
+            <div style="flex:1;padding:20px 16px;display:flex;flex-direction:column;gap:10px">
+              <div style="font-size:13px;color:#94a3b8">Quoi ?</div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+                <sc-for list="{{ cats }}" as="k" hint-placeholder-count="6">
+                  <div style="height:64px;border-radius:14px;border:1px solid {{ k.bd }};background:{{ k.bg }};color:{{ k.fg }};font-weight:{{ k.fw }};display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer" onClick="{{ k.pick }}">{{ k.label }}</div>
+                </sc-for>
+              </div>
+              <div style="font-size:13px;color:#94a3b8;margin-top:10px">Combien ?</div>
+              <div style="height:76px;border-radius:16px;background:#0d1117;border:1px solid #f5a623;display:flex;align-items:center;padding:0 18px;gap:8px">
+                <input value="{{ expStr }}" onChange="{{ onExp }}" inputmode="numeric" style="flex:1;min-width:0;background:transparent;border:0;outline:none;color:#f0f2f7;font-family:'Geist Mono',monospace;font-size:34px;font-weight:600">
+                <span style="font-size:14px;color:#94a3b8">XOF</span>
+              </div>
+              <div style="margin-top:auto;display:flex;align-items:center;justify-content:center;height:58px;border-radius:14px;background:{{ expBtnBg }};color:{{ expBtnFg }};font-size:17px;font-weight:700;cursor:pointer;white-space:nowrap" onClick="{{ sendExp }}">{{ expBtnLabel }}</div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isPilot }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;padding:14px 16px;background:#0d1117;border-bottom:1px solid #1e2330"><div style="flex:1;font-size:17px;font-weight:600">Mon mois</div><span style="font-size:13px;color:#94a3b8">septembre</span></div>
+            <div style="flex:1;padding:22px 16px;display:flex;flex-direction:column;gap:14px">
+              <div style="border-radius:18px;background:#0d1117;border:1px solid #1e2330;padding:18px 16px;display:flex;flex-direction:column;gap:6px">
+                <div style="font-size:13px;color:#94a3b8">Pour atteindre Palier 1, il faut</div>
+                <div style="font-family:'Geist Mono',monospace;font-size:30px;font-weight:600;color:#facc15">{{ perDayStr }} <span style="font-size:14px;color:#94a3b8">XOF / jour</span></div>
+                <div style="font-size:14px;color:#c3c8d6">pendant les 7 jours restants</div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;padding:14px"><div style="font-size:12px;color:#94a3b8">Net validé</div><div style="font-family:'Geist Mono',monospace;font-size:18px;font-weight:600;margin-top:6px">{{ valStr }}</div></div>
+                <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;padding:14px"><div style="font-size:12px;color:#94a3b8">En attente</div><div style="font-family:'Geist Mono',monospace;font-size:18px;font-weight:600;margin-top:6px;color:#f97316">{{ pendStr }}</div></div>
+              </div>
+            </div>
+          </sc-if>
+
+          <div style="height:64px;flex:none;display:grid;grid-template-columns:repeat(4,1fr);background:#0d1117;border-top:1px solid #1e2330;font-size:11px">
+            <div style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:{{ tc.home }};font-weight:{{ tw.home }};cursor:pointer" onClick="{{ tg.home }}"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"></path><path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path></svg>Accueil<span style="position:absolute;bottom:0;left:30%;right:30%;height:2px;border-radius:2px;background:{{ tb.home }}"></span></div>
+            <div style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:{{ tc.report }};font-weight:{{ tw.report }};cursor:pointer" onClick="{{ tg.report }}"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"></rect><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path><path d="M12 11h4"></path><path d="M12 16h4"></path><path d="M8 11h.01"></path><path d="M8 16h.01"></path></svg>Rapport<span style="position:absolute;bottom:0;left:30%;right:30%;height:2px;border-radius:2px;background:{{ tb.report }}"></span></div>
+            <div style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:{{ tc.expense }};font-weight:{{ tw.expense }};cursor:pointer" onClick="{{ tg.expense }}"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"></path><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 17.5v-11"></path></svg>Dépense<span style="position:absolute;bottom:0;left:30%;right:30%;height:2px;border-radius:2px;background:{{ tb.expense }}"></span></div>
+            <div style="position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;color:{{ tc.pilot }};font-weight:{{ tw.pilot }};cursor:pointer" onClick="{{ tg.pilot }}"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="m12 14 4-4"></path><path d="M3.34 19a10 10 0 1 1 17.32 0"></path></svg>Pilotage<span style="position:absolute;bottom:0;left:30%;right:30%;height:2px;border-radius:2px;background:{{ tb.pilot }}"></span></div>
+          </div>
+        </div>
+      </x-import>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;flex:none">
+      <div style="font-size:12px;color:#8b92a8">Écran du gestionnaire</div>
+      <div style="width:1080px;height:892px;display:flex;background:#080a0f;border-radius:12px;overflow:hidden;border:1px solid #1e2330;position:relative">
+        <div style="width:360px;flex:none;border-right:1px solid #1e2330;display:flex;flex-direction:column">
+          <div style="padding:20px 20px 12px;display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:20px;font-weight:600">À valider</span><span style="font-family:'Geist Mono',monospace;font-size:14px;color:#f97316">{{ qCount }}</span></div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <sc-for list="{{ drvChips }}" as="c" hint-placeholder-count="4">
+                <span style="height:32px;padding:0 12px;border-radius:16px;font-size:13px;display:flex;align-items:center;white-space:nowrap;cursor:pointer;background:{{ c.bg }};color:{{ c.fg }};border:1px solid {{ c.bd }}" onClick="{{ c.pick }}">{{ c.label }}</span>
+              </sc-for>
+            </div>
+          </div>
+          <sc-for list="{{ queue }}" as="q" hint-placeholder-count="3">
+            <div style="padding:13px 20px;border-bottom:1px solid #1e2330;display:flex;flex-direction:column;gap:4px;cursor:pointer;background:{{ q.bg }};box-shadow:{{ q.sh }}" onClick="{{ q.pick }}">
+              <div style="display:flex;align-items:baseline;gap:8px"><span style="flex:1;font-size:14px;font-weight:600">{{ q.name }}</span><span style="font-family:'Geist Mono',monospace;font-size:14px">{{ q.amount }}</span></div>
+              <div style="font-size:12px;color:{{ q.subColor }};display:flex;align-items:center;gap:6px"><span style="font-size:10px;font-weight:700;letter-spacing:.04em;padding:1px 6px;border-radius:4px;background:{{ q.tagBg }};color:#080a0f">{{ q.tag }}</span>{{ q.sub }}</div>
+            </div>
+          </sc-for>
+          <sc-if value="{{ qEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="padding:40px 24px;text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center"><span style="color:#4ade80;display:flex"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></span><div style="font-size:15px;font-weight:600">Tout est validé</div><div style="font-size:13px;color:#94a3b8">Rien en attente pour ce filtre.</div></div>
+          </sc-if>
+        </div>
+        <div style="flex:1;min-width:0;padding:20px 26px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="display:flex;padding:3px;border-radius:10px;background:#0d1117;border:1px solid #1e2330;font-size:13px">
+              <sc-for list="{{ periodChips }}" as="p" hint-placeholder-count="2"><span style="padding:6px 12px;border-radius:7px;cursor:pointer;white-space:nowrap;background:{{ p.bg }};color:{{ p.fg }}" onClick="{{ p.pick }}">{{ p.label }}</span></sc-for>
+            </div>
+            <span style="font-size:13px;color:#94a3b8">{{ scopeLabel }}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <div style="padding:16px 18px;border-radius:14px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:12px;color:#94a3b8">Net final validé</div><div style="font-family:'Geist Mono',monospace;font-size:26px;font-weight:600;color:#4ade80;margin-top:6px;transition:color .3s">{{ kNet }}</div><div style="font-size:12px;color:#4ade80;margin-top:4px;height:16px">{{ kDelta }}</div></div>
+            <div style="padding:16px 18px;border-radius:14px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:12px;color:#94a3b8">Coûts</div><div style="font-family:'Geist Mono',monospace;font-size:22px;font-weight:600;margin-top:8px">{{ kCost }}</div><div style="font-size:12px;color:#94a3b8;margin-top:4px">{{ kCostPct }} du CA</div></div>
+            <div style="padding:16px 18px;border-radius:14px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:12px;color:#94a3b8">Rapports en attente</div><div style="font-family:'Geist Mono',monospace;font-size:22px;font-weight:600;color:#f97316;margin-top:8px">{{ kPending }}</div></div>
+          </div>
+          <sc-if value="{{ hasSel }}" hint-placeholder-val="{{ true }}">
+            <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;display:flex;flex-direction:column;flex:1;min-height:0">
+              <div style="padding:16px 20px;border-bottom:1px solid #1e2330;display:flex;align-items:center;gap:10px">
+                <div style="flex:1"><div style="font-size:17px;font-weight:600">{{ sel.title }}</div><div style="font-size:13px;color:#94a3b8;margin-top:3px">{{ sel.meta }}</div></div>
+                <span style="font-size:12px;font-weight:600;padding:5px 10px;border-radius:6px;background:{{ sel.badgeBg }};color:{{ sel.badgeFg }};white-space:nowrap">{{ sel.badge }}</span>
+              </div>
+              <sc-for list="{{ sel.lines }}" as="l" hint-placeholder-count="4">
+                <div style="display:flex;padding:11px 20px;border-bottom:1px solid #1e2330;font-size:14px"><span style="flex:1;color:#8b92a8">{{ l.k }}</span><span style="font-family:'Geist Mono',monospace;color:{{ l.c }}">{{ l.v }}</span></div>
+              </sc-for>
+              <div style="display:flex;padding:14px 20px;align-items:baseline"><span style="flex:1;font-weight:600">{{ sel.totalLabel }}</span><span style="font-family:'Geist Mono',monospace;font-size:20px;font-weight:600;color:#4ade80">{{ sel.amount }} XOF</span></div>
+              <div style="margin-top:auto;display:flex;gap:10px;justify-content:flex-end;padding:14px 20px;border-top:1px solid #1e2330">
+                <span style="height:42px;padding:0 18px;border-radius:10px;border:1px solid rgba(239,68,68,.45);color:#f87171;font-size:14px;font-weight:600;display:flex;align-items:center;cursor:pointer;white-space:nowrap" style-hover="border-color:#f87171" onClick="{{ reject }}">Rejeter</span>
+                <span style="height:42px;padding:0 22px;border-radius:10px;background:#22c55e;color:#06210f;font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px;cursor:pointer;white-space:nowrap" style-hover="filter:brightness(1.1)" onClick="{{ approve }}"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M20 6 9 17l-5-5"></path></svg>Valider et suivant</span>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+        <sc-if value="{{ hasToast }}" hint-placeholder-val="{{ false }}">
+          <div style="position:absolute;left:50%;bottom:24px;transform:translateX(-50%);padding:12px 18px;border-radius:12px;background:#f0f2f7;color:#080a0f;font-size:14px;font-weight:500;box-shadow:0 10px 30px rgba(0,0,0,.4);white-space:nowrap">{{ toast }}</div>
+        </sc-if>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const LS = 'm3a-proto-v1';
+const BASE = { 'Alioune Diagne': 512840, 'Moussa Diop': 587500, 'Ibrahima Sarr': 114040 };
+const CA = 1486200, COST = 271820;
+const fmt = n => Math.round(n).toLocaleString('fr-FR').replace(/\u202f|\u00a0/g, ' ');
+const INITIAL_Q = [
+  { id: 'a1', kind: 'r', name: 'Alioune Diagne', date: 'Lun. 22/09', amount: 54191, ok: true, src: 'captures', lines: [['Espèces', 52400], ['Carte', 6800], ['Bonus', 4000], ['Commissions', -9954], ['Hors Yango', 945]] },
+  { id: 'i1', kind: 'r', name: 'Ibrahima Sarr', date: 'Lun. 22/09', amount: 38740, ok: false, src: 'manuel', lines: [['Espèces', 41000], ['Bonus', 3100], ['Commissions', -6946], ['Hors Yango', 1586]] },
+  { id: 'e1', kind: 'e', name: 'Alioune Diagne', date: 'Dim. 21/09', amount: 9500, ok: true, src: 'reçu', lines: [['Carburant', 8000], ['Péage', 1500]] },
+];
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(LS) || 'null'); } catch (e) {}
+    this.state = { ...this.fresh(), ...(saved || {}) };
+    if (typeof this.state.lastDelta === 'string') this.state.lastDelta = null;
+  }
+  fresh() { return { drv: 'home', caps: [false, false, false], carte: 3800, hy: 6000, sent: null, queue: INITIAL_Q, selId: 'a1', validated: {}, driver: 'Tous', period: 'Mois', toast: '', lastDelta: null, cat: 'Carburant', exp: 8000, expN: 0, sentKind: 'r' }; }
+  componentDidUpdate() { try { const { toast, ...s } = this.state; localStorage.setItem(LS, JSON.stringify({ ...s, toast: '' })); } catch (e) {} }
+  flash(t) { clearTimeout(this._t); this.setState({ toast: t }); this._t = setTimeout(() => this.setState({ toast: '' }), 2600); }
+  calc() {
+    const brut = 41200 + (this.state.carte || 0) + 2500;
+    const comm = Math.round(brut * 0.1575);
+    const netY = brut - comm;
+    return { brut, comm, netY, net: netY + (this.state.hy || 0), ok: netY === 40019 };
+  }
+  decide(approve) {
+    const s = this.state; const vis = this.visibleQueue(); const idx = vis.findIndex(q => q.id === s.selId); const item = vis[idx];
+    if (!item) return;
+    const queue = s.queue.filter(q => q.id !== item.id);
+    const validated = { ...s.validated };
+    let lastDelta = null;
+    if (approve && item.kind === 'r') { validated[item.name] = (validated[item.name] || 0) + item.amount; lastDelta = { name: item.name, amount: item.amount }; }
+    const rest = queue.filter(q => s.driver === 'Tous' || q.name === s.driver);
+    const next = rest[Math.min(idx, rest.length - 1)];
+    let sent = s.sent;
+    if (item.id === 'm1') sent = approve ? 'approved' : 'rejected';
+    if (item.id.startsWith('mx') && !approve) sent = s.sent;
+    this.setState({ queue, validated, selId: next ? next.id : null, lastDelta, sent });
+    const first = item.name.split(' ')[0];
+    this.flash(approve ? (item.kind === 'r' ? `Rapport validé — ${first} est notifié` : `Dépense validée — ${first} est notifié`) : `Rejeté — ${first} peut corriger et renvoyer`);
+  }
+  visibleQueue() { const s = this.state; return s.queue.filter(q => s.driver === 'Tous' || q.name === s.driver); }
+  renderVals() {
+    const s = this.state; const c = this.calc();
+    const go = drv => () => this.setState({ drv });
+    const tabOf = { home: 'home', capture: 'report', reading: 'report', review: 'report', sent: s.sentKind === 'e' ? 'expense' : 'report', reportDone: 'report', expense: 'expense', pilot: 'pilot' }[s.drv];
+    const tk = ['home', 'report', 'expense', 'pilot'];
+    const tc = {}, tw = {}, tb = {}, tg = { home: go('home'), report: go(s.sent === 'pending' || s.sent === 'approved' ? 'reportDone' : 'capture'), expense: go('expense'), pilot: go('pilot') };
+    tk.forEach(k => { tc[k] = k === tabOf ? '#4ade80' : '#8b92a8'; tw[k] = k === tabOf ? 600 : 400; tb[k] = k === tabOf ? '#4ade80' : 'transparent'; });
+    const cats = ['Carburant', 'Péage', 'Lavage', 'Entretien', 'Solde Yango', 'Autre'].map(label => ({ label, bg: s.cat === label ? 'rgba(245,166,35,.12)' : '#0d1117', bd: s.cat === label ? '#f5a623' : '#1e2330', fg: s.cat === label ? '#f5a623' : '#f0f2f7', fw: s.cat === label ? 600 : 400, pick: () => this.setState({ cat: label }) }));
+    const expOk = (s.exp || 0) > 0;
+    const capMeta = [['Vue « Comparatif »', 'Espèces, carte, bonus, commissions'], ['Vue « Argent »', 'Solde du portefeuille, commandes'], ['Photo du compteur', 'Kilométrage fin de journée']];
+    const caps = capMeta.map(([title, sub], i) => {
+      const on = s.caps[i];
+      return { title, sub, state: on ? 'Ajoutée' : 'Ajouter', stateColor: on ? '#4ade80' : '#f5a623', bg: on ? '#0d1117' : 'transparent', bd: on ? '#1e2330' : '#343b4f', bs: on ? 'solid' : 'dashed', thumb: on ? 'repeating-linear-gradient(135deg,#1e2330 0 6px,#161b26 6px 12px)' : 'transparent',
+        toggle: () => this.setState(st => { const a = [...st.caps]; a[i] = !a[i]; return { caps: a }; }) };
+    });
+    const nCaps = s.caps.filter(Boolean).length;
+    const canRead = nCaps >= 1;
+    const moussaVal = BASE['Moussa Diop'] + (s.validated['Moussa Diop'] || 0);
+    const pendingMoussa = s.sent === 'pending' ? c.net : 0;
+    const missing = Math.max(0, 1000000 - moussaVal);
+    const vis = this.visibleQueue();
+    const selItem = vis.find(q => q.id === s.selId) || vis[0] || null;
+    const pf = s.period === '7 j' ? 0.29 : 1;
+    const names = s.driver === 'Tous' ? Object.keys(BASE) : [s.driver];
+    const netSum = names.reduce((a, n) => a + BASE[n] * pf + (s.validated[n] || 0), 0);
+    const share = s.driver === 'Tous' ? 1 : BASE[s.driver] / 1214380;
+    const pendingSum = vis.filter(q => q.kind === 'r').reduce((a, q) => a + q.amount, 0);
+    const drvChips = ['Tous', 'Alioune Diagne', 'Moussa Diop', 'Ibrahima Sarr'].map(n => ({ label: n === 'Tous' ? 'Tous' : n.split(' ')[0], bg: s.driver === n ? '#f0f2f7' : 'transparent', fg: s.driver === n ? '#080a0f' : '#c3c8d6', bd: s.driver === n ? '#f0f2f7' : '#343b4f',
+      pick: () => { const q = s.queue.filter(x => n === 'Tous' || x.name === n); this.setState({ driver: n, selId: q[0] ? q[0].id : null }); } }));
+    const periodChips = ['7 j', 'Mois'].map(p => ({ label: p, bg: s.period === p ? '#1e2330' : 'transparent', fg: s.period === p ? '#f0f2f7' : '#8b92a8', pick: () => this.setState({ period: p }) }));
+    const queue = vis.map(q => ({ name: q.name, amount: fmt(q.amount), pick: () => this.setState({ selId: q.id }),
+      bg: selItem && q.id === selItem.id ? 'rgba(245,166,35,.08)' : 'transparent', sh: selItem && q.id === selItem.id ? 'inset 2px 0 0 #f5a623' : 'none',
+      tag: q.kind === 'r' ? (q.id === 'm1' ? 'NOUVEAU' : 'RAPPORT') : 'DÉPENSE', tagBg: q.id === 'm1' ? '#f5a623' : (q.kind === 'r' ? '#8b92a8' : '#38bdf8'),
+      sub: q.date + ' · ' + (q.ok ? (q.src === 'captures' ? 'lu sur captures, concorde' : q.src === 'manuel-ok' ? 'saisie manuelle' : 'reçu joint') : (q.src === 'captures' ? 'écart net Yango' : 'saisie manuelle, écart km 21 %')), subColor: q.ok ? '#94a3b8' : '#f97316' }));
+    const sel = selItem ? {
+      title: selItem.name + (selItem.kind === 'r' ? ' · rapport' : ' · dépenses'), meta: selItem.date + (selItem.src === 'captures' ? ' · lu sur captures' : selItem.src === 'reçu' ? ' · reçus photo' : ' · saisie manuelle'),
+      badge: selItem.src === 'manuel-ok' ? 'Saisie manuelle' : selItem.kind === 'e' ? 'Reçu joint' : selItem.ok ? 'Tout concorde' : 'À examiner', badgeBg: selItem.src === 'manuel-ok' ? 'rgba(56,189,248,.12)' : selItem.ok ? 'rgba(74,222,128,.12)' : 'rgba(249,115,22,.14)', badgeFg: selItem.src === 'manuel-ok' ? '#38bdf8' : selItem.ok ? '#4ade80' : '#fb923c',
+      lines: selItem.lines.map(([k, v]) => ({ k, v: (v < 0 ? '− ' : '') + fmt(Math.abs(v)), c: v < 0 ? '#f87171' : '#f0f2f7' })),
+      totalLabel: selItem.kind === 'r' ? 'Net total' : 'Total', amount: fmt(selItem.amount),
+    } : { lines: [] };
+    return {
+      isHome: s.drv === 'home', isCapture: s.drv === 'capture', isReading: s.drv === 'reading', isReview: s.drv === 'review', isSent: s.drv === 'sent',
+      notSent: !s.sent || s.sent === 'rejected', wasSent: !!s.sent && s.sent !== 'rejected',
+      sentTitle: s.sent === 'approved' ? 'Rapport validé par ton gestionnaire' : 'Rapport envoyé — en attente', sentDot: s.sent === 'approved' ? '#4ade80' : '#f97316',
+      missingStr: fmt(missing), progress: Math.min(100, moussaVal / 10000) + '%',
+      
+      goHome: go('home'), goCapture: go('capture'),
+      caps, readBg: canRead ? '#f5a623' : '#1e2330', readFg: canRead ? '#080a0f' : '#555e75',
+      read: () => { if (!canRead) return; this.setState({ drv: 'reading', manual: false }); setTimeout(() => this.setState({ drv: 'review' }), 1400); },
+      carteStr: fmt(s.carte), hyStr: fmt(s.hy), commStr: fmt(c.comm), netStr: fmt(c.net),
+      onCarte: e => this.setState({ carte: parseInt(String(e.target.value).replace(/\D/g, ''), 10) || 0 }),
+      onHy: e => this.setState({ hy: parseInt(String(e.target.value).replace(/\D/g, ''), 10) || 0 }),
+      checkText: s.manual ? 'Saisie manuelle — ton gestionnaire vérifiera les montants.' : c.ok ? 'Net lu sur Yango 40 019 = net calculé. Tout concorde.' : `Net lu sur Yango 40 019 ≠ calculé ${fmt(c.netY)}. Vérifie la carte.`,
+      checkBg: s.manual ? 'rgba(56,189,248,.08)' : c.ok ? 'rgba(74,222,128,.08)' : 'rgba(249,115,22,.08)', checkBd: s.manual ? 'rgba(56,189,248,.3)' : c.ok ? 'rgba(74,222,128,.25)' : 'rgba(249,115,22,.3)', checkFg: s.manual ? '#38bdf8' : c.ok ? '#4ade80' : '#f97316',
+      send: () => {
+        const item = { id: 'm1', kind: 'r', name: 'Moussa Diop', date: 'Mar. 23/09', amount: c.net, ok: s.manual ? true : c.ok, src: s.manual ? 'manuel-ok' : 'captures', lines: [['Espèces', 41200], ['Carte', s.carte], ['Bonus', 2500], ['Commissions', -c.comm], ['Hors Yango', s.hy]] };
+        const queue = [item, ...s.queue.filter(q => q.id !== 'm1')];
+        this.setState({ drv: 'sent', sentKind: 'r', sent: 'pending', queue, selId: 'm1', driver: s.driver === 'Tous' || s.driver === 'Moussa Diop' ? s.driver : 'Tous' });
+        this.flash('Nouveau rapport — Moussa Diop');
+      },
+      qCount: vis.length, qEmpty: vis.length === 0, queue, drvChips, periodChips,
+      scopeLabel: (s.driver === 'Tous' ? 'Toute la flotte' : s.driver) + (s.period === 'Mois' ? ' · septembre' : ' · 17 → 23/09'),
+      kNet: fmt(netSum), kDelta: s.lastDelta && (s.driver === 'Tous' || s.driver === s.lastDelta.name) ? '+ ' + fmt(s.lastDelta.amount) + ' à l\'instant' : '', kCost: fmt(COST * pf * share), kCostPct: '18,3 %', kPending: fmt(pendingSum),
+      hasSel: !!selItem, sel, approve: () => this.decide(true), reject: () => this.decide(false),
+      hasToast: !!s.toast, toast: s.toast,
+      tc, tw, tb, tg, cats, isExpense: s.drv === 'expense', isReportDone: s.drv === 'reportDone',
+      doneTitle: s.sent === 'approved' ? 'Rapport du 23/09 validé' : 'Rapport du 23/09 envoyé', doneSub: s.sent === 'approved' ? 'Ton gestionnaire l\'a validé. Il compte dans ton net du mois.' : 'En attente de validation par ton gestionnaire.', doneDot: s.sent === 'approved' ? '#4ade80' : '#f97316', doneBg: s.sent === 'approved' ? 'rgba(74,222,128,.12)' : 'rgba(249,115,22,.12)',
+      doneNet: fmt((s.queue.find(q => q.id === 'm1') || {}).amount || c.net), isPilot: s.drv === 'pilot',
+      expStr: fmt(s.exp), onExp: e => this.setState({ exp: parseInt(String(e.target.value).replace(/\D/g, ''), 10) || 0 }),
+      expBtnBg: expOk ? '#f5a623' : '#1e2330', expBtnFg: expOk ? '#080a0f' : '#555e75', expBtnLabel: expOk ? 'Envoyer ' + fmt(s.exp) + ' XOF' : 'Indique un montant',
+      sendExp: () => { if (!expOk) return; const n = s.expN + 1; const item = { id: 'mx' + n, kind: 'e', name: 'Moussa Diop', date: 'Mar. 23/09', amount: s.exp, ok: true, src: 'reçu', lines: [[s.cat, s.exp]] }; this.setState({ queue: [item, ...s.queue], selId: item.id, expN: n, drv: 'sent', sentKind: 'e', driver: s.driver === 'Tous' || s.driver === 'Moussa Diop' ? s.driver : 'Tous' }); this.flash('Nouvelle dépense — Moussa Diop'); },
+      goExpense: go('expense'),
+      manual: () => this.setState({ drv: 'review', manual: true }),
+      todoTitle: s.sent === 'rejected' ? 'Rapport rejeté — corrige et renvoie' : "Ton rapport du jour n'est pas encore envoyé",
+      sentScreenTitle: s.sentKind === 'e' ? 'Dépense envoyée' : 'Rapport envoyé',
+      sentScreenSub: (s.sentKind === 'e' ? 'Ton gestionnaire va la valider.' : 'Ton gestionnaire va le valider.') + " Regarde l'écran de droite.",
+      perDayStr: fmt(missing / 7), valStr: fmt(moussaVal), pendStr: fmt(pendingMoussa + s.queue.filter(q => q.id.startsWith('mx')).reduce((a, q) => a + q.amount, 0)),
+      reset: () => { try { localStorage.removeItem(LS); } catch (e) {} this.setState(this.fresh()); },
+    };
+  }
+}
+</script>
+</body>
+</html>
