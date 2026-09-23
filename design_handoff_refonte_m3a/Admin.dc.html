@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>html{background:#16181d}body{margin:0;min-height:100%;background:#16181d;font-family:Geist,Arial,sans-serif;color:#f0f2f7}a{color:#f5a623;text-decoration:none}a:hover{color:#ffc15c}.dv-turn{padding:40px 44px 36px;border-bottom:1px solid rgba(255,255,255,.07);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 8px}.dv-tid{font:600 10px 'Geist Mono',monospace;padding:3px 7px;background:#f5a623;color:#080a0f;border-radius:4px}.dv-tname{font:600 15px/1.2 Geist,sans-serif;color:#f0f2f7}.dv-desc{font:400 13px/1.55 Geist,sans-serif;color:#8b92a8;max-width:820px;margin:0 0 24px;text-wrap:pretty}.dv-opts{display:flex;flex-wrap:wrap;gap:36px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:10px;scroll-margin-top:16px}.dv-oid{font:600 10.5px 'Geist Mono',monospace;padding:3px 7px;background:rgba(255,255,255,.08);color:#f0f2f7;border-radius:5px}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 12px/1.3 Geist,sans-serif;color:#8b92a8}.dv-next{margin:26px 0 0;font:12px/1.5 Geist,sans-serif;color:#8b92a8}</style>
+</helmet>
+
+<section class="dv-turn" id="t4">
+  <div class="dv-thd"><span class="dv-tid">ADMIN · 2</span><span class="dv-tname">Écrans restants, consolidés</span></div>
+  <p class="dv-desc">13 onglets actuels → 8 destinations. Équipe = Conducteurs + KYC + Rémunération par chauffeur. Finance = Paiements + Avances + Journal. Historique = Historique + Calendrier (une vue, deux affichages). Paramètres = Paramètres + Rémunération globale + Import historique + Marque. Suivi GPS et Boîtiers deviennent des sous-pages de Véhicules.</p>
+  <div class="dv-opts">
+
+    <div class="dv-opt" id="4a">
+      <div class="dv-olabel"><span class="dv-oid">4a</span>Équipe — fiche chauffeur (profil, documents, rémunération)</div>
+      <div style="width:1280px;height:820px;display:flex;background:#080a0f;border-radius:10px;overflow:hidden;border:1px solid #1e2330">
+        <dc-import name="Admin Sidebar" active="team" hint-size="224px,820px"></dc-import>
+        <div style="width:340px;flex:none;border-right:1px solid #1e2330;display:flex;flex-direction:column">
+          <div style="padding:22px 20px 14px;display:flex;align-items:center;gap:10px">
+            <div style="flex:1;font-size:22px;font-weight:600">Équipe</div><span style="height:34px;padding:0 12px;border-radius:9px;background:#f5a623;color:#080a0f;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;flex:none;white-space:nowrap;justify-content:center;cursor:pointer;transition:filter .15s,border-color .15s" style-hover="filter:brightness(1.1)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Chauffeur</span></div><div style="padding:0 20px 14px"><dc-import name="Filter Bar" show-driver="{{ false }}" period-options="{{ periodsNoDay }}" hint-size="320px,36px"></dc-import></div>
+          <div style="padding:14px 20px;background:rgba(245,166,35,.08);border-left:2px solid #f5a623;display:flex;align-items:center;gap:12px">
+            <div style="width:36px;height:36px;border-radius:50%;background:#1e2330;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#c3c8d6">MD</div>
+            <div style="flex:1"><div style="font-size:14px;font-weight:600">Moussa Diop</div><div style="font-size:12px;color:#94a3b8;margin-top:2px">DRV001 · AB-872-JG</div></div>
+            <span style="font-size:12px;color:#4ade80">KYC ok</span>
+          </div>
+          <div style="padding:14px 20px;border-bottom:1px solid #1e2330;display:flex;align-items:center;gap:12px">
+            <div style="width:36px;height:36px;border-radius:50%;background:#1e2330;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#c3c8d6">AD</div>
+            <div style="flex:1"><div style="font-size:14px;font-weight:500">Alioune Diagne</div><div style="font-size:12px;color:#94a3b8;margin-top:2px">DRV002 · DK-4410-BC</div></div>
+            <span style="font-size:12px;color:#4ade80">KYC ok</span>
+          </div>
+          <div style="padding:14px 20px;border-bottom:1px solid #1e2330;display:flex;align-items:center;gap:12px">
+            <div style="width:36px;height:36px;border-radius:50%;background:#1e2330;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#c3c8d6">IS</div>
+            <div style="flex:1"><div style="font-size:14px;font-weight:500">Ibrahima Sarr</div><div style="font-size:12px;color:#94a3b8;margin-top:2px">DRV003 · AA-219-KF</div></div>
+            <span style="font-size:12px;color:#f97316">2 docs manquants</span>
+          </div>
+          <div style="padding:14px 20px;border-bottom:1px solid #1e2330;display:flex;align-items:center;gap:12px;opacity:.55">
+            <div style="width:36px;height:36px;border-radius:50%;background:#1e2330;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#c3c8d6">OF</div>
+            <div style="flex:1"><div style="font-size:14px;font-weight:500">Omar Fall</div><div style="font-size:12px;color:#94a3b8;margin-top:2px">désactivé le 02/09</div></div>
+          </div>
+        </div>
+        <div style="flex:1;min-width:0;padding:22px 28px;display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div style="width:52px;height:52px;border-radius:50%;background:#1e2330;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;color:#c3c8d6">MD</div>
+            <div style="flex:1">
+              <div style="font-size:20px;font-weight:600">Moussa Diop</div>
+              <div style="font-size:13px;color:#94a3b8;margin-top:3px">DRV001 · Confirmé · contrat jusqu'au 31/03/2027</div>
+            </div>
+            <span style="height:36px;padding:0 14px;border-radius:9px;border:1px solid #343b4f;font-size:13px;display:flex;align-items:center;flex:none;white-space:nowrap;justify-content:center;cursor:pointer;transition:filter .15s,border-color .15s" style-hover="border-color:#8b92a8">Réinitialiser le mot de passe</span>
+          </div>
+          <div style="display:flex;gap:4px;font-size:13px;border-bottom:1px solid #1e2330">
+            <span style="padding:10px 14px;border-bottom:2px solid #f5a623;color:#f0f2f7;font-weight:600">Profil</span>
+            <span style="padding:10px 14px;color:#8b92a8">Documents</span>
+            <span style="padding:10px 14px;color:#8b92a8">Rémunération</span>
+            <span style="padding:10px 14px;color:#8b92a8">Activité</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;overflow:hidden;font-size:14px">
+              <div style="padding:12px 18px;border-bottom:1px solid #1e2330;font-size:13px;color:#94a3b8">Affectation</div>
+              <div style="display:flex;padding:12px 18px;border-bottom:1px solid #1e2330"><span style="flex:1;color:#8b92a8">Véhicule</span><span style="font-family:'Geist Mono',monospace">AB-872-JG · Kia K3</span></div>
+              <div style="display:flex;padding:12px 18px;border-bottom:1px solid #1e2330"><span style="flex:1;color:#8b92a8">Niveau</span><span>Confirmé</span></div>
+              <div style="display:flex;padding:12px 18px"><span style="flex:1;color:#8b92a8">Téléphone</span><span style="font-family:'Geist Mono',monospace">77 412 08 33</span></div>
+            </div>
+            <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;overflow:hidden;font-size:14px">
+              <div style="padding:12px 18px;border-bottom:1px solid #1e2330;font-size:13px;color:#94a3b8">Rémunération</div>
+              <div style="display:flex;padding:12px 18px;border-bottom:1px solid #1e2330"><span style="flex:1;color:#8b92a8">Modèle</span><span>Paliers (CA net)</span></div>
+              <div style="display:flex;padding:12px 18px;border-bottom:1px solid #1e2330"><span style="flex:1;color:#8b92a8">Commission Yango / partenaire</span><span style="font-family:'Geist Mono',monospace">15 % · 0,75 %</span></div>
+              <div style="display:flex;padding:12px 18px"><span style="flex:1;color:#8b92a8">Salaire projeté septembre</span><span style="font-family:'Geist Mono',monospace;color:#facc15">200 000</span></div>
+            </div>
+          </div>
+          <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;padding:14px 18px;display:flex;flex-direction:column;gap:12px">
+            <div style="font-size:13px;color:#94a3b8">Documents KYC</div>
+            <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:10px">
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:72px;border-radius:8px;background:repeating-linear-gradient(135deg,#1e2330 0 6px,#161b26 6px 12px)"></div><div style="font-size:12px;display:flex;align-items:center;gap:4px"><span style="color:#4ade80;display:flex"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M20 6 9 17l-5-5"></path></svg></span>CNI recto</div></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:72px;border-radius:8px;background:repeating-linear-gradient(135deg,#1e2330 0 6px,#161b26 6px 12px)"></div><div style="font-size:12px;display:flex;align-items:center;gap:4px"><span style="color:#4ade80;display:flex"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M20 6 9 17l-5-5"></path></svg></span>CNI verso</div></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:72px;border-radius:8px;background:repeating-linear-gradient(135deg,#1e2330 0 6px,#161b26 6px 12px)"></div><div style="font-size:12px;display:flex;align-items:center;gap:4px"><span style="color:#4ade80;display:flex"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M20 6 9 17l-5-5"></path></svg></span>Permis recto</div></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:72px;border-radius:8px;background:repeating-linear-gradient(135deg,#1e2330 0 6px,#161b26 6px 12px)"></div><div style="font-size:12px;display:flex;align-items:center;gap:4px"><span style="color:#4ade80;display:flex"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M20 6 9 17l-5-5"></path></svg></span>Permis verso</div></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:72px;border-radius:8px;background:repeating-linear-gradient(135deg,#1e2330 0 6px,#161b26 6px 12px)"></div><div style="font-size:12px;display:flex;align-items:center;gap:4px"><span style="color:#4ade80;display:flex"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M20 6 9 17l-5-5"></path></svg></span>Contrat</div></div>
+              <div style="display:flex;flex-direction:column;gap:6px"><div style="height:72px;border-radius:8px;border:1.5px dashed #343b4f;display:flex;align-items:center;justify-content:center;color:#8b92a8"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" x2="12" y1="3" y2="15"></line></svg></div><div style="font-size:12px;color:#8b92a8">Photo</div></div>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+            <div style="padding:14px 16px;border-radius:12px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:12px;color:#94a3b8">Net validé (mois)</div><div style="font-family:'Geist Mono',monospace;font-size:20px;font-weight:600;margin-top:6px">587 500</div></div>
+            <div style="padding:14px 16px;border-radius:12px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:12px;color:#94a3b8">Jours travaillés</div><div style="font-family:'Geist Mono',monospace;font-size:20px;font-weight:600;margin-top:6px">14</div></div>
+            <div style="padding:14px 16px;border-radius:12px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:12px;color:#94a3b8">Taux de soumission</div><div style="font-family:'Geist Mono',monospace;font-size:20px;font-weight:600;margin-top:6px">100 %</div></div>
+            <div style="padding:14px 16px;border-radius:12px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:12px;color:#94a3b8">Avances en cours</div><div style="font-family:'Geist Mono',monospace;font-size:20px;font-weight:600;margin-top:6px">25 000</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="4b">
+      <div class="dv-olabel"><span class="dv-oid">4b</span>Finance — paiements, avances, journal</div>
+      <div style="width:1280px;height:820px;display:flex;background:#080a0f;border-radius:10px;overflow:hidden;border:1px solid #1e2330">
+        <dc-import name="Admin Sidebar" active="fin" hint-size="224px,820px"></dc-import>
+        <div style="flex:1;min-width:0;padding:24px 28px;display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:12px"><div style="font-size:24px;font-weight:600;letter-spacing:-.01em">Finance</div><dc-import name="Filter Bar" period="Mois" hint-size="580px,36px"></dc-import></div>
+            <div style="display:flex;gap:4px;font-size:13px">
+              <span style="padding:7px 12px;border-radius:8px;background:#1e2330;font-weight:600">Paiements</span>
+              <span style="padding:7px 12px;border-radius:8px;color:#8b92a8">Avances</span>
+              <span style="padding:7px 12px;border-radius:8px;color:#8b92a8">Journal</span>
+            </div>
+            <span style="height:34px;padding:0 12px;border-radius:9px;border:1px solid #343b4f;font-size:13px;display:flex;align-items:center;gap:6px;flex:none;white-space:nowrap;justify-content:center;cursor:pointer;transition:filter .15s,border-color .15s" style-hover="border-color:#8b92a8"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" x2="12" y1="15" y2="3"></line></svg>Export CSV</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+            <div style="padding:18px 20px;border-radius:14px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:13px;color:#94a3b8">Encaissements</div><div style="font-family:'Geist Mono',monospace;font-size:24px;font-weight:600;color:#4ade80;margin-top:8px">1 308 970</div></div>
+            <div style="padding:18px 20px;border-radius:14px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:13px;color:#94a3b8">Décaissements</div><div style="font-family:'Geist Mono',monospace;font-size:24px;font-weight:600;color:#f87171;margin-top:8px">346 820</div><div style="font-size:12px;color:#94a3b8;margin-top:4px">dépenses 271 820 + avances 75 000</div></div>
+            <div style="padding:18px 20px;border-radius:14px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:13px;color:#94a3b8">Masse salariale projetée</div><div style="font-family:'Geist Mono',monospace;font-size:24px;font-weight:600;margin-top:8px">630 000</div><div style="font-size:12px;color:#94a3b8;margin-top:4px">3 chauffeurs, prorata inclus</div></div>
+            <div style="padding:18px 20px;border-radius:14px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:13px;color:#94a3b8">Marge après salaires</div><div style="font-family:'Geist Mono',monospace;font-size:24px;font-weight:600;margin-top:8px">584 380</div></div>
+          </div>
+          <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;overflow:hidden">
+            <div style="display:grid;grid-template-columns:1.8fr 1fr 1.1fr 1fr 1fr 1.1fr;padding:12px 18px;font-size:12px;color:#94a3b8;border-bottom:1px solid #1e2330">
+              <span>Chauffeur</span><span>Palier</span><span style="text-align:right">Salaire dû</span><span style="text-align:right">Avances</span><span style="text-align:right">Reste à payer</span><span style="text-align:right">Statut</span>
+            </div>
+            <div style="display:grid;grid-template-columns:1.8fr 1fr 1.1fr 1fr 1fr 1.1fr;padding:14px 18px;font-size:14px;border-bottom:1px solid #1e2330;align-items:center">
+              <span style="font-weight:500">Alioune Diagne</span><span style="color:#c3c8d6">Palier 1</span><span style="text-align:right;font-family:'Geist Mono',monospace">230 000</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#f87171">− 50 000</span><span style="text-align:right;font-family:'Geist Mono',monospace">180 000</span><span style="display:flex;justify-content:flex-end"><span style="height:30px;padding:0 12px;border-radius:8px;background:#f5a623;color:#080a0f;font-size:12px;font-weight:600;display:flex;align-items:center;flex:none;white-space:nowrap;justify-content:center;cursor:pointer;transition:filter .15s,border-color .15s" style-hover="filter:brightness(1.1)">Marquer payé</span></span>
+            </div>
+            <div style="display:grid;grid-template-columns:1.8fr 1fr 1.1fr 1fr 1fr 1.1fr;padding:14px 18px;font-size:14px;border-bottom:1px solid #1e2330;align-items:center">
+              <span style="font-weight:500">Moussa Diop</span><span style="color:#c3c8d6">Base</span><span style="text-align:right;font-family:'Geist Mono',monospace">200 000</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#f87171">− 25 000</span><span style="text-align:right;font-family:'Geist Mono',monospace">175 000</span><span style="display:flex;justify-content:flex-end"><span style="height:30px;padding:0 12px;border-radius:8px;background:#f5a623;color:#080a0f;font-size:12px;font-weight:600;display:flex;align-items:center;flex:none;white-space:nowrap;justify-content:center;cursor:pointer;transition:filter .15s,border-color .15s" style-hover="filter:brightness(1.1)">Marquer payé</span></span>
+            </div>
+            <div style="display:grid;grid-template-columns:1.8fr 1fr 1.1fr 1fr 1fr 1.1fr;padding:14px 18px;font-size:14px;align-items:center">
+              <span style="font-weight:500">Ibrahima Sarr</span><span style="color:#c3c8d6">Base</span><span style="text-align:right;font-family:'Geist Mono',monospace">200 000</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#8b92a8">—</span><span style="text-align:right;font-family:'Geist Mono',monospace">200 000</span><span style="text-align:right;font-size:13px;color:#4ade80">Payé le 05/09</span>
+            </div>
+          </div>
+          <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;overflow:hidden;flex:1">
+            <div style="padding:12px 18px;border-bottom:1px solid #1e2330;font-size:14px;font-weight:600">Derniers mouvements</div>
+            <div style="display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid #1e2330;font-size:13px"><span style="font-family:'Geist Mono',monospace;color:#94a3b8;width:52px">22/09</span><span style="flex:1">Avance · Alioune Diagne · « urgence familiale »</span><span style="font-family:'Geist Mono',monospace;color:#f87171">− 50 000</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1px solid #1e2330;font-size:13px"><span style="font-family:'Geist Mono',monospace;color:#94a3b8;width:52px">22/09</span><span style="flex:1">Rapport validé · Moussa Diop</span><span style="font-family:'Geist Mono',monospace;color:#4ade80">+ 46 019</span></div>
+            <div style="display:flex;align-items:center;gap:12px;padding:11px 18px;font-size:13px"><span style="font-family:'Geist Mono',monospace;color:#94a3b8;width:52px">21/09</span><span style="flex:1">Dépense validée · Carburant · Alioune Diagne</span><span style="font-family:'Geist Mono',monospace;color:#f87171">− 10 000</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="4c">
+      <div class="dv-olabel"><span class="dv-oid">4c</span>Historique — calendrier + liste fusionnés</div>
+      <div style="width:1280px;height:820px;display:flex;background:#080a0f;border-radius:10px;overflow:hidden;border:1px solid #1e2330">
+        <dc-import name="Admin Sidebar" active="hist" hint-size="224px,820px"></dc-import>
+        <div style="flex:1;min-width:0;padding:24px 28px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:12px"><div style="font-size:24px;font-weight:600;letter-spacing:-.01em">Historique</div><dc-import name="Filter Bar" period="Mois" period-options="{{ periodsNoDay }}" hint-size="580px,36px"></dc-import></div>
+            <div style="display:flex;padding:3px;border-radius:10px;background:#0d1117;border:1px solid #1e2330;font-size:13px">
+              <span style="padding:6px 12px;border-radius:7px;background:#1e2330;font-weight:600;display:flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M8 2v4"></path><path d="M16 2v4"></path><rect width="18" height="18" x="3" y="4" rx="2"></rect><path d="M3 10h18"></path></svg>Calendrier</span>
+              <span style="padding:6px 12px;border-radius:7px;color:#8b92a8;display:flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M3 12h.01"></path><path d="M3 18h.01"></path><path d="M3 6h.01"></path><path d="M8 12h13"></path><path d="M8 18h13"></path><path d="M8 6h13"></path></svg>Liste</span>
+            </div>
+          </div>
+          <div style="display:flex;gap:18px;font-size:12px;color:#c3c8d6">
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:3px;background:#22c55e"></span>Validé</span>
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:3px;background:#f97316"></span>En attente</span>
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:3px;background:#ef4444"></span>Rejeté / manquant</span>
+            <span style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:3px;background:#343b4f"></span>Repos</span>
+          </div>
+          <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;padding:16px 18px;display:flex;flex-direction:column;gap:8px">
+            <div style="display:grid;grid-template-columns:150px repeat(30,1fr);gap:3px;font-family:'Geist Mono',monospace;font-size:10px;color:#8b92a8">
+              <span></span>
+              <sc-for list="{{ calDays }}" as="d" hint-placeholder-count="30"><span style="text-align:center">{{ d }}</span></sc-for>
+            </div>
+            <sc-for list="{{ cal }}" as="r" hint-placeholder-count="3">
+              <div style="display:grid;grid-template-columns:150px repeat(30,1fr);gap:3px;align-items:center">
+                <span style="font-size:13px">{{ r.name }}</span>
+                <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="30"><span style="height:26px;border-radius:4px;background:{{ c }}"></span></sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;overflow:hidden;flex:1">
+            <div style="padding:12px 18px;border-bottom:1px solid #1e2330;font-size:14px;font-weight:600">Lun. 22/09</div>
+            <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr .8fr 1fr;padding:10px 18px;font-size:12px;color:#94a3b8;border-bottom:1px solid #1e2330"><span>Chauffeur</span><span style="text-align:right">Brut</span><span style="text-align:right">Dépenses</span><span style="text-align:right">Net final</span><span style="text-align:right">Km</span><span style="text-align:right">Statut</span></div>
+            <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr .8fr 1fr;padding:12px 18px;font-size:14px;border-bottom:1px solid #1e2330"><span>Alioune Diagne</span><span style="text-align:right;font-family:'Geist Mono',monospace">63 200</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#f87171">− 8 000</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#4ade80">46 191</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#c3c8d6">188</span><span style="text-align:right;font-size:13px;color:#f97316">En attente</span></div>
+            <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr .8fr 1fr;padding:12px 18px;font-size:14px;border-bottom:1px solid #1e2330"><span>Moussa Diop</span><span style="text-align:right;font-family:'Geist Mono',monospace">47 500</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#8b92a8">—</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#4ade80">46 019</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#c3c8d6">165</span><span style="text-align:right;font-size:13px;color:#f97316">En attente</span></div>
+            <div style="display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr .8fr 1fr;padding:12px 18px;font-size:14px"><span>Ibrahima Sarr</span><span style="text-align:right;font-family:'Geist Mono',monospace">44 100</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#8b92a8">—</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#4ade80">38 740</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#c3c8d6">201</span><span style="text-align:right;font-size:13px;color:#f97316">En attente</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="4d">
+      <div class="dv-olabel"><span class="dv-oid">4d</span>Paramètres — rémunération, marque, import, abonnement</div>
+      <div style="width:1280px;height:820px;display:flex;background:#080a0f;border-radius:10px;overflow:hidden;border:1px solid #1e2330">
+        <dc-import name="Admin Sidebar" active="set" hint-size="224px,820px"></dc-import>
+        <div style="width:240px;flex:none;border-right:1px solid #1e2330;padding:22px 12px;display:flex;flex-direction:column;gap:2px;font-size:14px">
+          <div style="font-size:22px;font-weight:600;padding:0 10px 14px">Paramètres</div>
+          <span style="padding:9px 10px;border-radius:8px;color:#c3c8d6">Entreprise &amp; marque</span>
+          <span style="padding:9px 10px;border-radius:8px;background:#1e2330;font-weight:600">Rémunération</span>
+          <span style="padding:9px 10px;border-radius:8px;color:#c3c8d6">Import historique</span>
+          <span style="padding:9px 10px;border-radius:8px;color:#c3c8d6">Notifications &amp; rappels</span>
+          <span style="padding:9px 10px;border-radius:8px;color:#c3c8d6">Assistant IA</span>
+          <span style="padding:9px 10px;border-radius:8px;color:#c3c8d6">Abonnement</span>
+          <span style="padding:9px 10px;border-radius:8px;color:#c3c8d6">Journal des actions</span>
+        </div>
+        <div style="flex:1;min-width:0;padding:24px 32px;display:flex;flex-direction:column;gap:20px">
+          <div>
+            <div style="font-size:20px;font-weight:600">Rémunération par défaut</div>
+            <div style="font-size:13px;color:#94a3b8;margin-top:4px">S'applique aux chauffeurs sans règle propre. Modifiable par chauffeur dans Équipe.</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px">
+            <div style="padding:12px 14px;border-radius:12px;border:1px solid #1e2330;background:#0d1117;font-size:13px"><div style="font-weight:600">Salaire fixe</div><div style="color:#94a3b8;margin-top:4px;font-size:12px">montant mensuel</div></div>
+            <div style="padding:12px 14px;border-radius:12px;border:1px solid #f5a623;background:rgba(245,166,35,.08);font-size:13px"><div style="font-weight:600;color:#f5a623">Paliers</div><div style="color:#94a3b8;margin-top:4px;font-size:12px">selon CA net</div></div>
+            <div style="padding:12px 14px;border-radius:12px;border:1px solid #1e2330;background:#0d1117;font-size:13px"><div style="font-weight:600">% du CA</div><div style="color:#94a3b8;margin-top:4px;font-size:12px">part chauffeur</div></div>
+            <div style="padding:12px 14px;border-radius:12px;border:1px solid #1e2330;background:#0d1117;font-size:13px"><div style="font-weight:600">Hybride</div><div style="color:#94a3b8;margin-top:4px;font-size:12px">fixe + bonus + %</div></div>
+            <div style="padding:12px 14px;border-radius:12px;border:1px solid #1e2330;background:#0d1117;font-size:13px"><div style="font-weight:600">Location</div><div style="color:#94a3b8;margin-top:4px;font-size:12px">loyer journalier</div></div>
+          </div>
+          <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;overflow:hidden">
+            <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr 40px;padding:12px 18px;font-size:12px;color:#94a3b8;border-bottom:1px solid #1e2330"><span>Palier</span><span style="text-align:right">CA net min / mois</span><span style="text-align:right">Salaire total</span><span></span></div>
+            <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr 40px;padding:12px 18px;font-size:14px;border-bottom:1px solid #1e2330;align-items:center"><span>Base</span><span style="text-align:right;font-family:'Geist Mono',monospace">0</span><span style="text-align:right;font-family:'Geist Mono',monospace">200 000</span><span></span></div>
+            <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr 40px;padding:12px 18px;font-size:14px;border-bottom:1px solid #1e2330;align-items:center"><span>Palier 1</span><span style="text-align:right;font-family:'Geist Mono',monospace">1 000 000</span><span style="text-align:right;font-family:'Geist Mono',monospace">230 000</span><span style="color:#555e75;display:flex;justify-content:flex-end"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></span></div>
+            <div style="display:grid;grid-template-columns:1.2fr 1fr 1fr 40px;padding:12px 18px;font-size:14px;border-bottom:1px solid #1e2330;align-items:center"><span>Palier 2</span><span style="text-align:right;font-family:'Geist Mono',monospace">1 300 000</span><span style="text-align:right;font-family:'Geist Mono',monospace">260 000</span><span style="color:#555e75;display:flex;justify-content:flex-end"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></span></div>
+            <div style="padding:12px 18px;font-size:13px;color:#f5a623;display:flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Ajouter un palier</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <div style="display:flex;flex-direction:column;gap:6px"><label style="font-size:13px;color:#94a3b8">Commission Yango</label><div style="height:44px;border-radius:10px;background:#0d1117;border:1px solid #1e2330;display:flex;align-items:center;padding:0 14px;font-family:'Geist Mono',monospace;font-size:15px;gap:6px"><span style="flex:1">15</span><span style="color:#555e75">%</span></div></div>
+            <div style="display:flex;flex-direction:column;gap:6px"><label style="font-size:13px;color:#94a3b8">Commission partenaire</label><div style="height:44px;border-radius:10px;background:#0d1117;border:1px solid #1e2330;display:flex;align-items:center;padding:0 14px;font-family:'Geist Mono',monospace;font-size:15px;gap:6px"><span style="flex:1">0,75</span><span style="color:#555e75">%</span></div></div>
+            <div style="display:flex;flex-direction:column;gap:6px"><label style="font-size:13px;color:#94a3b8">Objectif net mensuel</label><div style="height:44px;border-radius:10px;background:#0d1117;border:1px solid #1e2330;display:flex;align-items:center;padding:0 14px;font-family:'Geist Mono',monospace;font-size:15px;gap:6px"><span style="flex:1">1 000 000</span><span style="color:#555e75">XOF</span></div></div>
+          </div>
+          <div style="margin-top:auto;display:flex;justify-content:flex-end;gap:10px;padding-top:14px;border-top:1px solid #1e2330">
+            <span style="height:40px;padding:0 16px;border-radius:10px;color:#8b92a8;font-size:14px;display:flex;align-items:center">Annuler</span>
+            <span style="height:40px;padding:0 20px;border-radius:10px;background:#f5a623;color:#080a0f;font-size:14px;font-weight:700;display:flex;align-items:center;flex:none;white-space:nowrap;justify-content:center;cursor:pointer;transition:filter .15s,border-color .15s" style-hover="filter:brightness(1.1)">Enregistrer</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="4e">
+      <div class="dv-olabel"><span class="dv-oid">4e</span>Véhicules › Suivi GPS — journée reconstituée</div>
+      <div style="width:1280px;height:820px;display:flex;background:#080a0f;border-radius:10px;overflow:hidden;border:1px solid #1e2330">
+        <dc-import name="Admin Sidebar" active="fleet" hint-size="224px,820px"></dc-import>
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+          <div style="display:flex;align-items:center;gap:12px;padding:16px 24px;border-bottom:1px solid #1e2330">
+            <span style="color:#8b92a8;display:flex"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg></span>
+            <div style="flex:1"><span style="font-family:'Geist Mono',monospace;font-size:16px;font-weight:600">AB-872-JG</span><span style="font-size:14px;color:#94a3b8;margin-left:10px">Suivi</span></div><dc-import name="Filter Bar" period="Jour" period-options="{{ periodsGps }}" range="Mar. 23/09/2026" show-driver="{{ false }}" hint-size="300px,36px"></dc-import>
+            <div style="display:flex;padding:3px;border-radius:9px;background:#0d1117;border:1px solid #1e2330;font-size:12px">
+              <span style="padding:5px 10px;border-radius:6px;background:#22c55e;color:#06210f;font-weight:600">En direct</span>
+              <span style="padding:5px 10px;border-radius:6px;color:#8b92a8">Rejouer</span>
+            </div>
+          </div>
+          <div style="flex:1;display:flex;min-height:0">
+            <div style="flex:1;position:relative;background:repeating-linear-gradient(135deg,#0d1117 0 12px,#10151e 12px 24px);display:flex;align-items:center;justify-content:center;font-family:'Geist Mono',monospace;font-size:12px;color:#8b92a8">carte — tracé du jour, arrêts, position actuelle
+              <div style="position:absolute;left:16px;bottom:16px;display:flex;gap:8px">
+                <span style="padding:8px 12px;border-radius:10px;background:#0d1117;border:1px solid #1e2330;font-family:Geist,sans-serif;font-size:12px;color:#f0f2f7">Dernière position il y a 40 s · Plateau</span>
+              </div>
+            </div>
+            <div style="width:320px;flex:none;border-left:1px solid #1e2330;display:flex;flex-direction:column">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#1e2330;border-bottom:1px solid #1e2330">
+                <div style="padding:14px 16px;background:#080a0f"><div style="font-size:12px;color:#94a3b8">Km GPS</div><div style="font-family:'Geist Mono',monospace;font-size:20px;font-weight:600;margin-top:4px">172</div></div>
+                <div style="padding:14px 16px;background:#080a0f"><div style="font-size:12px;color:#94a3b8">Amplitude</div><div style="font-family:'Geist Mono',monospace;font-size:20px;font-weight:600;margin-top:4px">07:12 → 19:40</div></div>
+                <div style="padding:14px 16px;background:#080a0f"><div style="font-size:12px;color:#94a3b8">En mouvement</div><div style="font-family:'Geist Mono',monospace;font-size:20px;font-weight:600;margin-top:4px">7 h 45</div></div>
+                <div style="padding:14px 16px;background:#080a0f"><div style="font-size:12px;color:#94a3b8">Couverture</div><div style="font-family:'Geist Mono',monospace;font-size:20px;font-weight:600;margin-top:4px">96 %</div></div>
+              </div>
+              <div style="padding:14px 16px;font-size:13px;color:#94a3b8">Événements</div>
+              <div style="display:flex;flex-direction:column;font-size:13px">
+                <div style="display:flex;gap:12px;padding:10px 16px;border-top:1px solid #1e2330"><span style="font-family:'Geist Mono',monospace;color:#94a3b8;width:44px">07:12</span><span style="flex:1">Départ · Parcelles Assainies</span></div>
+                <div style="display:flex;gap:12px;padding:10px 16px;border-top:1px solid #1e2330"><span style="font-family:'Geist Mono',monospace;color:#94a3b8;width:44px">12:05</span><span style="flex:1">Arrêt long · 48 min · Liberté 6</span></div>
+                <div style="display:flex;gap:12px;padding:10px 16px;border-top:1px solid #1e2330;color:#fcd34d"><span style="font-family:'Geist Mono',monospace;width:44px">15:31</span><span style="flex:1">GPS hors ligne · 12 min</span></div>
+                <div style="display:flex;gap:12px;padding:10px 16px;border-top:1px solid #1e2330"><span style="font-family:'Geist Mono',monospace;color:#94a3b8;width:44px">17:20</span><span style="flex:1">Arrêt long · 25 min · Plateau</span></div>
+              </div>
+            </div>
+          </div>
+          <div style="padding:14px 24px;border-top:1px solid #1e2330;display:flex;flex-direction:column;gap:8px">
+            <div style="display:flex;height:22px;border-radius:5px;overflow:hidden;background:#1e2330">
+              <div style="flex:7"></div><div style="flex:20;background:#38bdf8"></div><div style="flex:3;background:#343b4f"></div><div style="flex:16;background:#38bdf8"></div><div style="flex:3;background:#555e75"></div><div style="flex:12;background:#38bdf8"></div><div style="flex:1;background:#fcd34d"></div><div style="flex:7;background:#38bdf8"></div><div style="flex:2;background:#343b4f"></div><div style="flex:9;background:#38bdf8"></div><div style="flex:20"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-family:'Geist Mono',monospace;font-size:11px;color:#8b92a8"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>24:00</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="4f">
+      <div class="dv-olabel"><span class="dv-oid">4f</span>Véhicules › Installer un boîtier — assistant 4 étapes</div>
+      <div style="width:1280px;height:820px;display:flex;background:#080a0f;border-radius:10px;overflow:hidden;border:1px solid #1e2330">
+        <dc-import name="Admin Sidebar" active="fleet" hint-size="224px,820px"></dc-import>
+        <div style="flex:1;min-width:0;padding:28px 40px;display:flex;flex-direction:column;gap:24px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="color:#8b92a8;display:flex"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="m12 19-7-7 7-7"></path><path d="M19 12H5"></path></svg></span>
+            <div style="font-size:22px;font-weight:600">Installer un boîtier GPS</div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+            <div style="display:flex;flex-direction:column;gap:8px"><div style="height:4px;border-radius:2px;background:#22c55e"></div><div style="font-size:13px;color:#4ade80">1 · Enrôler et rattacher</div></div>
+            <div style="display:flex;flex-direction:column;gap:8px"><div style="height:4px;border-radius:2px;background:#22c55e"></div><div style="font-size:13px;color:#4ade80">2 · Relever la config (RCONF)</div></div>
+            <div style="display:flex;flex-direction:column;gap:8px"><div style="height:4px;border-radius:2px;background:#f5a623"></div><div style="font-size:13px;font-weight:600">3 · Envoyer les SMS</div></div>
+            <div style="display:flex;flex-direction:column;gap:8px"><div style="height:4px;border-radius:2px;background:#1e2330"></div><div style="font-size:13px;color:#8b92a8">4 · Voir le signal</div></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 340px;gap:24px">
+            <div style="display:flex;flex-direction:column;gap:18px">
+              <div style="font-size:14px;color:#c3c8d6;line-height:1.5">À envoyer dans cet ordre au numéro de la carte SIM du boîtier <span style="font-family:'Geist Mono',monospace">868120</span>. Plateforme d'origine relevée : <span style="font-family:'Geist Mono',monospace">41.215.x.x:5013</span>.</div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="font-size:14px"><span style="font-family:'Geist Mono',monospace;color:#f5a623;margin-right:8px">1.</span>Pointer vers la passerelle</div>
+                <div style="display:flex;gap:8px"><code style="flex:1;font-family:'Geist Mono',monospace;font-size:16px;padding:12px 14px;border-radius:10px;background:#0d1117;border:1px solid #1e2330">804•••••• 102.68.x.x 5013</code><span style="width:90px;border-radius:10px;border:1px solid #343b4f;font-size:13px;display:flex;align-items:center;justify-content:center">Copier</span></div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div style="font-size:14px"><span style="font-family:'Geist Mono',monospace;color:#f5a623;margin-right:8px">2.</span>Régler l'intervalle d'envoi</div>
+                <div style="display:flex;gap:8px"><code style="flex:1;font-family:'Geist Mono',monospace;font-size:16px;padding:12px 14px;border-radius:10px;background:#0d1117;border:1px solid #1e2330">805•••••• 30</code><span style="width:90px;border-radius:10px;border:1px solid #343b4f;font-size:13px;display:flex;align-items:center;justify-content:center">Copier</span></div>
+              </div>
+              <div style="border-radius:12px;border:1px solid #343b4f;padding:14px 16px;display:flex;flex-direction:column;gap:8px">
+                <div style="font-size:13px;font-weight:600">En cas de problème : revenir à la plateforme d'origine</div>
+                <code style="font-family:'Geist Mono',monospace;font-size:14px;color:#c3c8d6">804•••••• 41.215.x.x 5013</code>
+              </div>
+            </div>
+            <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;padding:18px;display:flex;flex-direction:column;gap:12px;align-self:start">
+              <div style="font-size:13px;color:#94a3b8">Boîtier</div>
+              <div style="font-family:'Geist Mono',monospace;font-size:18px;font-weight:600">868120</div>
+              <div style="font-size:13px;color:#c3c8d6">ST-901 V4.35 · sous le tableau de bord</div>
+              <div style="height:1px;background:#1e2330"></div>
+              <div style="font-size:13px;color:#94a3b8">Véhicule</div>
+              <div style="font-size:14px"><span style="font-family:'Geist Mono',monospace">AB-872-JG</span> · Kia K3</div>
+              <div style="font-size:13px;color:#94a3b8">Exploitation</div>
+              <div style="font-size:14px">Service urbain</div>
+              <div style="height:1px;background:#1e2330"></div>
+              <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:#8b92a8"><span style="width:7px;height:7px;border-radius:50%;background:#555e75"></span>En attente du premier signal…</div>
+            </div>
+          </div>
+          <div style="margin-top:auto;display:flex;justify-content:flex-end;gap:10px">
+            <span style="height:42px;padding:0 16px;border-radius:10px;color:#8b92a8;font-size:14px;display:flex;align-items:center">Étape précédente</span>
+            <span style="height:42px;padding:0 20px;border-radius:10px;background:#f5a623;color:#080a0f;font-size:14px;font-weight:700;display:flex;align-items:center;flex:none;white-space:nowrap;justify-content:center;cursor:pointer;transition:filter .15s,border-color .15s" style-hover="filter:brightness(1.1)">SMS envoyés</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="dv-next">Cette série remplace : Conducteurs, KYC, Rémunération (par chauffeur), Paiements, Avances, Journal, Historique, Calendrier, Import historique, Paramètres.</p>
+</section>
+
+<section class="dv-turn" id="t2">
+  <div class="dv-thd"><span class="dv-tid">ADMIN</span><span class="dv-tname">Gestionnaire — simple par défaut, avancé sur demande</span></div>
+  <p class="dv-desc">Navigation réduite de 13 à 6 entrées (+ Historique, Paramètres). Chaque écran s'ouvre sur ce qui demande une décision : trois chiffres, les validations en attente, le briefing. Les postes détaillés (Période, Résultat opérationnel, Trésorerie…) restent tous accessibles via la bascule « Avancé », en accordéons repliés — rien n'est supprimé. Bandeau d'essai déplacé dans la sidebar.</p>
+  <div class="dv-opts">
+
+    <div class="dv-opt" id="0b">
+      <div class="dv-olabel"><span class="dv-oid">0b</span>Avant — dashboard actuel</div>
+      <img src="docs/demo/20-admin-dashboard-final.png" alt="Dashboard actuel" style="width:640px;height:auto;border-radius:10px;border:1px solid #343b4f;display:block">
+    </div>
+
+    <div class="dv-opt" id="2a">
+      <div class="dv-olabel"><span class="dv-oid">2a</span>Tableau de bord — vue simple</div>
+      <div style="width:1280px;height:820px;display:flex;background:#080a0f;border-radius:10px;overflow:hidden;border:1px solid #1e2330">
+        <dc-import name="Admin Sidebar" active="dash" hint-size="224px,820px"></dc-import>
+        <div style="flex:1;min-width:0;padding:24px 28px;display:flex;flex-direction:column;gap:20px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="flex:1">
+              <div style="font-size:24px;font-weight:600;letter-spacing:-.01em">Septembre 2026</div>
+              <div style="font-size:13px;color:#94a3b8;margin-top:2px">Toute la flotte · 3 chauffeurs · au 23/09</div>
+            </div>
+            <div style="display:flex;padding:3px;border-radius:10px;background:#0d1117;border:1px solid #1e2330;font-size:13px">
+              <span style="padding:6px 12px;border-radius:7px;color:#8b92a8">7 j</span>
+              <span style="padding:6px 12px;border-radius:7px;background:#1e2330;color:#f0f2f7;font-weight:600">Mois</span>
+              <span style="padding:6px 12px;border-radius:7px;color:#8b92a8">Année</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;border-radius:10px;border:1px solid #1e2330;font-size:13px;color:#c3c8d6"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Tous<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;color:#555e75"><path d="m6 9 6 6 6-6"></path></svg></div>
+            <div style="display:flex;padding:3px;border-radius:10px;background:#0d1117;border:1px solid #1e2330;font-size:13px">
+              <span style="padding:6px 12px;border-radius:7px;background:#f5a623;color:#080a0f;font-weight:600">Simple</span>
+              <span style="padding:6px 12px;border-radius:7px;color:#8b92a8">Avancé</span>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:12px">
+            <div style="padding:18px 20px;border-radius:14px;background:#0d1117;border:1px solid #1e2330">
+              <div style="font-size:13px;color:#94a3b8">Net final</div>
+              <div style="font-family:'Geist Mono',monospace;font-size:34px;font-weight:600;color:#4ade80;letter-spacing:-.03em;margin-top:6px">1 214 380 <span style="font-size:14px;color:#94a3b8">XOF</span></div>
+              <div style="font-size:13px;color:#94a3b8;margin-top:4px"><span style="color:#4ade80">+8 %</span> vs août à date · marge 81,7 %</div>
+            </div>
+            <div style="padding:18px 20px;border-radius:14px;background:#0d1117;border:1px solid #1e2330">
+              <div style="font-size:13px;color:#94a3b8">Total recettes</div>
+              <div style="font-family:'Geist Mono',monospace;font-size:26px;font-weight:600;letter-spacing:-.02em;margin-top:10px">1 486 200</div>
+              <div style="font-size:13px;color:#94a3b8;margin-top:6px">dont hors Yango 118 000</div>
+            </div>
+            <div style="padding:18px 20px;border-radius:14px;background:#0d1117;border:1px solid #1e2330">
+              <div style="font-size:13px;color:#94a3b8">Trésorerie nette</div>
+              <div style="font-family:'Geist Mono',monospace;font-size:26px;font-weight:600;letter-spacing:-.02em;margin-top:10px">962 150</div>
+              <div style="font-size:13px;color:#94a3b8;margin-top:6px">après dépenses et avances</div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;flex:1;min-height:0">
+            <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;display:flex;flex-direction:column;overflow:hidden">
+              <div style="display:flex;align-items:center;padding:14px 18px;border-bottom:1px solid #1e2330">
+                <div style="flex:1;font-size:15px;font-weight:600">À valider <span style="color:#f97316;font-family:'Geist Mono',monospace;font-size:13px;margin-left:4px">5</span></div>
+                <span style="font-size:13px;color:#8b92a8">Tout voir</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid #1e2330">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:14px;font-weight:500">Alioune Diagne · rapport 22/09</div>
+                  <div style="font-size:12px;color:#94a3b8;margin-top:2px;display:flex;align-items:center;gap:6px"><span style="color:#4ade80;display:flex"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></span>Lu sur captures · concorde</div>
+                </div>
+                <span style="font-family:'Geist Mono',monospace;font-size:14px">54 191</span>
+                <span style="height:32px;min-width:96px;box-sizing:border-box;padding:0 14px;border-radius:8px;background:#22c55e;color:#06210f;font-size:13px;font-weight:600;display:flex;align-items:center;flex:none;white-space:nowrap;justify-content:center;cursor:pointer;transition:filter .15s,border-color .15s" style-hover="filter:brightness(1.1)">Valider</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid #1e2330">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:14px;font-weight:500">Moussa Diop · rapport 22/09</div>
+                  <div style="font-size:12px;color:#94a3b8;margin-top:2px;display:flex;align-items:center;gap:6px"><span style="color:#4ade80;display:flex"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></span>Lu sur captures · concorde</div>
+                </div>
+                <span style="font-family:'Geist Mono',monospace;font-size:14px">46 019</span>
+                <span style="height:32px;min-width:96px;box-sizing:border-box;padding:0 14px;border-radius:8px;background:#22c55e;color:#06210f;font-size:13px;font-weight:600;display:flex;align-items:center;flex:none;white-space:nowrap;justify-content:center;cursor:pointer;transition:filter .15s,border-color .15s" style-hover="filter:brightness(1.1)">Valider</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid #1e2330">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:14px;font-weight:500">Ibrahima Sarr · rapport 22/09</div>
+                  <div style="font-size:12px;color:#f97316;margin-top:2px;display:flex;align-items:center;gap:6px"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg>Écart km GPS 21 %</div>
+                </div>
+                <span style="font-family:'Geist Mono',monospace;font-size:14px">38 740</span>
+                <span style="height:32px;min-width:96px;box-sizing:border-box;padding:0 14px;border-radius:8px;border:1px solid #343b4f;color:#f0f2f7;font-size:13px;font-weight:600;display:flex;align-items:center;flex:none;white-space:nowrap;justify-content:center;cursor:pointer;transition:filter .15s,border-color .15s" style-hover="border-color:#8b92a8">Examiner</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 18px">
+                <div style="flex:1;min-width:0">
+                  <div style="font-size:14px;font-weight:500">2 dépenses · carburant, péage</div>
+                  <div style="font-size:12px;color:#94a3b8;margin-top:2px">avec reçu photo</div>
+                </div>
+                <span style="font-family:'Geist Mono',monospace;font-size:14px">9 500</span>
+                <span style="height:32px;min-width:96px;box-sizing:border-box;padding:0 14px;border-radius:8px;background:#22c55e;color:#06210f;font-size:13px;font-weight:600;display:flex;align-items:center;flex:none;white-space:nowrap;justify-content:center;cursor:pointer;transition:filter .15s,border-color .15s" style-hover="filter:brightness(1.1)">Valider</span>
+              </div>
+            </div>
+
+            <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="flex:1;font-size:15px;font-weight:600">Briefing du jour</div>
+                <span style="font-size:11px;color:#8b92a8">calculé 06:00</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px;font-size:14px;line-height:1.5;color:#dfe3ec">
+                <div style="display:flex;gap:10px"><span style="color:#f5a623">›</span><span>Net opérationnel 7 j en hausse de 6 %, porté par Alioune (+31 000).</span></div>
+                <div style="display:flex;gap:10px"><span style="color:#f5a623">›</span><span>Carburant au km stable à 58 XOF.</span></div>
+                <div style="display:flex;gap:10px"><span style="color:#f5a623">›</span><span>Ibrahima n'a pas envoyé de rapport 2 soirs sur 7.</span></div>
+              </div>
+              <div style="display:flex;gap:6px"><span style="display:inline-flex;align-items:center;gap:4px;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;background:rgba(245,166,35,.14);color:#fbbf24"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"></path><path d="M20 3v4"></path><path d="M22 5h-4"></path><path d="M4 17v2"></path><path d="M5 18H3"></path></svg>IA</span><span style="display:inline-flex;align-items:center;gap:4px;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;background:rgba(59,130,246,.15);color:#60a5fa"><svg viewBox="0 0 24 24" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><rect width="16" height="20" x="4" y="2" rx="2"></rect><line x1="8" x2="16" y1="6" y2="6"></line><line x1="16" x2="16" y1="14" y2="18"></line><path d="M16 10h.01"></path><path d="M12 10h.01"></path><path d="M8 10h.01"></path><path d="M12 14h.01"></path><path d="M8 14h.01"></path><path d="M12 18h.01"></path><path d="M8 18h.01"></path></svg>Calculé</span></div>
+              <div style="margin-top:auto;border-radius:10px;border:1px solid rgba(245,166,35,.3);background:rgba(245,166,35,.08);padding:12px 14px">
+                <div style="font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#fbbf24">Action du jour</div>
+                <div style="font-size:14px;margin-top:4px">Appeler Ibrahima pour régulariser les rapports du 19 et du 21.</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;height:236px;flex:none">
+          <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;padding:14px 18px;overflow:hidden">
+            <div style="display:grid;grid-template-columns:1.4fr 1fr .8fr .9fr;gap:8px;align-items:baseline;padding-bottom:8px;border-bottom:1px solid #1e2330">
+              <span style="font-size:14px;font-weight:600">Coûts par poste</span>
+              <span style="font-size:11px;color:#94a3b8;text-align:right">XOF</span>
+              <span style="font-size:11px;color:#94a3b8;text-align:right">% du CA</span>
+              <span style="font-size:11px;color:#94a3b8;text-align:right">% des coûts</span>
+            </div>
+            <sc-for list="{{ costs }}" as="c" hint-placeholder-count="5">
+              <div style="display:grid;grid-template-columns:1.4fr 1fr .8fr .9fr;gap:8px;align-items:center;padding:6px 0;font-size:13px">
+                <span style="display:flex;align-items:center;gap:8px;white-space:nowrap"><span style="width:8px;height:8px;border-radius:2px;background:{{ c.color }};flex:none"></span>{{ c.name }}</span>
+                <span style="text-align:right;font-family:'Geist Mono',monospace">{{ c.amount }}</span>
+                <span style="text-align:right;font-family:'Geist Mono',monospace;color:#c3c8d6">{{ c.pctCa }}</span>
+                <span style="display:flex;align-items:center;justify-content:flex-end;gap:6px"><span style="width:36px;height:4px;border-radius:2px;background:#1e2330;overflow:hidden;display:flex"><span style="width:{{ c.w }};background:{{ c.color }}"></span></span><span style="font-family:'Geist Mono',monospace;width:38px;text-align:right">{{ c.pctCost }}</span></span>
+              </div>
+            </sc-for>
+            <div style="display:grid;grid-template-columns:1.4fr 1fr .8fr .9fr;gap:8px;align-items:center;padding-top:7px;border-top:1px solid #1e2330;font-size:13px;font-weight:600">
+              <span>Total coûts</span>
+              <span style="text-align:right;font-family:'Geist Mono',monospace;color:#f87171">271 820</span>
+              <span style="text-align:right;font-family:'Geist Mono',monospace">18,3 %</span>
+              <span style="text-align:right;font-family:'Geist Mono',monospace">100 %</span>
+            </div>
+          </div>
+          <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;padding:14px 18px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:16px;font-size:12px;color:#8b92a8">
+              <span style="flex:1;font-size:14px;font-weight:600;color:#f0f2f7">Net par jour</span>
+              <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:#4ade80"></span>Net final</span>
+              <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:#343b4f"></span>Brut</span>
+            </div>
+            <div style="flex:1;display:flex;align-items:flex-end;gap:6px">
+              <sc-for list="{{ days }}" as="d" hint-placeholder-count="23">
+                <div style="flex:1;height:100%;display:flex;align-items:flex-end;position:relative">
+                  <div style="position:absolute;left:0;right:0;bottom:0;height:{{ d.hb }};background:#1e2330;border-radius:3px 3px 0 0"></div>
+                  <div style="position:relative;width:100%;height:{{ d.hn }};background:{{ d.c }};border-radius:3px 3px 0 0"></div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="2b">
+      <div class="dv-olabel"><span class="dv-oid">2b</span>Tableau de bord — bascule « Avancé » (accordéons)</div>
+      <div style="width:1280px;height:820px;display:flex;background:#080a0f;border-radius:10px;overflow:hidden;border:1px solid #1e2330">
+        <dc-import name="Admin Sidebar" active="dash" hint-size="224px,820px"></dc-import>
+        <div style="flex:1;min-width:0;padding:24px 28px;display:flex;flex-direction:column;gap:14px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="flex:1">
+              <div style="font-size:24px;font-weight:600;letter-spacing:-.01em">Septembre 2026</div>
+              <div style="font-size:13px;color:#94a3b8;margin-top:2px">Toute la flotte · 3 chauffeurs · au 23/09</div>
+            </div>
+            <div style="display:flex;padding:3px;border-radius:10px;background:#0d1117;border:1px solid #1e2330;font-size:13px">
+              <span style="padding:6px 12px;border-radius:7px;color:#8b92a8">7 j</span>
+              <span style="padding:6px 12px;border-radius:7px;background:#1e2330;color:#f0f2f7;font-weight:600">Mois</span>
+              <span style="padding:6px 12px;border-radius:7px;color:#8b92a8">Année</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;border-radius:10px;border:1px solid #1e2330;font-size:13px;color:#c3c8d6"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Tous<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;color:#555e75"><path d="m6 9 6 6 6-6"></path></svg></div>
+            <div style="display:flex;padding:3px;border-radius:10px;background:#0d1117;border:1px solid #1e2330;font-size:13px">
+              <span style="padding:6px 12px;border-radius:7px;color:#8b92a8">Simple</span>
+              <span style="padding:6px 12px;border-radius:7px;background:#f5a623;color:#080a0f;font-weight:600">Avancé</span>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:1.3fr 1fr 1fr;gap:12px">
+            <div style="padding:14px 20px;border-radius:14px;background:#0d1117;border:1px solid #1e2330;display:flex;align-items:baseline;gap:12px"><span style="font-size:13px;color:#94a3b8;flex:1">Net final</span><span style="font-family:'Geist Mono',monospace;font-size:24px;font-weight:600;color:#4ade80">1 214 380</span></div>
+            <div style="padding:14px 20px;border-radius:14px;background:#0d1117;border:1px solid #1e2330;display:flex;align-items:baseline;gap:12px"><span style="font-size:13px;color:#94a3b8;flex:1">Total recettes</span><span style="font-family:'Geist Mono',monospace;font-size:20px;font-weight:600">1 486 200</span></div>
+            <div style="padding:14px 20px;border-radius:14px;background:#0d1117;border:1px solid #1e2330;display:flex;align-items:baseline;gap:12px"><span style="font-size:13px;color:#94a3b8;flex:1">Trésorerie nette</span><span style="font-family:'Geist Mono',monospace;font-size:20px;font-weight:600">962 150</span></div>
+          </div>
+          <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:10px;padding:14px 18px;border-bottom:1px solid #1e2330"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;color:#8b92a8"><path d="m18 15-6-6-6 6"></path></svg><span style="flex:1;font-size:15px;font-weight:600">Période — recettes vs charges</span><span style="font-size:12px;color:#94a3b8">01/09 → 23/09</span></div>
+            <div style="display:grid;grid-template-columns:repeat(6,1fr)">
+              <div style="padding:14px 18px;border-right:1px solid #1e2330"><div style="font-size:12px;color:#94a3b8">Brut Yango</div><div style="font-family:'Geist Mono',monospace;font-size:18px;font-weight:600;color:#f5a623;margin-top:6px">1 612 400</div><div style="font-size:12px;color:#94a3b8;margin-top:4px">moy. 70 104 / j</div></div>
+              <div style="padding:14px 18px;border-right:1px solid #1e2330"><div style="font-size:12px;color:#94a3b8">Net Yango</div><div style="font-family:'Geist Mono',monospace;font-size:18px;font-weight:600;color:#60a5fa;margin-top:6px">1 368 200</div><div style="font-size:12px;color:#94a3b8;margin-top:4px">après commission</div></div>
+              <div style="padding:14px 18px;border-right:1px solid #1e2330"><div style="font-size:12px;color:#94a3b8">Hors Yango</div><div style="font-family:'Geist Mono',monospace;font-size:18px;font-weight:600;color:#c084fc;margin-top:6px">118 000</div><div style="font-size:12px;color:#94a3b8;margin-top:4px">off-platform</div></div>
+              <div style="padding:14px 18px;border-right:1px solid #1e2330"><div style="font-size:12px;color:#94a3b8">Total recettes</div><div style="font-family:'Geist Mono',monospace;font-size:18px;font-weight:600;margin-top:6px">1 486 200</div><div style="font-size:12px;color:#94a3b8;margin-top:4px">net</div></div>
+              <div style="padding:14px 18px;border-right:1px solid #1e2330"><div style="font-size:12px;color:#94a3b8">Total dépenses</div><div style="font-family:'Geist Mono',monospace;font-size:18px;font-weight:600;color:#f87171;margin-top:6px">− 271 820</div><div style="font-size:12px;color:#94a3b8;margin-top:4px">hors avances</div></div>
+              <div style="padding:14px 18px"><div style="font-size:12px;color:#94a3b8">Net final</div><div style="font-family:'Geist Mono',monospace;font-size:18px;font-weight:600;color:#4ade80;margin-top:6px">1 214 380</div><div style="font-size:12px;color:#94a3b8;margin-top:4px">marge 81,7 %</div></div>
+            </div>
+            <div style="padding:14px 18px;border-top:1px solid #1e2330;display:flex;flex-direction:column;gap:8px">
+              <div style="font-size:12px;color:#94a3b8">Dépenses par catégorie</div>
+              <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px">
+                <div style="flex:58;background:#ef4444"></div><div style="flex:19;background:#f97316"></div><div style="flex:11;background:#facc15"></div><div style="flex:7;background:#38bdf8"></div><div style="flex:5;background:#8b92a8"></div>
+              </div>
+              <div style="display:flex;gap:18px;font-size:12px;color:#c3c8d6">
+                <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:#ef4444"></span>Carburant 157 650</span>
+                <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:#f97316"></span>Solde Yango 51 650</span>
+                <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:#facc15"></span>Entretien 29 900</span>
+                <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:#38bdf8"></span>Péage 19 030</span>
+                <span style="display:flex;align-items:center;gap:6px"><span style="width:8px;height:8px;border-radius:2px;background:#8b92a8"></span>Autres 13 590</span>
+              </div>
+            </div>
+          </div>
+          <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;display:flex;align-items:center;gap:10px;padding:14px 18px"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;color:#8b92a8"><path d="m6 9 6 6 6-6"></path></svg><span style="flex:1;font-size:15px;font-weight:600">Résultat opérationnel</span><span style="font-family:'Geist Mono',monospace;font-size:14px;color:#c3c8d6">1 106 740</span></div>
+          <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;display:flex;align-items:center;gap:10px;padding:14px 18px"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;color:#8b92a8"><path d="m6 9 6 6 6-6"></path></svg><span style="flex:1;font-size:15px;font-weight:600">Trésorerie</span><span style="font-family:'Geist Mono',monospace;font-size:14px;color:#c3c8d6">962 150</span></div>
+          <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;display:flex;align-items:center;gap:10px;padding:14px 18px"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;color:#8b92a8"><path d="m6 9 6 6 6-6"></path></svg><span style="flex:1;font-size:15px;font-weight:600">Aujourd'hui</span><span style="font-size:13px;color:#94a3b8">2 rapports sur 3 reçus</span></div>
+          <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;display:flex;align-items:center;gap:10px;padding:14px 18px"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;color:#8b92a8"><path d="m6 9 6 6 6-6"></path></svg><span style="flex:1;font-size:15px;font-weight:600">Récap journalier</span><span style="font-size:13px;color:#94a3b8">23 jours · export CSV</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="2c">
+      <div class="dv-olabel"><span class="dv-oid">2c</span>À valider — liste + détail côte à côte (plus de modale)</div>
+      <div style="width:1280px;height:820px;display:flex;background:#080a0f;border-radius:10px;overflow:hidden;border:1px solid #1e2330">
+        <dc-import name="Admin Sidebar" active="valid" hint-size="224px,820px"></dc-import>
+        <div style="width:360px;flex:none;border-right:1px solid #1e2330;display:flex;flex-direction:column">
+          <div style="padding:22px 20px 14px;display:flex;flex-direction:column;gap:14px">
+            <div style="font-size:22px;font-weight:600">À valider</div><dc-import name="Filter Bar" show-period="{{ false }}" range="Toutes les dates" hint-size="320px,36px"></dc-import>
+            <div style="display:flex;padding:3px;border-radius:10px;background:#0d1117;border:1px solid #1e2330;font-size:13px">
+              <span style="flex:1;text-align:center;padding:6px 0;border-radius:7px;background:#1e2330;font-weight:600">Rapports 3</span>
+              <span style="flex:1;text-align:center;padding:6px 0;border-radius:7px;color:#8b92a8">Dépenses 2</span>
+            </div>
+          </div>
+          <div style="padding:14px 20px;background:rgba(245,166,35,.08);border-left:2px solid #f5a623;display:flex;flex-direction:column;gap:4px">
+            <div style="display:flex;align-items:baseline"><span style="flex:1;font-size:14px;font-weight:600">Alioune Diagne</span><span style="font-family:'Geist Mono',monospace;font-size:14px">54 191</span></div>
+            <div style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px">Lun. 22/09 · 16 courses<span style="color:#4ade80;display:flex;margin-left:auto"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></span></div>
+          </div>
+          <div style="padding:14px 20px;border-bottom:1px solid #1e2330;display:flex;flex-direction:column;gap:4px">
+            <div style="display:flex;align-items:baseline"><span style="flex:1;font-size:14px;font-weight:500">Moussa Diop</span><span style="font-family:'Geist Mono',monospace;font-size:14px">46 019</span></div>
+            <div style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px">Lun. 22/09 · 14 courses<span style="color:#4ade80;display:flex;margin-left:auto"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></span></div>
+          </div>
+          <div style="padding:14px 20px;border-bottom:1px solid #1e2330;display:flex;flex-direction:column;gap:4px">
+            <div style="display:flex;align-items:baseline"><span style="flex:1;font-size:14px;font-weight:500">Ibrahima Sarr</span><span style="font-family:'Geist Mono',monospace;font-size:14px">38 740</span></div>
+            <div style="font-size:12px;color:#94a3b8;display:flex;align-items:center;gap:6px">Lun. 22/09 · saisie manuelle<span style="color:#f97316;display:flex;margin-left:auto"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3" /><path d="M12 9v4" /><path d="M12 17h.01" /></svg></span></div>
+          </div>
+        </div>
+        <div style="flex:1;min-width:0;padding:22px 28px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:flex-start;gap:12px">
+            <div style="flex:1">
+              <div style="font-size:20px;font-weight:600">Alioune Diagne · rapport du 22/09</div>
+              <div style="font-size:13px;color:#94a3b8;margin-top:4px">DK-4410-BC · envoyé à 22:41</div>
+            </div>
+            <span style="display:inline-flex;align-items:center;gap:6px;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:600;background:rgba(245,166,35,.12);color:#fbbf24"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M3 7V5a2 2 0 0 1 2-2h2" /><path d="M17 3h2a2 2 0 0 1 2 2v2" /><path d="M21 17v2a2 2 0 0 1-2 2h-2" /><path d="M7 21H5a2 2 0 0 1-2-2v-2" /><path d="M7 12h10" /></svg>Lu sur 3 captures · confiance 94 %</span>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 200px;gap:16px;flex:1;min-height:0">
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;overflow:hidden;font-size:14px">
+                <div style="display:flex;padding:11px 18px;border-bottom:1px solid #1e2330"><span style="flex:1;color:#8b92a8">Espèces</span><span style="font-family:'Geist Mono',monospace">52 400</span></div>
+                <div style="display:flex;padding:11px 18px;border-bottom:1px solid #1e2330"><span style="flex:1;color:#8b92a8">Carte</span><span style="font-family:'Geist Mono',monospace">6 800</span></div>
+                <div style="display:flex;padding:11px 18px;border-bottom:1px solid #1e2330"><span style="flex:1;color:#8b92a8">Bonus</span><span style="font-family:'Geist Mono',monospace">4 000</span></div>
+                <div style="display:flex;padding:11px 18px;border-bottom:1px solid #1e2330"><span style="flex:1;color:#8b92a8">Commissions Yango + partenaire</span><span style="font-family:'Geist Mono',monospace;color:#f87171">− 9 954</span></div>
+                <div style="display:flex;padding:11px 18px;border-bottom:1px solid #1e2330"><span style="flex:1;color:#8b92a8">Hors Yango</span><span style="font-family:'Geist Mono',monospace">+ 945</span></div>
+                <div style="display:flex;padding:14px 18px;align-items:baseline"><span style="flex:1;font-weight:600">Net total</span><span style="font-family:'Geist Mono',monospace;font-size:20px;font-weight:600;color:#4ade80">54 191 XOF</span></div>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                <div style="border-radius:12px;padding:12px 14px;border:1px solid rgba(74,222,128,.25);background:rgba(74,222,128,.06);font-size:13px;display:flex;gap:8px;align-items:flex-start"><span style="color:#4ade80;display:flex"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></span><span>Net affiché Yango = net calculé</span></div>
+                <div style="border-radius:12px;padding:12px 14px;border:1px solid rgba(74,222,128,.25);background:rgba(74,222,128,.06);font-size:13px;display:flex;gap:8px;align-items:flex-start"><span style="color:#4ade80;display:flex"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><circle cx="12" cy="12" r="10"></circle><path d="m9 12 2 2 4-4"></path></svg></span><span>188 km déclarés · 192 km GPS</span></div>
+              </div>
+              <div style="border-radius:12px;padding:12px 14px;background:#0d1117;border:1px solid #1e2330;font-size:14px;color:#dfe3ec;display:flex;gap:10px"><span style="color:#8b92a8;display:flex"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg></span>« Bonne journée, trafic fluide »</div>
+              <div style="font-size:13px;color:#8b92a8">Modifier le rapport</div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="font-size:12px;color:#94a3b8">Captures</div>
+              <div style="height:150px;border-radius:10px;background:repeating-linear-gradient(135deg,#1e2330 0 6px,#161b26 6px 12px);display:flex;align-items:flex-end;padding:8px;font-family:'Geist Mono',monospace;font-size:10px;color:#8b92a8">Comparatif</div>
+              <div style="height:150px;border-radius:10px;background:repeating-linear-gradient(135deg,#1e2330 0 6px,#161b26 6px 12px);display:flex;align-items:flex-end;padding:8px;font-family:'Geist Mono',monospace;font-size:10px;color:#8b92a8">Argent</div>
+              <div style="height:90px;border-radius:10px;background:repeating-linear-gradient(135deg,#1e2330 0 6px,#161b26 6px 12px);display:flex;align-items:flex-end;padding:8px;font-family:'Geist Mono',monospace;font-size:10px;color:#8b92a8">Compteur</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;justify-content:flex-end;padding-top:14px;border-top:1px solid #1e2330">
+            <span style="height:42px;padding:0 18px;border-radius:10px;border:1px solid rgba(239,68,68,.45);color:#f87171;font-size:14px;font-weight:600;display:flex;align-items:center;flex:none;white-space:nowrap;justify-content:center;cursor:pointer;transition:filter .15s,border-color .15s" style-hover="border-color:#8b92a8">Rejeter</span>
+            <span style="height:42px;padding:0 22px;border-radius:10px;background:#22c55e;color:#06210f;font-size:14px;font-weight:700;display:flex;align-items:center;gap:8px;flex:none;white-space:nowrap;justify-content:center;cursor:pointer;transition:filter .15s,border-color .15s" style-hover="filter:brightness(1.1)"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M20 6 9 17l-5-5"></path></svg>Valider et suivant</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="2d">
+      <div class="dv-olabel"><span class="dv-oid">2d</span>Pilotage — rendement au km, par chauffeur</div>
+      <div style="width:1280px;height:820px;display:flex;background:#080a0f;border-radius:10px;overflow:hidden;border:1px solid #1e2330">
+        <dc-import name="Admin Sidebar" active="pilot" hint-size="224px,820px"></dc-import>
+        <div style="flex:1;min-width:0;padding:24px 28px;display:flex;flex-direction:column;gap:18px">
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:12px"><div style="font-size:24px;font-weight:600;letter-spacing:-.01em">Pilotage</div><dc-import name="Filter Bar" period="Mois" hint-size="580px,36px"></dc-import></div>
+            <div style="display:flex;gap:4px;font-size:13px">
+              <span style="padding:7px 12px;border-radius:8px;background:#1e2330;font-weight:600">Vue d'ensemble</span>
+              <span style="padding:7px 12px;border-radius:8px;color:#8b92a8">P&amp;L</span>
+              <span style="padding:7px 12px;border-radius:8px;color:#8b92a8">Cash flow</span>
+              <span style="padding:7px 12px;border-radius:8px;color:#8b92a8">Simulation</span>
+            </div>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+            <div style="padding:18px 20px;border-radius:14px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:13px;color:#94a3b8">Km parcourus</div><div style="font-family:'Geist Mono',monospace;font-size:28px;font-weight:600;margin-top:8px">3 842</div><div style="font-size:13px;color:#94a3b8;margin-top:4px">167 km / jour / véhicule</div></div>
+            <div style="padding:18px 20px;border-radius:14px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:13px;color:#94a3b8">Coût par km</div><div style="font-family:'Geist Mono',monospace;font-size:28px;font-weight:600;margin-top:8px">71 <span style="font-size:14px;color:#94a3b8">XOF</span></div><div style="font-size:13px;color:#94a3b8;margin-top:4px">solde + carburant consommés</div></div>
+            <div style="padding:18px 20px;border-radius:14px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:13px;color:#94a3b8">Net par km</div><div style="font-family:'Geist Mono',monospace;font-size:28px;font-weight:600;color:#4ade80;margin-top:8px">316 <span style="font-size:14px;color:#94a3b8">XOF</span></div><div style="font-size:13px;color:#94a3b8;margin-top:4px">objectif 300</div></div>
+          </div>
+          <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;overflow:hidden">
+            <div style="display:grid;grid-template-columns:2fr 1.2fr .7fr 1.2fr 1fr 1fr 1fr;padding:12px 18px;font-size:12px;color:#94a3b8;border-bottom:1px solid #1e2330">
+              <span>Chauffeur</span><span>Véhicule</span><span style="text-align:right">Jours</span><span style="text-align:right">Net validé</span><span style="text-align:right">En attente</span><span style="text-align:right">Net / km</span><span style="text-align:right">Écart GPS</span>
+            </div>
+            <div style="display:grid;grid-template-columns:2fr 1.2fr .7fr 1.2fr 1fr 1fr 1fr;padding:14px 18px;font-size:14px;border-bottom:1px solid #1e2330;align-items:center">
+              <span style="font-weight:500">Alioune Diagne</span><span style="font-family:'Geist Mono',monospace;font-size:13px;color:#c3c8d6">DK-4410-BC</span><span style="text-align:right;font-family:'Geist Mono',monospace">19</span><span style="text-align:right;font-family:'Geist Mono',monospace">512 840</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#f97316">54 191</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#4ade80">341</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#c3c8d6">2 %</span>
+            </div>
+            <div style="display:grid;grid-template-columns:2fr 1.2fr .7fr 1.2fr 1fr 1fr 1fr;padding:14px 18px;font-size:14px;border-bottom:1px solid #1e2330;align-items:center">
+              <span style="font-weight:500">Moussa Diop</span><span style="font-family:'Geist Mono',monospace;font-size:13px;color:#c3c8d6">AB-872-JG</span><span style="text-align:right;font-family:'Geist Mono',monospace">14</span><span style="text-align:right;font-family:'Geist Mono',monospace">587 500</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#f97316">46 019</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#4ade80">322</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#c3c8d6">4 %</span>
+            </div>
+            <div style="display:grid;grid-template-columns:2fr 1.2fr .7fr 1.2fr 1fr 1fr 1fr;padding:14px 18px;font-size:14px;align-items:center">
+              <span style="font-weight:500">Ibrahima Sarr</span><span style="font-family:'Geist Mono',monospace;font-size:13px;color:#c3c8d6">AA-219-KF</span><span style="text-align:right;font-family:'Geist Mono',monospace">15</span><span style="text-align:right;font-family:'Geist Mono',monospace">114 040</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#f97316">38 740</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#facc15">268</span><span style="text-align:right;font-family:'Geist Mono',monospace;color:#f97316">21 %</span>
+            </div>
+          </div>
+          <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;padding:14px 18px;flex:1;min-height:0;display:flex;flex-direction:column;gap:10px">
+            <div style="display:flex;align-items:center;gap:16px;font-size:12px;color:#8b92a8">
+              <span style="flex:1;font-size:14px;font-weight:600;color:#f0f2f7">Km par jour — flotte</span>
+              <span>moy. 501 km</span>
+            </div>
+            <div style="flex:1;display:flex;align-items:flex-end;gap:6px">
+              <sc-for list="{{ km }}" as="d" hint-placeholder-count="23">
+                <div style="flex:1;height:{{ d.h }};background:#38bdf8;opacity:.85;border-radius:3px 3px 0 0"></div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dv-opt" id="2e">
+      <div class="dv-olabel"><span class="dv-oid">2e</span>Véhicules — boîtier GPS intégré à la fiche</div>
+      <div style="width:1280px;height:820px;display:flex;background:#080a0f;border-radius:10px;overflow:hidden;border:1px solid #1e2330">
+        <dc-import name="Admin Sidebar" active="fleet" hint-size="224px,820px"></dc-import>
+        <div style="width:360px;flex:none;border-right:1px solid #1e2330;display:flex;flex-direction:column">
+          <div style="padding:22px 20px 14px;display:flex;align-items:center;gap:10px">
+            <div style="flex:1;font-size:22px;font-weight:600">Véhicules</div><span style="height:34px;padding:0 12px;border-radius:9px;background:#f5a623;color:#080a0f;font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px;flex:none;white-space:nowrap;justify-content:center;cursor:pointer;transition:filter .15s,border-color .15s" style-hover="filter:brightness(1.1)"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none"><path d="M5 12h14"></path><path d="M12 5v14"></path></svg>Ajouter</span></div><div style="padding:0 20px 14px"><dc-import name="Filter Bar" show-period="{{ false }}" range="Aujourd'hui" hint-size="320px,36px"></dc-import></div>
+          <div style="padding:14px 20px;background:rgba(245,166,35,.08);border-left:2px solid #f5a623;display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:'Geist Mono',monospace;font-size:14px;font-weight:600;color:#f5a623">AB-872-JG</span><span style="font-size:13px;color:#8b92a8">Kia K3</span></div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px"><span style="color:#c3c8d6;flex:1">Moussa Diop</span><span style="display:flex;align-items:center;gap:5px;color:#4ade80"><span style="width:6px;height:6px;border-radius:50%;background:#4ade80"></span>à l'instant</span></div>
+          </div>
+          <div style="padding:14px 20px;border-bottom:1px solid #1e2330;display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:'Geist Mono',monospace;font-size:14px;font-weight:600">DK-4410-BC</span><span style="font-size:13px;color:#8b92a8">Toyota Corolla</span></div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px"><span style="color:#c3c8d6;flex:1">Alioune Diagne</span><span style="display:flex;align-items:center;gap:5px;color:#fcd34d"><span style="width:6px;height:6px;border-radius:50%;background:#fcd34d"></span>silencieux 38 min</span></div>
+          </div>
+          <div style="padding:14px 20px;border-bottom:1px solid #1e2330;display:flex;flex-direction:column;gap:6px">
+            <div style="display:flex;align-items:baseline;gap:8px"><span style="font-family:'Geist Mono',monospace;font-size:14px;font-weight:600">AA-219-KF</span><span style="font-size:13px;color:#8b92a8">Hyundai Accent</span></div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px"><span style="color:#c3c8d6;flex:1">Ibrahima Sarr</span><span style="color:#8b92a8">pas de boîtier</span></div>
+          </div>
+        </div>
+        <div style="flex:1;min-width:0;padding:22px 28px;display:flex;flex-direction:column;gap:16px">
+          <div style="display:flex;align-items:flex-start;gap:12px">
+            <div style="flex:1">
+              <div style="font-size:20px;font-weight:600"><span style="font-family:'Geist Mono',monospace">AB-872-JG</span> · Kia K3</div>
+              <div style="font-size:13px;color:#94a3b8;margin-top:4px">Moussa Diop · service urbain</div>
+            </div>
+            <span style="display:inline-flex;align-items:center;gap:6px;border-radius:8px;padding:6px 10px;font-size:13px;border:1px solid rgba(74,222,128,.35);color:#4ade80;background:rgba(74,222,128,.06)"><span style="width:6px;height:6px;border-radius:50%;background:#4ade80"></span>Signal à l'instant</span>
+          </div>
+          <div style="height:260px;border-radius:14px;border:1px solid #1e2330;background:repeating-linear-gradient(135deg,#0d1117 0 10px,#11161f 10px 20px);display:flex;align-items:center;justify-content:center;font-family:'Geist Mono',monospace;font-size:12px;color:#8b92a8">carte — trajet du jour + dernière position</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px">
+            <div style="padding:14px 16px;border-radius:12px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:12px;color:#94a3b8">Km GPS aujourd'hui</div><div style="font-family:'Geist Mono',monospace;font-size:22px;font-weight:600;margin-top:6px">172</div></div>
+            <div style="padding:14px 16px;border-radius:12px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:12px;color:#94a3b8">Km déclarés</div><div style="font-family:'Geist Mono',monospace;font-size:22px;font-weight:600;margin-top:6px">165 <span style="font-size:12px;color:#94a3b8">−4 %</span></div></div>
+            <div style="padding:14px 16px;border-radius:12px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:12px;color:#94a3b8">En service</div><div style="font-family:'Geist Mono',monospace;font-size:22px;font-weight:600;margin-top:6px">9 h 40</div></div>
+            <div style="padding:14px 16px;border-radius:12px;background:#0d1117;border:1px solid #1e2330"><div style="font-size:12px;color:#94a3b8">Temps mort</div><div style="font-family:'Geist Mono',monospace;font-size:22px;font-weight:600;margin-top:6px">1 h 55</div></div>
+          </div>
+          <div style="border-radius:14px;background:#0d1117;border:1px solid #1e2330;overflow:hidden;font-size:14px">
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid #1e2330"><span style="flex:1;color:#8b92a8">Assurance</span><span>expire le 12/11/2026</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid #1e2330"><span style="flex:1;color:#8b92a8">Visite technique</span><span style="color:#f97316">dans 18 jours</span></div>
+            <div style="display:flex;align-items:center;gap:10px;padding:12px 18px"><span style="flex:1;color:#8b92a8">Boîtier GPS</span><span style="font-family:'Geist Mono',monospace;font-size:13px">ST-901 · 868120</span><span style="color:#4ade80">installé</span><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex:none;color:#555e75"><path d="m9 18 6-6-6-6"></path></svg></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <p class="dv-next">Pistes : « Équipe (chauffeurs + rémunération) » · « Finance (paiements, avances) » · « version mobile du gestionnaire » · Voir aussi : <a href="Driver.dc.html">Chauffeur</a> · <a href="Owner%20and%20Platform.dc.html">Mode simple, connexion, superadmin</a></p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const net = [38,41,44,0,47,52,49,45,43,0,50,55,53,48,46,0,51,57,54,50,49,0,52];
+    const km = [470,492,511,0,505,530,522,488,476,0,509,541,533,497,485,0,512,548,537,506,498,0,519];
+    const max = 70;
+    const days = net.map(n => ({ hn: (n / max * 100) + '%', hb: (n ? (n * 1.22 / max * 100) : 0) + '%', c: n ? '#4ade80' : '#1e2330' }));
+    const C = { v: '#22c55e', a: '#f97316', r: '#ef4444', o: '#343b4f', f: '#141821' };
+    const row = s => s.split('').map(ch => C[ch]);
+    const cal = [
+      { name: 'Alioune Diagne', cells: row('vvvovvvvvvovvvvvvovvvaffffffff') },
+      { name: 'Moussa Diop', cells: row('ooovvvovvvvvvovvvvvvoaffffffff') },
+      { name: 'Ibrahima Sarr', cells: row('vvrovvvvrvovvvvrvovrvaffffffff') },
+    ];
+    const calDays = Array.from({ length: 30 }, (_, i) => String(i + 1));
+    const CA = 1486200, TOT = 271820;
+    const fmt = n => n.toLocaleString('fr-FR').replace(/\u202f|\u00a0/g, ' ');
+    const pct = v => (Math.round(v * 1000) / 10).toString().replace('.', ',') + ' %';
+    const costs = [
+      ['Carburant', 157650, '#ef4444'], ['Solde Yango', 51650, '#f97316'], ['Entretien', 29900, '#facc15'],
+      ['Péage', 19030, '#38bdf8'], ['Autres', 13590, '#8b92a8'],
+    ].map(([name, v, color]) => ({ name, color, amount: fmt(v), pctCa: pct(v / CA), pctCost: Math.round(v / TOT * 100) + ' %', w: (v / TOT * 100) + '%' }));
+    return { days, km: km.map(k => ({ h: (k / 600 * 100) + '%' })), cal, calDays, costs, periodsNoDay: ['7 j', 'Mois', 'Année'], periodsGps: ['Jour', '7 j'] };
+  }
+}
+</script>
+</body>
+</html>
