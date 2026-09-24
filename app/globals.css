@@ -223,3 +223,6 @@ html[data-ui="v2"] body {
 /* v2 : lien discret (12 px, --sk-t2), souligné au survol — « Espace opérateur ». */
 .v2-link { font-size: 12px; color: var(--sk-t2); text-decoration: none; }
 .v2-link:hover, .v2-link:focus-visible { text-decoration: underline; color: var(--sk-t1); }
+.v2-details > summary::-webkit-details-marker { display: none; }
+.v2-details-chevron { transform: rotate(-90deg); transition: transform .15s; }
+.v2-details[open] .v2-details-chevron { transform: none; }

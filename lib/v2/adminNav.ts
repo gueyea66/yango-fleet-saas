@@ -12,6 +12,8 @@ export interface SubTab {
   tab: string;       // identifiant d'onglet existant
   label: string;
   route?: string;    // onglet qui ouvre sa propre page (NAV_ROUTES actuel)
+  /** raccourci v2 vers un écran existant sous un autre identifiant (hors coveredTabs) */
+  extra?: boolean;
 }
 
 export interface DestinationDef {
@@ -44,10 +46,12 @@ export const ADMIN_DESTINATIONS: DestinationDef[] = [
     ],
   },
   {
-    key: "fin", label: "Finance", filter: { driver: true },
+    key: "fin", label: "Finance", filter: { period: true, driver: true },
     subTabs: [
       { tab: "payments", label: "Paiements" },
       { tab: "avances", label: "Avances" },
+      // Journal (ActionLogsTab) aussi visible ici ; l'onglet « journal » reste dans Paramètres.
+      { tab: "finjournal", label: "Journal", extra: true },
     ],
   },
   {
@@ -80,7 +84,7 @@ export function entryTab(dest: DestinationDef): SubTab {
 
 /** Tous les identifiants d'onglets couverts (contrôle : aucun onglet perdu). */
 export function coveredTabs(): string[] {
-  return ADMIN_DESTINATIONS.flatMap((d) => d.subTabs.map((s) => s.tab));
+  return ADMIN_DESTINATIONS.flatMap((d) => d.subTabs.filter((s) => !s.extra).map((s) => s.tab));
 }
 
 /**

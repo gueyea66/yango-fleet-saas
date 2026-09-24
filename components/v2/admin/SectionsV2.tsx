@@ -23,14 +23,17 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: 
 }
 
 /* ─── 4b Finance : 4 KPI au-dessus des onglets Paiements / Avances ─── */
-export function FinanceKpisV2({ kpis }: { kpis: any }) {
+/** masse : masse salariale projetée (Σ salaires dus, moteur de rémunération existant). */
+export function FinanceKpisV2({ kpis, masse }: { kpis: any; masse?: { amount: number; drivers: number } | null }) {
   if (kpis.loading) return <div className="v2-skeleton" style={{ height: 96, borderRadius: 14 }} aria-hidden />;
   const f = financeKpis(kpis);
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
       <Kpi label="Encaissements" value={formatAmount(f.encaissements)} sub="recettes encaissées" />
-      <Kpi label="Décaissements" value={formatAmount(f.decaissements)} sub="dépenses + avances" tone="neg" />
-      <Kpi label="Masse salariale" value={f.masseSalariale != null ? formatAmount(f.masseSalariale) : "—"} sub="sur la période" />
+      <Kpi label="Décaissements" value={formatAmount(f.decaissements)} sub="achats, dépenses, avances, paiements" tone="neg" />
+      {masse
+        ? <Kpi label="Masse salariale" value={formatAmount(masse.amount)} sub={`${masse.drivers} chauffeur${masse.drivers > 1 ? "s" : ""}, prorata inclus`} />
+        : <Kpi label="Masse salariale" value={f.masseSalariale != null ? formatAmount(f.masseSalariale) : "—"} sub="sur la période" />}
       <Kpi label="Marge après salaires" value={formatAmount(f.margeApresSalaires)} tone={f.margeApresSalaires >= 0 ? "pos" : "neg"} sub="net final" />
     </div>
   );

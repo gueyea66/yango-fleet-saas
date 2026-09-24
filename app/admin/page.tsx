@@ -44,7 +44,9 @@ import { DashboardV2, DashViewToggle, useDashView } from "@/components/v2/admin/
 import { PendingV2 } from "@/components/v2/admin/PendingV2";
 import { FinanceKpisV2, HistoryV2, TeamV2 } from "@/components/v2/admin/SectionsV2";
 import { VehiclesSignalV2 } from "@/components/v2/admin/VehiclesSignalV2";
-import { defaultPeriod, periodRange, parseAdminFilter, serializeAdminFilter, inRange, type AdminPeriod } from "@/lib/v2/periodFilter";
+import { defaultPeriod, periodRange, parseAdminFilter, serializeAdminFilter, inRange, periodLabel, type AdminPeriod } from "@/lib/v2/periodFilter";
+import { masseSalariale, paymentSalaryDate, recentMovements, salaryMonthOf, salaryRows, type SalaryAllocation, type SalaryRow } from "@/lib/v2/finance";
+import { CollapsedHistoryV2, MovementsV2, SalaryTableV2 } from "@/components/v2/admin/FinanceV2";
 import { useReportReview } from "@/components/admin/useReportReview";
 import { useExpenseReview } from "@/components/admin/useExpenseReview";
 import AiBriefingSection from "@/components/ai/AiBriefingSection";
@@ -194,7 +196,7 @@ export default function AdminPage() {
   }, [user, loading, router]);
 
   useEffect(() => {
-    if (user && adminTenantId && (tab === "history" || tab === "pending")) {
+    if (user && adminTenantId && (tab === "history" || tab === "pending" || (uiV2 && tab === "payments"))) {
       loadReports(filterDriverIds);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -870,10 +872,34 @@ export default function AdminPage() {
               <VehiclesSignalV2 />
               {tabContent}
             </div>
-          ) : tab === "payments" || tab === "avances" ? (
+          ) : tab === "payments" || tab === "avances" || tab === "finjournal" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-              <FinanceKpisV2 kpis={kpis} />
-              {tabContent}
+              <FinanceKpisV2
+                kpis={kpis}
+                masse={remunCfg ? { amount: masseSalariale(kpis.driverAllocations ?? [], remunCfg, calcDriverSalary), drivers: (kpis.driverAllocations ?? []).length } : null}
+              />
+              {tab === "payments" && adminTenantId ? (
+                <PaymentsTab
+                  filterDriverId={filterDriverId}
+                  filterDriverIds={filterDriverIds}
+                  tenantId={adminTenantId}
+                  v2={v2Range ? {
+                    range: v2Range,
+                    periodLabel: periodLabel(v2Period, new Date()),
+                    allocations: kpis.loading ? null : kpis.driverAllocations ?? [],
+                    cfg: remunCfg,
+                    reports,
+                    expenses,
+                    reportsLoading: loadingReports,
+                    nameOf: (id: string) => { const d = allDrivers.find((x) => x.id === id); return d?.full_name || d?.driver_id || "Chauffeur"; },
+                    onChanged: () => setKpiTick((t) => t + 1),
+                  } : undefined}
+                />
+              ) : tab === "avances" && adminTenantId ? (
+                <AvancesTab filterDriverId={filterDriverId} filterDriverIds={filterDriverIds} tenantId={adminTenantId} range={v2Range ?? undefined} />
+              ) : tab === "finjournal" ? (
+                <ActionLogsTab filterDriverId={filterDriverId} />
+              ) : null}
             </div>
           ) : tabContent}
         </AdminShellV2>
@@ -2803,7 +2829,23 @@ function MonthAccordion({
 }
 
 // ─── PAYMENTS TAB ─────────────────────────────────────
-function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId }: { filterDriverId?: string; filterDriverIds?: string[]; tenantId: string }) {
+function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId, v2 }: {
+  filterDriverId?: string;
+  filterDriverIds?: string[];
+  tenantId: string;
+  /** UI v2 : salaires de la période + derniers mouvements (affichage seul). */
+  v2?: {
+    range: { from: string; to: string };
+    periodLabel: string;
+    allocations: SalaryAllocation[] | null;
+    cfg: Record<string, unknown> | null;
+    reports: object[];
+    expenses: object[];
+    reportsLoading: boolean;
+    nameOf: (driverId: string) => string;
+    onChanged: () => void;
+  };
+}) {
   const [payments, setPayments] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2857,6 +2899,7 @@ function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId }: { filte
       setNewPaymentDriverId(form.driver_id);
       setForm((f) => ({ ...f, amount: "", notes: "" }));
       await load();
+      v2?.onChanged();
     } catch (err: any) { alert("Erreur : " + err.message); }
     finally { setSaving(false); }
   };
@@ -2866,6 +2909,15 @@ function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId }: { filte
     const supabase = createClient() as any;
     await supabase.from("payments").delete().eq("id", id);
     await load();
+    v2?.onChanged();
+  };
+
+  // v2 « Marquer payé » : ouvre le formulaire existant pré-rempli (même enregistrement).
+  const markPaid = (row: SalaryRow) => {
+    setNewPaymentId(null);
+    setForm((f) => ({ ...f, driver_id: row.driverId, amount: String(Math.round(row.reste)), payment_date: today, salary_month: v2 ? salaryMonthOf(v2.range) : f.salary_month, type: "salaire", notes: "" }));
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const typeBadge = (t: string) => {
@@ -2881,6 +2933,9 @@ function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId }: { filte
 
   // v2 : plusieurs chauffeurs → filtre côté écran sur la liste chargée (API inchangée).
   const filteredPayments = filterDriverIds && filterDriverIds.length > 1 ? payments.filter((p) => filterDriverIds.includes(p.driver_id)) : filterDriverId ? payments.filter((p) => p.driver_id === filterDriverId) : payments;
+
+  const v2Rows = v2 && v2.cfg && v2.allocations ? salaryRows(v2.allocations, v2.cfg, filteredPayments, v2.range, calcDriverSalary) : [];
+  const v2Moves = v2 ? recentMovements({ payments: filteredPayments, reports: v2.reports, expenses: v2.expenses, range: v2.range, nameOf: v2.nameOf }) : [];
 
   // Group by driver for totals
   const totByDriver = filteredPayments.reduce((acc: any, p) => {
@@ -2968,8 +3023,17 @@ function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId }: { filte
         </div>
       )}
 
+      {v2 && (
+        v2.cfg ? (
+          <SalaryTableV2 rows={v2Rows} loading={loading || !v2.allocations} periodLabel={v2.periodLabel} onMarkPaid={markPaid} />
+        ) : (
+          <div className="text-sm" style={{ color: "var(--sk-t3)" }}>Configurez la rémunération (Paramètres → Rémunération) pour voir les salaires dus.</div>
+        )
+      )}
+      {v2 && <MovementsV2 movements={v2Moves} loading={loading || v2.reportsLoading} />}
+
       {/* Totals by driver */}
-      {Object.keys(totByDriver).length > 0 && (
+      {!v2 && Object.keys(totByDriver).length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {Object.entries(totByDriver).map(([name, total]: [string, any]) => (
             <div key={name} className="rounded-xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderLeft: "3px solid #22c55e" }}>
@@ -2982,18 +3046,21 @@ function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId }: { filte
       )}
 
       {/* List — regroupée par mois, repliée sauf le mois le plus récent */}
-      {loading ? (
-        <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Chargement...</div>
-      ) : filteredPayments.length === 0 ? (
-        <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Aucun paiement enregistré</div>
-      ) : (
-        <MonthAccordion
-          groups={groupByMonth(filteredPayments, "salary_month")}
-          xof={xof}
-          emptyLabel="paiement"
-          renderItem={(p) => <PaymentRow key={p.id} payment={p} onDelete={() => deletePayment(p.id)} typeBadge={typeBadge} xof={xof} />}
-        />
-      )}
+      {(() => {
+        const history = loading ? (
+          <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Chargement...</div>
+        ) : filteredPayments.length === 0 ? (
+          <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Aucun paiement enregistré</div>
+        ) : (
+          <MonthAccordion
+            groups={groupByMonth(filteredPayments, "salary_month")}
+            xof={xof}
+            emptyLabel="paiement"
+            renderItem={(p) => <PaymentRow key={p.id} payment={p} onDelete={() => deletePayment(p.id)} typeBadge={typeBadge} xof={xof} />}
+          />
+        );
+        return v2 ? <CollapsedHistoryV2 title="Historique des paiements">{history}</CollapsedHistoryV2> : history;
+      })()}
     </div>
   );
 }
@@ -3108,7 +3175,7 @@ function PaymentRow({ payment: p, onDelete, typeBadge, xof }: { payment: any; on
 }
 
 // ─── AVANCES TAB ─────────────────────────────────────
-function AvancesTab({ filterDriverId = "", filterDriverIds, tenantId }: { filterDriverId?: string; filterDriverIds?: string[]; tenantId: string }) {
+function AvancesTab({ filterDriverId = "", filterDriverIds, tenantId, range }: { filterDriverId?: string; filterDriverIds?: string[]; tenantId: string; range?: { from: string; to: string } }) {
   const [advances, setAdvances] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3171,7 +3238,9 @@ function AvancesTab({ filterDriverId = "", filterDriverIds, tenantId }: { filter
     await load();
   };
 
-  const filteredAdvances = filterDriverIds && filterDriverIds.length > 1 ? advances.filter((a) => filterDriverIds.includes(a.driver_id)) : filterDriverId ? advances.filter((a) => a.driver_id === filterDriverId) : advances;
+  const advByDriver = filterDriverIds && filterDriverIds.length > 1 ? advances.filter((a) => filterDriverIds.includes(a.driver_id)) : filterDriverId ? advances.filter((a) => a.driver_id === filterDriverId) : advances;
+  // v2 : acomptes imputés sur la période de la barre de filtres (même règle que les KPIs).
+  const filteredAdvances = range ? advByDriver.filter((a) => inRange(paymentSalaryDate(a), range)) : advByDriver;
 
   // Group by driver
   const byDriver = drivers
