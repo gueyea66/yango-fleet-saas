@@ -43,6 +43,7 @@ import AdminShellV2 from "@/components/v2/admin/AdminShellV2";
 import { DashboardV2, DashViewToggle, useDashView } from "@/components/v2/admin/DashboardV2";
 import { PendingV2 } from "@/components/v2/admin/PendingV2";
 import { FinanceKpisV2, HistoryV2, TeamV2 } from "@/components/v2/admin/SectionsV2";
+import { VehiclesSignalV2 } from "@/components/v2/admin/VehiclesSignalV2";
 import { periodFromMonths, monthsForPeriod } from "@/lib/v2/adminNav";
 import { useReportReview } from "@/components/admin/useReportReview";
 import { useExpenseReview } from "@/components/admin/useExpenseReview";
@@ -72,6 +73,13 @@ export default function AdminPage() {
   const uiV2 = useUiV2(); // refonte UI v2 (drapeau tenant ou appareil)
   const [dashView, setDashView] = useDashView();
   const [tab, setTab] = useState("dashboard");
+  // Drapeau allumé : /admin?tab=… (liens depuis la coque v2 des pages suivi / boîtiers).
+  useEffect(() => {
+    if (!uiV2) return;
+    const t = new URLSearchParams(window.location.search).get("tab");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lecture de l'URL après montage
+    if (t) setTab(t);
+  }, [uiV2]);
   // Groupes repliables de la sidebar (ex. Config) — clé = label, valeur = ouvert ?
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [showAllZeros, setShowAllZeros] = useState(false); // audit UI : révéler les postes à zéro masqués
@@ -827,6 +835,11 @@ export default function AdminPage() {
               onRefresh={() => loadReports(filterDriverIds)}
               list={tabContent}
             />
+          ) : tab === "vehicles" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+              <VehiclesSignalV2 />
+              {tabContent}
+            </div>
           ) : tab === "payments" || tab === "avances" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
               <FinanceKpisV2 kpis={kpis} />

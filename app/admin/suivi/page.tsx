@@ -5,6 +5,8 @@ export const dynamic = "force-dynamic";
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
+import { useUiV2 } from "@/components/v2/useUiV2";
+import AdminFrameV2 from "@/components/v2/admin/AdminFrameV2";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
 import type { Map as LeafletMap, Polyline, CircleMarker, LayerGroup } from "leaflet";
 
@@ -195,6 +197,7 @@ const IconRestart = () => (
 export default function SuiviPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const uiV2 = useUiV2(); // refonte UI v2 : page affichée dans la coque v2
 
   const [date, setDate] = useState(today());
   const [vehicleId, setVehicleId] = useState<string | null>(null);
@@ -525,7 +528,7 @@ export default function SuiviPage() {
     (r) => r.day === data?.day && r.recette != null && !r.repos && r.rendement_exploitable,
   );
 
-  return (
+  const page = (
     <div className="min-h-screen bg-gray-900 p-4 sm:p-6">
       <div className="max-w-7xl mx-auto">
         <header className="mb-6">
@@ -1114,4 +1117,7 @@ export default function SuiviPage() {
       </div>
     </div>
   );
+
+  if (uiV2) return <AdminFrameV2 tab="suivi">{page}</AdminFrameV2>;
+  return page;
 }
