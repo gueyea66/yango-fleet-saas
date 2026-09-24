@@ -44,3 +44,14 @@ export function initials(name: string | null | undefined): string {
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 }
+
+/**
+ * Affichage d'une saisie numérique brute (« 41200 », « 12.5 ») groupée à la
+ * française (« 41 200 », « 12,5 ») sans changer la valeur stockée.
+ */
+export function groupInput(raw: string): string {
+  if (!raw) return "";
+  const [int, dec] = String(raw).split(".");
+  const grouped = int.replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
+  return dec !== undefined ? `${grouped},${dec}` : grouped;
+}

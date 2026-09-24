@@ -69,3 +69,21 @@ s'ils sont justifiés (contrainte technique ou métier) et documentés ici.
 - [x] Aucune écriture Supabase ajoutée (ui-guard)
 - [x] Drapeau OFF : 8 pages capturées, 0 px d'écart avec `main`
 - [x] `tsc` · 234 tests · build OK ; lint : 0 problème ajouté (774 préexistants sur `main`)
+
+### Étape 1 — App chauffeur (`Driver.dc.html`)
+| Écran / élément maquette | Implémenté | Écart / justification |
+|---|---|---|
+| Bottom nav 4 onglets 64 px, actif vert + indicateur 2 px | ✅ | `Tab` garde ses 7 valeurs (`bottomNavFor`) ; Profil masque la barre (2d) |
+| 1a Accueil : salutation, carte d'état + bouton 58 px, carte palier 4 niveaux, 3 raccourcis | ✅ | Aide « 2 captures… » seulement si l'extraction répond 200. Rapport rejeté : bandeau rouge « corrige et renvoie ». Modèles non-paliers : résumé du modèle |
+| 1b Captures : 3 tuiles, « Lire mes captures » dès 1 image, « Saisir à la main » | ✅ | Monté seulement si `GET /api/ai/extract-declaration` = 200 ; sinon formulaire direct |
+| 1c Vérification : bandeau net lu = calculé (vert) / ≠ (orange), « à vérifier » < 0,75, Hors Yango, Net du jour 26 mono | ✅ | Champs rares (commissions lues, services, courses hors, commentaire) repliés sous un lien. Date modifiable (comme aujourd'hui). Saisie manuelle : bandeau bleu |
+| 2a Rapport envoyé : pastille 72, net du jour, reste pour le palier | ✅ | |
+| 1d Dépense : grille 3 col. 64 px, montant 76 px / 34 mono, litres si Carburant, photo du reçu, « Envoyer X XOF » / « Indique un montant » | ✅ | Icône sur toutes les tuiles ; kilométrage, date et note conservés (champs existants) |
+| 2b Pilotage : il faut X / jour pendant N jours, moyenne, 4 tuiles, barres + objectif pointillé | ✅ | Tuile « Net validé » → « Net du mois » (le chiffre inclut les rapports en attente). Objectif = palier suivant (paliers) ou objectif du mois |
+| 2c Calendrier lundi-first, couleurs Validé/Attente/Rejeté/Repos, détail du jour, « Déclarer un jour de repos » | ✅ | Navigation mois précédent. Corrections : cartes actuelles (resoumettre / archiver) |
+| 2d Profil : documents KYC + Ajouter, thème, déconnexion | ✅ | **Rappel du soir** et **Mot de passe** masqués : aucune donnée / aucun parcours chauffeur existant. Infos personnelles et avances conservées |
+
+### Garanties étape 1
+- [x] Logique déplacée **telle quelle** vers `components/driver/*` (1229 lignes retirées de `app/driver/page.tsx`, 100 % retrouvées à l'identique) ; JSX de l'UI actuelle inchangé
+- [x] Aucune écriture ajoutée (ui-guard vs `main` et vs étape 0)
+- [x] Drapeau OFF : 0 px d'écart (pages accessibles sans session)

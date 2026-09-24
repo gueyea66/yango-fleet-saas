@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { House, ClipboardList, Receipt, Gauge, ScanLine, BedDouble, History, Check } from "lucide-react";
 import {
   Card, CardTitle, Overline, Stat, Segmented, ListRow, StatusDot, BottomNav, FilterBar,
@@ -9,6 +9,12 @@ import {
 import { useUiV2 } from "@/components/v2/useUiV2";
 import { formatAmount } from "@/lib/v2/format";
 import { periodRange, type FilterPeriod } from "@/lib/v2/filters";
+import DriverAppV2 from "@/components/v2/driver/DriverAppV2";
+import { DEFAULT_CFG } from "@/components/driver/shared";
+
+// Profil fictif : identifiants non-UUID → toute requête Supabase échoue côté
+// base (aucune lecture ni écriture possible). Sert à relire la mise en page.
+const DEMO_PROFILE = { id: "demo-chauffeur", driver_id: "DRV001", full_name: "Moussa Diop", role: "driver", tenant_id: "demo-tenant" };
 
 /**
  * Planche des composants partagés de la refonte v2 (étape 0) — sert à la
@@ -26,6 +32,16 @@ export default function UiV2Showcase() {
     { id: "d2", label: "Awa Ndiaye" },
     { id: "d3", label: "Ibrahima Fall" },
   ];
+
+  const [screen, setScreen] = useState<string | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lecture de l'URL après montage
+    setScreen(new URLSearchParams(window.location.search).get("ecran"));
+  }, []);
+
+  if (uiV2 && screen === "chauffeur") {
+    return <DriverAppV2 profile={DEMO_PROFILE} cfg={DEFAULT_CFG} onSignOut={() => {}} />;
+  }
 
   if (!uiV2) {
     return (
