@@ -25,7 +25,7 @@
 class Component extends DCLogic {
   renderVals() {
     const period = this.props.period ?? 'Mois';
-    const opts = this.props.periodOptions ?? ['Jour', '7 j', 'Mois', 'Année'];
+    const opts = this.props.periodOptions ?? ['Jour', '7 j', 'Mois', 'Année', 'Dates'];
     const periods = opts.map(l => ({ label: l, bg: l === period ? '#1e2330' : 'transparent', fg: l === period ? '#f0f2f7' : '#8b92a8', fw: l === period ? 600 : 400 }));
     const driver = this.props.driver ?? 'Tous les chauffeurs';
     const filtered = driver !== 'Tous les chauffeurs';
