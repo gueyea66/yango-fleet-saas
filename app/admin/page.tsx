@@ -28,7 +28,7 @@ import { useAuth } from "@/lib/auth/context";
 import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { useDashboardKPIs } from "@/lib/hooks/useDashboardKPIs";
+import { useDashboardKPIs, type DashboardKPIs } from "@/lib/hooks/useDashboardKPIs";
 import NotificationBell from "@/components/NotificationBell";
 import ThemeToggle from "@/components/ThemeToggle";
 import PushOnboarding from "@/components/PushOnboarding";
@@ -44,7 +44,8 @@ import { DashboardV2, DashViewToggle, useDashView } from "@/components/v2/admin/
 import { PendingV2 } from "@/components/v2/admin/PendingV2";
 import { FinanceKpisV2, HistoryV2, TeamV2 } from "@/components/v2/admin/SectionsV2";
 import { VehiclesSignalV2 } from "@/components/v2/admin/VehiclesSignalV2";
-import { defaultPeriod, periodRange, parseAdminFilter, serializeAdminFilter, inRange, periodLabel, type AdminPeriod } from "@/lib/v2/periodFilter";
+import { defaultPeriod, periodRange, monthRanges, parseAdminFilter, serializeAdminFilter, inRange, periodLabel, type AdminPeriod } from "@/lib/v2/periodFilter";
+import { mergeMonthlyKpis, mergeSalaryRows } from "@/lib/v2/multiMonth";
 import { masseSalariale, paymentSalaryDate, recentMovements, salaryMonthOf, salaryRows, type SalaryAllocation, type SalaryRow } from "@/lib/v2/finance";
 import { CollapsedHistoryV2, MovementsV2, SalaryTableV2 } from "@/components/v2/admin/FinanceV2";
 import { useReportReview } from "@/components/admin/useReportReview";
@@ -187,7 +188,26 @@ export default function AdminPage() {
   }, [uiV2, v2FiltersReady, v2Period, filterDriverIds]);
   // kpiTick : rafraîchit les KPIs après une validation depuis la file v2 (reste à 0 drapeau éteint)
   const [kpiTick, setKpiTick] = useState(0);
-  const kpis = useDashboardKPIs(periodFrom, periodTo, adminTenantId, filterDriverIds.length ? filterDriverIds : undefined, kpiTick);
+  // Plusieurs mois (v2) : useDashboardKPIs ne prend qu'une plage continue → un
+  // appel par mois (le 1er ici, les suivants dans <KpiMonthProbe>), additionnés
+  // côté écran par mergeMonthlyKpis. Un seul mois : comportement inchangé.
+  const v2Months = uiV2 ? monthRanges(v2Period, now) : null;
+  const multiMonth = !!v2Months && v2Months.length > 1;
+  const kpiDriverIds = filterDriverIds.length ? filterDriverIds : undefined;
+  const kpisFirst = useDashboardKPIs(multiMonth ? v2Months[0].from : periodFrom, multiMonth ? v2Months[0].to : periodTo, adminTenantId, kpiDriverIds, kpiTick);
+  const [extraKpis, setExtraKpis] = useState<Record<string, DashboardKPIs>>({});
+  const onMonthKpis = React.useCallback((from: string, k: DashboardKPIs) => setExtraKpis((s) => (s[from] === k ? s : { ...s, [from]: k })), []);
+  const kpisByMonth: DashboardKPIs[] = multiMonth
+    ? [kpisFirst, ...v2Months.slice(1).map((r) => extraKpis[r.from] ?? { ...kpisFirst, loading: true })]
+    : [kpisFirst];
+  const kpis = multiMonth ? mergeMonthlyKpis(kpisByMonth) : kpisFirst;
+  // Masse salariale projetée : calculée mois par mois (paliers, prorata) puis additionnée.
+  const v2Masse = remunCfg
+    ? {
+      amount: kpisByMonth.reduce((s, k) => s + masseSalariale(k.driverAllocations ?? [], remunCfg, calcDriverSalary), 0),
+      drivers: new Set(kpisByMonth.flatMap((k) => (k.driverAllocations ?? []).map((d) => d.driver_id))).size,
+    }
+    : null;
 
   useEffect(() => {
     if (!loading && !user) {
@@ -590,10 +610,10 @@ export default function AdminPage() {
                 )}
 
                 {/* Rémunération estimée — adaptatif selon modèle */}
-                {remunCfg && <RemunerationDashboardBlock kpis={kpis} cfg={remunCfg} />}
+                {remunCfg && !multiMonth && <RemunerationDashboardBlock kpis={kpis} cfg={remunCfg} />}
 
                 {/* Per-driver allocation */}
-                {kpis.driverAllocations.length > 0 && remunCfg && (
+                {kpis.driverAllocations.length > 0 && remunCfg && !multiMonth && (
                   <DriverAllocationsBlock allocations={kpis.driverAllocations} cfg={remunCfg} />
                 )}
 
@@ -803,6 +823,9 @@ export default function AdminPage() {
     return (
       <>
         <PushOnboarding role="admin" />
+        {multiMonth && v2Months.slice(1).map((r) => (
+          <KpiMonthProbe key={r.from} from={r.from} to={r.to} tenantId={adminTenantId} driverIds={kpiDriverIds} refreshKey={kpiTick} onResult={onMonthKpis} />
+        ))}
         <AdminShellV2
           tab={tab}
           onTab={setTab}
@@ -876,7 +899,7 @@ export default function AdminPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
               <FinanceKpisV2
                 kpis={kpis}
-                masse={remunCfg ? { amount: masseSalariale(kpis.driverAllocations ?? [], remunCfg, calcDriverSalary), drivers: (kpis.driverAllocations ?? []).length } : null}
+                masse={v2Masse}
               />
               {tab === "payments" && adminTenantId ? (
                 <PaymentsTab
@@ -886,7 +909,7 @@ export default function AdminPage() {
                   v2={v2Range ? {
                     range: v2Range,
                     periodLabel: periodLabel(v2Period, new Date()),
-                    allocations: kpis.loading ? null : kpis.driverAllocations ?? [],
+                    byMonth: kpis.loading || !v2Months ? null : v2Months.map((r, i) => ({ range: r, allocations: kpisByMonth[i].driverAllocations ?? [] })),
                     cfg: remunCfg,
                     reports,
                     expenses,
@@ -2829,6 +2852,16 @@ function MonthAccordion({
 }
 
 // ─── PAYMENTS TAB ─────────────────────────────────────
+/** Plusieurs mois (v2) : charge les KPIs d'un mois de plus et les remonte à la page. */
+function KpiMonthProbe({ from, to, tenantId, driverIds, refreshKey, onResult }: {
+  from: string; to: string; tenantId: string | null; driverIds?: string[]; refreshKey: number;
+  onResult: (from: string, k: DashboardKPIs) => void;
+}) {
+  const k = useDashboardKPIs(from, to, tenantId, driverIds, refreshKey);
+  useEffect(() => { onResult(from, k); }, [from, k, onResult]);
+  return null;
+}
+
 function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId, v2 }: {
   filterDriverId?: string;
   filterDriverIds?: string[];
@@ -2837,7 +2870,8 @@ function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId, v2 }: {
   v2?: {
     range: { from: string; to: string };
     periodLabel: string;
-    allocations: SalaryAllocation[] | null;
+    /** un élément par mois choisi (plusieurs mois : additionnés ligne à ligne) */
+    byMonth: { range: { from: string; to: string }; allocations: SalaryAllocation[] }[] | null;
     cfg: Record<string, unknown> | null;
     reports: object[];
     expenses: object[];
@@ -2913,9 +2947,11 @@ function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId, v2 }: {
   };
 
   // v2 « Marquer payé » : ouvre le formulaire existant pré-rempli (même enregistrement).
-  const markPaid = (row: SalaryRow) => {
+  const markPaid = (row: SalaryRow & { restByMonth?: { month: string; reste: number }[] }) => {
+    // plusieurs mois : le mois le plus récent qui reste dû (un paiement = un mois de salaire)
+    const target = row.restByMonth ? [...row.restByMonth].reverse().find((x) => x.reste > 0) : undefined;
     setNewPaymentId(null);
-    setForm((f) => ({ ...f, driver_id: row.driverId, amount: String(Math.round(row.reste)), payment_date: today, salary_month: v2 ? salaryMonthOf(v2.range) : f.salary_month, type: "salaire", notes: "" }));
+    setForm((f) => ({ ...f, driver_id: row.driverId, amount: String(Math.round(target ? target.reste : row.reste)), payment_date: today, salary_month: target ? `${target.month}-01` : v2 ? salaryMonthOf(v2.range) : f.salary_month, type: "salaire", notes: "" }));
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -2934,7 +2970,9 @@ function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId, v2 }: {
   // v2 : plusieurs chauffeurs → filtre côté écran sur la liste chargée (API inchangée).
   const filteredPayments = filterDriverIds && filterDriverIds.length > 1 ? payments.filter((p) => filterDriverIds.includes(p.driver_id)) : filterDriverId ? payments.filter((p) => p.driver_id === filterDriverId) : payments;
 
-  const v2Rows = v2 && v2.cfg && v2.allocations ? salaryRows(v2.allocations, v2.cfg, filteredPayments, v2.range, calcDriverSalary) : [];
+  const v2Rows = !v2 || !v2.cfg || !v2.byMonth ? []
+    : v2.byMonth.length === 1 ? salaryRows(v2.byMonth[0].allocations, v2.cfg, filteredPayments, v2.byMonth[0].range, calcDriverSalary)
+    : mergeSalaryRows(v2.byMonth.map((b) => ({ month: b.range.from.slice(0, 7), rows: salaryRows(b.allocations, v2.cfg, filteredPayments, b.range, calcDriverSalary) })));
   const v2Moves = v2 ? recentMovements({ payments: filteredPayments, reports: v2.reports, expenses: v2.expenses, range: v2.range, nameOf: v2.nameOf }) : [];
 
   // Group by driver for totals
@@ -3025,7 +3063,7 @@ function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId, v2 }: {
 
       {v2 && (
         v2.cfg ? (
-          <SalaryTableV2 rows={v2Rows} loading={loading || !v2.allocations} periodLabel={v2.periodLabel} onMarkPaid={markPaid} />
+          <SalaryTableV2 rows={v2Rows} loading={loading || !v2.byMonth} periodLabel={v2.periodLabel} onMarkPaid={markPaid} />
         ) : (
           <div className="text-sm" style={{ color: "var(--sk-t3)" }}>Configurez la rémunération (Paramètres → Rémunération) pour voir les salaires dus.</div>
         )
