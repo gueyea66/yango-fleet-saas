@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { PLAN_LIMITS, getTrialStatus, type Plan } from "@/lib/plans";
 import Dashboard from "./Dashboard";
 import BrandingEditor from "./BrandingEditor";
+import Onboarding from "./Onboarding";
 
 // Key is verified server-side via /api/superadmin/verify
 
@@ -34,7 +35,7 @@ export default function SuperAdminPage() {
   const [authed, setAuthed] = useState(false);
   const [key, setKey] = useState("");
   const [authError, setAuthError] = useState("");
-  const [activeTab, setActiveTab] = useState<"dashboard" | "clients" | "payments" | "imports" | "settings">("dashboard");
+  const [activeTab, setActiveTab] = useState<"dashboard" | "clients" | "onboarding" | "payments" | "imports" | "settings">("dashboard");
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [reportAddon, setReportAddon] = useState<Set<string>>(new Set());
   const [reportPremium, setReportPremium] = useState<Set<string>>(new Set());
@@ -307,7 +308,7 @@ export default function SuperAdminPage() {
 
         {/* Tabs */}
         <div style={{ display: "flex", gap: 4, marginBottom: 28, borderBottom: "0.5px solid var(--sk-surface)", paddingBottom: 0 }}>
-          {([["dashboard", "📊 Dashboard"], ["clients", "🏢 Clients"], ["payments", "💳 Paiements"], ["imports", "📥 Imports"], ["settings", "⚙ Paramètres"]] as const).map(([tab, label]) => (
+          {([["dashboard", "📊 Dashboard"], ["clients", "🏢 Clients"], ["onboarding", "🚀 Onboarding"], ["payments", "💳 Paiements"], ["imports", "📥 Imports"], ["settings", "⚙ Paramètres"]] as const).map(([tab, label]) => (
             <button key={tab} onClick={() => setActiveTab(tab)}
               style={{ background: "none", border: "none", padding: "8px 16px", cursor: "pointer", fontSize: 13, fontWeight: 600,
                 color: activeTab === tab ? "#f5a623" : "#6b7280",
@@ -320,6 +321,11 @@ export default function SuperAdminPage() {
 
         {/* Dashboard tab */}
         {activeTab === "dashboard" && <Dashboard superadminKey={key} />}
+
+        {/* Onboarding : la préparation d'un client, du premier échange à la
+            création de son espace. Point de saisie unique — ce qui est noté
+            ici n'est jamais ressaisi ailleurs. */}
+        {activeTab === "onboarding" && <Onboarding superadminKey={key} notify={notify} />}
 
         {/* Settings tab */}
         {activeTab === "settings" && (
