@@ -99,3 +99,14 @@ s'ils sont justifiés (contrainte technique ou métier) et documentés ici.
 | Période Jour / 7 j / Mois / Année | ⚠️ partiel | **Mois / Année** seulement : `useDashboardKPIs` raisonne en mois (`filterMonths`), Jour / 7 j demanderaient de toucher aux hooks |
 | Pages `/admin/drivers`, `/admin/suivi`, `/admin/boitiers`, `/admin/pilotage` | ⏭ | Sous-onglets qui ouvrent ces pages (encore en UI actuelle) — refondues aux étapes 5–6 |
 | Contenu des onglets | ⏭ | Inchangé à cette étape (déplacé tel quel dans `tabContent`), refondu aux étapes 3–6 |
+
+### Étape 3 — Tableau de bord (`Admin.dc.html` 2a / 2b)
+| Élément maquette | Implémenté | Écart / justification |
+|---|---|---|
+| Hero 3 cartes : Net final 34 mono vert + variation + marge, Total recettes (dont hors plateforme), Trésorerie nette | ✅ | Variation par jour ouvré, même règle que la `HeroCard` actuelle ; libellé « vs période précédente » (la période suit la FilterBar) |
+| « À valider » (`ValidationQueue` extraite de `SimpleModeAdmin`) | ✅ | `components/ValidationQueue.tsx` : écritures déplacées telles quelles, utilisées par le mode simple ET le tableau de bord. Bouton Valider + « Tout voir » ; « Examiner » / rejet dans À valider (étape 4). État vide « Tout est validé » |
+| Sous-titre « Lu sur captures · concorde » / « Écart km GPS » sur les lignes | ⏭ | Données d'extraction et GPS branchées à l'étape 4 (panneau de détail) |
+| Briefing du jour | ✅ | `AiBriefingSection` inchangé |
+| Coûts par poste : XOF, % du CA, % des coûts + mini-barre, ligne Total, `CAT_AVANCE` exclu | ✅ | `lib/v2/dashboard.ts` (testé) ; mêmes agrégats que la treemap (`expenseBreakdown`) |
+| Net par jour (net final sur brut) | ✅ | `kpis.dailyRows` |
+| Bascule Simple / Avancé (orange) | ✅ | Avancé = sections actuelles telles quelles. Préférence par appareil |

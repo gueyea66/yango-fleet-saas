@@ -40,6 +40,7 @@ import { BrandLogo } from "@/components/brand/BrandShell";
 import TrialBanner from "@/components/TrialBanner";
 import { useUiV2 } from "@/components/v2/useUiV2";
 import AdminShellV2 from "@/components/v2/admin/AdminShellV2";
+import { DashboardV2, DashViewToggle, useDashView } from "@/components/v2/admin/DashboardV2";
 import { periodFromMonths, monthsForPeriod } from "@/lib/v2/adminNav";
 import AiBriefingSection from "@/components/ai/AiBriefingSection";
 import { recomputeReportNet, DEFAULT_COMMISSION_RATE, DEFAULT_PARTNER_RATE } from "@/lib/reportNet";
@@ -66,6 +67,7 @@ export default function AdminPage() {
   const { settings } = useTenant();
   const router = useRouter();
   const uiV2 = useUiV2(); // refonte UI v2 (drapeau tenant ou appareil)
+  const [dashView, setDashView] = useDashView();
   const [tab, setTab] = useState("dashboard");
   // Groupes repliables de la sidebar (ex. Config) — clé = label, valeur = ouvert ?
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -151,7 +153,9 @@ export default function AdminPage() {
   const lastMonth = Math.max(...filterMonths);
   const lastDay = new Date(filterYear, lastMonth, 0).getDate();
   const periodTo = `${filterYear}-${String(lastMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-  const kpis = useDashboardKPIs(periodFrom, periodTo, adminTenantId, filterDriverIds.length ? filterDriverIds : undefined);
+  // kpiTick : rafraîchit les KPIs après une validation depuis la file v2 (reste à 0 drapeau éteint)
+  const [kpiTick, setKpiTick] = useState(0);
+  const kpis = useDashboardKPIs(periodFrom, periodTo, adminTenantId, filterDriverIds.length ? filterDriverIds : undefined, kpiTick);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -287,9 +291,8 @@ export default function AdminPage() {
   const tabs = tabGroups.flatMap((g) => g.items.map(([id, , label]) => [id, label]));
 
   // Contenu des onglets — partagé tel quel par l'UI actuelle et la coque v2.
-  const tabContent = (
-    <>
-        {tab === "dashboard" && (
+  // Tableau de bord actuel — vue « Avancé » de la v2, rendu identique drapeau éteint.
+  const dashboardContent = (
           <div className="space-y-8">
             {/* Couche IA V3 (additive) — rend null si AI_LAYER désactivé */}
             <AiBriefingSection />
@@ -567,7 +570,11 @@ export default function AdminPage() {
               </>
             )}
           </div>
-        )}
+  );
+
+  const tabContent = (
+    <>
+        {tab === "dashboard" && dashboardContent}
 
         {tab === "pending" && (
           <ReportList
@@ -775,6 +782,7 @@ export default function AdminPage() {
           onSignOut={() => signOut()}
           onReconnect={() => signOut()}
           advancedBack={resolvedUiMode === "simple" ? () => toggleUiAdvanced(false) : undefined}
+          headerRight={tab === "dashboard" ? <DashViewToggle view={dashView} onChange={setDashView} /> : undefined}
           filters={{
             period: periodFromMonths(filterMonths),
             onPeriodChange: (p) => setFilterMonths(monthsForPeriod(p, now.getMonth() + 1)),
@@ -784,7 +792,18 @@ export default function AdminPage() {
             onDriverChange: (id) => setFilterDriverIds(id ? [id] : []),
           }}
         >
-          {tabContent}
+          {tab === "dashboard" ? (
+            <DashboardV2
+              view={dashView}
+              kpis={kpis}
+              plat={plat}
+              tenantId={adminTenantId}
+              driverIds={filterDriverIds}
+              onKpisChanged={() => setKpiTick((t) => t + 1)}
+              onOpenValidation={() => setTab("pending")}
+              advanced={dashboardContent}
+            />
+          ) : tabContent}
         </AdminShellV2>
         {showImportModal && <ImportHistoriqueModal onClose={() => setShowImportModal(false)} />}
       </>

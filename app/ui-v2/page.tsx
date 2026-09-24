@@ -12,6 +12,7 @@ import { periodRange, type FilterPeriod } from "@/lib/v2/filters";
 import DriverAppV2 from "@/components/v2/driver/DriverAppV2";
 import { DEFAULT_CFG } from "@/components/driver/shared";
 import AdminShellV2 from "@/components/v2/admin/AdminShellV2";
+import { DashboardV2, DashViewToggle, useDashView } from "@/components/v2/admin/DashboardV2";
 
 // Profil fictif : identifiants non-UUID → toute requête Supabase échoue côté
 // base (aucune lecture ni écriture possible). Sert à relire la mise en page.
@@ -163,18 +164,40 @@ function AdminShellDemo() {
   const [period, setPeriod] = useState<FilterPeriod>("mois");
   const [driverId, setDriverId] = useState("");
   const range = periodRange(period, new Date());
+  const [view, setView] = useDashView();
   return (
     <AdminShellV2
       tab={tab} onTab={setTab} appName="M3A Fleet Manager" operatorName="M3A Group" userName="Abdou · Admin" tenantId="demo-tenant"
       sessionError={null} onSignOut={() => {}} onReconnect={() => {}}
+      headerRight={tab === "dashboard" ? <DashViewToggle view={view} onChange={setView} /> : undefined}
       filters={{
         period, onPeriodChange: setPeriod, range,
         drivers: [{ id: "d1", label: "Moussa Diop" }, { id: "d2", label: "Awa Ndiaye" }], driverId, onDriverChange: setDriverId,
       }}
     >
-      <Card style={{ minHeight: 320, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--v2-muted)", fontSize: 14 }}>
-        Contenu actuel de l&apos;onglet « {tab} » (inchangé à cette étape)
-      </Card>
+      {tab === "dashboard" ? (
+        <DashboardV2 view={view} kpis={DEMO_KPIS} plat="Yango" tenantId="demo-tenant" driverIds={[]} onKpisChanged={() => {}} onOpenValidation={() => setTab("pending")}
+          advanced={<Card style={{ minHeight: 200 }}>Sections actuelles (accordéons)</Card>} />
+      ) : (
+        <Card style={{ minHeight: 320, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--v2-muted)", fontSize: 14 }}>
+          Contenu actuel de l&apos;onglet « {tab} »
+        </Card>
+      )}
     </AdminShellV2>
   );
 }
+
+// Chiffres d'exemple de la maquette 2a (aucune donnée réelle).
+const DEMO_DAYS = Array.from({ length: 23 }, (_, i) => {
+  const brut = [62, 70, 0, 66, 74, 58, 69, 71, 0, 64, 60, 73, 68, 0, 75, 67, 63, 72, 0, 70, 65, 69, 66][i] * 1000;
+  return { date: `2026-09-${String(i + 1).padStart(2, "0")}`, brutYango: brut * 0.92, horsYango: brut * 0.08, netRecettes: brut * 0.84, depenses: brut * 0.12, netFinal: brut * 0.72, km: 0, solde: 0, nbCourses: 0 };
+});
+const DEMO_KPIS = {
+  loading: false, netFinal: 1214380, prevNetFinal: 1080000, joursOuvres: 19, prevJoursOuvres: 18, monthMarginPercent: 81.7,
+  brutYango: 1368200, horsYango: 118000, tresorerie: 962150, decaissements: 320000,
+  expenseBreakdown: [
+    { type: "Carburant", amount: 142300, percent: 52.4 }, { type: "Solde Yango", amount: 61500, percent: 22.6 },
+    { type: "Entretien", amount: 38000, percent: 14 }, { type: "Péage", amount: 18520, percent: 6.8 }, { type: "Lavage", amount: 11500, percent: 4.2 },
+  ],
+  dailyRows: DEMO_DAYS,
+} as unknown as Parameters<typeof DashboardV2>[0]["kpis"];

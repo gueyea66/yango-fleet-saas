@@ -33,7 +33,7 @@ export interface AdminShellFilters {
  * actuelle, passé en enfant sans modification.
  */
 export default function AdminShellV2({
-  tab, onTab, appName, operatorName, userName, tenantId, filters, sessionError, onSignOut, onReconnect, advancedBack, children,
+  tab, onTab, appName, operatorName, userName, tenantId, filters, sessionError, onSignOut, onReconnect, advancedBack, headerRight, children,
 }: {
   tab: string;
   onTab: (t: string) => void;
@@ -46,6 +46,7 @@ export default function AdminShellV2({
   onSignOut: () => void;
   onReconnect: () => void;
   advancedBack?: () => void;
+  headerRight?: ReactNode;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -199,6 +200,7 @@ export default function AdminShellV2({
                 onDriverChange={f.driver ? filters.onDriverChange : undefined}
               />
             )}
+            {headerRight}
           </div>
           {dest.subTabs.length > 1 && (
             <Segmented options={dest.subTabs.map((s) => ({ key: s.tab, label: s.label }))} value={tab} onChange={openSub} ariaLabel={`Sections — ${dest.label}`} style={{ alignSelf: "flex-start" }} />

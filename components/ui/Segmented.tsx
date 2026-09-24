@@ -12,7 +12,7 @@ export interface SegmentOption<K extends string> {
  * segment actif fond --sk-surface, texte t1/600 ; inactif t2.
  */
 export function Segmented<K extends string>({
-  options, value, onChange, size = "desktop", ariaLabel, style,
+  options, value, onChange, size = "desktop", ariaLabel, style, brand = false,
 }: {
   options: SegmentOption<K>[];
   value: K;
@@ -20,6 +20,8 @@ export function Segmented<K extends string>({
   size?: "desktop" | "mobile";
   ariaLabel?: string;
   style?: CSSProperties;
+  /** segment actif en couleur de marque (bascule Simple / Avancé) */
+  brand?: boolean;
 }) {
   const mobile = size === "mobile";
   return (
@@ -55,8 +57,8 @@ export function Segmented<K extends string>({
               cursor: "pointer",
               fontSize: 13,
               fontWeight: active ? 600 : 400,
-              background: active ? "var(--sk-surface)" : "transparent",
-              color: active ? "var(--sk-t1)" : "var(--sk-t2)",
+              background: active ? (brand ? "var(--tenant-color)" : "var(--sk-surface)") : "transparent",
+              color: active ? (brand ? "var(--sk-deep)" : "var(--sk-t1)") : "var(--sk-t2)",
             }}
           >
             {o.label}
