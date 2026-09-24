@@ -44,8 +44,10 @@ const CELL: Record<Exclude<DayStatus, null>, { bg: string; bd: string; label: st
   repos: { bg: "var(--sk-surface)", bd: "var(--sk-border)", label: "Repos" },
 };
 
-export function HistoryV2({ reports, drivers, loading, onRefresh, list }: {
+export function HistoryV2({ reports, drivers, loading, onRefresh, list, month }: {
   reports: any[];
+  /** mois de la barre de filtres (AAAA-MM) : la grille s'y place */
+  month?: string;
   drivers: { id: string; full_name?: string; driver_id?: string }[];
   loading: boolean;
   onRefresh: () => void;
@@ -53,7 +55,13 @@ export function HistoryV2({ reports, drivers, loading, onRefresh, list }: {
 }) {
   const [view, setView] = useState<"grille" | "liste">("grille");
   const now = new Date();
-  const [ym, setYm] = useState({ y: now.getFullYear(), m: now.getMonth() });
+  const [ym, setYm] = useState(() => (month ? { y: Number(month.slice(0, 4)), m: Number(month.slice(5, 7)) - 1 } : { y: now.getFullYear(), m: now.getMonth() }));
+  // Suit le mois choisi dans la barre de filtres.
+  const [lastMonth, setLastMonth] = useState(month);
+  if (month && month !== lastMonth) {
+    setLastMonth(month);
+    setYm({ y: Number(month.slice(0, 4)), m: Number(month.slice(5, 7)) - 1 });
+  }
   const [sel, setSel] = useState<{ driver: string; date: string } | null>(null);
   const grid = useMemo(() => driverDayGrid(reports, ym.y, ym.m), [reports, ym]);
   const shift = (d: number) => setYm(({ y, m }) => { const t = new Date(y, m + d, 1); return { y: t.getFullYear(), m: t.getMonth() }; });

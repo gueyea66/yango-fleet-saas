@@ -44,7 +44,7 @@ import { DashboardV2, DashViewToggle, useDashView } from "@/components/v2/admin/
 import { PendingV2 } from "@/components/v2/admin/PendingV2";
 import { FinanceKpisV2, HistoryV2, TeamV2 } from "@/components/v2/admin/SectionsV2";
 import { VehiclesSignalV2 } from "@/components/v2/admin/VehiclesSignalV2";
-import { periodFromMonths, monthsForPeriod } from "@/lib/v2/adminNav";
+import { defaultPeriod, periodRange, parseAdminFilter, serializeAdminFilter, inRange, type AdminPeriod } from "@/lib/v2/periodFilter";
 import { useReportReview } from "@/components/admin/useReportReview";
 import { useExpenseReview } from "@/components/admin/useExpenseReview";
 import AiBriefingSection from "@/components/ai/AiBriefingSection";
@@ -160,10 +160,29 @@ export default function AdminPage() {
   const now = new Date();
   const [filterYear, setFilterYear] = useState(now.getFullYear());
   const [filterMonths, setFilterMonths] = useState<number[]>([now.getMonth() + 1]);
-  const periodFrom = `${filterYear}-${String(Math.min(...filterMonths)).padStart(2, "0")}-01`;
+  // Drapeau allumé : période v2 (jour, 7 j, mois choisi, année, plage) → mêmes
+  // dateFrom / dateTo pour useDashboardKPIs. Drapeau éteint : calcul actuel.
+  const [v2Period, setV2Period] = useState<AdminPeriod>(() => defaultPeriod(now));
+  const [v2FiltersReady, setV2FiltersReady] = useState(false);
+  const v2Range = uiV2 ? periodRange(v2Period, now) : null;
+  const periodFrom = v2Range ? v2Range.from : `${filterYear}-${String(Math.min(...filterMonths)).padStart(2, "0")}-01`;
   const lastMonth = Math.max(...filterMonths);
   const lastDay = new Date(filterYear, lastMonth, 0).getDate();
-  const periodTo = `${filterYear}-${String(lastMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  const periodTo = v2Range ? v2Range.to : `${filterYear}-${String(lastMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  // État des filtres v2 dans l'URL (?p=mois&m=2026-09, ?p=dates&du=…&au=…, &d=id1,id2) : lu au montage, réécrit à chaque choix.
+  useEffect(() => {
+    if (!uiV2) return;
+    const f = parseAdminFilter(window.location.search, new Date());
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lecture de l'URL après montage
+    setV2Period(f.period);
+    if (f.drivers.length) setFilterDriverIds(f.drivers);
+    setV2FiltersReady(true);
+  }, [uiV2]);
+  useEffect(() => {
+    if (!uiV2 || !v2FiltersReady) return;
+    const q = serializeAdminFilter(v2Period, filterDriverIds, window.location.search);
+    window.history.replaceState(null, "", `${window.location.pathname}?${q}`);
+  }, [uiV2, v2FiltersReady, v2Period, filterDriverIds]);
   // kpiTick : rafraîchit les KPIs après une validation depuis la file v2 (reste à 0 drapeau éteint)
   const [kpiTick, setKpiTick] = useState(0);
   const kpis = useDashboardKPIs(periodFrom, periodTo, adminTenantId, filterDriverIds.length ? filterDriverIds : undefined, kpiTick);
@@ -721,9 +740,9 @@ export default function AdminPage() {
           </div>
         )}
 
-        {tab === "calendrier" && <CalendrierTab filterDriverId={filterDriverId} allDrivers={allDrivers} />}
-        {tab === "payments" && adminTenantId && <PaymentsTab filterDriverId={filterDriverId} tenantId={adminTenantId} />}
-        {tab === "avances" && adminTenantId && <AvancesTab filterDriverId={filterDriverId} tenantId={adminTenantId} />}
+        {tab === "calendrier" && <CalendrierTab filterDriverId={filterDriverId} filterDriverIds={uiV2 ? filterDriverIds : undefined} allDrivers={allDrivers} />}
+        {tab === "payments" && adminTenantId && <PaymentsTab filterDriverId={filterDriverId} filterDriverIds={uiV2 ? filterDriverIds : undefined} tenantId={adminTenantId} />}
+        {tab === "avances" && adminTenantId && <AvancesTab filterDriverId={filterDriverId} filterDriverIds={uiV2 ? filterDriverIds : undefined} tenantId={adminTenantId} />}
         {tab === "pilotage" && (
           <div className="text-center py-12">
             <div className="flex justify-center mb-3"><Gauge size={40} strokeWidth={1.6} style={{ color: "var(--tenant-color)" }} /></div>
@@ -795,12 +814,11 @@ export default function AdminPage() {
           advancedBack={resolvedUiMode === "simple" ? () => toggleUiAdvanced(false) : undefined}
           headerRight={tab === "dashboard" ? <DashViewToggle view={dashView} onChange={setDashView} /> : undefined}
           filters={{
-            period: periodFromMonths(filterMonths),
-            onPeriodChange: (p) => setFilterMonths(monthsForPeriod(p, now.getMonth() + 1)),
-            range: { from: periodFrom, to: periodTo },
-            drivers: allDrivers.map((d) => ({ id: d.id, label: d.full_name || d.driver_id })),
-            driverId: filterDriverId,
-            onDriverChange: (id) => setFilterDriverIds(id ? [id] : []),
+            period: v2Period,
+            onPeriodChange: setV2Period,
+            drivers: allDrivers.map((d) => ({ id: d.id, label: d.full_name || d.driver_id, plate: d.plate, active: d.active })),
+            driverIds: filterDriverIds,
+            onDriverIdsChange: setFilterDriverIds,
           }}
         >
           {tab === "dashboard" ? (
@@ -810,14 +828,15 @@ export default function AdminPage() {
               plat={plat}
               tenantId={adminTenantId}
               driverIds={filterDriverIds}
+              range={v2Range ?? undefined}
               onKpisChanged={() => setKpiTick((t) => t + 1)}
               onOpenValidation={() => setTab("pending")}
               advanced={dashboardContent}
             />
           ) : tab === "pending" ? (
             <PendingV2
-              reports={reports.filter((r) => r.status === "submitted")}
-              expenses={expenses.filter((e) => (e.status || "submitted") === "submitted")}
+              reports={reports.filter((r) => r.status === "submitted" && (!v2Range || inRange(r.date, v2Range)))}
+              expenses={expenses.filter((e) => (e.status || "submitted") === "submitted" && (!v2Range || inRange(e.expense_date || e.created_at, v2Range)))}
               loading={loadingReports}
               onRefresh={() => loadReports(filterDriverIds)}
             />
@@ -833,7 +852,18 @@ export default function AdminPage() {
               drivers={filterDriverIds.length ? allDrivers.filter((d) => filterDriverIds.includes(d.id)) : allDrivers}
               loading={loadingReports}
               onRefresh={() => loadReports(filterDriverIds)}
-              list={tabContent}
+              month={v2Range ? v2Range.to.slice(0, 7) : undefined}
+              list={
+                <ReportList
+                  reports={v2Range ? reports.filter((r) => inRange(r.date, v2Range)) : reports}
+                  expenses={v2Range ? expenses.filter((e) => inRange(e.expense_date || e.created_at, v2Range)) : expenses}
+                  loading={loadingReports}
+                  emptyMsg="Aucun rapport sur la période"
+                  title="Tous les rapports"
+                  onRefresh={() => loadReports(filterDriverIds)}
+                  groupByMonth
+                />
+              }
             />
           ) : tab === "vehicles" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
@@ -2773,7 +2803,7 @@ function MonthAccordion({
 }
 
 // ─── PAYMENTS TAB ─────────────────────────────────────
-function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: string; tenantId: string }) {
+function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId }: { filterDriverId?: string; filterDriverIds?: string[]; tenantId: string }) {
   const [payments, setPayments] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -2849,7 +2879,8 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
     return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize" style={{ color, background: bg }}>{t}</span>;
   };
 
-  const filteredPayments = filterDriverId ? payments.filter((p) => p.driver_id === filterDriverId) : payments;
+  // v2 : plusieurs chauffeurs → filtre côté écran sur la liste chargée (API inchangée).
+  const filteredPayments = filterDriverIds && filterDriverIds.length > 1 ? payments.filter((p) => filterDriverIds.includes(p.driver_id)) : filterDriverId ? payments.filter((p) => p.driver_id === filterDriverId) : payments;
 
   // Group by driver for totals
   const totByDriver = filteredPayments.reduce((acc: any, p) => {
@@ -3077,7 +3108,7 @@ function PaymentRow({ payment: p, onDelete, typeBadge, xof }: { payment: any; on
 }
 
 // ─── AVANCES TAB ─────────────────────────────────────
-function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string; tenantId: string }) {
+function AvancesTab({ filterDriverId = "", filterDriverIds, tenantId }: { filterDriverId?: string; filterDriverIds?: string[]; tenantId: string }) {
   const [advances, setAdvances] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3140,7 +3171,7 @@ function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string
     await load();
   };
 
-  const filteredAdvances = filterDriverId ? advances.filter((a) => a.driver_id === filterDriverId) : advances;
+  const filteredAdvances = filterDriverIds && filterDriverIds.length > 1 ? advances.filter((a) => filterDriverIds.includes(a.driver_id)) : filterDriverId ? advances.filter((a) => a.driver_id === filterDriverId) : advances;
 
   // Group by driver
   const byDriver = drivers
@@ -3304,7 +3335,7 @@ function AdvanceRow({
 }
 
 // ─── CALENDRIER TAB ───────────────────────────────────
-function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string; allDrivers: any[] }) {
+function CalendrierTab({ filterDriverId, filterDriverIds, allDrivers }: { filterDriverId: string; filterDriverIds?: string[]; allDrivers: any[] }) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth()); // 0-indexed
@@ -3342,7 +3373,7 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
   const startPad = (firstDow + 6) % 7; // Mon-first
   const days = Array.from({ length: lastDay }, (_, i) => i + 1);
 
-  const drivers = filterDriverId ? allDrivers.filter(d => d.id === filterDriverId) : allDrivers;
+  const drivers = filterDriverIds && filterDriverIds.length > 1 ? allDrivers.filter(d => filterDriverIds.includes(d.id)) : filterDriverId ? allDrivers.filter(d => d.id === filterDriverId) : allDrivers;
 
   const eventsForDay = (day: number) => {
     const dateStr = `${monthStr}-${String(day).padStart(2, "0")}`;

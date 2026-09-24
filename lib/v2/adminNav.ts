@@ -26,7 +26,7 @@ export interface DestinationDef {
 
 export const ADMIN_DESTINATIONS: DestinationDef[] = [
   { key: "dash", label: "Tableau de bord", subTabs: [{ tab: "dashboard", label: "Tableau de bord" }], filter: { period: true, driver: true } },
-  { key: "valid", label: "À valider", subTabs: [{ tab: "pending", label: "À valider" }], filter: { driver: true } },
+  { key: "valid", label: "À valider", subTabs: [{ tab: "pending", label: "À valider" }], filter: { period: true, driver: true } },
   { key: "pilot", label: "Pilotage", subTabs: [{ tab: "pilotage", label: "Pilotage" }], filter: {} },
   {
     key: "fleet", label: "Véhicules", filter: {},
@@ -51,7 +51,7 @@ export const ADMIN_DESTINATIONS: DestinationDef[] = [
     ],
   },
   {
-    key: "hist", label: "Historique", secondary: true, filter: { driver: true },
+    key: "hist", label: "Historique", secondary: true, filter: { period: true, driver: true },
     subTabs: [
       { tab: "history", label: "Calendrier" },
       { tab: "calendrier", label: "Planning" },

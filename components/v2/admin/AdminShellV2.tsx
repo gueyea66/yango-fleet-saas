@@ -7,9 +7,10 @@ import {
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import NotificationBell from "@/components/NotificationBell";
-import { CountBadge, FilterBar, Segmented, type FilterDriver } from "@/components/ui";
+import { CountBadge, Segmented } from "@/components/ui";
+import { PeriodFilter, DriverMultiSelect, type DriverOption } from "@/components/ui/PeriodFilter";
+import type { AdminPeriod } from "@/lib/v2/periodFilter";
 import { ADMIN_DESTINATIONS, destinationFor, entryTab, type AdminDestination } from "@/lib/v2/adminNav";
-import type { FilterPeriod } from "@/lib/v2/filters";
 import { initials } from "@/lib/v2/format";
 import { useAdminShellData } from "./useAdminShellData";
 
@@ -18,12 +19,11 @@ const ICONS: Record<AdminDestination, LucideIcon> = {
 };
 
 export interface AdminShellFilters {
-  period?: FilterPeriod;
-  onPeriodChange?: (p: FilterPeriod) => void;
-  range?: { from: string; to: string };
-  drivers: FilterDriver[];
-  driverId: string;
-  onDriverChange: (id: string) => void;
+  period?: AdminPeriod;
+  onPeriodChange?: (p: AdminPeriod) => void;
+  drivers: DriverOption[];
+  driverIds: string[];
+  onDriverIdsChange: (ids: string[]) => void;
 }
 
 /**
@@ -80,7 +80,8 @@ export default function AdminShellV2({
 
   const trialVisible = trial && trial.status.state === "warning";
   const f = dest.filter;
-  const showFilters = (f.period || f.dates || f.driver) && filters.drivers.length > 0;
+  const showPeriod = !!(f.period && filters.period && filters.onPeriodChange);
+  const showDrivers = !!f.driver && filters.drivers.length > 0;
 
   const navItem = (d: (typeof ADMIN_DESTINATIONS)[number]) => {
     const Icon = ICONS[d.key];
@@ -189,16 +190,11 @@ export default function AdminShellV2({
         <div style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 18 }} className="max-lg:p-4!">
           <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
             <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: "-.01em", margin: 0, flex: "1 1 auto" }}>{dest.label}</h1>
-            {showFilters && (
-              <FilterBar
-                period={f.period ? filters.period : undefined}
-                onPeriodChange={f.period ? filters.onPeriodChange : undefined}
-                periodOptions={["mois", "annee"]}
-                range={f.period || f.dates ? filters.range : undefined}
-                drivers={f.driver ? filters.drivers : undefined}
-                driverId={filters.driverId}
-                onDriverChange={f.driver ? filters.onDriverChange : undefined}
-              />
+            {(showPeriod || showDrivers) && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                {showPeriod && <PeriodFilter value={filters.period!} onChange={filters.onPeriodChange!} />}
+                {showDrivers && <DriverMultiSelect drivers={filters.drivers} value={filters.driverIds} onChange={filters.onDriverIdsChange} />}
+              </div>
             )}
             {headerRight}
           </div>
