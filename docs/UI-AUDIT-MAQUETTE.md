@@ -87,3 +87,15 @@ s'ils sont justifiés (contrainte technique ou métier) et documentés ici.
 - [x] Logique déplacée **telle quelle** vers `components/driver/*` (1229 lignes retirées de `app/driver/page.tsx`, 100 % retrouvées à l'identique) ; JSX de l'UI actuelle inchangé
 - [x] Aucune écriture ajoutée (ui-guard vs `main` et vs étape 0)
 - [x] Drapeau OFF : 0 px d'écart (pages accessibles sans session)
+
+### Étape 2 — Coque gestionnaire (`Admin Sidebar.dc.html`, `Filter Bar.dc.html`)
+| Élément maquette | Implémenté | Écart / justification |
+|---|---|---|
+| Sidebar 224 px, logo 32, 6 destinations + séparateur + Historique / Paramètres, actif `rgba(245,166,35,.12)` | ✅ | Identifiants d'onglets inchangés ; chaque destination affiche ses anciens onglets en sous-onglets (`lib/v2/adminNav.ts`, testé : aucun onglet perdu) |
+| Badge compteur « À valider » orange | ✅ | Compte des rapports + dépenses `submitted` (lecture `count`) |
+| Carte d'essai + « Renouveler » vert en bas de sidebar (remplace `TrialBanner`) | ✅ | Affichée à J-14 comme la bannière ; orange à J-3. Lien `/paiement` inchangé |
+| Utilisateur en bas de sidebar | ✅ | + thème et déconnexion (existants) |
+| Filtre « Vue : Tous / chauffeur » → menu déroulant dans l'en-tête | ✅ | FilterBar : un chauffeur (la multi-sélection actuelle reste dans l'UI OFF) |
+| Période Jour / 7 j / Mois / Année | ⚠️ partiel | **Mois / Année** seulement : `useDashboardKPIs` raisonne en mois (`filterMonths`), Jour / 7 j demanderaient de toucher aux hooks |
+| Pages `/admin/drivers`, `/admin/suivi`, `/admin/boitiers`, `/admin/pilotage` | ⏭ | Sous-onglets qui ouvrent ces pages (encore en UI actuelle) — refondues aux étapes 5–6 |
+| Contenu des onglets | ⏭ | Inchangé à cette étape (déplacé tel quel dans `tabContent`), refondu aux étapes 3–6 |

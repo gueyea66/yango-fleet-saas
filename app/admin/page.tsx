@@ -38,6 +38,9 @@ import SimpleModeAdmin from "@/components/SimpleModeAdmin";
 import { setPlatformLabel, platLabel, displayLabel } from "@/lib/tenant/platformLabel";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import TrialBanner from "@/components/TrialBanner";
+import { useUiV2 } from "@/components/v2/useUiV2";
+import AdminShellV2 from "@/components/v2/admin/AdminShellV2";
+import { periodFromMonths, monthsForPeriod } from "@/lib/v2/adminNav";
 import AiBriefingSection from "@/components/ai/AiBriefingSection";
 import { recomputeReportNet, DEFAULT_COMMISSION_RATE, DEFAULT_PARTNER_RATE } from "@/lib/reportNet";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
@@ -62,6 +65,7 @@ export default function AdminPage() {
   const { user, loading, signOut } = useAuth();
   const { settings } = useTenant();
   const router = useRouter();
+  const uiV2 = useUiV2(); // refonte UI v2 (drapeau tenant ou appareil)
   const [tab, setTab] = useState("dashboard");
   // Groupes repliables de la sidebar (ex. Config) — clé = label, valeur = ouvert ?
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
@@ -282,205 +286,9 @@ export default function AdminPage() {
   ];
   const tabs = tabGroups.flatMap((g) => g.items.map(([id, , label]) => [id, label]));
 
-  return (
-    <div className="min-h-screen flex" style={{ background: "var(--sk-deep)" }}>
-      <PushOnboarding role="admin" />
-
-      {/* ── SIDEBAR DESKTOP (lg+) ── */}
-      <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-full z-50"
-        style={{ width: 220, background: "var(--sk-bg)", borderRight: "1px solid var(--sk-surface)" }}>
-        {/* Logo */}
-        <div className="px-5 py-5 border-b" style={{ borderColor: "var(--sk-surface)" }}>
-          <div className="flex items-center gap-2.5">
-            <BrandLogo size={32} />
-            <div>
-              <div className="font-bold text-white text-sm">{settings.app_name}</div>
-              <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>{settings.operator_name || "Powered by M3A Solution"}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Nav items grouped */}
-        <nav className="flex-1 px-3 py-4 overflow-y-auto">
-          {tabGroups.map((group) => {
-            const collapsible = (group as any).collapsible;
-            const activeInside = group.items.some(([id]: any) => id === tab);
-            const open = collapsible ? (openGroups[group.label] ?? activeInside) : true;
-            return (
-            <div key={group.label} className="mb-4">
-              {collapsible ? (
-                <button onClick={() => setOpenGroups((s) => ({ ...s, [group.label]: !open }))}
-                  className="w-full px-3 mb-1 flex items-center justify-between text-[9px] uppercase tracking-[0.12em] font-bold transition-colors"
-                  style={{ color: "var(--sk-t4)" }}>
-                  <span>{group.label}</span>
-                  <span className="text-[10px] transition-transform" style={{ transform: open ? "rotate(180deg)" : "none" }}>▾</span>
-                </button>
-              ) : (
-                <div className="px-3 mb-1 text-[9px] uppercase tracking-[0.12em] font-bold" style={{ color: "var(--sk-t4)" }}>{group.label}</div>
-              )}
-              {open && (
-              <div className="space-y-0.5">
-                {group.items.map(([id, icon, label]) => (
-                  <button key={id} onClick={() => NAV_ROUTES[id] ? router.push(NAV_ROUTES[id]) : setTab(id)} className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150 flex items-center gap-2.5 hover:translate-x-0.5"
-                    style={{
-                      background: tab === id ? "rgba(var(--tenant-color-rgb),.12)" : "transparent",
-                      color: tab === id ? "var(--tenant-color)" : "var(--sk-t2)",
-                      border: `1px solid ${tab === id ? "rgba(var(--tenant-color-rgb),.2)" : "transparent"}`,
-                    }}
-                    onMouseEnter={(e) => { if (tab !== id) { e.currentTarget.style.background = "rgba(255,255,255,.045)"; e.currentTarget.style.color = "#fff"; } }}
-                    onMouseLeave={(e) => { if (tab !== id) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--sk-t2)"; } }}>
-                    {(() => { const I = NAV_ICONS[id]; return I
-                      ? <I size={16} strokeWidth={1.75} className="flex-shrink-0" />
-                      : <span className="text-sm leading-none w-4 text-center flex-shrink-0">{icon}</span>; })()}
-                    <span className="truncate">{label}</span>
-                  </button>
-                ))}
-              </div>
-              )}
-            </div>
-          );})}
-
-          {/* Retour au mode simple (tenants ui_mode='simple' passés en avancé) */}
-          {resolvedUiMode === "simple" && (
-            <button onClick={() => toggleUiAdvanced(false)}
-              className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2.5 mt-2"
-              style={{ color: "var(--sk-t3)", border: "1px dashed var(--sk-surface)" }}>
-              ← Revenir au mode simple
-            </button>
-          )}
-        </nav>
-
-        {/* User + logout */}
-        <div className="px-3 py-4 border-t" style={{ borderColor: "var(--sk-surface)" }}>
-          <div className="px-3 py-2 rounded-xl flex items-center justify-between" style={{ background: "var(--sk-surface)" }}>
-            <div className="min-w-0">
-              <div className="text-xs font-semibold text-white mb-0.5 truncate">
-                {user?.user_metadata?.full_name || user?.email || "Admin"}
-              </div>
-              <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Administrateur</div>
-            </div>
-            <div className="flex items-center">
-              <ThemeToggle />
-              <NotificationBell />
-            </div>
-          </div>
-          <button onClick={() => signOut()} className="w-full mt-2 text-xs px-3 py-2 rounded-xl text-left font-medium transition-all"
-            style={{ color: "#ef4444", background: "transparent" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239,68,68,.08)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-            ⎋ Déconnexion
-          </button>
-        </div>
-      </aside>
-
-      {/* ── TOP BAR MOBILE (< lg) ── */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between"
-        style={{ background: "var(--sk-bg)", borderBottom: "1px solid var(--sk-surface)", backdropFilter: "blur(12px)" }}>
-        <div className="flex items-center gap-2">
-          <BrandLogo size={28} />
-          <span className="font-bold text-white text-sm">{settings.app_name}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-          <NotificationBell />
-          <button onClick={() => signOut()} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>
-            Déconnexion
-          </button>
-        </div>
-      </div>
-
-      {/* ── MOBILE NAV TABS ── */}
-      <div className="lg:hidden fixed top-12 left-0 right-0 z-40 flex items-center gap-0 overflow-x-auto"
-        style={{ background: "var(--sk-bg)", borderBottom: "1px solid var(--sk-surface)" }}>
-        {tabGroups.map((group, gi) => (
-          <React.Fragment key={group.label}>
-            {gi > 0 && <div className="flex-shrink-0 w-px h-6 mx-1" style={{ background: "var(--sk-surface)" }} />}
-            {group.items.map(([id, icon]) => (
-              <button key={id} onClick={() => NAV_ROUTES[id] ? router.push(NAV_ROUTES[id]) : setTab(id)}
-                className="flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium"
-                style={{ color: tab === id ? "var(--tenant-color)" : "var(--sk-t3)", borderBottom: tab === id ? "2px solid var(--tenant-color)" : "2px solid transparent" }}>
-                {(() => { const I = NAV_ICONS[id]; return I
-                  ? <I size={18} strokeWidth={1.75} />
-                  : <span className="text-base leading-none">{icon}</span>; })()}
-              </button>
-            ))}
-          </React.Fragment>
-        ))}
-        {resolvedUiMode === "simple" && (
-          <button onClick={() => toggleUiAdvanced(false)}
-            className="flex-shrink-0 px-3 py-2 text-[10px] font-semibold"
-            style={{ color: "var(--sk-t3)" }}>
-            ← Simple
-          </button>
-        )}
-      </div>
-
-      {/* ── MAIN CONTENT ── */}
-      {/* min-w-0 : sans lui, un tableau large (nowrap) élargit toute la page sur mobile */}
-      <main className="flex-1 min-w-0 min-h-screen" style={{ marginLeft: 0 }}>
-        <div className="lg:hidden" style={{ height: 88 }} /> {/* mobile header offset */}
-        <div className="lg:pl-[220px]">
-        <div className="p-6 lg:p-10 w-full max-w-none" style={{ background: "var(--sk-deep)", minHeight: "100vh" }}>
-
-        {/* Expiration essai / abonnement */}
-        <TrialBanner />
-
-        {/* Session error banner */}
-        {sessionError && (
-          <div style={{ background: "#2d1515", border: "1px solid #c53030", borderRadius: 12, padding: "14px 18px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <AlertTriangle size={19} strokeWidth={2} style={{ color: "var(--tenant-color)" }} />
-              <div>
-                <div style={{ color: "#fc8181", fontWeight: 700, fontSize: 14 }}>{sessionError}</div>
-                <div style={{ color: "#a0aab8", fontSize: 12 }}>Vos données sont intactes — reconnectez-vous pour y accéder.</div>
-              </div>
-            </div>
-            <button onClick={() => signOut()} style={{ background: "#c53030", color: "var(--sk-t1)", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
-              Se reconnecter →
-            </button>
-          </div>
-        )}
-
-        {/* ── DRIVER / VEHICLE FILTER BAR — visible on all data tabs, masquable ── */}
-        {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage"].includes(tab) && allDrivers.length > 0 && !showFilters && (
-          <div className="mb-6">
-            <button onClick={() => toggleFilters(true)}
-              className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-              style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", color: filterDriverIds.length ? "var(--tenant-color)" : "var(--sk-t3)" }}>
-              🔍 Filtres{filterDriverIds.length === 1
-                ? ` · ${allDrivers.find((d) => d.id === filterDriverIds[0])?.full_name || "1 chauffeur"}`
-                : filterDriverIds.length > 1 ? ` · ${filterDriverIds.length} chauffeurs` : ""}
-            </button>
-          </div>
-        )}
-        {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage"].includes(tab) && allDrivers.length > 0 && showFilters && (
-          <div className="mb-6 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
-            <span className="text-[10px] font-bold uppercase tracking-widest mr-1" style={{ color: "var(--sk-t4)" }}>Vue :</span>
-            <button onClick={() => setFilterDriverIds([])}
-              className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
-              style={{ background: !filterDriverIds.length ? "var(--tenant-color)" : "var(--sk-surface)", color: !filterDriverIds.length ? "#000" : "var(--sk-t3)" }}>
-              Tous
-            </button>
-            {allDrivers.map((d) => (
-              <button key={d.id} onClick={() => toggleDriverFilter(d.id)}
-                title="Clic : ajouter/retirer de la sélection (multi-sélection possible)"
-                className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5"
-                style={{ background: filterDriverIds.includes(d.id) ? "rgba(var(--tenant-color-rgb),.15)" : "var(--sk-surface)",
-                  color: filterDriverIds.includes(d.id) ? "var(--tenant-color)" : "var(--sk-t3)",
-                  border: `1px solid ${filterDriverIds.includes(d.id) ? "rgba(var(--tenant-color-rgb),.35)" : "transparent"}`,
-                  opacity: d.active === false ? 0.55 : 1 }}>
-                👤 {d.full_name || d.driver_id}
-                {d.plate && <span className="font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--sk-deep)", color: "var(--sk-t2)", fontSize: 10 }}>{d.plate}</span>}
-                {d.active === false && <span className="text-[9px] uppercase" style={{ color: "var(--sk-t4)" }}>inactif</span>}
-              </button>
-            ))}
-            <button onClick={() => toggleFilters(false)} title="Masquer les filtres"
-              className="ml-auto text-xs px-2.5 py-1.5 rounded-lg" style={{ background: "transparent", color: "var(--sk-t4)" }}>
-              ✕ Masquer
-            </button>
-          </div>
-        )}
-
+  // Contenu des onglets — partagé tel quel par l'UI actuelle et la coque v2.
+  const tabContent = (
+    <>
         {tab === "dashboard" && (
           <div className="space-y-8">
             {/* Couche IA V3 (additive) — rend null si AI_LAYER désactivé */}
@@ -948,6 +756,241 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+    </>
+  );
+
+  // Refonte UI v2 : nouvelle coque (sidebar 8 destinations), même contenu d'onglets.
+  if (uiV2) {
+    return (
+      <>
+        <PushOnboarding role="admin" />
+        <AdminShellV2
+          tab={tab}
+          onTab={setTab}
+          appName={settings.app_name}
+          operatorName={settings.operator_name}
+          userName={user?.user_metadata?.full_name || user?.email || "Admin"}
+          tenantId={adminTenantId}
+          sessionError={sessionError}
+          onSignOut={() => signOut()}
+          onReconnect={() => signOut()}
+          advancedBack={resolvedUiMode === "simple" ? () => toggleUiAdvanced(false) : undefined}
+          filters={{
+            period: periodFromMonths(filterMonths),
+            onPeriodChange: (p) => setFilterMonths(monthsForPeriod(p, now.getMonth() + 1)),
+            range: { from: periodFrom, to: periodTo },
+            drivers: allDrivers.map((d) => ({ id: d.id, label: d.full_name || d.driver_id })),
+            driverId: filterDriverId,
+            onDriverChange: (id) => setFilterDriverIds(id ? [id] : []),
+          }}
+        >
+          {tabContent}
+        </AdminShellV2>
+        {showImportModal && <ImportHistoriqueModal onClose={() => setShowImportModal(false)} />}
+      </>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex" style={{ background: "var(--sk-deep)" }}>
+      <PushOnboarding role="admin" />
+
+      {/* ── SIDEBAR DESKTOP (lg+) ── */}
+      <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-full z-50"
+        style={{ width: 220, background: "var(--sk-bg)", borderRight: "1px solid var(--sk-surface)" }}>
+        {/* Logo */}
+        <div className="px-5 py-5 border-b" style={{ borderColor: "var(--sk-surface)" }}>
+          <div className="flex items-center gap-2.5">
+            <BrandLogo size={32} />
+            <div>
+              <div className="font-bold text-white text-sm">{settings.app_name}</div>
+              <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>{settings.operator_name || "Powered by M3A Solution"}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Nav items grouped */}
+        <nav className="flex-1 px-3 py-4 overflow-y-auto">
+          {tabGroups.map((group) => {
+            const collapsible = (group as any).collapsible;
+            const activeInside = group.items.some(([id]: any) => id === tab);
+            const open = collapsible ? (openGroups[group.label] ?? activeInside) : true;
+            return (
+            <div key={group.label} className="mb-4">
+              {collapsible ? (
+                <button onClick={() => setOpenGroups((s) => ({ ...s, [group.label]: !open }))}
+                  className="w-full px-3 mb-1 flex items-center justify-between text-[9px] uppercase tracking-[0.12em] font-bold transition-colors"
+                  style={{ color: "var(--sk-t4)" }}>
+                  <span>{group.label}</span>
+                  <span className="text-[10px] transition-transform" style={{ transform: open ? "rotate(180deg)" : "none" }}>▾</span>
+                </button>
+              ) : (
+                <div className="px-3 mb-1 text-[9px] uppercase tracking-[0.12em] font-bold" style={{ color: "var(--sk-t4)" }}>{group.label}</div>
+              )}
+              {open && (
+              <div className="space-y-0.5">
+                {group.items.map(([id, icon, label]) => (
+                  <button key={id} onClick={() => NAV_ROUTES[id] ? router.push(NAV_ROUTES[id]) : setTab(id)} className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150 flex items-center gap-2.5 hover:translate-x-0.5"
+                    style={{
+                      background: tab === id ? "rgba(var(--tenant-color-rgb),.12)" : "transparent",
+                      color: tab === id ? "var(--tenant-color)" : "var(--sk-t2)",
+                      border: `1px solid ${tab === id ? "rgba(var(--tenant-color-rgb),.2)" : "transparent"}`,
+                    }}
+                    onMouseEnter={(e) => { if (tab !== id) { e.currentTarget.style.background = "rgba(255,255,255,.045)"; e.currentTarget.style.color = "#fff"; } }}
+                    onMouseLeave={(e) => { if (tab !== id) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--sk-t2)"; } }}>
+                    {(() => { const I = NAV_ICONS[id]; return I
+                      ? <I size={16} strokeWidth={1.75} className="flex-shrink-0" />
+                      : <span className="text-sm leading-none w-4 text-center flex-shrink-0">{icon}</span>; })()}
+                    <span className="truncate">{label}</span>
+                  </button>
+                ))}
+              </div>
+              )}
+            </div>
+          );})}
+
+          {/* Retour au mode simple (tenants ui_mode='simple' passés en avancé) */}
+          {resolvedUiMode === "simple" && (
+            <button onClick={() => toggleUiAdvanced(false)}
+              className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2.5 mt-2"
+              style={{ color: "var(--sk-t3)", border: "1px dashed var(--sk-surface)" }}>
+              ← Revenir au mode simple
+            </button>
+          )}
+        </nav>
+
+        {/* User + logout */}
+        <div className="px-3 py-4 border-t" style={{ borderColor: "var(--sk-surface)" }}>
+          <div className="px-3 py-2 rounded-xl flex items-center justify-between" style={{ background: "var(--sk-surface)" }}>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-white mb-0.5 truncate">
+                {user?.user_metadata?.full_name || user?.email || "Admin"}
+              </div>
+              <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Administrateur</div>
+            </div>
+            <div className="flex items-center">
+              <ThemeToggle />
+              <NotificationBell />
+            </div>
+          </div>
+          <button onClick={() => signOut()} className="w-full mt-2 text-xs px-3 py-2 rounded-xl text-left font-medium transition-all"
+            style={{ color: "#ef4444", background: "transparent" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239,68,68,.08)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+            ⎋ Déconnexion
+          </button>
+        </div>
+      </aside>
+
+      {/* ── TOP BAR MOBILE (< lg) ── */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between"
+        style={{ background: "var(--sk-bg)", borderBottom: "1px solid var(--sk-surface)", backdropFilter: "blur(12px)" }}>
+        <div className="flex items-center gap-2">
+          <BrandLogo size={28} />
+          <span className="font-bold text-white text-sm">{settings.app_name}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <NotificationBell />
+          <button onClick={() => signOut()} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>
+            Déconnexion
+          </button>
+        </div>
+      </div>
+
+      {/* ── MOBILE NAV TABS ── */}
+      <div className="lg:hidden fixed top-12 left-0 right-0 z-40 flex items-center gap-0 overflow-x-auto"
+        style={{ background: "var(--sk-bg)", borderBottom: "1px solid var(--sk-surface)" }}>
+        {tabGroups.map((group, gi) => (
+          <React.Fragment key={group.label}>
+            {gi > 0 && <div className="flex-shrink-0 w-px h-6 mx-1" style={{ background: "var(--sk-surface)" }} />}
+            {group.items.map(([id, icon]) => (
+              <button key={id} onClick={() => NAV_ROUTES[id] ? router.push(NAV_ROUTES[id]) : setTab(id)}
+                className="flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium"
+                style={{ color: tab === id ? "var(--tenant-color)" : "var(--sk-t3)", borderBottom: tab === id ? "2px solid var(--tenant-color)" : "2px solid transparent" }}>
+                {(() => { const I = NAV_ICONS[id]; return I
+                  ? <I size={18} strokeWidth={1.75} />
+                  : <span className="text-base leading-none">{icon}</span>; })()}
+              </button>
+            ))}
+          </React.Fragment>
+        ))}
+        {resolvedUiMode === "simple" && (
+          <button onClick={() => toggleUiAdvanced(false)}
+            className="flex-shrink-0 px-3 py-2 text-[10px] font-semibold"
+            style={{ color: "var(--sk-t3)" }}>
+            ← Simple
+          </button>
+        )}
+      </div>
+
+      {/* ── MAIN CONTENT ── */}
+      {/* min-w-0 : sans lui, un tableau large (nowrap) élargit toute la page sur mobile */}
+      <main className="flex-1 min-w-0 min-h-screen" style={{ marginLeft: 0 }}>
+        <div className="lg:hidden" style={{ height: 88 }} /> {/* mobile header offset */}
+        <div className="lg:pl-[220px]">
+        <div className="p-6 lg:p-10 w-full max-w-none" style={{ background: "var(--sk-deep)", minHeight: "100vh" }}>
+
+        {/* Expiration essai / abonnement */}
+        <TrialBanner />
+
+        {/* Session error banner */}
+        {sessionError && (
+          <div style={{ background: "#2d1515", border: "1px solid #c53030", borderRadius: 12, padding: "14px 18px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <AlertTriangle size={19} strokeWidth={2} style={{ color: "var(--tenant-color)" }} />
+              <div>
+                <div style={{ color: "#fc8181", fontWeight: 700, fontSize: 14 }}>{sessionError}</div>
+                <div style={{ color: "#a0aab8", fontSize: 12 }}>Vos données sont intactes — reconnectez-vous pour y accéder.</div>
+              </div>
+            </div>
+            <button onClick={() => signOut()} style={{ background: "#c53030", color: "var(--sk-t1)", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+              Se reconnecter →
+            </button>
+          </div>
+        )}
+
+        {/* ── DRIVER / VEHICLE FILTER BAR — visible on all data tabs, masquable ── */}
+        {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage"].includes(tab) && allDrivers.length > 0 && !showFilters && (
+          <div className="mb-6">
+            <button onClick={() => toggleFilters(true)}
+              className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+              style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", color: filterDriverIds.length ? "var(--tenant-color)" : "var(--sk-t3)" }}>
+              🔍 Filtres{filterDriverIds.length === 1
+                ? ` · ${allDrivers.find((d) => d.id === filterDriverIds[0])?.full_name || "1 chauffeur"}`
+                : filterDriverIds.length > 1 ? ` · ${filterDriverIds.length} chauffeurs` : ""}
+            </button>
+          </div>
+        )}
+        {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage"].includes(tab) && allDrivers.length > 0 && showFilters && (
+          <div className="mb-6 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+            <span className="text-[10px] font-bold uppercase tracking-widest mr-1" style={{ color: "var(--sk-t4)" }}>Vue :</span>
+            <button onClick={() => setFilterDriverIds([])}
+              className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
+              style={{ background: !filterDriverIds.length ? "var(--tenant-color)" : "var(--sk-surface)", color: !filterDriverIds.length ? "#000" : "var(--sk-t3)" }}>
+              Tous
+            </button>
+            {allDrivers.map((d) => (
+              <button key={d.id} onClick={() => toggleDriverFilter(d.id)}
+                title="Clic : ajouter/retirer de la sélection (multi-sélection possible)"
+                className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5"
+                style={{ background: filterDriverIds.includes(d.id) ? "rgba(var(--tenant-color-rgb),.15)" : "var(--sk-surface)",
+                  color: filterDriverIds.includes(d.id) ? "var(--tenant-color)" : "var(--sk-t3)",
+                  border: `1px solid ${filterDriverIds.includes(d.id) ? "rgba(var(--tenant-color-rgb),.35)" : "transparent"}`,
+                  opacity: d.active === false ? 0.55 : 1 }}>
+                👤 {d.full_name || d.driver_id}
+                {d.plate && <span className="font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--sk-deep)", color: "var(--sk-t2)", fontSize: 10 }}>{d.plate}</span>}
+                {d.active === false && <span className="text-[9px] uppercase" style={{ color: "var(--sk-t4)" }}>inactif</span>}
+              </button>
+            ))}
+            <button onClick={() => toggleFilters(false)} title="Masquer les filtres"
+              className="ml-auto text-xs px-2.5 py-1.5 rounded-lg" style={{ background: "transparent", color: "var(--sk-t4)" }}>
+              ✕ Masquer
+            </button>
+          </div>
+        )}
+
+        {tabContent}
         </div>{/* end max-w-none */}
         </div>{/* end lg:pl-[220px] */}
       </main>
