@@ -214,3 +214,8 @@ html[data-ui="v2"] body {
   animation: v2-shimmer 1.4s ease-in-out infinite;
 }
 @keyframes v2-toast-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* v2 : pages actuelles affichées dans la coque v2 (suivi GPS, boîtiers) —
+   neutralise leur fond plein écran ; classe utilisée seulement drapeau allumé. */
+.v2-embed .min-h-screen { min-height: 0; }
+.v2-embed > .bg-gray-900 { background: transparent; padding: 0; }

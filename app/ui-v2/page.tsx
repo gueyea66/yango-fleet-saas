@@ -15,6 +15,7 @@ import AdminShellV2 from "@/components/v2/admin/AdminShellV2";
 import { DashboardV2, DashViewToggle, useDashView } from "@/components/v2/admin/DashboardV2";
 import { PendingV2 } from "@/components/v2/admin/PendingV2";
 import { FinanceKpisV2, HistoryV2, TeamV2 } from "@/components/v2/admin/SectionsV2";
+import { VehiclesSignalV2 } from "@/components/v2/admin/VehiclesSignalV2";
 
 // Profil fictif : identifiants non-UUID → toute requête Supabase échoue côté
 // base (aucune lecture ni écriture possible). Sert à relire la mise en page.
@@ -182,6 +183,11 @@ function AdminShellDemo() {
           advanced={<Card style={{ minHeight: 200 }}>Sections actuelles (accordéons)</Card>} />
       ) : tab === "pending" ? (
         <PendingV2 reports={DEMO_REPORTS} expenses={DEMO_EXPENSES} loading={false} onRefresh={() => {}} />
+      ) : tab === "vehicles" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          <VehiclesSignalV2 demo={DEMO_FLEET} />
+          <Card style={{ minHeight: 200, color: "var(--v2-muted)", fontSize: 14 }}>Gestion de flotte actuelle (FleetTab)</Card>
+        </div>
       ) : tab === "kyc" ? (
         <TeamV2 drivers={DEMO_DRIVERS} onOpenHistory={() => setTab("history")}
           renderDocuments={() => <Card style={{ minHeight: 160, color: "var(--v2-muted)", fontSize: 14 }}>Documents KYC du chauffeur (composant actuel)</Card>} />
@@ -243,3 +249,15 @@ const DEMO_HISTORY = DEMO_DRIVERS.flatMap((d, di) => Array.from({ length: 23 }, 
   return { id: `h-${di}-${i}`, driver_id: d.id, date: `2026-09-${String(i + 1).padStart(2, "0")}`, status, tenant_id: "demo-tenant", _profile: { full_name: d.full_name },
     yango_cash: 41200, yango_card: 3800, yango_bonus: 2500, commission_amount: 7481, off_yango_revenue: 6000, net_after_expenses: 46019, yango_trip_count: 14 };
 }));
+
+const DEMO_FLEET = {
+  vehicles: [
+    { id: "v1", plate: "DK-4410-BC", name: "Toyota Corolla" }, { id: "v2", plate: "AB-872-JG", name: "Hyundai Accent" },
+    { id: "v3", plate: "DK-2291-AF", name: "Kia Rio" }, { id: "v4", plate: "DK-7302-BB", name: "Suzuki Dzire" },
+  ],
+  devices: [
+    { id: "g1", vehicleId: "v1", lastSeenAt: new Date(Date.now() - 3 * 60000).toISOString(), label: null, externalId: "868120" },
+    { id: "g2", vehicleId: "v2", lastSeenAt: new Date(Date.now() - 40 * 60000).toISOString(), label: null, externalId: "868121" },
+    { id: "g3", vehicleId: "v3", lastSeenAt: new Date(Date.now() - 5 * 3600000).toISOString(), label: null, externalId: "868122" },
+  ],
+};

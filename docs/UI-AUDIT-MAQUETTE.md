@@ -133,3 +133,12 @@ s'ils sont justifiés (contrainte technique ou métier) et documentés ici.
 | Journal dans Finance | ⚠️ | Laissé dans Paramètres (une seule entrée, pour ne pas dupliquer l'onglet) |
 | 4c Historique : grille chauffeurs × jours colorée, détail du jour, bascule liste | ✅ | Détail = panneau de l'étape 4 (mêmes écritures que la modale). « Planning » = `CalendrierTab` actuel |
 | 4d Paramètres : menu local | ✅ | Entreprise & marque · Rémunération · Import historique · Journal. **Notifications, Assistant IA, Abonnement** : pas d'écran existant → masqués |
+
+### Étape 6 — Véhicules et GPS (`Admin.dc.html` 2e, 4e, 4f)
+| Élément maquette | Implémenté | Écart / justification |
+|---|---|---|
+| Liste des véhicules avec état du signal (vert < 15 min, jaune < 60 min, gris sans boîtier) | ✅ | `lib/v2/fleet.ts` (testé) sur la lecture GET des boîtiers ; rouge au-delà de 60 min (même règle que la page Boîtiers). Gestion de flotte actuelle (`FleetTab`) dessous |
+| Suivi GPS et Boîtiers comme sous-pages de Véhicules | ✅ | Les pages `/admin/suivi` et `/admin/boitiers` s'affichent dans la coque v2 (sidebar, destination Véhicules active) ; leur contenu est inchangé |
+| Fiche véhicule (carte, 4 KPI GPS du jour, assurance, visite technique, boîtier) | ⏭ | Carte et KPI GPS : dans `/admin/suivi` actuel ; assurance / visite : dans `FleetTab` actuel. Non redessinés |
+| 4e Suivi GPS restylé (En direct / Rejouer, frise 24 h) | ⏭ | Page actuelle conservée telle quelle (fond neutralisé dans la coque) |
+| 4f Assistant d'installation en 4 étapes | ⏭ | Le parcours actuel suit déjà ces 4 étapes (Enrôler → RCONF → SMS → Signal, `plan.steps`) ; non redessiné |
