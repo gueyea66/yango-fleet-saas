@@ -11,6 +11,7 @@ import { formatAmount } from "@/lib/v2/format";
 import { periodRange, type FilterPeriod } from "@/lib/v2/filters";
 import DriverAppV2 from "@/components/v2/driver/DriverAppV2";
 import { DEFAULT_CFG } from "@/components/driver/shared";
+import AdminShellV2 from "@/components/v2/admin/AdminShellV2";
 
 // Profil fictif : identifiants non-UUID → toute requête Supabase échoue côté
 // base (aucune lecture ni écriture possible). Sert à relire la mise en page.
@@ -41,6 +42,10 @@ export default function UiV2Showcase() {
 
   if (uiV2 && screen === "chauffeur") {
     return <DriverAppV2 profile={DEMO_PROFILE} cfg={DEFAULT_CFG} onSignOut={() => {}} />;
+  }
+
+  if (uiV2 && screen === "admin") {
+    return <AdminShellDemo />;
   }
 
   if (!uiV2) {
@@ -149,5 +154,27 @@ export default function UiV2Showcase() {
         </Card>
       </section>
     </main>
+  );
+}
+
+/** Coque gestionnaire avec contenu fictif (tenant non-UUID : aucune donnée). */
+function AdminShellDemo() {
+  const [tab, setTab] = useState("dashboard");
+  const [period, setPeriod] = useState<FilterPeriod>("mois");
+  const [driverId, setDriverId] = useState("");
+  const range = periodRange(period, new Date());
+  return (
+    <AdminShellV2
+      tab={tab} onTab={setTab} appName="M3A Fleet Manager" operatorName="M3A Group" userName="Abdou · Admin" tenantId="demo-tenant"
+      sessionError={null} onSignOut={() => {}} onReconnect={() => {}}
+      filters={{
+        period, onPeriodChange: setPeriod, range,
+        drivers: [{ id: "d1", label: "Moussa Diop" }, { id: "d2", label: "Awa Ndiaye" }], driverId, onDriverChange: setDriverId,
+      }}
+    >
+      <Card style={{ minHeight: 320, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--v2-muted)", fontSize: 14 }}>
+        Contenu actuel de l&apos;onglet « {tab} » (inchangé à cette étape)
+      </Card>
+    </AdminShellV2>
   );
 }
