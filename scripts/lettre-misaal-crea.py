@@ -3,29 +3,30 @@
 import html, subprocess, pathlib
 
 EXP = ["MISAAL CRÉA SARL",
-       "Production audiovisuelle — cinéma, télévision, formation",
+       "Organisation de manifestations — production audiovisuelle",
        "HLM 4, Villa n° 1385 — Dakar, Sénégal",
        "Tél. : +221 77 645 90 48"]
 DATE = "Dakar, le 24 septembre 2026"
 DEST = ["FONSTAB", "Madame l'Administratrice",
         "Sphères ministérielles Ousmane Tanor Dieng", "Bâtiment C — Diamniadio, Sénégal"]
-OBJET = "Objet : demande d'agrément — couverture audiovisuelle des manifestations"
+OBJET = "Objet : demande d'agrément — organisation et couverture de manifestations"
 
 CORPS = [
   "Madame l'Administratrice,",
-  "Misaal Créa est une société de production audiovisuelle qui exerce à Dakar depuis 2016. "
-  "Nous sollicitons votre agrément pour la couverture audiovisuelle de vos manifestations.",
-  "Nous filmons vos rencontres — ateliers, cérémonies, visites de terrain, remises officielles — "
-  "et nous en tirons ce qui vous sert ensuite : un film de restitution, des séquences courtes "
-  "pour vos supports de communication, des photographies, et l'enregistrement intégral des "
-  "interventions lorsque vous souhaitez en garder la trace.",
-  "Nous assurons également la diffusion en direct à l'intention des participants qui ne peuvent "
-  "se déplacer, la projection sur écran pendant la rencontre et la préparation des génériques et "
-  "habillages qui l'accompagnent.",
-  "La société dispose de ses caméras, de son matériel de son et de lumière et de sa salle de "
-  "montage. La prise de vue et le montage étant conduits par la même équipe, les délais de "
-  "livraison restent courts et le coût maîtrisé. Nous animons par ailleurs des sessions de "
-  "formation à la prise de vue et au montage, qui relèvent aussi de notre objet social.",
+  "Misaal Créa est une société établie à Dakar depuis 2016. Nous organisons des manifestations "
+  "professionnelles et institutionnelles — ateliers, séminaires, cérémonies, lancements, visites "
+  "de terrain — et nous en assurons le traitement audiovisuel. Nous sollicitons votre agrément "
+  "comme prestataire événementiel.",
+  "Notre intervention commence à la conception : choix du lieu, déroulé minuté, habillage de la "
+  "scène et de la salle. Le jour venu, nous installons le son, la lumière et les écrans, nous "
+  "tenons le minutage des interventions et nous restons en salle jusqu'au démontage.",
+  "Notre métier d'origine, la production vidéo, fait la différence sur le reste : caméras, "
+  "matériel son et lumière et salle de montage nous appartiennent. Vous repartez donc de chaque "
+  "manifestation avec un film de restitution, des séquences courtes pour vos supports, des "
+  "photographies et l'enregistrement des interventions, sans passer par un second prestataire. "
+  "La diffusion en direct est possible pour les participants qui ne peuvent se déplacer.",
+  "Chaque manifestation fait l'objet d'un devis préalable, d'un interlocuteur unique jusqu'à la "
+  "livraison, et d'une remise des images et du film dans les jours qui suivent.",
   "Misaal Créa SARL est immatriculée au registre du commerce sous le numéro SN DKR 2016 B 19405 "
   "et dispose du NINEA 006037908. Ses activités déclarées portent sur la production vidéo — "
   "cinéma et télévision — ainsi que sur la formation.",
