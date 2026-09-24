@@ -13,6 +13,7 @@ import DriverAppV2 from "@/components/v2/driver/DriverAppV2";
 import { DEFAULT_CFG } from "@/components/driver/shared";
 import AdminShellV2 from "@/components/v2/admin/AdminShellV2";
 import { DashboardV2, DashViewToggle, useDashView } from "@/components/v2/admin/DashboardV2";
+import { PendingV2 } from "@/components/v2/admin/PendingV2";
 
 // Profil fictif : identifiants non-UUID → toute requête Supabase échoue côté
 // base (aucune lecture ni écriture possible). Sert à relire la mise en page.
@@ -178,6 +179,8 @@ function AdminShellDemo() {
       {tab === "dashboard" ? (
         <DashboardV2 view={view} kpis={DEMO_KPIS} plat="Yango" tenantId="demo-tenant" driverIds={[]} onKpisChanged={() => {}} onOpenValidation={() => setTab("pending")}
           advanced={<Card style={{ minHeight: 200 }}>Sections actuelles (accordéons)</Card>} />
+      ) : tab === "pending" ? (
+        <PendingV2 reports={DEMO_REPORTS} expenses={DEMO_EXPENSES} loading={false} onRefresh={() => {}} />
       ) : (
         <Card style={{ minHeight: 320, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--v2-muted)", fontSize: 14 }}>
           Contenu actuel de l&apos;onglet « {tab} »
@@ -201,3 +204,18 @@ const DEMO_KPIS = {
   ],
   dailyRows: DEMO_DAYS,
 } as unknown as Parameters<typeof DashboardV2>[0]["kpis"];
+
+// Éléments fictifs (identifiants non-UUID : toute écriture échouerait côté base).
+const DEMO_REPORTS = [
+  { id: "demo-r1", tenant_id: "demo-tenant", driver_id: "demo-d1", date: "2026-09-22", status: "submitted", created_at: new Date().toISOString(),
+    _profile: { full_name: "Alioune Diagne" }, yango_cash: 52400, yango_card: 6800, yango_bonus: 4000, commission_amount: 9954, service_supplementaire: 0,
+    off_yango_revenue: 945, net_after_expenses: 54191, yango_trip_count: 16, end_odometer: 151461, comment: "Bonne journée, trafic fluide" },
+  { id: "demo-r2", tenant_id: "demo-tenant", driver_id: "demo-d2", date: "2026-09-22", status: "submitted", created_at: "2026-09-22T21:10:00Z",
+    _profile: { full_name: "Moussa Diop" }, yango_cash: 41200, yango_card: 3800, yango_bonus: 2500, commission_amount: 7481, off_yango_revenue: 6000, net_after_expenses: 46019, yango_trip_count: 14 },
+  { id: "demo-r3", tenant_id: "demo-tenant", driver_id: "demo-d3", date: "2026-09-22", status: "submitted", created_at: "2026-09-22T20:02:00Z",
+    _profile: { full_name: "Ibrahima Sarr" }, yango_gross: 44000, yango_bonus: 0, commission_amount: 6930, off_yango_revenue: 1670, net_after_expenses: 38740 },
+];
+const DEMO_EXPENSES = [
+  { id: "demo-e1", tenant_id: "demo-tenant", driver_id: "demo-d2", category: "Carburant", amount: 8000, expense_date: "2026-09-22", status: "submitted", profiles: { full_name: "Moussa Diop" }, description: "12L" },
+  { id: "demo-e2", tenant_id: "demo-tenant", driver_id: "demo-d1", category: "Péage", amount: 1500, expense_date: "2026-09-22", status: "submitted", profiles: { full_name: "Alioune Diagne" } },
+];

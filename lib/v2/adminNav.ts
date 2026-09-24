@@ -25,10 +25,10 @@ export interface DestinationDef {
 
 export const ADMIN_DESTINATIONS: DestinationDef[] = [
   { key: "dash", label: "Tableau de bord", subTabs: [{ tab: "dashboard", label: "Tableau de bord" }], filter: { period: true, driver: true } },
-  { key: "valid", label: "À valider", subTabs: [{ tab: "pending", label: "À valider" }], filter: { dates: true, driver: true } },
-  { key: "pilot", label: "Pilotage", subTabs: [{ tab: "pilotage", label: "Pilotage" }], filter: { period: true, driver: true } },
+  { key: "valid", label: "À valider", subTabs: [{ tab: "pending", label: "À valider" }], filter: { driver: true } },
+  { key: "pilot", label: "Pilotage", subTabs: [{ tab: "pilotage", label: "Pilotage" }], filter: {} },
   {
-    key: "fleet", label: "Véhicules", filter: { dates: true, driver: true },
+    key: "fleet", label: "Véhicules", filter: {},
     subTabs: [
       { tab: "vehicles", label: "Véhicules" },
       { tab: "suivi", label: "Suivi GPS", route: "/admin/suivi" },
@@ -36,21 +36,21 @@ export const ADMIN_DESTINATIONS: DestinationDef[] = [
     ],
   },
   {
-    key: "team", label: "Équipe", filter: { period: true },
+    key: "team", label: "Équipe", filter: {},
     subTabs: [
       { tab: "drivers", label: "Conducteurs", route: "/admin/drivers" },
       { tab: "kyc", label: "KYC" },
     ],
   },
   {
-    key: "fin", label: "Finance", filter: { period: true, driver: true },
+    key: "fin", label: "Finance", filter: { driver: true },
     subTabs: [
       { tab: "payments", label: "Paiements" },
       { tab: "avances", label: "Avances" },
     ],
   },
   {
-    key: "hist", label: "Historique", secondary: true, filter: { period: true, driver: true },
+    key: "hist", label: "Historique", secondary: true, filter: { driver: true },
     subTabs: [
       { tab: "history", label: "Liste" },
       { tab: "calendrier", label: "Calendrier" },

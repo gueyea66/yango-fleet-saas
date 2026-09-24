@@ -41,11 +41,13 @@ import TrialBanner from "@/components/TrialBanner";
 import { useUiV2 } from "@/components/v2/useUiV2";
 import AdminShellV2 from "@/components/v2/admin/AdminShellV2";
 import { DashboardV2, DashViewToggle, useDashView } from "@/components/v2/admin/DashboardV2";
+import { PendingV2 } from "@/components/v2/admin/PendingV2";
 import { periodFromMonths, monthsForPeriod } from "@/lib/v2/adminNav";
+import { useReportReview } from "@/components/admin/useReportReview";
+import { useExpenseReview } from "@/components/admin/useExpenseReview";
 import AiBriefingSection from "@/components/ai/AiBriefingSection";
-import { recomputeReportNet, DEFAULT_COMMISSION_RATE, DEFAULT_PARTNER_RATE } from "@/lib/reportNet";
+import { DEFAULT_COMMISSION_RATE, DEFAULT_PARTNER_RATE } from "@/lib/reportNet";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
-import { logAction } from "@/lib/logAction";
 import {
   BarChart, Bar, Cell as RCell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -802,6 +804,13 @@ export default function AdminPage() {
               onKpisChanged={() => setKpiTick((t) => t + 1)}
               onOpenValidation={() => setTab("pending")}
               advanced={dashboardContent}
+            />
+          ) : tab === "pending" ? (
+            <PendingV2
+              reports={reports.filter((r) => r.status === "submitted")}
+              expenses={expenses.filter((e) => (e.status || "submitted") === "submitted")}
+              loading={loadingReports}
+              onRefresh={() => loadReports(filterDriverIds)}
             />
           ) : tabContent}
         </AdminShellV2>
@@ -1966,96 +1975,11 @@ function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh, gr
 
 // ─── EXPENSE MODAL ───────────────────────────────────
 function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: () => void; onRefresh: () => void }) {
-  const [uploads, setUploads] = useState<any[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [currentStatus, setCurrentStatus] = useState(expense.status || "submitted");
-  const [editAmount, setEditAmount] = useState(String(expense.amount || ""));
-  const [editDate, setEditDate] = useState(expense.expense_date || expense.created_at?.slice(0, 10) || "");
-  const [editCategory, setEditCategory] = useState(expense.category || "");
-  const [editDesc, setEditDesc] = useState(expense.description || "");
+  const { uploads, uploading, saving, currentStatus, editAmount, setEditAmount, editDate, setEditDate, editCategory, setEditCategory, editDesc, setEditDesc, saveEdit, updateStatus, uploadFile } = useExpenseReview(expense, onRefresh);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
   const expenseTypes = [...EXPENSE_CATEGORIES];
-
-  const saveEdit = async () => {
-    setSaving(true);
-    try {
-      const supabase = createClient() as any;
-      const { error } = await supabase.from("expenses").update({
-        amount: parseFloat(editAmount) || expense.amount,
-        expense_date: editDate || null,
-        category: editCategory,
-        description: editDesc || null,
-      }).eq("id", expense.id);
-      if (error) throw error;
-      onRefresh();
-    } catch (err: any) { alert("Erreur : " + err.message); }
-    finally { setSaving(false); }
-  };
-
-  const updateStatus = async (status: "approved" | "rejected") => {
-    setSaving(true);
-    try {
-      const supabase = createClient() as any;
-      const { error } = await supabase.from("expenses").update({ status }).eq("id", expense.id);
-      if (error) throw error;
-      // Log action (fire-and-forget — non-critical)
-      logAction({
-        tenantId: expense.tenant_id, entityType: "expense", entityId: expense.id,
-        action: status,
-        metadata: { category: expense.category, amount: expense.amount },
-      });
-      // Notification push/Telegram au chauffeur (comme pour les rapports).
-      // Le type expense_${status} correspond à expense_approved / expense_rejected.
-      void fetch("/api/notifications/trigger", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: `expense_${status === "approved" ? "approved" : "rejected"}`,
-          tenantId: expense.tenant_id, driverId: expense.driver_id,
-          data: { amount: expense.amount, category: expense.category },
-        }),
-      });
-      setCurrentStatus(status);
-      onRefresh();
-    } catch (err: any) { alert("Erreur : " + err.message); }
-    finally { setSaving(false); }
-  };
-
-  useEffect(() => {
-    (async () => {
-      const supabase = createClient() as any;
-      const { data } = await supabase.from("uploads").select("*")
-        .eq("driver_id", expense.driver_id)
-        .eq("file_type", "expense")
-        .order("created_at", { ascending: false });
-      const enriched = (data || [])
-        .filter((u: any) => u.ref_id === expense.id || u.file_path?.includes(expense.id))
-        .map((u: any) => {
-          const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(u.file_path);
-          return { ...u, publicUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(u.file_name) };
-        });
-      setUploads(enriched);
-    })();
-  }, [expense.id, expense.driver_id]);
-
-  const uploadFile = async (file: File) => {
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      const rawPath = `expense/${expense.driver_id}/${expense.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-      fd.append("file", file);
-      fd.append("path", rawPath);
-      const res = await fetch("/api/kyc-upload", { method: "POST", body: fd });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Upload échoué");
-      const supabase = createClient() as any;
-      await supabase.from("uploads").insert({ driver_id: expense.driver_id, file_name: file.name, file_path: result.path, file_type: "expense", file_size: file.size });
-      setUploads((p) => [...p, { file_name: file.name, publicUrl: result.signedUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(file.name) }]);
-    } catch (err: any) { alert("Erreur : " + err.message); }
-    finally { setUploading(false); }
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 px-4 pb-8 overflow-y-auto"
@@ -2185,134 +2109,10 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
 
 // ─── REPORT MODAL ─────────────────────────────────────
 function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () => void; onRefresh: () => void }) {
-  const [saving, setSaving] = useState(false);
-  const [note, setNote] = useState(report.comment || "");
-  const [yangoGrossEdit, setYangoGrossEdit] = useState(String(report.yango_gross || ""));
-  const [yangoBonus, setYangoBonus] = useState(String(report.yango_bonus || ""));
-  const [horsYangoEdit, setHorsYangoEdit] = useState(String(report.off_yango_revenue || ""));
-  const [soldeEdit, setSoldeEdit] = useState(String(report.solde_yango || ""));
-  const [dateEdit, setDateEdit] = useState(report.date || "");
-  const [kmEdit, setKmEdit] = useState(String(report.end_odometer || ""));
-  const [yangoTripsEdit, setYangoTripsEdit] = useState(String(report.yango_trip_count || ""));
-  const [offYangoTripsEdit, setOffYangoTripsEdit] = useState(String(report.off_yango_trip_count || ""));
-  const [serviceSuppEdit, setServiceSuppEdit] = useState(String(report.service_supplementaire || ""));
-  const [uploads, setUploads] = useState<any[]>([]);
-  const [uploading, setUploading] = useState(false);
+  const { saving, note, setNote, yangoGrossEdit, setYangoGrossEdit, yangoBonus, setYangoBonus, horsYangoEdit, setHorsYangoEdit, soldeEdit, setSoldeEdit, dateEdit, setDateEdit, kmEdit, setKmEdit, yangoTripsEdit, setYangoTripsEdit, offYangoTripsEdit, setOffYangoTripsEdit, serviceSuppEdit, setServiceSuppEdit, uploads, uploading, recalc, saveFields, updateStatus, uploadFile } = useReportReview(report, onRefresh);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
-
-  useEffect(() => {
-    (async () => {
-      const supabase = createClient() as any;
-      const { data } = await supabase.from("uploads").select("*").eq("driver_id", report.driver_id).order("created_at", { ascending: false });
-      // Keep files linked to this report: either by ref_id or file_path (legacy path)
-      const enriched = (data || [])
-        .filter((u: any) => u.ref_id === report.id || u.file_path?.includes(report.id))
-        .map((u: any) => {
-        const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(u.file_path);
-        return { ...u, publicUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(u.file_name) };
-      });
-      setUploads(enriched);
-    })();
-  }, [report.driver_id]);
-
-  // Net recalculé dans le MODE D'ORIGINE du rapport (lib/reportNet) : éléments
-  // réels si des commissions lues dans l'app sont stockées, sinon taux figés.
-  const recalc = (yg: number, yb: number, hy: number, serviceSupp: number) => recomputeReportNet({
-    yangoGross: yg, yangoBonus: yb, horsYango: hy, serviceSupplementaire: serviceSupp,
-    commissionYangoReelle: report.commission_yango_reelle ?? null,
-    commissionPartenaireReelle: report.commission_partenaire_reelle ?? null,
-    commissionRate: report.commission_rate ?? null,
-    partnerRate: report.partner_rate ?? null,
-  });
-
-  const saveFields = async () => {
-    setSaving(true);
-    try {
-      const supabase = createClient() as any;
-      const yg = parseFloat(yangoGrossEdit) || 0;
-      const yb = parseFloat(yangoBonus) || 0;
-      const hy = parseFloat(horsYangoEdit) || 0;
-      const serviceSupp = parseFloat(serviceSuppEdit) || 0;
-      const calc = recalc(yg, yb, hy, serviceSupp);
-      const { error } = await supabase.from("daily_reports").update({
-        date: dateEdit || report.date,
-        yango_gross: yg, yango_bonus: yb, off_yango_revenue: hy,
-        gross_earnings: calc.grossEarnings, commission_amount: calc.commissionAmount,
-        service_supplementaire: serviceSupp,
-        net_after_expenses: calc.netAfterExpenses,
-        solde_yango: parseFloat(soldeEdit) || 0,
-        end_odometer: kmEdit ? parseInt(kmEdit) : null,
-        yango_trip_count: yangoTripsEdit ? parseInt(yangoTripsEdit) : null,
-        off_yango_trip_count: offYangoTripsEdit ? parseInt(offYangoTripsEdit) : null,
-        comment: note || null,
-      }).eq("id", report.id);
-      if (error) throw error;
-      alert("Modifications enregistrées ✓");
-      onRefresh();
-    } catch (err: any) { alert("Erreur : " + err.message); }
-    finally { setSaving(false); }
-  };
-
-  const updateStatus = async (status: "approved" | "rejected") => {
-    setSaving(true);
-    try {
-      const supabase = createClient() as any;
-      if (status === "approved") {
-        // Un seul rapport ACTIF par chauffeur et par date : si un autre rapport
-        // est déjà validé pour cette date, on bloque plutôt que de créer un doublon.
-        const { data: dup } = await supabase.from("daily_reports")
-          .select("id").eq("driver_id", report.driver_id).eq("tenant_id", report.tenant_id)
-          .eq("date", report.date).eq("status", "approved").neq("id", report.id).limit(1).maybeSingle();
-        if (dup) {
-          alert("Un autre rapport est déjà validé pour ce chauffeur à cette date. Annulez-le d'abord (bouton « Annuler ») si tu veux valider celui-ci à la place.");
-          setSaving(false);
-          return;
-        }
-      }
-      const { error } = await supabase.from("daily_reports").update({
-        status,
-        // Le net n'est plus réécrit ici (il écrasait une correction fraîchement
-        // enregistrée) : seul « Enregistrer les modifications » le recalcule.
-        ...(note ? { comment: note } : {}),
-        // Motif de rejet — colonne dédiée lue par l'écran chauffeur (report.rejection_reason),
-        // distincte de `comment` : sans ça, le motif n'était jamais montré au chauffeur.
-        ...(status === "rejected" ? { rejection_reason: note || null } : {}),
-      }).eq("id", report.id);
-      if (error) throw error;
-      // Log action (fire-and-forget — non-critical)
-      logAction({
-        tenantId: report.tenant_id, entityType: "daily_report", entityId: report.id,
-        action: status,
-        metadata: { date: report.date, net: report.net_after_expenses },
-      });
-      // Notification push au chauffeur
-      void fetch("/api/notifications/trigger", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: `report_${status}`, tenantId: report.tenant_id, driverId: report.driver_id, data: { date: report.date } }),
-      });
-      onRefresh();
-    } catch (err: any) { alert("Erreur : " + err.message); }
-    finally { setSaving(false); }
-  };
-
-  const uploadFile = async (file: File) => {
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      const rawPath = `admin/reports/${report.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-      fd.append("file", file);
-      fd.append("path", rawPath);
-      const res = await fetch("/api/kyc-upload", { method: "POST", body: fd });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Upload échoué");
-      const supabase = createClient() as any;
-      await supabase.from("uploads").insert({ driver_id: report.driver_id, file_name: file.name, file_path: result.path, file_type: "admin-report", file_size: file.size });
-      setUploads((p) => [...p, { file_name: file.name, file_path: result.path, file_type: "admin-report", created_at: new Date().toISOString() }]);
-    } catch (err: any) { alert("Erreur : " + err.message); }
-    finally { setUploading(false); }
-  };
 
   const rows = [
     [`Brut ${platLabel()}`, xof(report.yango_gross)],
