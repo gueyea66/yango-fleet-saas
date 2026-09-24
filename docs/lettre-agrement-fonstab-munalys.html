@@ -56,11 +56,15 @@
 
   p { margin: 0 0 3.2mm; text-align: justify; }
 
-  table.presta { width: 100%; border-collapse: collapse; margin: 1mm 0 4.5mm; }
-  table.presta td { padding: 2mm 0; border-bottom: .5pt solid #e3e1d8; vertical-align: top; font-size: 10pt; }
-  table.presta td.quoi { width: 62mm; color: var(--vert); font-weight: 700; padding-right: 6mm; }
-  table.presta td.quand { color: #4a5250; }
-  table.presta tr:last-child td { border-bottom: 0; }
+  .phases { margin: 1mm 0 4.5mm; }
+  .phase { display: flex; gap: 5mm; padding: 2.4mm 0; border-bottom: .5pt solid #e7e5dc; }
+  .phase:last-child { border-bottom: 0; }
+  .phase .num {
+    flex: 0 0 auto; width: 15mm; color: var(--or); font-size: 8pt; letter-spacing: .14em;
+    text-transform: uppercase; padding-top: .6mm;
+  }
+  .phase .txt { flex: 1 1 auto; }
+  .phase .txt b { color: var(--vert); }
 
   .signature { margin-top: 6mm; margin-bottom: 4mm; text-align: right; }
   .signature .nom { font-weight: 700; color: var(--vert); margin-top: 9mm; letter-spacing: .03em; }
@@ -101,43 +105,46 @@
 
     <div class="objet">
       <span>Objet</span>
-      <strong>Demande d'agrément — prestations événementielles et traiteur de réception</strong>
+      <strong>Demande d'agrément — organisation d'événements</strong>
     </div>
 
     <p>Madame l'Administratrice,</p>
 
-    <p>Je me permets de vous écrire pour solliciter l'agrément de Munalys Sweet by My-Mouna Cake
-    auprès du FONSTAB, au titre de l'événementiel.</p>
+    <p>Je sollicite l'agrément de Munalys Sweet by My-Mouna Cake comme prestataire événementiel
+    du FONSTAB.</p>
 
-    <p>Mon activité est l'organisation de réceptions : je conçois et j'exécute la partie réception
-    d'une manifestation, de la première réunion de calage jusqu'au départ du dernier invité.
-    Cérémonies officielles, lancements de projet, dîners de gala, remises de distinction, journées
-    portes ouvertes — j'installe la salle, je dresse les tables, je fais servir et je remets les
-    lieux en état.</p>
+    <p>J'organise des manifestations professionnelles et institutionnelles de bout en bout :
+    ateliers de concertation, journées d'information des éleveurs, foires et salons
+    professionnels, cérémonies de signature de convention, séminaires de restitution — à Dakar
+    comme dans les régions.</p>
 
-    <p>Sur une manifestation, j'interviens sur :</p>
+    <div class="phases">
+      <div class="phase">
+        <div class="num">Avant</div>
+        <div class="txt"><b>Préparation</b> — visite du site, plan de salle, chiffrage détaillé,
+        invitations et suivi des confirmations, commandes auprès des fournisseurs.</div>
+      </div>
+      <div class="phase">
+        <div class="num">Pendant</div>
+        <div class="txt"><b>Exécution</b> — installation et décor, sonorisation, réception des
+        invités et liste de présence, restauration, conduite du protocole, reportage photo.</div>
+      </div>
+      <div class="phase">
+        <div class="num">Après</div>
+        <div class="txt"><b>Clôture</b> — démontage, remise en état du site, remise des photos et
+        d'un rapport de clôture avec les dépenses justifiées.</div>
+      </div>
+    </div>
 
-    <table class="presta">
-      <tr><td class="quoi">Réceptions et cocktails</td><td class="quand">cérémonies officielles, lancements, remises de distinction</td></tr>
-      <tr><td class="quoi">Scénographie de salle</td><td class="quand">décoration, art de la table, espace d'honneur, mise en lumière</td></tr>
-      <tr><td class="quoi">Service en salle</td><td class="quand">maîtres d'hôtel, serveurs, hôtesses, vestiaire</td></tr>
-      <tr><td class="quoi">Restauration de l'événement</td><td class="quand">déjeuners d'affaires, buffets, dîners assis, pauses</td></tr>
-      <tr><td class="quoi">Animations gourmandes</td><td class="quand">bar à desserts, pièce d'honneur, coffrets protocolaires</td></tr>
-    </table>
+    <p>Vous n'avez qu'un seul interlocuteur, du premier devis au rapport final. Mon équipe et mon
+    matériel de réception me permettent de recevoir jusqu'à 500 invités, et mon atelier de Ngor
+    Almadies assure la restauration sans recours à un tiers.</p>
 
-    <p>Je dispose du matériel de réception — mobilier de table, nappage, vaisselle, mange-debout —
-    et d'une équipe de salle que je renforce selon le nombre d'invités, jusqu'à 500 couverts. Mon
-    atelier de Ngor Almadies assure la production, ce qui me permet de tenir les horaires d'un
-    protocole sans dépendre d'un tiers. J'interviens à Dakar comme en régions, sur devis, après
-    une visite du site.</p>
-
-    <p>L'événementiel figure parmi les activités inscrites à mon registre du commerce, aux côtés
-    du service traiteur. Munalys Sweet by My-Mouna Cake est immatriculée sous le numéro
-    SN DKR 2025 A 19114 et dispose du NINEA 012149698.</p>
+    <p>L'événementiel figure parmi les activités inscrites à mon registre du commerce
+    SN DKR 2025 A 19114&nbsp;; mon NINEA est le 012149698.</p>
 
     <p>Vous trouverez ci-joint l'accusé d'immatriculation au registre du commerce et l'avis NINEA.
-    Je me tiens à votre disposition pour vous présenter mes réalisations et le détail de mes
-    moyens.</p>
+    Je me tiens à votre disposition pour toute précision.</p>
 
     <p>Je vous prie d'agréer, Madame l'Administratrice, l'assurance de ma considération
     respectueuse.</p>
