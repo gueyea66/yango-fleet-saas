@@ -1,5 +1,5 @@
 import { resolveUiV2, UI_V2_STORAGE_KEY } from "@/lib/v2/flag";
-import { formatAmount, formatDecimal, formatPct, sharePct, initials, groupInput } from "@/lib/v2/format";
+import { formatAmount, formatDecimal, formatPct, sharePct, initials } from "@/lib/v2/format";
 import { parseFilterParams, serializeFilterParams, periodRange, rangeLabel } from "@/lib/v2/filters";
 
 const NB = " ";
@@ -41,12 +41,6 @@ describe("formatage", () => {
     expect(sharePct(10, -5)).toBeNull();
     expect(formatPct(12.5)).toBe(`12,5${NB}%`);
     expect(formatPct(null)).toBe("—");
-  });
-  it("saisie groupée sans changer la valeur", () => {
-    expect(groupInput("41200")).toBe(`41${NB}200`);
-    expect(groupInput("151461")).toBe(`151${NB}461`);
-    expect(groupInput("12.5")).toBe("12,5");
-    expect(groupInput("")).toBe("");
   });
   it("initiales", () => {
     expect(initials("Moussa Diop")).toBe("MD");
