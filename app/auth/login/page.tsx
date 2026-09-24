@@ -2,59 +2,21 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect } from "react";
-import { createClient } from "@/lib/supabase/client";
-import { getVirtualEmailForDriver } from "@/lib/auth/utils";
 import { useTenant } from "@/lib/tenant/context";
 import { BrandLogo, PoweredBy } from "@/components/brand/BrandShell";
+import { useLoginForm } from "@/components/auth/useLoginForm";
+import { useUiV2 } from "@/components/v2/useUiV2";
+import { LoginV2 } from "@/components/v2/public/AuthV2";
 
 type UserRole = "admin" | "driver";
 
 export default function LoginPage() {
+  const uiV2 = useUiV2(); // refonte UI v2 (forçage appareil sur les pages publiques)
   const { settings } = useTenant();
   const brand = settings.primary_color || "var(--tenant-color)";
-  const [role, setRole] = useState<UserRole>("admin");
-  const [email, setEmail] = useState("");
-  const [driverId, setDriverId] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { role, setRole, email, setEmail, driverId, setDriverId, password, setPassword, loading, error, setError, handleSubmit } = useLoginForm();
 
-  // Redirigé par le middleware quand un chauffeur désactivé tente d'accéder à l'app
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).has("disabled")) {
-      setError("Ce compte chauffeur a été désactivé par le gestionnaire de la flotte.");
-    }
-  }, []);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      const supabase = createClient();
-      const loginEmail = role === "admin" ? email : getVirtualEmailForDriver(driverId);
-      if (!loginEmail || !password) {
-        setError("Champs requis manquants");
-        setLoading(false);
-        return;
-      }
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({ email: loginEmail, password });
-      if (signInError) { setError(signInError.message); return; }
-      const session = data?.session ?? (await supabase.auth.getSession()).data.session;
-      if (session?.user) {
-        localStorage.setItem("yango-session", JSON.stringify({ access_token: session.access_token, refresh_token: session.refresh_token, user: session.user }));
-        localStorage.setItem("yango-auth", JSON.stringify({ id: session.user.id, email: session.user.email, role }));
-        window.location.href = role === "admin" ? "/admin" : "/driver";
-      } else {
-        setError("Session introuvable — réessayez");
-      }
-    } catch {
-      setError("Erreur de connexion");
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (uiV2) return <LoginV2 />;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4"

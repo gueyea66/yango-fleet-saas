@@ -5,6 +5,8 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Suspense } from "react";
 import { PLAN_LIMITS, type Plan } from "@/lib/plans";
+import { useUiV2 } from "@/components/v2/useUiV2";
+import { AccessV2 } from "@/components/v2/public/AuthV2";
 
 interface PaymentSettings {
   wavePhone: string;
@@ -36,6 +38,7 @@ function QRCode({ url, size = 180 }: { url: string; size?: number }) {
 }
 
 function PaymentPageInner() {
+  const uiV2 = useUiV2(); // refonte UI v2 (forçage appareil sur les pages publiques)
   const params = useSearchParams();
   const slug = params.get("slug") || "";
   const plan = (params.get("plan") || "standard") as keyof typeof PLANS;
@@ -74,6 +77,8 @@ function PaymentPageInner() {
     btn: (color: string): React.CSSProperties => ({ background: color, color: "#000", border: "none", borderRadius: 10, padding: "14px 20px", fontWeight: 700, fontSize: 15, cursor: "pointer", width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 10 }),
     ghost: { background: "#252b3b", color: "var(--sk-t1)", border: "1px solid var(--sk-border)", borderRadius: 8, padding: "10px 14px", fontSize: 13, cursor: "pointer", width: "100%" } as React.CSSProperties,
   };
+
+  if (uiV2) return <AccessV2 reason="payment" initialPlan={plan === "standard" || plan === "enterprise" ? plan : "pro"} reference={ref} />;
 
   return (
     <div style={{ minHeight: "100vh", background: "#0f1117", color: "var(--sk-t1)", padding: "32px 16px" }}>

@@ -1,15 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { tenantDomainPreview } from "@/lib/config";
-
-interface FormState {
-  companyName: string;
-  email: string;
-  password: string;
-  currency: string;
-}
+import { useRegisterForm } from "@/components/auth/useRegisterForm";
+import { useUiV2 } from "@/components/v2/useUiV2";
+import { RegisterV2 } from "@/components/v2/public/AuthV2";
 
 const CURRENCIES = [
   { code: "XOF", label: "Franc CFA (XOF)" },
@@ -22,42 +17,10 @@ const CURRENCIES = [
 ];
 
 export default function RegisterPage() {
-  const [form, setForm] = useState<FormState>({ companyName: "", email: "", password: "", currency: "XOF" });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<{ loginUrl: string; trialEndsAt: string } | null>(null);
+  const uiV2 = useUiV2(); // refonte UI v2 (forçage appareil sur les pages publiques)
+  const { form, setForm, loading, error, success, slugPreview, handleSubmit } = useRegisterForm();
 
-  const slugPreview = form.companyName
-    .toLowerCase()
-    .normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "")
-    .slice(0, 30);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-
-    try {
-      const res = await fetch("/api/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || "Erreur inconnue"); return; }
-      // Redirect to payment page after 1 second
-      setTimeout(() => {
-        window.location.href = `/paiement?slug=${data.slug}&plan=${form.currency === "XOF" ? "standard" : "standard"}&ref=M3A-${data.slug.toUpperCase()}-${new Date().getFullYear()}`;
-      }, 1500);
-      setSuccess({ loginUrl: data.loginUrl, trialEndsAt: data.trialEndsAt });
-    } catch {
-      setError("Erreur réseau — réessayez.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (uiV2) return <RegisterV2 currencies={CURRENCIES} />;
 
   if (success) {
     const trialEnd = new Date(success.trialEndsAt).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });

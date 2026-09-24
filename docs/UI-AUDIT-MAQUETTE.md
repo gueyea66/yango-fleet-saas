@@ -142,3 +142,14 @@ s'ils sont justifiés (contrainte technique ou métier) et documentés ici.
 | Fiche véhicule (carte, 4 KPI GPS du jour, assurance, visite technique, boîtier) | ⏭ | Carte et KPI GPS : dans `/admin/suivi` actuel ; assurance / visite : dans `FleetTab` actuel. Non redessinés |
 | 4e Suivi GPS restylé (En direct / Rejouer, frise 24 h) | ⏭ | Page actuelle conservée telle quelle (fond neutralisé dans la coque) |
 | 4f Assistant d'installation en 4 étapes | ⏭ | Le parcours actuel suit déjà ces 4 étapes (Enrôler → RCONF → SMS → Signal, `plan.steps`) ; non redessiné |
+
+### Étape 7 — Pages publiques et superadmin (`Owner and Platform.dc.html`)
+| Élément maquette | Implémenté | Écart / justification |
+|---|---|---|
+| 3b Connexion : bascule Gestionnaire / Chauffeur, ID en mono, sans dégradé ni halo | ✅ | Logique déplacée dans `components/auth/useLoginForm.ts` (même `signInWithPassword`, mêmes clés localStorage, même redirection) |
+| 5a Inscription : même coque, « Démarrer l'essai » | ✅ | Champs **Téléphone** et **Nombre de véhicules** absents : l'API `/api/register` ne les reçoit pas (interdit d'y toucher). Devise conservée |
+| 5c Mot de passe oublié / réinitialisation : même gabarit | ✅ | Logique déplacée (`useForgotForm`, `useResetForm`) |
+| 5b Accès suspendu = paiement (fusion `/locked` + `/paiement`) : 3 formules, Wave / Orange Money, « J'ai payé — envoyer la référence » | ✅ | Formules et prix : `lib/plans.ts` + `/api/public/payment-settings` (lecture). « J'ai payé » ouvre WhatsApp avec formule, montant et référence (aucun endpoint d'envoi n'existe ; même numéro que `/locked`). QR / USSD de l'ancienne page non repris |
+| Drapeau sur les pages publiques | ⚠️ | Avant connexion le tenant n'est pas connu (la route de branding ne renvoie pas `ui_v2`) : seul le forçage appareil (`m3a-ui=v2`) active ces écrans |
+| 3c Superadmin (4 KPI, « À relancer », table) | ⏭ | Non traité : console opérateur interne, 1 600 lignes de logique d'écriture à déplacer ; reporté |
+| 3a Mode simple propriétaire mobile | ⏭ | `SimpleModeAdmin` inchangé (sa file de validation est partagée depuis l'étape 3) ; refonte visuelle reportée |
