@@ -43,3 +43,8 @@ Thumbs.db
 firebase-config.js
 
 docs/TELEMATICS/captures/
+
+# Refonte UI v2 — captures locales (comparaison drapeau OFF / ON)
+.ui-v2-baseline/
+.ui-v2-shots/
+.ui-v2-auth/
