@@ -100,10 +100,19 @@ export function LoginV2() {
         </form>
         {role === "admin" && <Link href="/auth/forgot" style={{ textAlign: "center", fontSize: 13, color: "var(--sk-t2)" }}>Mot de passe oublié ?</Link>}
       </div>
-      <div style={{ textAlign: "center", fontSize: 12, color: "var(--sk-t2)", display: "flex", flexDirection: "column", gap: 6 }}>
-        {settings.operator_name && <span>{settings.operator_name}</span>}
+      <div style={{ textAlign: "center", fontSize: 12, color: "var(--sk-t2)", display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+        {/* Maquette 3b : nom de l'opérateur · lien discret vers la console opérateur existante (/superadmin, accès inchangé). */}
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 10 }}>
+          {settings.operator_name && (
+            <>
+              <span>{settings.operator_name}</span>
+              <span aria-hidden style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--sk-t3)" }} />
+            </>
+          )}
+          <Link href="/superadmin" className="v2-link">Espace opérateur</Link>
+        </div>
         <PoweredBy />
-        <Link href="/" style={{ color: "var(--sk-t3)" }}>Retour au site</Link>
+        <Link href="/" className="v2-link" style={{ color: "var(--sk-t3)" }}>Retour au site</Link>
       </div>
     </AuthShellV2>
   );

@@ -219,3 +219,7 @@ html[data-ui="v2"] body {
    neutralise leur fond plein écran ; classe utilisée seulement drapeau allumé. */
 .v2-embed .min-h-screen { min-height: 0; }
 .v2-embed > .bg-gray-900 { background: transparent; padding: 0; }
+
+/* v2 : lien discret (12 px, --sk-t2), souligné au survol — « Espace opérateur ». */
+.v2-link { font-size: 12px; color: var(--sk-t2); text-decoration: none; }
+.v2-link:hover, .v2-link:focus-visible { text-decoration: underline; color: var(--sk-t1); }
