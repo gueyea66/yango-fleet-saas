@@ -110,3 +110,15 @@ s'ils sont justifiés (contrainte technique ou métier) et documentés ici.
 | Coûts par poste : XOF, % du CA, % des coûts + mini-barre, ligne Total, `CAT_AVANCE` exclu | ✅ | `lib/v2/dashboard.ts` (testé) ; mêmes agrégats que la treemap (`expenseBreakdown`) |
 | Net par jour (net final sur brut) | ✅ | `kpis.dailyRows` |
 | Bascule Simple / Avancé (orange) | ✅ | Avancé = sections actuelles telles quelles. Préférence par appareil |
+
+### Étape 4 — À valider (`Admin.dc.html` 2c)
+| Élément maquette | Implémenté | Écart / justification |
+|---|---|---|
+| Liste 360 px, onglets Rapports / Dépenses avec compteurs, ligne sélectionnée liseré orange | ✅ | + tag NOUVEAU (< 1 h) |
+| Panneau de détail à droite (plus de modale) : lignes du calcul, net total 20 mono vert | ✅ | Espèces / Carte si présents, sinon Brut (rapports anciens) |
+| Badge « Lu sur N captures · confiance X % » | ✅ | Lecture `fleet.ai_extractions` du chauffeur à la date ; confiance = plus faible score. Sinon « Saisie manuelle » |
+| Contrôles : net affiché = calculé ; km déclarés vs GPS (orange au-delà de 15 %) | ✅ | GPS : `v_telematics_reconciliation` (km du véhicule ce jour-là), km déclarés = compteur − dernier compteur validé. Écart affiché seulement si la journée est exploitable (même règle que la vue) |
+| Commentaire du chauffeur, captures à droite | ✅ | Captures = pièces jointes du rapport (dont les scans rattachés à l'envoi) |
+| Rejeter (contour rouge) / **Valider et suivant** | ✅ | Écritures des modales actuelles déplacées dans `useReportReview` / `useExpenseReview` (statut, `rejection_reason`, action_logs, notification). La sélection passe à l'élément suivant ; toast « Rapport validé — X est notifié » (2,6 s) |
+| Modifier le rapport | ✅ | Repliable, mêmes champs et même recalcul (`recomputeReportNet`) que la modale |
+| Filtre dates sur À valider | ⚠️ | Retiré : la liste montre toutes les soumissions en attente (comme aujourd'hui) ; seul le filtre chauffeur agit |

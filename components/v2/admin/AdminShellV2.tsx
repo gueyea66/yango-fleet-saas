@@ -194,7 +194,7 @@ export default function AdminShellV2({
                 period={f.period ? filters.period : undefined}
                 onPeriodChange={f.period ? filters.onPeriodChange : undefined}
                 periodOptions={["mois", "annee"]}
-                range={filters.range}
+                range={f.period || f.dates ? filters.range : undefined}
                 drivers={f.driver ? filters.drivers : undefined}
                 driverId={filters.driverId}
                 onDriverChange={f.driver ? filters.onDriverChange : undefined}
