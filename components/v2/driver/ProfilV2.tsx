@@ -21,6 +21,7 @@ export function ProfilV2({ profile, onBack, onSignOut }: { profile: Profile; onB
   } = useDriverProfil(profile);
   const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [infoOpen, setInfoOpen] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
 
   // Même préférence d'appareil que ThemeToggle (localStorage « m3a-theme »).
@@ -155,9 +156,12 @@ export function ProfilV2({ profile, onBack, onSignOut }: { profile: Profile; onB
 
         <DriverAvancesSection driverId={profile.id} />
 
-        <button type="button" onClick={onSignOut} className="v2-focus"
-          style={{ marginTop: "auto", minHeight: 52, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "none", border: "none", color: "var(--v2-negative-ink)", fontSize: 15, cursor: "pointer" }}>
-          <LogOut size={18} aria-hidden />Se déconnecter
+        {/* Déconnexion (maquette 2d) : tout en bas, en rouge — appelle useAuth().signOut via onSignOut. */}
+        <button type="button" onClick={() => { setSigningOut(true); onSignOut(); }} disabled={signingOut} className="v2-btn v2-focus"
+          style={{ marginTop: "auto", width: "100%", minHeight: 52, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+            background: "var(--v2-neg-bg)", border: "1px solid var(--v2-neg-bd)", color: "var(--v2-negative-ink)", fontSize: 15, fontWeight: 600, cursor: "pointer",
+            marginBottom: "env(safe-area-inset-bottom, 0px)" }}>
+          <LogOut size={18} aria-hidden />{signingOut ? "Déconnexion…" : "Se déconnecter"}
         </button>
       </ScreenBody>
     </>
