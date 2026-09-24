@@ -18,6 +18,7 @@ export interface DestinationDef {
   key: AdminDestination;
   label: string;
   secondary?: boolean;           // sous le séparateur (Historique, Paramètres)
+  menu?: boolean;                // sous-onglets en menu local vertical (Paramètres, 4d)
   subTabs: SubTab[];
   /** Blocs de la FilterBar (README) — aucun = pas de barre. */
   filter: { period?: boolean; dates?: boolean; driver?: boolean };
@@ -52,14 +53,14 @@ export const ADMIN_DESTINATIONS: DestinationDef[] = [
   {
     key: "hist", label: "Historique", secondary: true, filter: { driver: true },
     subTabs: [
-      { tab: "history", label: "Liste" },
-      { tab: "calendrier", label: "Calendrier" },
+      { tab: "history", label: "Calendrier" },
+      { tab: "calendrier", label: "Planning" },
     ],
   },
   {
-    key: "set", label: "Paramètres", secondary: true, filter: {},
+    key: "set", label: "Paramètres", secondary: true, menu: true, filter: {},
     subTabs: [
-      { tab: "settings", label: "Entreprise" },
+      { tab: "settings", label: "Entreprise & marque" },
       { tab: "remuneration", label: "Rémunération" },
       { tab: "import", label: "Import historique" },
       { tab: "journal", label: "Journal" },

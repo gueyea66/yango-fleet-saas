@@ -202,7 +202,7 @@ export default function AdminShellV2({
             )}
             {headerRight}
           </div>
-          {dest.subTabs.length > 1 && (
+          {dest.subTabs.length > 1 && !dest.menu && (
             <Segmented options={dest.subTabs.map((s) => ({ key: s.tab, label: s.label }))} value={tab} onChange={openSub} ariaLabel={`Sections — ${dest.label}`} style={{ alignSelf: "flex-start" }} />
           )}
           {sessionError && (
@@ -218,7 +218,25 @@ export default function AdminShellV2({
               </button>
             </div>
           )}
-          <div style={{ minWidth: 0 }}>{children}</div>
+          {dest.menu ? (
+            <div className="grid grid-cols-1 md:grid-cols-[220px_1fr]" style={{ gap: 20, alignItems: "start" }}>
+              <nav aria-label={`Sections — ${dest.label}`} style={{ display: "flex", flexDirection: "column", gap: 2, padding: 6, borderRadius: 12, background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+                {dest.subTabs.map((s) => {
+                  const on = s.tab === tab;
+                  return (
+                    <button key={s.tab} type="button" onClick={() => openSub(s.tab)} aria-current={on ? "page" : undefined} className="v2-focus"
+                      style={{ height: 36, padding: "0 12px", borderRadius: 8, border: "none", textAlign: "left", cursor: "pointer", fontSize: 14,
+                        background: on ? "var(--sk-surface)" : "transparent", color: on ? "var(--sk-t1)" : "var(--sk-t2)", fontWeight: on ? 600 : 400 }}>
+                      {s.label}
+                    </button>
+                  );
+                })}
+              </nav>
+              <div style={{ minWidth: 0 }}>{children}</div>
+            </div>
+          ) : (
+            <div style={{ minWidth: 0 }}>{children}</div>
+          )}
         </div>
       </main>
     </div>

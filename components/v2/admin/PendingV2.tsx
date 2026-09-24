@@ -139,7 +139,7 @@ function Check2({ ok, warn, children }: { ok?: boolean; warn?: boolean; children
   );
 }
 
-function ReportPanel({ report, onRefresh, onAction }: { report: any; onRefresh: () => void; onAction: (id: string, label: string) => void }) {
+export function ReportPanel({ report, onRefresh, onAction }: { report: any; onRefresh: () => void; onAction: (id: string, label: string) => void }) {
   const rv = useReportReview(report, onRefresh);
   const ctx = useReviewContext(report);
   const [edit, setEdit] = useState(false);
@@ -180,12 +180,18 @@ function ReportPanel({ report, onRefresh, onAction }: { report: any; onRefresh: 
         </Badge>
       ) : ctx.loaded && !repos ? <Badge tone="neutral" square style={{ padding: "5px 10px", fontSize: 12 }}>Saisie manuelle</Badge> : undefined}
       actions={
-        <>
-          <Button variant="danger" size="md" disabled={rv.saving} onClick={() => void act("rejected")} style={{ height: 42 }}>Rejeter</Button>
-          <Button variant="validate" size="md" icon={Check} disabled={rv.saving} onClick={() => void act("approved")} style={{ height: 42, fontWeight: 700 }}>
-            {rv.saving ? "…" : "Valider et suivant"}
-          </Button>
-        </>
+        // Mêmes actions que la modale actuelle : Rejeter / Valider tant que le
+        // rapport n'est pas validé, « Annuler la validation » sinon.
+        report.status === "approved" ? (
+          <Button variant="danger" size="md" disabled={rv.saving} onClick={() => void act("rejected")} style={{ height: 42 }}>Annuler la validation</Button>
+        ) : (
+          <>
+            <Button variant="danger" size="md" disabled={rv.saving} onClick={() => void act("rejected")} style={{ height: 42 }}>Rejeter</Button>
+            <Button variant="validate" size="md" icon={Check} disabled={rv.saving} onClick={() => void act("approved")} style={{ height: 42, fontWeight: 700 }}>
+              {rv.saving ? "…" : report.status === "submitted" ? "Valider et suivant" : "Valider"}
+            </Button>
+          </>
+        )
       }
     >
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_200px]" style={{ gap: 16 }}>
