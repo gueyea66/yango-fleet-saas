@@ -38,12 +38,14 @@ export function DashViewToggle({ view, onChange }: { view: DashView; onChange: (
  * Tableau de bord v2 — vue simple (maquette 2a). « Avancé » = les sections
  * actuelles (AccordionSection), passées telles quelles dans `advanced`.
  */
-export function DashboardV2({ view, kpis, plat, tenantId, driverIds, onKpisChanged, onOpenValidation, advanced }: {
+export function DashboardV2({ view, kpis, plat, tenantId, driverIds, range, onKpisChanged, onOpenValidation, advanced }: {
   view: DashView;
   kpis: Kpis;
   plat: string;
   tenantId: string | null;
   driverIds: string[];
+  /** période de la barre de filtres : la file À valider s'y limite */
+  range?: { from: string; to: string };
   onKpisChanged: () => void;
   onOpenValidation: () => void;
   advanced: ReactNode;
@@ -90,7 +92,7 @@ export function DashboardV2({ view, kpis, plat, tenantId, driverIds, onKpisChang
       {/* File + briefing */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(340px, 1fr))", gap: 12, alignItems: "start" }}>
         {tenantId
-          ? <ValidationQueueV2 tenantId={tenantId} driverIds={driverIds} onChanged={onKpisChanged} onOpenAll={onOpenValidation} />
+          ? <ValidationQueueV2 tenantId={tenantId} driverIds={driverIds} range={range} onChanged={onKpisChanged} onOpenAll={onOpenValidation} />
           : loadingBlock(240)}
         <div style={{ minWidth: 0 }}>
           {/* Briefing IA inchangé (rend null si la couche IA est coupée). */}

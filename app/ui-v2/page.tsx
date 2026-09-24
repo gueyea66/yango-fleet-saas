@@ -9,6 +9,7 @@ import {
 import { useUiV2 } from "@/components/v2/useUiV2";
 import { formatAmount } from "@/lib/v2/format";
 import { periodRange, type FilterPeriod } from "@/lib/v2/filters";
+import { defaultPeriod, type AdminPeriod } from "@/lib/v2/periodFilter";
 import DriverAppV2 from "@/components/v2/driver/DriverAppV2";
 import { DEFAULT_CFG } from "@/components/driver/shared";
 import AdminShellV2 from "@/components/v2/admin/AdminShellV2";
@@ -164,9 +165,8 @@ export default function UiV2Showcase() {
 /** Coque gestionnaire avec contenu fictif (tenant non-UUID : aucune donnée). */
 function AdminShellDemo() {
   const [tab, setTab] = useState("dashboard");
-  const [period, setPeriod] = useState<FilterPeriod>("mois");
-  const [driverId, setDriverId] = useState("");
-  const range = periodRange(period, new Date());
+  const [period, setPeriod] = useState<AdminPeriod>(() => defaultPeriod(new Date()));
+  const [driverIds, setDriverIds] = useState<string[]>([]);
   const [view, setView] = useDashView();
   return (
     <AdminShellV2
@@ -174,8 +174,9 @@ function AdminShellDemo() {
       sessionError={null} onSignOut={() => {}} onReconnect={() => {}}
       headerRight={tab === "dashboard" ? <DashViewToggle view={view} onChange={setView} /> : undefined}
       filters={{
-        period, onPeriodChange: setPeriod, range,
-        drivers: [{ id: "d1", label: "Moussa Diop" }, { id: "d2", label: "Awa Ndiaye" }], driverId, onDriverChange: setDriverId,
+        period, onPeriodChange: setPeriod,
+        drivers: DEMO_DRIVERS.map((d): { id: string; label: string; plate: string | null; active: boolean } => ({ id: d.id, label: d.full_name, plate: d.plate, active: d.active })).concat([{ id: "demo-d4", label: "Omar Fall", plate: null, active: false }]),
+        driverIds, onDriverIdsChange: setDriverIds,
       }}
     >
       {tab === "dashboard" ? (

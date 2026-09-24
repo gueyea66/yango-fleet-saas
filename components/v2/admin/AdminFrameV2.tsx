@@ -41,7 +41,7 @@ export default function AdminFrameV2({ tab, children }: { tab: string; children:
       sessionError={null}
       onSignOut={() => signOut()}
       onReconnect={() => signOut()}
-      filters={{ drivers: [], driverId: "", onDriverChange: () => {} }}
+      filters={{ drivers: [], driverIds: [], onDriverIdsChange: () => {} }}
     >
       <div className="v2-embed">{children}</div>
     </AdminShellV2>

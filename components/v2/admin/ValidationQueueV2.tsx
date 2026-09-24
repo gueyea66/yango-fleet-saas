@@ -4,6 +4,7 @@ import { CircleCheck, Receipt, ClipboardList } from "lucide-react";
 import { useValidationQueue } from "@/components/ValidationQueue";
 import { displayLabel } from "@/lib/tenant/platformLabel";
 import { formatAmount } from "@/lib/v2/format";
+import { inRange } from "@/lib/v2/periodFilter";
 import { Button } from "@/components/ui";
 
 const ddmm = (iso?: string | null) => { if (!iso) return ""; const [, m, d] = iso.slice(0, 10).split("-"); return `${d}/${m}`; };
@@ -12,18 +13,20 @@ const ddmm = (iso?: string | null) => { if (!iso) return ""; const [, m, d] = is
  * File « À valider » compacte (tableau de bord v2, maquette 2a). Écritures :
  * celles du mode simple, via useValidationQueue (statut + action_logs + push).
  */
-export function ValidationQueueV2({ tenantId, driverIds, onChanged, onOpenAll, limit = 4 }: {
+export function ValidationQueueV2({ tenantId, driverIds, range, onChanged, onOpenAll, limit = 4 }: {
   tenantId: string;
   driverIds: string[];
+  range?: { from: string; to: string };
   onChanged: () => void;
   onOpenAll: () => void;
   limit?: number;
 }) {
   const { pending, pendingExp, driverNames, acting, reportAction, expenseAction } = useValidationQueue(tenantId, onChanged);
   const keep = (id: string) => driverIds.length === 0 || driverIds.includes(id);
+  const inPeriod = (d?: string | null) => !range || inRange(d, range);
   const items = [
-    ...pending.filter((r) => keep(r.driver_id)).map((r) => ({ kind: "report" as const, row: r, date: r.date as string })),
-    ...pendingExp.filter((e) => keep(e.driver_id)).map((e) => ({ kind: "expense" as const, row: e, date: (e.expense_date || e.created_at || "") as string })),
+    ...pending.filter((r) => keep(r.driver_id) && inPeriod(r.date)).map((r) => ({ kind: "report" as const, row: r, date: r.date as string })),
+    ...pendingExp.filter((e) => keep(e.driver_id) && inPeriod(e.expense_date || e.created_at)).map((e) => ({ kind: "expense" as const, row: e, date: (e.expense_date || e.created_at || "") as string })),
   ].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
   const shown = items.slice(0, limit);
 
