@@ -114,6 +114,7 @@ export default function DriverApp() {
               if (ts) applyTenantBrandingOverride({
                 app_name: ts.app_name, logo_url: ts.logo_url, primary_color: ts.primary_color,
                 skin: ts.skin, operator_name: ts.operator_name, currency: ts.currency,
+                ui_v2: ts.ui_v2, // drapeau refonte UI v2 (migration 062)
               });
             });
           const { data: remun } = await supabase

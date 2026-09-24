@@ -131,6 +131,7 @@ export default function AdminPage() {
       if (ts) applyTenantBrandingOverride({
         app_name: ts.app_name, logo_url: ts.logo_url, primary_color: ts.primary_color,
         skin: ts.skin, operator_name: ts.operator_name, currency: ts.currency,
+        ui_v2: ts.ui_v2, // drapeau refonte UI v2 (migration 062)
       });
       const plateMap = Object.fromEntries((vehs || []).map((v: any) => [v.driver_id, v.plate]));
       setAllDrivers((profs || []).map((p: any) => ({ ...p, plate: plateMap[p.id] || null })));
