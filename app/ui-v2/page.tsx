@@ -88,7 +88,7 @@ export default function UiV2Showcase() {
       </section>
 
       <section style={{ display: "flex", flexWrap: "wrap", gap: 24, alignItems: "flex-start" }}>
-        <div style={{ width: 396, border: "1px solid var(--sk-surface)", borderRadius: 18, overflow: "hidden", background: "var(--sk-deep)" }}>
+        <div style={{ width: "min(396px, 100%)", border: "1px solid var(--sk-surface)", borderRadius: 18, overflow: "hidden", background: "var(--sk-deep)" }}>
           <div style={{ padding: "24px 16px", display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
               <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>Mardi 23 septembre</div>
@@ -125,7 +125,7 @@ export default function UiV2Showcase() {
             ]}
           />
         </div>
-        <Card style={{ width: 360 }} flush>
+        <Card style={{ width: "min(360px, 100%)" }} flush>
           <div style={{ padding: "14px 16px" }}><CardTitle style={{ marginBottom: 0 }} right={<Badge tone="wait">3</Badge>}>À valider</CardTitle></div>
           <ListRow label="Moussa Diop" sub="Rapport · 23/09" selected trailing={<span className="v2-num" style={{ fontSize: 14 }}>{formatAmount(46019)}</span>} onClick={() => {}} />
           <ListRow label="Awa Ndiaye" sub="Dépense · Carburant" trailing={<span className="v2-num" style={{ fontSize: 14 }}>{formatAmount(8000)}</span>} onClick={() => {}} />
