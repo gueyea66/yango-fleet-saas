@@ -14,6 +14,7 @@ import { DEFAULT_CFG } from "@/components/driver/shared";
 import AdminShellV2 from "@/components/v2/admin/AdminShellV2";
 import { DashboardV2, DashViewToggle, useDashView } from "@/components/v2/admin/DashboardV2";
 import { PendingV2 } from "@/components/v2/admin/PendingV2";
+import { FinanceKpisV2, HistoryV2, TeamV2 } from "@/components/v2/admin/SectionsV2";
 
 // Profil fictif : identifiants non-UUID → toute requête Supabase échoue côté
 // base (aucune lecture ni écriture possible). Sert à relire la mise en page.
@@ -181,6 +182,16 @@ function AdminShellDemo() {
           advanced={<Card style={{ minHeight: 200 }}>Sections actuelles (accordéons)</Card>} />
       ) : tab === "pending" ? (
         <PendingV2 reports={DEMO_REPORTS} expenses={DEMO_EXPENSES} loading={false} onRefresh={() => {}} />
+      ) : tab === "kyc" ? (
+        <TeamV2 drivers={DEMO_DRIVERS} onOpenHistory={() => setTab("history")}
+          renderDocuments={() => <Card style={{ minHeight: 160, color: "var(--v2-muted)", fontSize: 14 }}>Documents KYC du chauffeur (composant actuel)</Card>} />
+      ) : tab === "history" ? (
+        <HistoryV2 reports={DEMO_HISTORY} drivers={DEMO_DRIVERS} loading={false} onRefresh={() => {}} list={<Card>Liste actuelle</Card>} />
+      ) : tab === "payments" || tab === "avances" ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          <FinanceKpisV2 kpis={{ ...DEMO_KPIS, expenseBreakdown: [...DEMO_KPIS.expenseBreakdown, { type: "💵 Salaires", amount: 690000, percent: 0 }] }} />
+          <Card style={{ minHeight: 200, color: "var(--v2-muted)", fontSize: 14 }}>Onglet « {tab} » actuel</Card>
+        </div>
       ) : (
         <Card style={{ minHeight: 320, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--v2-muted)", fontSize: 14 }}>
           Contenu actuel de l&apos;onglet « {tab} »
@@ -219,3 +230,16 @@ const DEMO_EXPENSES = [
   { id: "demo-e1", tenant_id: "demo-tenant", driver_id: "demo-d2", category: "Carburant", amount: 8000, expense_date: "2026-09-22", status: "submitted", profiles: { full_name: "Moussa Diop" }, description: "12L" },
   { id: "demo-e2", tenant_id: "demo-tenant", driver_id: "demo-d1", category: "Péage", amount: 1500, expense_date: "2026-09-22", status: "submitted", profiles: { full_name: "Alioune Diagne" } },
 ];
+
+const DEMO_DRIVERS = [
+  { id: "demo-d1", full_name: "Alioune Diagne", driver_id: "DRV002", plate: "DK-4410-BC", active: true, onboarding_status: "approved", city: "Dakar", joined_at: "2025-11-03" },
+  { id: "demo-d2", full_name: "Moussa Diop", driver_id: "DRV001", plate: "AB-872-JG", active: true, onboarding_status: "in_review" },
+  { id: "demo-d3", full_name: "Ibrahima Sarr", driver_id: "DRV003", plate: "DK-2291-AF", active: true, onboarding_status: "incomplete" },
+];
+const DEMO_HISTORY = DEMO_DRIVERS.flatMap((d, di) => Array.from({ length: 23 }, (_, i) => {
+  const code = ["vvvvvvovvvvvvovvvvrvoav", "vvvvvovvvvvvovvvvvvvvaa", "vvrvvvovvvvvovvvvvovvrv"][di][i];
+  if (code === "o") return { id: `h-${di}-${i}`, driver_id: d.id, date: `2026-09-${String(i + 1).padStart(2, "0")}`, status: "approved", comment: "[REPOS]", net_after_expenses: 0, tenant_id: "demo-tenant", _profile: { full_name: d.full_name } };
+  const status = code === "v" ? "approved" : code === "a" ? "submitted" : "rejected";
+  return { id: `h-${di}-${i}`, driver_id: d.id, date: `2026-09-${String(i + 1).padStart(2, "0")}`, status, tenant_id: "demo-tenant", _profile: { full_name: d.full_name },
+    yango_cash: 41200, yango_card: 3800, yango_bonus: 2500, commission_amount: 7481, off_yango_revenue: 6000, net_after_expenses: 46019, yango_trip_count: 14 };
+}));

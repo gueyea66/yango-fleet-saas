@@ -42,6 +42,7 @@ import { useUiV2 } from "@/components/v2/useUiV2";
 import AdminShellV2 from "@/components/v2/admin/AdminShellV2";
 import { DashboardV2, DashViewToggle, useDashView } from "@/components/v2/admin/DashboardV2";
 import { PendingV2 } from "@/components/v2/admin/PendingV2";
+import { FinanceKpisV2, HistoryV2, TeamV2 } from "@/components/v2/admin/SectionsV2";
 import { periodFromMonths, monthsForPeriod } from "@/lib/v2/adminNav";
 import { useReportReview } from "@/components/admin/useReportReview";
 import { useExpenseReview } from "@/components/admin/useExpenseReview";
@@ -812,6 +813,25 @@ export default function AdminPage() {
               loading={loadingReports}
               onRefresh={() => loadReports(filterDriverIds)}
             />
+          ) : tab === "kyc" ? (
+            <TeamV2
+              drivers={allDrivers}
+              renderDocuments={(id) => adminTenantId ? <KycAdminTab tenantId={adminTenantId} filterDriverId={id} /> : null}
+              onOpenHistory={(id) => { setFilterDriverIds([id]); setTab("history"); }}
+            />
+          ) : tab === "history" ? (
+            <HistoryV2
+              reports={reports}
+              drivers={filterDriverIds.length ? allDrivers.filter((d) => filterDriverIds.includes(d.id)) : allDrivers}
+              loading={loadingReports}
+              onRefresh={() => loadReports(filterDriverIds)}
+              list={tabContent}
+            />
+          ) : tab === "payments" || tab === "avances" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+              <FinanceKpisV2 kpis={kpis} />
+              {tabContent}
+            </div>
           ) : tabContent}
         </AdminShellV2>
         {showImportModal && <ImportHistoriqueModal onClose={() => setShowImportModal(false)} />}

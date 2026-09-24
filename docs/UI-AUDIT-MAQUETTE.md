@@ -122,3 +122,14 @@ s'ils sont justifiés (contrainte technique ou métier) et documentés ici.
 | Rejeter (contour rouge) / **Valider et suivant** | ✅ | Écritures des modales actuelles déplacées dans `useReportReview` / `useExpenseReview` (statut, `rejection_reason`, action_logs, notification). La sélection passe à l'élément suivant ; toast « Rapport validé — X est notifié » (2,6 s) |
 | Modifier le rapport | ✅ | Repliable, mêmes champs et même recalcul (`recomputeReportNet`) que la modale |
 | Filtre dates sur À valider | ⚠️ | Retiré : la liste montre toutes les soumissions en attente (comme aujourd'hui) ; seul le filtre chauffeur agit |
+
+### Étape 5 — Équipe, Finance, Historique, Paramètres (`Admin.dc.html` 4a–4d)
+| Élément maquette | Implémenté | Écart / justification |
+|---|---|---|
+| 4a Équipe : liste des chauffeurs (état KYC), fiche Profil / Documents / Rémunération / Activité, 4 KPI | ✅ | Documents = `KycAdminTab` actuel filtré sur le chauffeur. Rémunération → page `/admin/drivers` (réglage par chauffeur existant). Activité → Historique filtré. KPI : chauffeurs, actifs, dossiers validés, à vérifier (au lieu de KPI financiers par chauffeur, absents des hooks) |
+| 6 vignettes KYC dans la fiche | ⚠️ | Rendu par `KycAdminTab` actuel (non restylé à cette étape) |
+| 4b Finance : Encaissements, Décaissements (dépenses + avances), Masse salariale, Marge après salaires | ✅ | `lib/v2/team.ts` (testé) sur `useDashboardKPIs`. Onglets Paiements / Avances actuels dessous |
+| Table des salaires, derniers mouvements, export CSV | ⏭ | Restent dans `PaymentsTab` / `AvancesTab` actuels (déplacés, non redessinés) |
+| Journal dans Finance | ⚠️ | Laissé dans Paramètres (une seule entrée, pour ne pas dupliquer l'onglet) |
+| 4c Historique : grille chauffeurs × jours colorée, détail du jour, bascule liste | ✅ | Détail = panneau de l'étape 4 (mêmes écritures que la modale). « Planning » = `CalendrierTab` actuel |
+| 4d Paramètres : menu local | ✅ | Entreprise & marque · Rémunération · Import historique · Journal. **Notifications, Assistant IA, Abonnement** : pas d'écran existant → masqués |
