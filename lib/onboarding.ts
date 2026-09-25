@@ -38,6 +38,17 @@ export function makePassword(len = 10): string {
   return out;
 }
 
+/**
+ * Couleur hexadécimale à six chiffres, normalisée en minuscules avec le dièse.
+ * Rend `null` sur tout le reste : mieux vaut garder la couleur par défaut que
+ * d'écrire une valeur que le navigateur ignorera en silence.
+ */
+export function couleurValide(v: unknown): string | null {
+  const s = String(v ?? "").trim();
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(s);
+  return m ? "#" + m[1].toLowerCase() : null;
+}
+
 /** Prochain identifiant libre de la serie D01, D02... pour ce tenant. */
 export function nextDriverId(taken: Set<string>): string {
   for (let i = 1; i < 1000; i++) {
@@ -138,7 +149,8 @@ export async function provisionOnboarding(args: ProvisionArgs): Promise<Provisio
 
     await admin.from("tenant_settings").insert({
       tenant_id: tenantId, app_name: doc.nom.trim(),
-      primary_color: "#f5a623", currency: "XOF", timezone: "Africa/Dakar",
+      primary_color: couleurValide(doc.couleur) ?? "#f5a623",
+      currency: "XOF", timezone: "Africa/Dakar",
       ui_v2: doc.uiV2 === true,
     });
     lignes.push({ quoi: `Espace « ${slug} »`, etat: "cree", detail: `essai de ${trialDays} jours` });
@@ -154,6 +166,19 @@ export async function provisionOnboarding(args: ProvisionArgs): Promise<Provisio
     lignes.push(error
       ? { quoi: "Interface", etat: "erreur", detail: error.message }
       : { quoi: "Interface", etat: "maj", detail: doc.uiV2 ? "refonte v2" : "interface actuelle" });
+  }
+
+  // La couleur du client, même traitement : posée à la création, reposée au
+  // rejeu. Une couleur invalide est ignorée plutôt qu'écrite — une valeur que
+  // le navigateur ne sait pas lire rendrait l'espace illisible, et l'erreur
+  // serait invisible en base.
+  const couleur = couleurValide(doc.couleur);
+  if (couleur) {
+    const { error } = await admin.from("tenant_settings")
+      .update({ primary_color: couleur }).eq("tenant_id", tenantId);
+    lignes.push(error
+      ? { quoi: "Couleur de marque", etat: "erreur", detail: error.message }
+      : { quoi: "Couleur de marque", etat: "maj", detail: couleur });
   }
 
   /* 2 ── La règle de versement */
