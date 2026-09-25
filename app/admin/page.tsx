@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
-import { baseAmortissable, dureeAmortissementMois, porteParExploitant } from "@/lib/calc";
+import { baseAmortissable, dureeAmortissementMois, porteParExploitant, kmParMoisDepuisCompteur } from "@/lib/calc";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useDashboardKPIs } from "@/lib/hooks/useDashboardKPIs";
@@ -460,8 +460,16 @@ export default function AdminPage() {
                     <KPICard label="Carburant consommé" value={kpis.carburantConsomme} color="#ef4444" negative sub={`${Math.round(kpis.coutCarburantKm).toLocaleString("fr-FR")}/km`} hideWhenZero showZeros={showAllZeros} />
                     <KPICard label="Autres dépenses" value={kpis.autresDepensesOpe} color="#ef4444" negative sub="hors solde & carburant" hideWhenZero showZeros={showAllZeros} />
                     <KPICard label="Salaires" value={kpis.totalDepenses - kpis.provisionsSolde - kpis.achatsCarburant - kpis.autresDepensesOpe} color="#ef4444" negative hideWhenZero showZeros={showAllZeros} />
-                    <KPICard label="NET OPÉRATIONNEL" value={kpis.netOperationnel} color={kpis.netOperationnel >= 0 ? "#22c55e" : "#ef4444"} big sub="vrai résultat" />
+                    <KPICard label="NET OPÉRATIONNEL" value={kpis.netOperationnel} color={kpis.netOperationnel >= 0 ? "#22c55e" : "#ef4444"} big sub="avant amortissement" />
                   </div>
+
+                  {/* ── CASCADE D'AMORTISSEMENT ──
+                      Toujours rendue, jamais derrière un interrupteur : le net
+                      opérationnel ignore l'usure des véhicules, et un exploitant
+                      qui dégage 400 000 en devant encore rembourser 200 000 de
+                      véhicule se croirait rentable. Les deux lignes restent sous
+                      les yeux pour qu'aucun résultat ne puisse être lu embelli. */}
+                  <CascadeAmortissement kpis={kpis} />
                   {(() => {
                     // Audit UI : compte les postes à zéro masqués et propose de les révéler.
                     const salaires = kpis.totalDepenses - kpis.provisionsSolde - kpis.achatsCarburant - kpis.autresDepensesOpe;
@@ -1264,28 +1272,66 @@ function ExpiryBadge({ label, dateStr }: { label: string; dateStr: string | null
 const EMPTY_VEH = { plate: "", make: "", model: "", year: "", color: "", fuel_type: "essence", transmission: "manuelle", vin: "", mileage: "0", status: "active", insurance_company: "", insurance_number: "", insurance_expiry: "", visite_expiry: "", notes: "", driver_id: "", fleet_segment: "interne", owner_name: "", prix_acquisition: "", valeur_residuelle: "", date_acquisition: "", amort_plafond_km: "400000", amort_duree_max_mois: "36", amort_porte_par: "exploitant" };
 
 /**
- * Km parcourus par mois, déduits des relevés de compteur déclarés.
+ * Les deux lignes qui manquaient au résultat : l'usure des véhicules, puis le
+ * résultat net qu'elle laisse.
  *
- * `null` quand la mesure n'est pas fiable : moins de deux relevés, moins de
- * 14 jours d'écart, ou un compteur qui n'a pas bougé. Renvoyer une valeur
- * quand même donnerait une durée d'amortissement fausse avec l'apparence d'un
- * calcul — pire qu'un champ vide.
+ * Rendue sans interrupteur et sans repli possible. Un toggle « inclure
+ * l'amortissement » finirait décoché, et on serait revenu au point de départ :
+ * un net opérationnel lu comme un vrai gain alors que le véhicule n'est pas
+ * remboursé. Quand le résultat devient négatif, il s'affiche négatif — c'est
+ * précisément l'information que l'écran existait pour donner.
  */
-function kmParMoisDepuisCompteur(releves: Array<{ date: string; end_odometer: number | null }>): number | null {
-  const pts = releves
-    .filter((r) => r.date && r.end_odometer != null && r.end_odometer > 0)
-    .sort((a, b) => a.date.localeCompare(b.date));
-  if (pts.length < 2) return null;
+function CascadeAmortissement({ kpis }: { kpis: any }) {
+  const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
+  const manquants: string[] = kpis.amortNonRenseignes || [];
+  const detail: Array<{ plate: string; montant: number; dureeMois: number | null; moisRestants: number | null }> =
+    kpis.amortParVehicule || [];
 
-  const premier = pts[0];
-  const dernier = pts[pts.length - 1];
-  const km = (dernier.end_odometer as number) - (premier.end_odometer as number);
-  const jours = Math.round(
-    (new Date(dernier.date + "T00:00:00Z").getTime() - new Date(premier.date + "T00:00:00Z").getTime()) / 86_400_000,
-  ) + 1;
-  if (km <= 0 || jours < 14) return null;
+  // Ni charge ni paramétrage : rien à dire plutôt qu'une ligne à zéro qui
+  // laisserait croire que le parc ne coûte rien.
+  if (kpis.amortissement <= 0 && manquants.length === 0) return null;
 
-  return Math.round((km / jours) * 30.4);
+  const negatif = kpis.resultatNet < 0;
+
+  return (
+    <div className="mt-4 rounded-xl p-4" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-border)" }}>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+        <div>
+          <div className="text-xs uppercase tracking-widest" style={{ color: "var(--sk-t4)" }}>− Amortissement</div>
+          <div className="text-lg font-semibold" style={{ color: "#ef4444" }}>−{xof(kpis.amortissement)}</div>
+        </div>
+        <div className="text-right">
+          <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: "var(--sk-t4)" }}>= Résultat net</div>
+          <div className="text-2xl font-bold" style={{ color: negatif ? "#ef4444" : "#22c55e" }}>
+            {negatif ? "−" : ""}{xof(Math.abs(kpis.resultatNet))}
+          </div>
+          {negatif && (
+            <div className="text-xs" style={{ color: "var(--sk-t3)" }}>
+              avant amortissement : +{xof(kpis.netOperationnel)}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {detail.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs" style={{ color: "var(--sk-t4)" }}>
+          {detail.map((v) => (
+            <span key={v.plate}>
+              {v.plate} −{xof(v.montant)}
+              {v.moisRestants != null && <span> · {v.moisRestants} mois restants</span>}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {manquants.length > 0 && (
+        <div className="mt-3 text-xs" style={{ color: "#f59e0b" }}>
+          Capital non renseigné sur {manquants.join(", ")} — le résultat net ci-dessus est donc encore optimiste.
+          Renseignez le prix d&apos;acquisition et la date d&apos;achat dans la fiche de ces véhicules.
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**

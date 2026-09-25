@@ -257,6 +257,35 @@ export const AMORT_PLAFOND_KM_DEFAUT = 400_000;
 export const AMORT_DUREE_MAX_DEFAUT = 36;
 
 /**
+ * Km parcourus par mois, déduits des relevés de compteur déclarés.
+ *
+ * `null` quand la mesure n'est pas fiable : moins de deux relevés, moins de
+ * 14 jours d'écart, ou un compteur qui n'a pas bougé. Renvoyer une valeur
+ * quand même donnerait une durée d'amortissement fausse avec l'apparence d'un
+ * calcul — pire qu'un champ vide.
+ *
+ * À alimenter avec TOUT l'historique du véhicule, pas la seule période
+ * affichée : mesuré sur un mois isolé, un véhicule immobilisé deux semaines
+ * afficherait une durée d'amortissement doublée.
+ */
+export function kmParMoisDepuisCompteur(
+  releves: Array<{ date: string; end_odometer: number | null }>,
+): number | null {
+  const pts = releves
+    .filter((r) => r.date && r.end_odometer != null && r.end_odometer > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (pts.length < 2) return null;
+
+  const premier = pts[0];
+  const dernier = pts[pts.length - 1];
+  const km = (dernier.end_odometer as number) - (premier.end_odometer as number);
+  const jours = joursCalendaires(premier.date, dernier.date);
+  if (km <= 0 || jours < 14) return null;
+
+  return Math.round((km / jours) * 30.4);
+}
+
+/**
  * Durée d'amortissement en mois, déduite du kilométrage restant puis bornée.
  *
  * `null` quand on ne sait pas encore : pas de km/mois mesuré (véhicule qui
