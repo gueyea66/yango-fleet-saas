@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { Calendar, Check, ChevronDown, ChevronLeft, ChevronRight, Search, Users } from "lucide-react";
 import { buildMonthGrid } from "@/lib/v2/driver";
 import {
-  PERIOD_OPTIONS, dateShortcuts, daysInclusive, driversLabel, isoDate, monthLabel, periodLabel, periodRange, shiftMonth,
-  type AdminPeriod, type PeriodKind,
+  PERIOD_OPTIONS, dateShortcuts, daysInclusive, driversLabel, isoDate, monthLabel, nextMonthSelection, periodLabel, periodRange,
+  selectedMonths, shiftMonth, withMonths, type AdminPeriod, type PeriodKind,
 } from "@/lib/v2/periodFilter";
 import { Segmented } from "./Segmented";
 
@@ -73,7 +73,7 @@ export function PeriodFilter({ value, onChange, options, today = new Date() }: {
           {editable && <ChevronDown size={14} aria-hidden style={{ color: "var(--sk-t3)" }} />}
         </button>
         {popOpen && value.kind === "mois" && (
-          <MonthPicker month={value.month} onPick={(m) => { onChange({ ...value, month: m }); setPopOpen(false); }} />
+          <MonthPicker months={selectedMonths(value)} onChange={(ms, close) => { onChange(withMonths(value, ms)); if (close) setPopOpen(false); }} onClose={() => setPopOpen(false)} />
         )}
         {popOpen && value.kind === "annee" && (
           <div role="dialog" aria-label="Choisir l'année" style={{ ...panel, padding: 8, display: "flex", flexDirection: "column", gap: 2, minWidth: 120 }}>
@@ -95,11 +95,34 @@ export function PeriodFilter({ value, onChange, options, today = new Date() }: {
   );
 }
 
-function MonthPicker({ month, onPick }: { month: string; onPick: (m: string) => void }) {
-  const [year, setYear] = useState(Number(month.slice(0, 4)));
+/**
+ * Grille des mois. Clic = ce mois seul (ferme) ; Ctrl/Cmd+clic = ajoute ou
+ * retire ; Maj+clic = plage depuis le dernier mois cliqué. Mobile : appui long
+ * ou case « Plusieurs mois ». Les mois choisis sont en couleur d'accent.
+ */
+function MonthPicker({ months, onChange, onClose }: { months: string[]; onChange: (ms: string[], close: boolean) => void; onClose: () => void }) {
+  const [year, setYear] = useState(Number(months[months.length - 1].slice(0, 4)));
+  const [multi, setMulti] = useState(months.length > 1);
+  const [anchor, setAnchor] = useState<string | null>(months[months.length - 1]);
+  const press = useRef<{ timer: ReturnType<typeof setTimeout> | null; fired: boolean }>({ timer: null, fired: false });
   const MOIS = ["Janv.", "Févr.", "Mars", "Avr.", "Mai", "Juin", "Juil.", "Août", "Sept.", "Oct.", "Nov.", "Déc."];
+  const pick = (m: string, mods: { toggle: boolean; range: boolean }) => {
+    const next = nextMonthSelection(months, m, { ...mods, anchor });
+    setAnchor(m);
+    const plain = !mods.toggle && !mods.range;
+    onChange(next, plain);
+  };
+  const startPress = (m: string) => {
+    press.current.fired = false;
+    press.current.timer = setTimeout(() => {
+      press.current.fired = true;
+      setMulti(true);
+      pick(m, { toggle: true, range: false });
+    }, 450);
+  };
+  const endPress = () => { if (press.current.timer) clearTimeout(press.current.timer); press.current.timer = null; };
   return (
-    <div role="dialog" aria-label="Choisir le mois" style={{ ...panel, width: 260, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+    <div role="dialog" aria-label="Choisir le ou les mois" style={{ ...panel, width: 260, padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", alignItems: "center", fontSize: 14, fontWeight: 600 }}>
         <button type="button" aria-label="Année précédente" onClick={() => setYear((y) => y - 1)} className="v2-focus" style={navBtn}><ChevronLeft size={16} aria-hidden /></button>
         <span className="v2-num" style={{ flex: 1, textAlign: "center" }}>{year}</span>
@@ -108,15 +131,32 @@ function MonthPicker({ month, onPick }: { month: string; onPick: (m: string) => 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 4 }}>
         {MOIS.map((label, i) => {
           const m = `${year}-${String(i + 1).padStart(2, "0")}`;
-          const on = m === month;
+          const on = months.includes(m);
           return (
-            <button key={m} type="button" onClick={() => onPick(m)} aria-pressed={on} aria-label={monthLabel(m)} className="v2-focus"
-              style={{ height: 34, borderRadius: 8, border: "none", cursor: "pointer", fontSize: 13, background: on ? "var(--tenant-color)" : "var(--sk-deep)", color: on ? "var(--sk-deep)" : "var(--sk-t1)", fontWeight: on ? 600 : 400 }}>
+            <button key={m} type="button" aria-pressed={on} aria-label={monthLabel(m)} className="v2-focus"
+              onClick={(e) => {
+                if (press.current.fired) { press.current.fired = false; return; } // appui long déjà traité
+                pick(m, { toggle: multi || e.ctrlKey || e.metaKey, range: e.shiftKey });
+              }}
+              onPointerDown={(e) => { if (e.pointerType !== "mouse") startPress(m); }}
+              onPointerUp={endPress} onPointerLeave={endPress} onPointerCancel={endPress}
+              onContextMenu={(e) => e.preventDefault()}
+              style={{ height: 34, borderRadius: 8, border: "none", cursor: "pointer", fontSize: 13, userSelect: "none", WebkitTouchCallout: "none", background: on ? "var(--tenant-color)" : "var(--sk-deep)", color: on ? "var(--sk-deep)" : "var(--sk-t1)", fontWeight: on ? 600 : 400 }}>
               {label}
             </button>
           );
         })}
       </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, borderTop: "1px solid var(--sk-border)", paddingTop: 10 }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--sk-t2)", cursor: "pointer", flex: 1 }}>
+          <input type="checkbox" checked={multi} onChange={(e) => setMulti(e.target.checked)} style={{ accentColor: "var(--tenant-color)" }} />
+          Plusieurs mois
+        </label>
+        {(multi || months.length > 1) && (
+          <button type="button" onClick={onClose} className="v2-btn v2-btn-fill v2-focus" style={brandBtn}>OK</button>
+        )}
+      </div>
+      <div style={{ fontSize: 11, color: "var(--sk-t3)" }}>Ctrl+clic : ajouter un mois · Maj+clic : une plage</div>
     </div>
   );
 }
