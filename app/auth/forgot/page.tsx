@@ -2,37 +2,20 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState } from "react";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/tenant/context";
 import { BrandLogo, PoweredBy } from "@/components/brand/BrandShell";
+import { useForgotForm } from "@/components/auth/useForgotForm";
+import { useUiV2 } from "@/components/v2/useUiV2";
+import { ForgotV2 } from "@/components/v2/public/AuthV2";
 
 export default function ForgotPasswordPage() {
+  const uiV2 = useUiV2(); // refonte UI v2 (forçage appareil sur les pages publiques)
   const { settings } = useTenant();
   const brand = settings.primary_color || "var(--tenant-color)";
-  const [email, setEmail] = useState("");
-  const [sent, setSent] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { email, setEmail, sent, loading, error, handleSubmit } = useForgotForm();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    try {
-      const supabase = createClient();
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/reset`,
-      });
-      if (resetError) { setError(resetError.message); return; }
-      setSent(true);
-    } catch {
-      setError("Erreur lors de l'envoi — réessayez");
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (uiV2) return <ForgotV2 />;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4"

@@ -3,12 +3,17 @@ export const dynamic = "force-dynamic";
 
 import { useSearchParams } from "next/navigation";
 import { Suspense } from "react";
+import { useUiV2 } from "@/components/v2/useUiV2";
+import { AccessV2 } from "@/components/v2/public/AuthV2";
 
 function LockedContent() {
+  const uiV2 = useUiV2(); // refonte UI v2 (forçage appareil sur les pages publiques)
   const params = useSearchParams();
   const reason = params.get("reason");
 
   const isInactive = reason === "inactive";
+
+  if (uiV2) return <AccessV2 reason={isInactive ? "inactive" : "expired"} />;
 
   return (
     <div style={{

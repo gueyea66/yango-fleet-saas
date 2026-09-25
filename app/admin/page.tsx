@@ -38,10 +38,20 @@ import SimpleModeAdmin from "@/components/SimpleModeAdmin";
 import { setPlatformLabel, platLabel, displayLabel } from "@/lib/tenant/platformLabel";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import TrialBanner from "@/components/TrialBanner";
+import { useUiV2 } from "@/components/v2/useUiV2";
+import AdminShellV2 from "@/components/v2/admin/AdminShellV2";
+import { DashboardV2, DashViewToggle, useDashView } from "@/components/v2/admin/DashboardV2";
+import { PendingV2 } from "@/components/v2/admin/PendingV2";
+import { FinanceKpisV2, HistoryV2, TeamV2 } from "@/components/v2/admin/SectionsV2";
+import { VehiclesSignalV2 } from "@/components/v2/admin/VehiclesSignalV2";
+import { defaultPeriod, periodRange, parseAdminFilter, serializeAdminFilter, inRange, periodLabel, type AdminPeriod } from "@/lib/v2/periodFilter";
+import { masseSalariale, paymentSalaryDate, recentMovements, salaryMonthOf, salaryRows, type SalaryAllocation, type SalaryRow } from "@/lib/v2/finance";
+import { CollapsedHistoryV2, MovementsV2, SalaryTableV2 } from "@/components/v2/admin/FinanceV2";
+import { useReportReview } from "@/components/admin/useReportReview";
+import { useExpenseReview } from "@/components/admin/useExpenseReview";
 import AiBriefingSection from "@/components/ai/AiBriefingSection";
-import { recomputeReportNet, DEFAULT_COMMISSION_RATE, DEFAULT_PARTNER_RATE } from "@/lib/reportNet";
+import { DEFAULT_COMMISSION_RATE, DEFAULT_PARTNER_RATE } from "@/lib/reportNet";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
-import { logAction } from "@/lib/logAction";
 import {
   BarChart, Bar, Cell as RCell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -62,7 +72,16 @@ export default function AdminPage() {
   const { user, loading, signOut } = useAuth();
   const { settings } = useTenant();
   const router = useRouter();
+  const uiV2 = useUiV2(); // refonte UI v2 (drapeau tenant ou appareil)
+  const [dashView, setDashView] = useDashView();
   const [tab, setTab] = useState("dashboard");
+  // Drapeau allumé : /admin?tab=… (liens depuis la coque v2 des pages suivi / boîtiers).
+  useEffect(() => {
+    if (!uiV2) return;
+    const t = new URLSearchParams(window.location.search).get("tab");
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lecture de l'URL après montage
+    if (t) setTab(t);
+  }, [uiV2]);
   // Groupes repliables de la sidebar (ex. Config) — clé = label, valeur = ouvert ?
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [showAllZeros, setShowAllZeros] = useState(false); // audit UI : révéler les postes à zéro masqués
@@ -131,6 +150,7 @@ export default function AdminPage() {
       if (ts) applyTenantBrandingOverride({
         app_name: ts.app_name, logo_url: ts.logo_url, primary_color: ts.primary_color,
         skin: ts.skin, operator_name: ts.operator_name, currency: ts.currency,
+        ui_v2: ts.ui_v2, // drapeau refonte UI v2 (migration 062)
       });
       const plateMap = Object.fromEntries((vehs || []).map((v: any) => [v.driver_id, v.plate]));
       setAllDrivers((profs || []).map((p: any) => ({ ...p, plate: plateMap[p.id] || null })));
@@ -142,11 +162,32 @@ export default function AdminPage() {
   const now = new Date();
   const [filterYear, setFilterYear] = useState(now.getFullYear());
   const [filterMonths, setFilterMonths] = useState<number[]>([now.getMonth() + 1]);
-  const periodFrom = `${filterYear}-${String(Math.min(...filterMonths)).padStart(2, "0")}-01`;
+  // Drapeau allumé : période v2 (jour, 7 j, mois choisi, année, plage) → mêmes
+  // dateFrom / dateTo pour useDashboardKPIs. Drapeau éteint : calcul actuel.
+  const [v2Period, setV2Period] = useState<AdminPeriod>(() => defaultPeriod(now));
+  const [v2FiltersReady, setV2FiltersReady] = useState(false);
+  const v2Range = uiV2 ? periodRange(v2Period, now) : null;
+  const periodFrom = v2Range ? v2Range.from : `${filterYear}-${String(Math.min(...filterMonths)).padStart(2, "0")}-01`;
   const lastMonth = Math.max(...filterMonths);
   const lastDay = new Date(filterYear, lastMonth, 0).getDate();
-  const periodTo = `${filterYear}-${String(lastMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
-  const kpis = useDashboardKPIs(periodFrom, periodTo, adminTenantId, filterDriverIds.length ? filterDriverIds : undefined);
+  const periodTo = v2Range ? v2Range.to : `${filterYear}-${String(lastMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  // État des filtres v2 dans l'URL (?p=mois&m=2026-09, ?p=dates&du=…&au=…, &d=id1,id2) : lu au montage, réécrit à chaque choix.
+  useEffect(() => {
+    if (!uiV2) return;
+    const f = parseAdminFilter(window.location.search, new Date());
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lecture de l'URL après montage
+    setV2Period(f.period);
+    if (f.drivers.length) setFilterDriverIds(f.drivers);
+    setV2FiltersReady(true);
+  }, [uiV2]);
+  useEffect(() => {
+    if (!uiV2 || !v2FiltersReady) return;
+    const q = serializeAdminFilter(v2Period, filterDriverIds, window.location.search);
+    window.history.replaceState(null, "", `${window.location.pathname}?${q}`);
+  }, [uiV2, v2FiltersReady, v2Period, filterDriverIds]);
+  // kpiTick : rafraîchit les KPIs après une validation depuis la file v2 (reste à 0 drapeau éteint)
+  const [kpiTick, setKpiTick] = useState(0);
+  const kpis = useDashboardKPIs(periodFrom, periodTo, adminTenantId, filterDriverIds.length ? filterDriverIds : undefined, kpiTick);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -155,7 +196,7 @@ export default function AdminPage() {
   }, [user, loading, router]);
 
   useEffect(() => {
-    if (user && adminTenantId && (tab === "history" || tab === "pending")) {
+    if (user && adminTenantId && (tab === "history" || tab === "pending" || (uiV2 && tab === "payments"))) {
       loadReports(filterDriverIds);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -281,206 +322,9 @@ export default function AdminPage() {
   ];
   const tabs = tabGroups.flatMap((g) => g.items.map(([id, , label]) => [id, label]));
 
-  return (
-    <div className="min-h-screen flex" style={{ background: "var(--sk-deep)" }}>
-      <PushOnboarding role="admin" />
-
-      {/* ── SIDEBAR DESKTOP (lg+) ── */}
-      <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-full z-50"
-        style={{ width: 220, background: "var(--sk-bg)", borderRight: "1px solid var(--sk-surface)" }}>
-        {/* Logo */}
-        <div className="px-5 py-5 border-b" style={{ borderColor: "var(--sk-surface)" }}>
-          <div className="flex items-center gap-2.5">
-            <BrandLogo size={32} />
-            <div>
-              <div className="font-bold text-white text-sm">{settings.app_name}</div>
-              <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>{settings.operator_name || "Powered by M3A Solution"}</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Nav items grouped */}
-        <nav className="flex-1 px-3 py-4 overflow-y-auto">
-          {tabGroups.map((group) => {
-            const collapsible = (group as any).collapsible;
-            const activeInside = group.items.some(([id]: any) => id === tab);
-            const open = collapsible ? (openGroups[group.label] ?? activeInside) : true;
-            return (
-            <div key={group.label} className="mb-4">
-              {collapsible ? (
-                <button onClick={() => setOpenGroups((s) => ({ ...s, [group.label]: !open }))}
-                  className="w-full px-3 mb-1 flex items-center justify-between text-[9px] uppercase tracking-[0.12em] font-bold transition-colors"
-                  style={{ color: "var(--sk-t4)" }}>
-                  <span>{group.label}</span>
-                  <span className="text-[10px] transition-transform" style={{ transform: open ? "rotate(180deg)" : "none" }}>▾</span>
-                </button>
-              ) : (
-                <div className="px-3 mb-1 text-[9px] uppercase tracking-[0.12em] font-bold" style={{ color: "var(--sk-t4)" }}>{group.label}</div>
-              )}
-              {open && (
-              <div className="space-y-0.5">
-                {group.items.map(([id, icon, label]) => (
-                  <button key={id} onClick={() => NAV_ROUTES[id] ? router.push(NAV_ROUTES[id]) : setTab(id)} className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150 flex items-center gap-2.5 hover:translate-x-0.5"
-                    style={{
-                      background: tab === id ? "rgba(var(--tenant-color-rgb),.12)" : "transparent",
-                      color: tab === id ? "var(--tenant-color)" : "var(--sk-t2)",
-                      border: `1px solid ${tab === id ? "rgba(var(--tenant-color-rgb),.2)" : "transparent"}`,
-                    }}
-                    onMouseEnter={(e) => { if (tab !== id) { e.currentTarget.style.background = "rgba(255,255,255,.045)"; e.currentTarget.style.color = "#fff"; } }}
-                    onMouseLeave={(e) => { if (tab !== id) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--sk-t2)"; } }}>
-                    {(() => { const I = NAV_ICONS[id]; return I
-                      ? <I size={16} strokeWidth={1.75} className="flex-shrink-0" />
-                      : <span className="text-sm leading-none w-4 text-center flex-shrink-0">{icon}</span>; })()}
-                    <span className="truncate">{label}</span>
-                  </button>
-                ))}
-              </div>
-              )}
-            </div>
-          );})}
-
-          {/* Retour au mode simple (tenants ui_mode='simple' passés en avancé) */}
-          {resolvedUiMode === "simple" && (
-            <button onClick={() => toggleUiAdvanced(false)}
-              className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2.5 mt-2"
-              style={{ color: "var(--sk-t3)", border: "1px dashed var(--sk-surface)" }}>
-              ← Revenir au mode simple
-            </button>
-          )}
-        </nav>
-
-        {/* User + logout */}
-        <div className="px-3 py-4 border-t" style={{ borderColor: "var(--sk-surface)" }}>
-          <div className="px-3 py-2 rounded-xl flex items-center justify-between" style={{ background: "var(--sk-surface)" }}>
-            <div className="min-w-0">
-              <div className="text-xs font-semibold text-white mb-0.5 truncate">
-                {user?.user_metadata?.full_name || user?.email || "Admin"}
-              </div>
-              <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Administrateur</div>
-            </div>
-            <div className="flex items-center">
-              <ThemeToggle />
-              <NotificationBell />
-            </div>
-          </div>
-          <button onClick={() => signOut()} className="w-full mt-2 text-xs px-3 py-2 rounded-xl text-left font-medium transition-all"
-            style={{ color: "#ef4444", background: "transparent" }}
-            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239,68,68,.08)")}
-            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-            ⎋ Déconnexion
-          </button>
-        </div>
-      </aside>
-
-      {/* ── TOP BAR MOBILE (< lg) ── */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between"
-        style={{ background: "var(--sk-bg)", borderBottom: "1px solid var(--sk-surface)", backdropFilter: "blur(12px)" }}>
-        <div className="flex items-center gap-2">
-          <BrandLogo size={28} />
-          <span className="font-bold text-white text-sm">{settings.app_name}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
-          <NotificationBell />
-          <button onClick={() => signOut()} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>
-            Déconnexion
-          </button>
-        </div>
-      </div>
-
-      {/* ── MOBILE NAV TABS ── */}
-      <div className="lg:hidden fixed top-12 left-0 right-0 z-40 flex items-center gap-0 overflow-x-auto"
-        style={{ background: "var(--sk-bg)", borderBottom: "1px solid var(--sk-surface)" }}>
-        {tabGroups.map((group, gi) => (
-          <React.Fragment key={group.label}>
-            {gi > 0 && <div className="flex-shrink-0 w-px h-6 mx-1" style={{ background: "var(--sk-surface)" }} />}
-            {group.items.map(([id, icon]) => (
-              <button key={id} onClick={() => NAV_ROUTES[id] ? router.push(NAV_ROUTES[id]) : setTab(id)}
-                className="flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium"
-                style={{ color: tab === id ? "var(--tenant-color)" : "var(--sk-t3)", borderBottom: tab === id ? "2px solid var(--tenant-color)" : "2px solid transparent" }}>
-                {(() => { const I = NAV_ICONS[id]; return I
-                  ? <I size={18} strokeWidth={1.75} />
-                  : <span className="text-base leading-none">{icon}</span>; })()}
-              </button>
-            ))}
-          </React.Fragment>
-        ))}
-        {resolvedUiMode === "simple" && (
-          <button onClick={() => toggleUiAdvanced(false)}
-            className="flex-shrink-0 px-3 py-2 text-[10px] font-semibold"
-            style={{ color: "var(--sk-t3)" }}>
-            ← Simple
-          </button>
-        )}
-      </div>
-
-      {/* ── MAIN CONTENT ── */}
-      {/* min-w-0 : sans lui, un tableau large (nowrap) élargit toute la page sur mobile */}
-      <main className="flex-1 min-w-0 min-h-screen" style={{ marginLeft: 0 }}>
-        <div className="lg:hidden" style={{ height: 88 }} /> {/* mobile header offset */}
-        <div className="lg:pl-[220px]">
-        <div className="p-6 lg:p-10 w-full max-w-none" style={{ background: "var(--sk-deep)", minHeight: "100vh" }}>
-
-        {/* Expiration essai / abonnement */}
-        <TrialBanner />
-
-        {/* Session error banner */}
-        {sessionError && (
-          <div style={{ background: "#2d1515", border: "1px solid #c53030", borderRadius: 12, padding: "14px 18px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <AlertTriangle size={19} strokeWidth={2} style={{ color: "var(--tenant-color)" }} />
-              <div>
-                <div style={{ color: "#fc8181", fontWeight: 700, fontSize: 14 }}>{sessionError}</div>
-                <div style={{ color: "#a0aab8", fontSize: 12 }}>Vos données sont intactes — reconnectez-vous pour y accéder.</div>
-              </div>
-            </div>
-            <button onClick={() => signOut()} style={{ background: "#c53030", color: "var(--sk-t1)", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
-              Se reconnecter →
-            </button>
-          </div>
-        )}
-
-        {/* ── DRIVER / VEHICLE FILTER BAR — visible on all data tabs, masquable ── */}
-        {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage"].includes(tab) && allDrivers.length > 0 && !showFilters && (
-          <div className="mb-6">
-            <button onClick={() => toggleFilters(true)}
-              className="text-xs px-3 py-1.5 rounded-lg font-semibold"
-              style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", color: filterDriverIds.length ? "var(--tenant-color)" : "var(--sk-t3)" }}>
-              🔍 Filtres{filterDriverIds.length === 1
-                ? ` · ${allDrivers.find((d) => d.id === filterDriverIds[0])?.full_name || "1 chauffeur"}`
-                : filterDriverIds.length > 1 ? ` · ${filterDriverIds.length} chauffeurs` : ""}
-            </button>
-          </div>
-        )}
-        {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage"].includes(tab) && allDrivers.length > 0 && showFilters && (
-          <div className="mb-6 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
-            <span className="text-[10px] font-bold uppercase tracking-widest mr-1" style={{ color: "var(--sk-t4)" }}>Vue :</span>
-            <button onClick={() => setFilterDriverIds([])}
-              className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
-              style={{ background: !filterDriverIds.length ? "var(--tenant-color)" : "var(--sk-surface)", color: !filterDriverIds.length ? "#000" : "var(--sk-t3)" }}>
-              Tous
-            </button>
-            {allDrivers.map((d) => (
-              <button key={d.id} onClick={() => toggleDriverFilter(d.id)}
-                title="Clic : ajouter/retirer de la sélection (multi-sélection possible)"
-                className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5"
-                style={{ background: filterDriverIds.includes(d.id) ? "rgba(var(--tenant-color-rgb),.15)" : "var(--sk-surface)",
-                  color: filterDriverIds.includes(d.id) ? "var(--tenant-color)" : "var(--sk-t3)",
-                  border: `1px solid ${filterDriverIds.includes(d.id) ? "rgba(var(--tenant-color-rgb),.35)" : "transparent"}`,
-                  opacity: d.active === false ? 0.55 : 1 }}>
-                👤 {d.full_name || d.driver_id}
-                {d.plate && <span className="font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--sk-deep)", color: "var(--sk-t2)", fontSize: 10 }}>{d.plate}</span>}
-                {d.active === false && <span className="text-[9px] uppercase" style={{ color: "var(--sk-t4)" }}>inactif</span>}
-              </button>
-            ))}
-            <button onClick={() => toggleFilters(false)} title="Masquer les filtres"
-              className="ml-auto text-xs px-2.5 py-1.5 rounded-lg" style={{ background: "transparent", color: "var(--sk-t4)" }}>
-              ✕ Masquer
-            </button>
-          </div>
-        )}
-
-        {tab === "dashboard" && (
+  // Contenu des onglets — partagé tel quel par l'UI actuelle et la coque v2.
+  // Tableau de bord actuel — vue « Avancé » de la v2, rendu identique drapeau éteint.
+  const dashboardContent = (
           <div className="space-y-8">
             {/* Couche IA V3 (additive) — rend null si AI_LAYER désactivé */}
             <AiBriefingSection />
@@ -758,7 +602,11 @@ export default function AdminPage() {
               </>
             )}
           </div>
-        )}
+  );
+
+  const tabContent = (
+    <>
+        {tab === "dashboard" && dashboardContent}
 
         {tab === "pending" && (
           <ReportList
@@ -894,9 +742,9 @@ export default function AdminPage() {
           </div>
         )}
 
-        {tab === "calendrier" && <CalendrierTab filterDriverId={filterDriverId} allDrivers={allDrivers} />}
-        {tab === "payments" && adminTenantId && <PaymentsTab filterDriverId={filterDriverId} tenantId={adminTenantId} />}
-        {tab === "avances" && adminTenantId && <AvancesTab filterDriverId={filterDriverId} tenantId={adminTenantId} />}
+        {tab === "calendrier" && <CalendrierTab filterDriverId={filterDriverId} filterDriverIds={uiV2 ? filterDriverIds : undefined} allDrivers={allDrivers} />}
+        {tab === "payments" && adminTenantId && <PaymentsTab filterDriverId={filterDriverId} filterDriverIds={uiV2 ? filterDriverIds : undefined} tenantId={adminTenantId} />}
+        {tab === "avances" && adminTenantId && <AvancesTab filterDriverId={filterDriverId} filterDriverIds={uiV2 ? filterDriverIds : undefined} tenantId={adminTenantId} />}
         {tab === "pilotage" && (
           <div className="text-center py-12">
             <div className="flex justify-center mb-3"><Gauge size={40} strokeWidth={1.6} style={{ color: "var(--tenant-color)" }} /></div>
@@ -947,6 +795,319 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+    </>
+  );
+
+  // Refonte UI v2 : nouvelle coque (sidebar 8 destinations), même contenu d'onglets.
+  if (uiV2) {
+    return (
+      <>
+        <PushOnboarding role="admin" />
+        <AdminShellV2
+          tab={tab}
+          onTab={setTab}
+          appName={settings.app_name}
+          operatorName={settings.operator_name}
+          userName={user?.user_metadata?.full_name || user?.email || "Admin"}
+          tenantId={adminTenantId}
+          sessionError={sessionError}
+          onSignOut={() => signOut()}
+          onReconnect={() => signOut()}
+          advancedBack={resolvedUiMode === "simple" ? () => toggleUiAdvanced(false) : undefined}
+          headerRight={tab === "dashboard" ? <DashViewToggle view={dashView} onChange={setDashView} /> : undefined}
+          filters={{
+            period: v2Period,
+            onPeriodChange: setV2Period,
+            drivers: allDrivers.map((d) => ({ id: d.id, label: d.full_name || d.driver_id, plate: d.plate, active: d.active })),
+            driverIds: filterDriverIds,
+            onDriverIdsChange: setFilterDriverIds,
+          }}
+        >
+          {tab === "dashboard" ? (
+            <DashboardV2
+              view={dashView}
+              kpis={kpis}
+              plat={plat}
+              tenantId={adminTenantId}
+              driverIds={filterDriverIds}
+              range={v2Range ?? undefined}
+              onKpisChanged={() => setKpiTick((t) => t + 1)}
+              onOpenValidation={() => setTab("pending")}
+              advanced={dashboardContent}
+            />
+          ) : tab === "pending" ? (
+            <PendingV2
+              reports={reports.filter((r) => r.status === "submitted" && (!v2Range || inRange(r.date, v2Range)))}
+              expenses={expenses.filter((e) => (e.status || "submitted") === "submitted" && (!v2Range || inRange(e.expense_date || e.created_at, v2Range)))}
+              loading={loadingReports}
+              onRefresh={() => loadReports(filterDriverIds)}
+            />
+          ) : tab === "kyc" ? (
+            <TeamV2
+              drivers={allDrivers}
+              renderDocuments={(id) => adminTenantId ? <KycAdminTab tenantId={adminTenantId} filterDriverId={id} /> : null}
+              onOpenHistory={(id) => { setFilterDriverIds([id]); setTab("history"); }}
+            />
+          ) : tab === "history" ? (
+            <HistoryV2
+              reports={reports}
+              drivers={filterDriverIds.length ? allDrivers.filter((d) => filterDriverIds.includes(d.id)) : allDrivers}
+              loading={loadingReports}
+              onRefresh={() => loadReports(filterDriverIds)}
+              month={v2Range ? v2Range.to.slice(0, 7) : undefined}
+              list={
+                <ReportList
+                  reports={v2Range ? reports.filter((r) => inRange(r.date, v2Range)) : reports}
+                  expenses={v2Range ? expenses.filter((e) => inRange(e.expense_date || e.created_at, v2Range)) : expenses}
+                  loading={loadingReports}
+                  emptyMsg="Aucun rapport sur la période"
+                  title="Tous les rapports"
+                  onRefresh={() => loadReports(filterDriverIds)}
+                  groupByMonth
+                />
+              }
+            />
+          ) : tab === "vehicles" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+              <VehiclesSignalV2 />
+              {tabContent}
+            </div>
+          ) : tab === "payments" || tab === "avances" || tab === "finjournal" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+              <FinanceKpisV2
+                kpis={kpis}
+                masse={remunCfg ? { amount: masseSalariale(kpis.driverAllocations ?? [], remunCfg, calcDriverSalary), drivers: (kpis.driverAllocations ?? []).length } : null}
+              />
+              {tab === "payments" && adminTenantId ? (
+                <PaymentsTab
+                  filterDriverId={filterDriverId}
+                  filterDriverIds={filterDriverIds}
+                  tenantId={adminTenantId}
+                  v2={v2Range ? {
+                    range: v2Range,
+                    periodLabel: periodLabel(v2Period, new Date()),
+                    allocations: kpis.loading ? null : kpis.driverAllocations ?? [],
+                    cfg: remunCfg,
+                    reports,
+                    expenses,
+                    reportsLoading: loadingReports,
+                    nameOf: (id: string) => { const d = allDrivers.find((x) => x.id === id); return d?.full_name || d?.driver_id || "Chauffeur"; },
+                    onChanged: () => setKpiTick((t) => t + 1),
+                  } : undefined}
+                />
+              ) : tab === "avances" && adminTenantId ? (
+                <AvancesTab filterDriverId={filterDriverId} filterDriverIds={filterDriverIds} tenantId={adminTenantId} range={v2Range ?? undefined} />
+              ) : tab === "finjournal" ? (
+                <ActionLogsTab filterDriverId={filterDriverId} />
+              ) : null}
+            </div>
+          ) : tabContent}
+        </AdminShellV2>
+        {showImportModal && <ImportHistoriqueModal onClose={() => setShowImportModal(false)} />}
+      </>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex" style={{ background: "var(--sk-deep)" }}>
+      <PushOnboarding role="admin" />
+
+      {/* ── SIDEBAR DESKTOP (lg+) ── */}
+      <aside className="hidden lg:flex flex-col fixed left-0 top-0 h-full z-50"
+        style={{ width: 220, background: "var(--sk-bg)", borderRight: "1px solid var(--sk-surface)" }}>
+        {/* Logo */}
+        <div className="px-5 py-5 border-b" style={{ borderColor: "var(--sk-surface)" }}>
+          <div className="flex items-center gap-2.5">
+            <BrandLogo size={32} />
+            <div>
+              <div className="font-bold text-white text-sm">{settings.app_name}</div>
+              <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>{settings.operator_name || "Powered by M3A Solution"}</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Nav items grouped */}
+        <nav className="flex-1 px-3 py-4 overflow-y-auto">
+          {tabGroups.map((group) => {
+            const collapsible = (group as any).collapsible;
+            const activeInside = group.items.some(([id]: any) => id === tab);
+            const open = collapsible ? (openGroups[group.label] ?? activeInside) : true;
+            return (
+            <div key={group.label} className="mb-4">
+              {collapsible ? (
+                <button onClick={() => setOpenGroups((s) => ({ ...s, [group.label]: !open }))}
+                  className="w-full px-3 mb-1 flex items-center justify-between text-[9px] uppercase tracking-[0.12em] font-bold transition-colors"
+                  style={{ color: "var(--sk-t4)" }}>
+                  <span>{group.label}</span>
+                  <span className="text-[10px] transition-transform" style={{ transform: open ? "rotate(180deg)" : "none" }}>▾</span>
+                </button>
+              ) : (
+                <div className="px-3 mb-1 text-[9px] uppercase tracking-[0.12em] font-bold" style={{ color: "var(--sk-t4)" }}>{group.label}</div>
+              )}
+              {open && (
+              <div className="space-y-0.5">
+                {group.items.map(([id, icon, label]) => (
+                  <button key={id} onClick={() => NAV_ROUTES[id] ? router.push(NAV_ROUTES[id]) : setTab(id)} className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150 flex items-center gap-2.5 hover:translate-x-0.5"
+                    style={{
+                      background: tab === id ? "rgba(var(--tenant-color-rgb),.12)" : "transparent",
+                      color: tab === id ? "var(--tenant-color)" : "var(--sk-t2)",
+                      border: `1px solid ${tab === id ? "rgba(var(--tenant-color-rgb),.2)" : "transparent"}`,
+                    }}
+                    onMouseEnter={(e) => { if (tab !== id) { e.currentTarget.style.background = "rgba(255,255,255,.045)"; e.currentTarget.style.color = "#fff"; } }}
+                    onMouseLeave={(e) => { if (tab !== id) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--sk-t2)"; } }}>
+                    {(() => { const I = NAV_ICONS[id]; return I
+                      ? <I size={16} strokeWidth={1.75} className="flex-shrink-0" />
+                      : <span className="text-sm leading-none w-4 text-center flex-shrink-0">{icon}</span>; })()}
+                    <span className="truncate">{label}</span>
+                  </button>
+                ))}
+              </div>
+              )}
+            </div>
+          );})}
+
+          {/* Retour au mode simple (tenants ui_mode='simple' passés en avancé) */}
+          {resolvedUiMode === "simple" && (
+            <button onClick={() => toggleUiAdvanced(false)}
+              className="w-full text-left px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-2.5 mt-2"
+              style={{ color: "var(--sk-t3)", border: "1px dashed var(--sk-surface)" }}>
+              ← Revenir au mode simple
+            </button>
+          )}
+        </nav>
+
+        {/* User + logout */}
+        <div className="px-3 py-4 border-t" style={{ borderColor: "var(--sk-surface)" }}>
+          <div className="px-3 py-2 rounded-xl flex items-center justify-between" style={{ background: "var(--sk-surface)" }}>
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-white mb-0.5 truncate">
+                {user?.user_metadata?.full_name || user?.email || "Admin"}
+              </div>
+              <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Administrateur</div>
+            </div>
+            <div className="flex items-center">
+              <ThemeToggle />
+              <NotificationBell />
+            </div>
+          </div>
+          <button onClick={() => signOut()} className="w-full mt-2 text-xs px-3 py-2 rounded-xl text-left font-medium transition-all"
+            style={{ color: "#ef4444", background: "transparent" }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = "rgba(239,68,68,.08)")}
+            onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+            ⎋ Déconnexion
+          </button>
+        </div>
+      </aside>
+
+      {/* ── TOP BAR MOBILE (< lg) ── */}
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-50 px-4 py-3 flex items-center justify-between"
+        style={{ background: "var(--sk-bg)", borderBottom: "1px solid var(--sk-surface)", backdropFilter: "blur(12px)" }}>
+        <div className="flex items-center gap-2">
+          <BrandLogo size={28} />
+          <span className="font-bold text-white text-sm">{settings.app_name}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <NotificationBell />
+          <button onClick={() => signOut()} className="text-xs px-3 py-1.5 rounded-lg" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>
+            Déconnexion
+          </button>
+        </div>
+      </div>
+
+      {/* ── MOBILE NAV TABS ── */}
+      <div className="lg:hidden fixed top-12 left-0 right-0 z-40 flex items-center gap-0 overflow-x-auto"
+        style={{ background: "var(--sk-bg)", borderBottom: "1px solid var(--sk-surface)" }}>
+        {tabGroups.map((group, gi) => (
+          <React.Fragment key={group.label}>
+            {gi > 0 && <div className="flex-shrink-0 w-px h-6 mx-1" style={{ background: "var(--sk-surface)" }} />}
+            {group.items.map(([id, icon]) => (
+              <button key={id} onClick={() => NAV_ROUTES[id] ? router.push(NAV_ROUTES[id]) : setTab(id)}
+                className="flex-shrink-0 flex flex-col items-center gap-0.5 px-3 py-2 text-[10px] font-medium"
+                style={{ color: tab === id ? "var(--tenant-color)" : "var(--sk-t3)", borderBottom: tab === id ? "2px solid var(--tenant-color)" : "2px solid transparent" }}>
+                {(() => { const I = NAV_ICONS[id]; return I
+                  ? <I size={18} strokeWidth={1.75} />
+                  : <span className="text-base leading-none">{icon}</span>; })()}
+              </button>
+            ))}
+          </React.Fragment>
+        ))}
+        {resolvedUiMode === "simple" && (
+          <button onClick={() => toggleUiAdvanced(false)}
+            className="flex-shrink-0 px-3 py-2 text-[10px] font-semibold"
+            style={{ color: "var(--sk-t3)" }}>
+            ← Simple
+          </button>
+        )}
+      </div>
+
+      {/* ── MAIN CONTENT ── */}
+      {/* min-w-0 : sans lui, un tableau large (nowrap) élargit toute la page sur mobile */}
+      <main className="flex-1 min-w-0 min-h-screen" style={{ marginLeft: 0 }}>
+        <div className="lg:hidden" style={{ height: 88 }} /> {/* mobile header offset */}
+        <div className="lg:pl-[220px]">
+        <div className="p-6 lg:p-10 w-full max-w-none" style={{ background: "var(--sk-deep)", minHeight: "100vh" }}>
+
+        {/* Expiration essai / abonnement */}
+        <TrialBanner />
+
+        {/* Session error banner */}
+        {sessionError && (
+          <div style={{ background: "#2d1515", border: "1px solid #c53030", borderRadius: 12, padding: "14px 18px", marginBottom: 20, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <AlertTriangle size={19} strokeWidth={2} style={{ color: "var(--tenant-color)" }} />
+              <div>
+                <div style={{ color: "#fc8181", fontWeight: 700, fontSize: 14 }}>{sessionError}</div>
+                <div style={{ color: "#a0aab8", fontSize: 12 }}>Vos données sont intactes — reconnectez-vous pour y accéder.</div>
+              </div>
+            </div>
+            <button onClick={() => signOut()} style={{ background: "#c53030", color: "var(--sk-t1)", border: "none", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+              Se reconnecter →
+            </button>
+          </div>
+        )}
+
+        {/* ── DRIVER / VEHICLE FILTER BAR — visible on all data tabs, masquable ── */}
+        {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage"].includes(tab) && allDrivers.length > 0 && !showFilters && (
+          <div className="mb-6">
+            <button onClick={() => toggleFilters(true)}
+              className="text-xs px-3 py-1.5 rounded-lg font-semibold"
+              style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", color: filterDriverIds.length ? "var(--tenant-color)" : "var(--sk-t3)" }}>
+              🔍 Filtres{filterDriverIds.length === 1
+                ? ` · ${allDrivers.find((d) => d.id === filterDriverIds[0])?.full_name || "1 chauffeur"}`
+                : filterDriverIds.length > 1 ? ` · ${filterDriverIds.length} chauffeurs` : ""}
+            </button>
+          </div>
+        )}
+        {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage"].includes(tab) && allDrivers.length > 0 && showFilters && (
+          <div className="mb-6 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
+            <span className="text-[10px] font-bold uppercase tracking-widest mr-1" style={{ color: "var(--sk-t4)" }}>Vue :</span>
+            <button onClick={() => setFilterDriverIds([])}
+              className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all"
+              style={{ background: !filterDriverIds.length ? "var(--tenant-color)" : "var(--sk-surface)", color: !filterDriverIds.length ? "#000" : "var(--sk-t3)" }}>
+              Tous
+            </button>
+            {allDrivers.map((d) => (
+              <button key={d.id} onClick={() => toggleDriverFilter(d.id)}
+                title="Clic : ajouter/retirer de la sélection (multi-sélection possible)"
+                className="text-xs px-3 py-1.5 rounded-lg font-semibold transition-all flex items-center gap-1.5"
+                style={{ background: filterDriverIds.includes(d.id) ? "rgba(var(--tenant-color-rgb),.15)" : "var(--sk-surface)",
+                  color: filterDriverIds.includes(d.id) ? "var(--tenant-color)" : "var(--sk-t3)",
+                  border: `1px solid ${filterDriverIds.includes(d.id) ? "rgba(var(--tenant-color-rgb),.35)" : "transparent"}`,
+                  opacity: d.active === false ? 0.55 : 1 }}>
+                👤 {d.full_name || d.driver_id}
+                {d.plate && <span className="font-mono px-1.5 py-0.5 rounded" style={{ background: "var(--sk-deep)", color: "var(--sk-t2)", fontSize: 10 }}>{d.plate}</span>}
+                {d.active === false && <span className="text-[9px] uppercase" style={{ color: "var(--sk-t4)" }}>inactif</span>}
+              </button>
+            ))}
+            <button onClick={() => toggleFilters(false)} title="Masquer les filtres"
+              className="ml-auto text-xs px-2.5 py-1.5 rounded-lg" style={{ background: "transparent", color: "var(--sk-t4)" }}>
+              ✕ Masquer
+            </button>
+          </div>
+        )}
+
+        {tabContent}
         </div>{/* end max-w-none */}
         </div>{/* end lg:pl-[220px] */}
       </main>
@@ -1978,96 +2139,11 @@ function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh, gr
 
 // ─── EXPENSE MODAL ───────────────────────────────────
 function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: () => void; onRefresh: () => void }) {
-  const [uploads, setUploads] = useState<any[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [currentStatus, setCurrentStatus] = useState(expense.status || "submitted");
-  const [editAmount, setEditAmount] = useState(String(expense.amount || ""));
-  const [editDate, setEditDate] = useState(expense.expense_date || expense.created_at?.slice(0, 10) || "");
-  const [editCategory, setEditCategory] = useState(expense.category || "");
-  const [editDesc, setEditDesc] = useState(expense.description || "");
+  const { uploads, uploading, saving, currentStatus, editAmount, setEditAmount, editDate, setEditDate, editCategory, setEditCategory, editDesc, setEditDesc, saveEdit, updateStatus, uploadFile } = useExpenseReview(expense, onRefresh);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
   const expenseTypes = [...EXPENSE_CATEGORIES];
-
-  const saveEdit = async () => {
-    setSaving(true);
-    try {
-      const supabase = createClient() as any;
-      const { error } = await supabase.from("expenses").update({
-        amount: parseFloat(editAmount) || expense.amount,
-        expense_date: editDate || null,
-        category: editCategory,
-        description: editDesc || null,
-      }).eq("id", expense.id);
-      if (error) throw error;
-      onRefresh();
-    } catch (err: any) { alert("Erreur : " + err.message); }
-    finally { setSaving(false); }
-  };
-
-  const updateStatus = async (status: "approved" | "rejected") => {
-    setSaving(true);
-    try {
-      const supabase = createClient() as any;
-      const { error } = await supabase.from("expenses").update({ status }).eq("id", expense.id);
-      if (error) throw error;
-      // Log action (fire-and-forget — non-critical)
-      logAction({
-        tenantId: expense.tenant_id, entityType: "expense", entityId: expense.id,
-        action: status,
-        metadata: { category: expense.category, amount: expense.amount },
-      });
-      // Notification push/Telegram au chauffeur (comme pour les rapports).
-      // Le type expense_${status} correspond à expense_approved / expense_rejected.
-      void fetch("/api/notifications/trigger", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: `expense_${status === "approved" ? "approved" : "rejected"}`,
-          tenantId: expense.tenant_id, driverId: expense.driver_id,
-          data: { amount: expense.amount, category: expense.category },
-        }),
-      });
-      setCurrentStatus(status);
-      onRefresh();
-    } catch (err: any) { alert("Erreur : " + err.message); }
-    finally { setSaving(false); }
-  };
-
-  useEffect(() => {
-    (async () => {
-      const supabase = createClient() as any;
-      const { data } = await supabase.from("uploads").select("*")
-        .eq("driver_id", expense.driver_id)
-        .eq("file_type", "expense")
-        .order("created_at", { ascending: false });
-      const enriched = (data || [])
-        .filter((u: any) => u.ref_id === expense.id || u.file_path?.includes(expense.id))
-        .map((u: any) => {
-          const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(u.file_path);
-          return { ...u, publicUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(u.file_name) };
-        });
-      setUploads(enriched);
-    })();
-  }, [expense.id, expense.driver_id]);
-
-  const uploadFile = async (file: File) => {
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      const rawPath = `expense/${expense.driver_id}/${expense.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-      fd.append("file", file);
-      fd.append("path", rawPath);
-      const res = await fetch("/api/kyc-upload", { method: "POST", body: fd });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Upload échoué");
-      const supabase = createClient() as any;
-      await supabase.from("uploads").insert({ driver_id: expense.driver_id, file_name: file.name, file_path: result.path, file_type: "expense", file_size: file.size });
-      setUploads((p) => [...p, { file_name: file.name, publicUrl: result.signedUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(file.name) }]);
-    } catch (err: any) { alert("Erreur : " + err.message); }
-    finally { setUploading(false); }
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center pt-8 px-4 pb-8 overflow-y-auto"
@@ -2197,134 +2273,10 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
 
 // ─── REPORT MODAL ─────────────────────────────────────
 function ReportModal({ report, onClose, onRefresh }: { report: any; onClose: () => void; onRefresh: () => void }) {
-  const [saving, setSaving] = useState(false);
-  const [note, setNote] = useState(report.comment || "");
-  const [yangoGrossEdit, setYangoGrossEdit] = useState(String(report.yango_gross || ""));
-  const [yangoBonus, setYangoBonus] = useState(String(report.yango_bonus || ""));
-  const [horsYangoEdit, setHorsYangoEdit] = useState(String(report.off_yango_revenue || ""));
-  const [soldeEdit, setSoldeEdit] = useState(String(report.solde_yango || ""));
-  const [dateEdit, setDateEdit] = useState(report.date || "");
-  const [kmEdit, setKmEdit] = useState(String(report.end_odometer || ""));
-  const [yangoTripsEdit, setYangoTripsEdit] = useState(String(report.yango_trip_count || ""));
-  const [offYangoTripsEdit, setOffYangoTripsEdit] = useState(String(report.off_yango_trip_count || ""));
-  const [serviceSuppEdit, setServiceSuppEdit] = useState(String(report.service_supplementaire || ""));
-  const [uploads, setUploads] = useState<any[]>([]);
-  const [uploading, setUploading] = useState(false);
+  const { saving, note, setNote, yangoGrossEdit, setYangoGrossEdit, yangoBonus, setYangoBonus, horsYangoEdit, setHorsYangoEdit, soldeEdit, setSoldeEdit, dateEdit, setDateEdit, kmEdit, setKmEdit, yangoTripsEdit, setYangoTripsEdit, offYangoTripsEdit, setOffYangoTripsEdit, serviceSuppEdit, setServiceSuppEdit, uploads, uploading, recalc, saveFields, updateStatus, uploadFile } = useReportReview(report, onRefresh);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
-
-  useEffect(() => {
-    (async () => {
-      const supabase = createClient() as any;
-      const { data } = await supabase.from("uploads").select("*").eq("driver_id", report.driver_id).order("created_at", { ascending: false });
-      // Keep files linked to this report: either by ref_id or file_path (legacy path)
-      const enriched = (data || [])
-        .filter((u: any) => u.ref_id === report.id || u.file_path?.includes(report.id))
-        .map((u: any) => {
-        const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(u.file_path);
-        return { ...u, publicUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(u.file_name) };
-      });
-      setUploads(enriched);
-    })();
-  }, [report.driver_id]);
-
-  // Net recalculé dans le MODE D'ORIGINE du rapport (lib/reportNet) : éléments
-  // réels si des commissions lues dans l'app sont stockées, sinon taux figés.
-  const recalc = (yg: number, yb: number, hy: number, serviceSupp: number) => recomputeReportNet({
-    yangoGross: yg, yangoBonus: yb, horsYango: hy, serviceSupplementaire: serviceSupp,
-    commissionYangoReelle: report.commission_yango_reelle ?? null,
-    commissionPartenaireReelle: report.commission_partenaire_reelle ?? null,
-    commissionRate: report.commission_rate ?? null,
-    partnerRate: report.partner_rate ?? null,
-  });
-
-  const saveFields = async () => {
-    setSaving(true);
-    try {
-      const supabase = createClient() as any;
-      const yg = parseFloat(yangoGrossEdit) || 0;
-      const yb = parseFloat(yangoBonus) || 0;
-      const hy = parseFloat(horsYangoEdit) || 0;
-      const serviceSupp = parseFloat(serviceSuppEdit) || 0;
-      const calc = recalc(yg, yb, hy, serviceSupp);
-      const { error } = await supabase.from("daily_reports").update({
-        date: dateEdit || report.date,
-        yango_gross: yg, yango_bonus: yb, off_yango_revenue: hy,
-        gross_earnings: calc.grossEarnings, commission_amount: calc.commissionAmount,
-        service_supplementaire: serviceSupp,
-        net_after_expenses: calc.netAfterExpenses,
-        solde_yango: parseFloat(soldeEdit) || 0,
-        end_odometer: kmEdit ? parseInt(kmEdit) : null,
-        yango_trip_count: yangoTripsEdit ? parseInt(yangoTripsEdit) : null,
-        off_yango_trip_count: offYangoTripsEdit ? parseInt(offYangoTripsEdit) : null,
-        comment: note || null,
-      }).eq("id", report.id);
-      if (error) throw error;
-      alert("Modifications enregistrées ✓");
-      onRefresh();
-    } catch (err: any) { alert("Erreur : " + err.message); }
-    finally { setSaving(false); }
-  };
-
-  const updateStatus = async (status: "approved" | "rejected") => {
-    setSaving(true);
-    try {
-      const supabase = createClient() as any;
-      if (status === "approved") {
-        // Un seul rapport ACTIF par chauffeur et par date : si un autre rapport
-        // est déjà validé pour cette date, on bloque plutôt que de créer un doublon.
-        const { data: dup } = await supabase.from("daily_reports")
-          .select("id").eq("driver_id", report.driver_id).eq("tenant_id", report.tenant_id)
-          .eq("date", report.date).eq("status", "approved").neq("id", report.id).limit(1).maybeSingle();
-        if (dup) {
-          alert("Un autre rapport est déjà validé pour ce chauffeur à cette date. Annulez-le d'abord (bouton « Annuler ») si tu veux valider celui-ci à la place.");
-          setSaving(false);
-          return;
-        }
-      }
-      const { error } = await supabase.from("daily_reports").update({
-        status,
-        // Le net n'est plus réécrit ici (il écrasait une correction fraîchement
-        // enregistrée) : seul « Enregistrer les modifications » le recalcule.
-        ...(note ? { comment: note } : {}),
-        // Motif de rejet — colonne dédiée lue par l'écran chauffeur (report.rejection_reason),
-        // distincte de `comment` : sans ça, le motif n'était jamais montré au chauffeur.
-        ...(status === "rejected" ? { rejection_reason: note || null } : {}),
-      }).eq("id", report.id);
-      if (error) throw error;
-      // Log action (fire-and-forget — non-critical)
-      logAction({
-        tenantId: report.tenant_id, entityType: "daily_report", entityId: report.id,
-        action: status,
-        metadata: { date: report.date, net: report.net_after_expenses },
-      });
-      // Notification push au chauffeur
-      void fetch("/api/notifications/trigger", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: `report_${status}`, tenantId: report.tenant_id, driverId: report.driver_id, data: { date: report.date } }),
-      });
-      onRefresh();
-    } catch (err: any) { alert("Erreur : " + err.message); }
-    finally { setSaving(false); }
-  };
-
-  const uploadFile = async (file: File) => {
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      const rawPath = `admin/reports/${report.id}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-      fd.append("file", file);
-      fd.append("path", rawPath);
-      const res = await fetch("/api/kyc-upload", { method: "POST", body: fd });
-      const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Upload échoué");
-      const supabase = createClient() as any;
-      await supabase.from("uploads").insert({ driver_id: report.driver_id, file_name: file.name, file_path: result.path, file_type: "admin-report", file_size: file.size });
-      setUploads((p) => [...p, { file_name: file.name, file_path: result.path, file_type: "admin-report", created_at: new Date().toISOString() }]);
-    } catch (err: any) { alert("Erreur : " + err.message); }
-    finally { setUploading(false); }
-  };
 
   const rows = [
     [`Brut ${platLabel()}`, xof(report.yango_gross)],
@@ -2962,7 +2914,23 @@ function MonthAccordion({
 }
 
 // ─── PAYMENTS TAB ─────────────────────────────────────
-function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: string; tenantId: string }) {
+function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId, v2 }: {
+  filterDriverId?: string;
+  filterDriverIds?: string[];
+  tenantId: string;
+  /** UI v2 : salaires de la période + derniers mouvements (affichage seul). */
+  v2?: {
+    range: { from: string; to: string };
+    periodLabel: string;
+    allocations: SalaryAllocation[] | null;
+    cfg: Record<string, unknown> | null;
+    reports: object[];
+    expenses: object[];
+    reportsLoading: boolean;
+    nameOf: (driverId: string) => string;
+    onChanged: () => void;
+  };
+}) {
   const [payments, setPayments] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3016,6 +2984,7 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
       setNewPaymentDriverId(form.driver_id);
       setForm((f) => ({ ...f, amount: "", notes: "" }));
       await load();
+      v2?.onChanged();
     } catch (err: any) { alert("Erreur : " + err.message); }
     finally { setSaving(false); }
   };
@@ -3025,6 +2994,15 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
     const supabase = createClient() as any;
     await supabase.from("payments").delete().eq("id", id);
     await load();
+    v2?.onChanged();
+  };
+
+  // v2 « Marquer payé » : ouvre le formulaire existant pré-rempli (même enregistrement).
+  const markPaid = (row: SalaryRow) => {
+    setNewPaymentId(null);
+    setForm((f) => ({ ...f, driver_id: row.driverId, amount: String(Math.round(row.reste)), payment_date: today, salary_month: v2 ? salaryMonthOf(v2.range) : f.salary_month, type: "salaire", notes: "" }));
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const typeBadge = (t: string) => {
@@ -3038,7 +3016,11 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
     return <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize" style={{ color, background: bg }}>{t}</span>;
   };
 
-  const filteredPayments = filterDriverId ? payments.filter((p) => p.driver_id === filterDriverId) : payments;
+  // v2 : plusieurs chauffeurs → filtre côté écran sur la liste chargée (API inchangée).
+  const filteredPayments = filterDriverIds && filterDriverIds.length > 1 ? payments.filter((p) => filterDriverIds.includes(p.driver_id)) : filterDriverId ? payments.filter((p) => p.driver_id === filterDriverId) : payments;
+
+  const v2Rows = v2 && v2.cfg && v2.allocations ? salaryRows(v2.allocations, v2.cfg, filteredPayments, v2.range, calcDriverSalary) : [];
+  const v2Moves = v2 ? recentMovements({ payments: filteredPayments, reports: v2.reports, expenses: v2.expenses, range: v2.range, nameOf: v2.nameOf }) : [];
 
   // Group by driver for totals
   const totByDriver = filteredPayments.reduce((acc: any, p) => {
@@ -3126,8 +3108,17 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
         </div>
       )}
 
+      {v2 && (
+        v2.cfg ? (
+          <SalaryTableV2 rows={v2Rows} loading={loading || !v2.allocations} periodLabel={v2.periodLabel} onMarkPaid={markPaid} />
+        ) : (
+          <div className="text-sm" style={{ color: "var(--sk-t3)" }}>Configurez la rémunération (Paramètres → Rémunération) pour voir les salaires dus.</div>
+        )
+      )}
+      {v2 && <MovementsV2 movements={v2Moves} loading={loading || v2.reportsLoading} />}
+
       {/* Totals by driver */}
-      {Object.keys(totByDriver).length > 0 && (
+      {!v2 && Object.keys(totByDriver).length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {Object.entries(totByDriver).map(([name, total]: [string, any]) => (
             <div key={name} className="rounded-xl p-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", borderLeft: "3px solid #22c55e" }}>
@@ -3140,18 +3131,21 @@ function PaymentsTab({ filterDriverId = "", tenantId }: { filterDriverId?: strin
       )}
 
       {/* List — regroupée par mois, repliée sauf le mois le plus récent */}
-      {loading ? (
-        <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Chargement...</div>
-      ) : filteredPayments.length === 0 ? (
-        <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Aucun paiement enregistré</div>
-      ) : (
-        <MonthAccordion
-          groups={groupByMonth(filteredPayments, "salary_month")}
-          xof={xof}
-          emptyLabel="paiement"
-          renderItem={(p) => <PaymentRow key={p.id} payment={p} onDelete={() => deletePayment(p.id)} typeBadge={typeBadge} xof={xof} />}
-        />
-      )}
+      {(() => {
+        const history = loading ? (
+          <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Chargement...</div>
+        ) : filteredPayments.length === 0 ? (
+          <div className="text-center py-12" style={{ color: "var(--sk-t4)" }}>Aucun paiement enregistré</div>
+        ) : (
+          <MonthAccordion
+            groups={groupByMonth(filteredPayments, "salary_month")}
+            xof={xof}
+            emptyLabel="paiement"
+            renderItem={(p) => <PaymentRow key={p.id} payment={p} onDelete={() => deletePayment(p.id)} typeBadge={typeBadge} xof={xof} />}
+          />
+        );
+        return v2 ? <CollapsedHistoryV2 title="Historique des paiements">{history}</CollapsedHistoryV2> : history;
+      })()}
     </div>
   );
 }
@@ -3266,7 +3260,7 @@ function PaymentRow({ payment: p, onDelete, typeBadge, xof }: { payment: any; on
 }
 
 // ─── AVANCES TAB ─────────────────────────────────────
-function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string; tenantId: string }) {
+function AvancesTab({ filterDriverId = "", filterDriverIds, tenantId, range }: { filterDriverId?: string; filterDriverIds?: string[]; tenantId: string; range?: { from: string; to: string } }) {
   const [advances, setAdvances] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3329,7 +3323,9 @@ function AvancesTab({ filterDriverId = "", tenantId }: { filterDriverId?: string
     await load();
   };
 
-  const filteredAdvances = filterDriverId ? advances.filter((a) => a.driver_id === filterDriverId) : advances;
+  const advByDriver = filterDriverIds && filterDriverIds.length > 1 ? advances.filter((a) => filterDriverIds.includes(a.driver_id)) : filterDriverId ? advances.filter((a) => a.driver_id === filterDriverId) : advances;
+  // v2 : acomptes imputés sur la période de la barre de filtres (même règle que les KPIs).
+  const filteredAdvances = range ? advByDriver.filter((a) => inRange(paymentSalaryDate(a), range)) : advByDriver;
 
   // Group by driver
   const byDriver = drivers
@@ -3493,7 +3489,7 @@ function AdvanceRow({
 }
 
 // ─── CALENDRIER TAB ───────────────────────────────────
-function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string; allDrivers: any[] }) {
+function CalendrierTab({ filterDriverId, filterDriverIds, allDrivers }: { filterDriverId: string; filterDriverIds?: string[]; allDrivers: any[] }) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth()); // 0-indexed
@@ -3531,7 +3527,7 @@ function CalendrierTab({ filterDriverId, allDrivers }: { filterDriverId: string;
   const startPad = (firstDow + 6) % 7; // Mon-first
   const days = Array.from({ length: lastDay }, (_, i) => i + 1);
 
-  const drivers = filterDriverId ? allDrivers.filter(d => d.id === filterDriverId) : allDrivers;
+  const drivers = filterDriverIds && filterDriverIds.length > 1 ? allDrivers.filter(d => filterDriverIds.includes(d.id)) : filterDriverId ? allDrivers.filter(d => d.id === filterDriverId) : allDrivers;
 
   const eventsForDay = (day: number) => {
     const dateStr = `${monthStr}-${String(day).padStart(2, "0")}`;

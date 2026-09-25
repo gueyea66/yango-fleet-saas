@@ -20,6 +20,7 @@ export interface TenantSettings {
   skin?: string | null; // ambiance des surfaces (midnight | slate | graphite) — accent inchangé
   ui_mode?: string | null; // 'full' (défaut) | 'simple' — vue épurée propriétaire
   platform_label?: string | null; // mot affiché à la place de « Yango » dans l'UI (défaut 'Yango')
+  ui_v2?: boolean | null; // refonte UI v2 (migration 062) — défaut false = UI actuelle
 }
 
 export type RemunerationModel = "fixed" | "tiered" | "percent" | "hybrid" | "location";

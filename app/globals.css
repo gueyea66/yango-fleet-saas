@@ -143,3 +143,86 @@ body {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── Refonte UI v2 (design_handoff_refonte_m3a) ──────────────────────────────
+   Tokens ADDITIFS : complètent --sk-* / --fleet-* pour les teintes des
+   maquettes qui n'avaient pas encore de variable. Les règles de rendu sont
+   toutes SCOPÉES sous html[data-ui="v2"] ou des classes .v2-* : drapeau
+   éteint → aucun sélecteur ne s'applique, rendu actuel strictement inchangé. */
+:root {
+  --v2-muted: var(--fleet-text-muted);      /* sous-labels, unités (AA) */
+  --v2-nav-inactive: #c3c8d6;               /* nav admin inactive, libellés discrets */
+  --v2-validate: #22c55e;                   /* bouton Valider */
+  --v2-validate-ink: #06210f;
+  --v2-negative-ink: #f87171;
+  --v2-warning-ink: #fb923c;
+  --v2-net-yango: #60a5fa;
+  --v2-hors-yango: #c084fc;
+  --v2-stripe: #161b26;                     /* emplacements d'image rayés */
+  --v2-ok-bg: rgba(74, 222, 128, 0.08);
+  --v2-ok-bd: rgba(74, 222, 128, 0.25);
+  --v2-wait-bg: rgba(249, 115, 22, 0.08);
+  --v2-wait-bd: rgba(249, 115, 22, 0.3);
+  --v2-neg-bg: rgba(239, 68, 68, 0.08);
+  --v2-neg-bd: rgba(239, 68, 68, 0.3);
+  --v2-info-bg: rgba(56, 189, 248, 0.08);
+  --v2-info-bd: rgba(56, 189, 248, 0.28);
+  --v2-select-bg: rgba(var(--tenant-color-rgb), 0.12);
+  --v2-ai-bg: rgba(245, 166, 35, 0.14);
+  --v2-ai-ink: #fbbf24;
+  --v2-calc-bg: rgba(59, 130, 246, 0.15);
+  --v2-calc-ink: #60a5fa;
+  --v2-toast-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+}
+html[data-theme="light"] {
+  --v2-muted: #64748b;
+  --v2-nav-inactive: #3d4a61;
+  --v2-stripe: #d5dbe6;
+  --v2-toast-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+}
+
+html[data-ui="v2"] body {
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+.v2-num {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+.v2-btn {
+  white-space: nowrap;
+  flex: none;
+  transition: filter 0.15s, border-color 0.15s, background-color 0.15s;
+}
+.v2-btn:disabled { cursor: not-allowed; opacity: 0.45; }
+.v2-btn-fill:not(:disabled):hover { filter: brightness(1.1); }
+.v2-btn-outline:not(:disabled):hover { border-color: var(--sk-t2) !important; }
+.v2-hover-border:hover { border-color: var(--sk-border) !important; }
+.v2-row { transition: background-color 0.15s; }
+.v2-row:hover { background-color: rgba(var(--tenant-color-rgb), 0.05); }
+.v2-focus:focus-visible,
+.v2-btn:focus-visible {
+  outline: 2px solid var(--tenant-color);
+  outline-offset: 2px;
+}
+.v2-stripes {
+  background: repeating-linear-gradient(135deg, var(--sk-surface) 0 6px, var(--v2-stripe) 6px 12px);
+}
+@keyframes v2-shimmer { 0% { opacity: 0.55; } 50% { opacity: 1; } 100% { opacity: 0.55; } }
+.v2-skeleton {
+  background: var(--sk-surface);
+  border-radius: 8px;
+  animation: v2-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes v2-toast-in { from { opacity: 0; transform: translate(-50%, 8px); } to { opacity: 1; transform: translate(-50%, 0); } }
+
+/* v2 : pages actuelles affichées dans la coque v2 (suivi GPS, boîtiers) —
+   neutralise leur fond plein écran ; classe utilisée seulement drapeau allumé. */
+.v2-embed .min-h-screen { min-height: 0; }
+.v2-embed > .bg-gray-900 { background: transparent; padding: 0; }
+
+/* v2 : lien discret (12 px, --sk-t2), souligné au survol — « Espace opérateur ». */
+.v2-link { font-size: 12px; color: var(--sk-t2); text-decoration: none; }
+.v2-link:hover, .v2-link:focus-visible { text-decoration: underline; color: var(--sk-t1); }
+.v2-details > summary::-webkit-details-marker { display: none; }
+.v2-details-chevron { transform: rotate(-90deg); transition: transform .15s; }
+.v2-details[open] .v2-details-chevron { transform: none; }

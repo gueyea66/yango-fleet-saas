@@ -2,39 +2,19 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { useTenant } from "@/lib/tenant/context";
 import { BrandLogo, PoweredBy } from "@/components/brand/BrandShell";
+import { useResetForm } from "@/components/auth/useResetForm";
+import { useUiV2 } from "@/components/v2/useUiV2";
+import { ResetV2 } from "@/components/v2/public/AuthV2";
 
 export default function ResetPasswordPage() {
+  const uiV2 = useUiV2(); // refonte UI v2 (forçage appareil sur les pages publiques)
   const { settings } = useTenant();
   const brand = settings.primary_color || "var(--tenant-color)";
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [done, setDone] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { password, setPassword, confirm, setConfirm, done, loading, error, handleSubmit } = useResetForm();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (password.length < 8) { setError("Mot de passe trop court (8 caractères minimum)"); return; }
-    if (password !== confirm) { setError("Les mots de passe ne correspondent pas"); return; }
-    setLoading(true);
-    try {
-      // La session est établie par le lien de l'email (hash tokens gérés par supabase-js)
-      const supabase = createClient();
-      const { error: updateError } = await supabase.auth.updateUser({ password });
-      if (updateError) { setError(updateError.message); return; }
-      setDone(true);
-      setTimeout(() => { window.location.href = "/auth/login"; }, 2500);
-    } catch {
-      setError("Lien invalide ou expiré — refaites une demande");
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (uiV2) return <ResetV2 />;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center px-4"

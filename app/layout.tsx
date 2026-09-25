@@ -39,6 +39,8 @@ export default function RootLayout({
     <html
       lang="fr"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      // data-theme / data-ui sont posés par le script inline avant l'hydratation
+      suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col">
         {/* Thème clair/sombre : appliqué AVANT le premier rendu (pas de flash).
@@ -46,7 +48,9 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html:
-              `try{if(localStorage.getItem("m3a-theme")==="light")document.documentElement.dataset.theme="light"}catch(e){}`,
+              `try{if(localStorage.getItem("m3a-theme")==="light")document.documentElement.dataset.theme="light"}catch(e){}` +
+              // Refonte UI v2 forcée sur l'appareil (QA) : typo scopée posée avant le 1er rendu.
+              `try{if(localStorage.getItem("m3a-ui")==="v2")document.documentElement.dataset.ui="v2"}catch(e){}`,
           }}
         />
         <PwaRegister />

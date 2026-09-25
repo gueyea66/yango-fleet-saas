@@ -5,6 +5,8 @@ export const dynamic = "force-dynamic";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
+import { useUiV2 } from "@/components/v2/useUiV2";
+import AdminFrameV2 from "@/components/v2/admin/AdminFrameV2";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
 import { parseRconf } from "@/lib/telematics/devices";
 
@@ -94,6 +96,7 @@ function CopySms({ sms }: { sms: string }) {
 export default function BoitiersPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const uiV2 = useUiV2(); // refonte UI v2 : page affichée dans la coque v2
 
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -161,7 +164,7 @@ export default function BoitiersPage() {
   }
   if (!user) return null;
 
-  return (
+  const page = (
     <div className="min-h-screen bg-gray-900 p-4 sm:p-6">
       <div className="max-w-6xl mx-auto">
         <header className="mb-6">
@@ -505,4 +508,7 @@ export default function BoitiersPage() {
       </div>
     </div>
   );
+
+  if (uiV2) return <AdminFrameV2 tab="boitiers">{page}</AdminFrameV2>;
+  return page;
 }
