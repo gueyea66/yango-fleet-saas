@@ -18,7 +18,7 @@ export interface OnbVehicule {
   /**
    * 'interne' (le véhicule appartient au client) ou 'partenaire' (il appartient
    * à un tiers qui le confie au parc). Optionnel pour les fiches antérieures
-   * à la 062 ; `segmentDe()` les traite comme internes.
+   * à la 063 ; `segmentDe()` les traite comme internes.
    */
   segment?: string;
 }
@@ -57,6 +57,12 @@ export interface OnbDoc {
   /** Second compte admin : la direction du client, à côté du gestionnaire. */
   direction?: string;
   directionEmail?: string;
+  /**
+   * Interface remise au client. `true` = refonte v2. Porté par la fiche et non
+   * par un réglage à part : c'est une décision par client, prise au moment où
+   * on décrit le client, et elle doit se relire là où vit le reste du dossier.
+   */
+  uiV2?: boolean;
   plan?: string;
   vehiculesPrevus: number | string;
   j0: string;
@@ -124,26 +130,12 @@ export const ETATS_M3A = ["À faire", "En cours", "Fait"] as const;
 export const ETATS_KYC = ["À collecter", "Partiel", "Complet"] as const;
 
 /* ── Segmentation du parc ─────────────────────────── */
-
-/**
- * Un parc Yango n'appartient pas forcément à un seul propriétaire : un
- * exploitant héberge souvent des véhicules de tiers contre une commission.
- * Les deux segments doivent être distingués partout où on additionne des
- * recettes, sinon le compte de résultat du client compte des voitures qui ne
- * sont pas les siennes.
- */
-export const SEGMENTS = ["interne", "partenaire"] as const;
-export type Segment = (typeof SEGMENTS)[number];
-
-export const SEGMENT_LABELS: Record<string, string> = {
-  interne: "Flotte interne",
-  partenaire: "Flotte partenaire",
-};
-
-/** Segment d'un véhicule, avec repli sur 'interne' — le cas des fiches anciennes. */
-export function segmentDe(v: { segment?: string } | null | undefined): Segment {
-  return v?.segment === "partenaire" ? "partenaire" : "interne";
-}
+// Le vocabulaire vit dans `lib/fleetSegment.ts` : la fiche, la base, l'onglet
+// Flotte et la carte des signaux v2 doivent dire le même mot.
+export {
+  SEGMENTS, SEGMENT_META, SEGMENT_LABELS, segmentDe, TOUS_SEGMENTS,
+  compterParSegment, estMixte, basculerSegment, type Segment,
+} from "@/lib/fleetSegment";
 
 export const MODES = [
   "Loyer journalier",
@@ -194,7 +186,7 @@ export function slugify(s: string): string {
 export function ficheVide(nom: string): OnbDoc {
   return {
     nom, contact: "", sousDomaine: "", gestionnaire: "", gestionnaireEmail: "",
-    direction: "", directionEmail: "",
+    direction: "", directionEmail: "", uiV2: true,
     vehiculesPrevus: 0, j0: "",
     a: {}, b: {}, c: {},
     vehicules: [], chauffeurs: [],

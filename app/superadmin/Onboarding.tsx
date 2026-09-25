@@ -156,7 +156,12 @@ function Champ({ chemin, label, valeur, type, aide, pleine, set }: {
   return (
     <div style={{ gridColumn: pleine ? "1/-1" : undefined }}>
       <label htmlFor={id} style={{ display: "block", fontSize: 12, color: "var(--sk-t2)", marginBottom: 5 }}>{label}</label>
-      {type === "mode" ? (
+      {type === "ui" ? (
+        <select id={id} value={valeur} onChange={(e) => set(chemin, e.target.value)} style={CHAMP}>
+          <option value="v2">Refonte v2</option>
+          <option value="v1">Interface actuelle</option>
+        </select>
+      ) : type === "mode" ? (
         <select id={id} value={valeur} onChange={(e) => set(chemin, e.target.value)} style={CHAMP}>
           {MODES.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
@@ -270,6 +275,9 @@ export default function Onboarding({ superadminKey, notify }: Props) {
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   const setChamp = (chemin: string, valeur: string) => modifier((d) => {
+    // `uiV2` est le seul champ booléen de la fiche : le sélecteur parle en
+    // « v2 / v1 », la fiche stocke un booléen.
+    if (chemin === "uiV2") { d.uiV2 = valeur === "v2"; return d; }
     const parts = chemin.split(".");
     let cible = d as unknown as Record<string, unknown>;
     for (let i = 0; i < parts.length - 1; i++) cible = cible[parts[i]] as Record<string, unknown>;
@@ -587,6 +595,8 @@ export default function Onboarding({ superadminKey, notify }: Props) {
             aide="Second compte administrateur — celui qui regarde les chiffres" set={setChamp} />
           <Champ chemin="directionEmail" label="Son adresse e-mail" valeur={doc.directionEmail || ""} type="email"
             aide="Laisser vide n'empêche rien : la mise en service se rejoue" set={setChamp} />
+          <Champ chemin="uiV2" label="Interface" valeur={doc.uiV2 === false ? "v1" : "v2"} type="ui"
+            aide="Appliqué à chaque mise en service — rejouer la bascule suffit à changer d'avis" set={setChamp} />
           <Champ chemin="j0" label="Date du J0" valeur={doc.j0} type="date" aide="Le jour de l'acceptation et du premier versement" set={setChamp} />
         </div>
 

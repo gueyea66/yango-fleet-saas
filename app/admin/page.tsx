@@ -40,10 +40,15 @@ import { BrandLogo } from "@/components/brand/BrandShell";
 import TrialBanner from "@/components/TrialBanner";
 import { useUiV2 } from "@/components/v2/useUiV2";
 import AdminShellV2 from "@/components/v2/admin/AdminShellV2";
+import {
+  SEGMENT_META, segmentDe as segOf, compterParSegment, estMixte,
+  basculerSegment, TOUS_SEGMENTS,
+} from "@/lib/fleetSegment";
 import { DashboardV2, DashViewToggle, useDashView } from "@/components/v2/admin/DashboardV2";
 import { PendingV2 } from "@/components/v2/admin/PendingV2";
 import { FinanceKpisV2, HistoryV2, TeamV2 } from "@/components/v2/admin/SectionsV2";
 import { VehiclesSignalV2 } from "@/components/v2/admin/VehiclesSignalV2";
+import { FleetSegmentFilter } from "@/components/v2/admin/FleetSegmentFilter";
 import { defaultPeriod, periodRange, parseAdminFilter, serializeAdminFilter, inRange, periodLabel, type AdminPeriod } from "@/lib/v2/periodFilter";
 import { masseSalariale, paymentSalaryDate, recentMovements, salaryMonthOf, salaryRows, type SalaryAllocation, type SalaryRow } from "@/lib/v2/finance";
 import { CollapsedHistoryV2, MovementsV2, SalaryTableV2 } from "@/components/v2/admin/FinanceV2";
@@ -73,6 +78,10 @@ export default function AdminPage() {
   const { settings } = useTenant();
   const router = useRouter();
   const uiV2 = useUiV2(); // refonte UI v2 (drapeau tenant ou appareil)
+  // Filtre de flotte de l'onglet Véhicules en v2 : un seul état pour la carte
+  // des signaux et la gestion de flotte, sinon les deux se contrediraient.
+  const [v2Segments, setV2Segments] = useState<string[]>(TOUS_SEGMENTS);
+  const [v2SegCounts, setV2SegCounts] = useState<Record<"interne" | "partenaire", number>>({ interne: 0, partenaire: 0 });
   const [dashView, setDashView] = useDashView();
   const [tab, setTab] = useState("dashboard");
   // Drapeau allumé : /admin?tab=… (liens depuis la coque v2 des pages suivi / boîtiers).
@@ -869,8 +878,18 @@ export default function AdminPage() {
             />
           ) : tab === "vehicles" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-              <VehiclesSignalV2 />
-              {tabContent}
+              {estMixte(v2SegCounts) && (
+                <FleetSegmentFilter counts={v2SegCounts} value={v2Segments} onChange={setV2Segments} />
+              )}
+              <VehiclesSignalV2 segments={v2Segments} />
+              {adminTenantId && (
+                <FleetTab
+                  tenantId={adminTenantId}
+                  segments={v2Segments}
+                  onSegments={setV2Segments}
+                  onCounts={setV2SegCounts}
+                />
+              )}
             </div>
           ) : tab === "payments" || tab === "avances" || tab === "finjournal" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
@@ -1214,17 +1233,6 @@ const VEHICLE_STATUS_META: Record<string, { label: string; color: string }> = {
   sold:        { label: "Vendu",        color: "var(--sk-t4)" },
 };
 
-// Un parc Yango héberge souvent des voitures qui n'appartiennent pas à
-// l'exploitant : chez NMK, 5 des 13 véhicules sont à des tiers, dont deux à
-// M3A. Additionner les deux flottes sans les distinguer fait entrer dans le
-// compte de résultat du client des recettes qui ne sont pas les siennes.
-const SEGMENT_META: Record<string, { label: string; court: string; color: string }> = {
-  interne:    { label: "Flotte interne",   court: "Interne",   color: "#22c55e" },
-  partenaire: { label: "Flotte partenaire", court: "Partenaire", color: "#3b82f6" },
-};
-const segOf = (v: { fleet_segment?: string | null }) =>
-  v?.fleet_segment === "partenaire" ? "partenaire" : "interne";
-
 const MAINT_TYPE_META: Record<string, string> = {
   maintenance:       "Entretien",
   reparation:        "🔨 Réparation",
@@ -1254,7 +1262,13 @@ function ExpiryBadge({ label, dateStr }: { label: string; dateStr: string | null
 
 const EMPTY_VEH = { plate: "", make: "", model: "", year: "", color: "", fuel_type: "essence", transmission: "manuelle", vin: "", mileage: "0", status: "active", insurance_company: "", insurance_number: "", insurance_expiry: "", visite_expiry: "", notes: "", driver_id: "", fleet_segment: "interne", owner_name: "" };
 
-function FleetTab({ tenantId }: { tenantId: string }) {
+/**
+ * `segments` / `onSegments` : en v2 le filtre de flotte est rendu une seule
+ * fois, au-dessus de la carte des signaux, et pilote les deux listes. Fournis,
+ * ils remplacent l'état interne et les jetons locaux disparaissent — deux
+ * rangées de filtres pour un même parc se contrediraient à l'œil.
+ */
+function FleetTab({ tenantId, segments, onSegments, onCounts }: { tenantId: string; segments?: string[]; onSegments?: (s: string[]) => void; onCounts?: (c: Record<"interne" | "partenaire", number>) => void }) {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -1269,7 +1283,10 @@ function FleetTab({ tenantId }: { tenantId: string }) {
   const [isNew, setIsNew] = useState(false);
   // Multi-sélection, les deux flottes cochées au départ : on montre le parc
   // entier, puis on laisse isoler. L'inverse ferait croire à un parc amputé.
-  const [segFiltre, setSegFiltre] = useState<string[]>(["interne", "partenaire"]);
+  const [segLocal, setSegLocal] = useState<string[]>(TOUS_SEGMENTS);
+  const pilote = segments !== undefined;
+  const segFiltre = segments ?? segLocal;
+  const setSegFiltre = onSegments ?? setSegLocal;
 
   const supabase = (createClient as any)();
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
@@ -1277,6 +1294,9 @@ function FleetTab({ tenantId }: { tenantId: string }) {
   const loadVehicles = async () => {
     const { data } = await supabase.from("vehicles").select("*").eq("tenant_id", tenantId).order("plate");
     setVehicles(data || []);
+    // Le parent v2 rend le filtre au-dessus de la carte des signaux : il lui
+    // faut les comptes, et c'est ici qu'on vient de les charger.
+    onCounts?.(compterParSegment(data || [], (v: any) => v));
   };
 
   const loadDrivers = async () => {
@@ -1470,11 +1490,11 @@ function FleetTab({ tenantId }: { tenantId: string }) {
   }
 
   // ── VEHICLE LIST VIEW ──
-  const parSegment = (s: string) => vehicles.filter((v) => segOf(v) === s).length;
+  const compte = compterParSegment(vehicles, (v) => v);
+  const parSegment = (s: string) => compte[s as "interne" | "partenaire"] ?? 0;
   const vehiculesVus = vehicles.filter((v) => segFiltre.includes(segOf(v)));
-  const basculerSeg = (s: string) =>
-    setSegFiltre((f) => (f.includes(s) ? f.filter((x) => x !== s) : [...f, s]));
-  const mixte = parSegment("interne") > 0 && parSegment("partenaire") > 0;
+  const basculerSeg = (s: string) => setSegFiltre(basculerSegment(segFiltre, s));
+  const mixte = estMixte(compte);
 
   return (
     <div className="p-4">
@@ -1537,7 +1557,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
 
       {/* Filtre de flotte — n'apparaît que si le parc est effectivement mixte :
           un seul segment rendrait le filtre décoratif et trompeur. */}
-      {mixte && (
+      {mixte && !pilote && (
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <span className="text-[11px] uppercase tracking-wider" style={{ color: "var(--sk-t4)" }}>Flotte</span>
           {Object.entries(SEGMENT_META).map(([k, meta]) => {

@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
 import { requireAdminAuth } from "@/lib/auth/server";
+import { segmentDe } from "@/lib/fleetSegment";
 import {
   parseRconf,
   buildInstallSms,
@@ -91,7 +92,7 @@ function present(d: Record<string, any>, plates: Map<string, string>) {
 async function loadVehicles(tenantId: string) {
   const { data } = await admin
     .from("vehicles")
-    .select("id, plate, make, model")
+    .select("id, plate, make, model, fleet_segment, owner_name")
     .eq("tenant_id", tenantId)
     .order("plate");
   return (data ?? []).map((v) => ({
@@ -99,6 +100,11 @@ async function loadVehicles(tenantId: string) {
     // Des plaques sont stockées avec des espaces parasites : on affiche propre.
     plate: String(v.plate ?? "").trim(),
     name: [v.make, v.model].filter(Boolean).join(" "),
+    // Le segment suit le véhicule jusqu'à la carte des signaux : sans lui,
+    // filtrer la liste du dessous laisserait le haut de l'écran afficher un
+    // parc que l'utilisateur vient justement de restreindre.
+    segment: segmentDe(v),
+    owner: v.owner_name ?? null,
   }));
 }
 
