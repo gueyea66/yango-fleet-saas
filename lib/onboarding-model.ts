@@ -15,6 +15,12 @@ export interface OnbVehicule {
   annee: string;
   proprio: string;
   service: string;
+  /**
+   * 'interne' (le véhicule appartient au client) ou 'partenaire' (il appartient
+   * à un tiers qui le confie au parc). Optionnel pour les fiches antérieures
+   * à la 062 ; `segmentDe()` les traite comme internes.
+   */
+  segment?: string;
 }
 
 export interface OnbChauffeur {
@@ -48,6 +54,9 @@ export interface OnbDoc {
   sousDomaine: string;
   gestionnaire: string;
   gestionnaireEmail?: string;
+  /** Second compte admin : la direction du client, à côté du gestionnaire. */
+  direction?: string;
+  directionEmail?: string;
   plan?: string;
   vehiculesPrevus: number | string;
   j0: string;
@@ -114,6 +123,28 @@ export const ETATS_CLIENT = ["À demander", "Demandé", "Reçu"] as const;
 export const ETATS_M3A = ["À faire", "En cours", "Fait"] as const;
 export const ETATS_KYC = ["À collecter", "Partiel", "Complet"] as const;
 
+/* ── Segmentation du parc ─────────────────────────── */
+
+/**
+ * Un parc Yango n'appartient pas forcément à un seul propriétaire : un
+ * exploitant héberge souvent des véhicules de tiers contre une commission.
+ * Les deux segments doivent être distingués partout où on additionne des
+ * recettes, sinon le compte de résultat du client compte des voitures qui ne
+ * sont pas les siennes.
+ */
+export const SEGMENTS = ["interne", "partenaire"] as const;
+export type Segment = (typeof SEGMENTS)[number];
+
+export const SEGMENT_LABELS: Record<string, string> = {
+  interne: "Flotte interne",
+  partenaire: "Flotte partenaire",
+};
+
+/** Segment d'un véhicule, avec repli sur 'interne' — le cas des fiches anciennes. */
+export function segmentDe(v: { segment?: string } | null | undefined): Segment {
+  return v?.segment === "partenaire" ? "partenaire" : "interne";
+}
+
 export const MODES = [
   "Loyer journalier",
   "Commission sur le brut",
@@ -163,6 +194,7 @@ export function slugify(s: string): string {
 export function ficheVide(nom: string): OnbDoc {
   return {
     nom, contact: "", sousDomaine: "", gestionnaire: "", gestionnaireEmail: "",
+    direction: "", directionEmail: "",
     vehiculesPrevus: 0, j0: "",
     a: {}, b: {}, c: {},
     vehicules: [], chauffeurs: [],

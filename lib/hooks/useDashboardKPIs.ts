@@ -103,6 +103,13 @@ export interface DashboardKPIs {
     driver_id: string;
     name: string;
     netDeclared: number;   // sum of net_after_expenses (approved + submitted)
+    /**
+     * CA BRUT déclaré : yango_gross + yango_bonus + off_yango_revenue, avant
+     * commission plateforme et avant dépenses. C'est la base du modèle
+     * « % du brut » — `netDeclared` ne peut pas la remplacer, le rapport
+     * net/brut varie d'un chauffeur à l'autre avec ses dépenses.
+     */
+    brutDeclared: number;
     netApproved: number;   // approved only
     netPending: number;    // submitted only
     nbReports: number;
@@ -437,18 +444,20 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         return to >= from;
       };
       const allActive: any[] = (allReps || []).filter((r: any) => r.status === "approved" || r.status === "submitted");
-      const driverAllocationMap = new Map<string, { name: string; netApproved: number; netPending: number; nbApproved: number; nbPending: number }>();
+      const driverAllocationMap = new Map<string, { name: string; netApproved: number; netPending: number; brut: number; nbApproved: number; nbPending: number }>();
+      const brutDuRapport = (r: any) => (r.yango_gross || 0) + (r.yango_bonus || 0) + (r.off_yango_revenue || 0);
       // Seed avec les chauffeurs actifs sur la période (les chauffeurs à zéro rapport restent visibles)
       drivers.filter(isActiveForPeriod).forEach((d) => {
-        driverAllocationMap.set(d.id, { name: d.full_name || d.driver_id || d.id.slice(0, 8), netApproved: 0, netPending: 0, nbApproved: 0, nbPending: 0 });
+        driverAllocationMap.set(d.id, { name: d.full_name || d.driver_id || d.id.slice(0, 8), netApproved: 0, netPending: 0, brut: 0, nbApproved: 0, nbPending: 0 });
       });
       allActive.forEach((r: any) => {
         if (!driverAllocationMap.has(r.driver_id)) {
           const p = drivers.find((d) => d.id === r.driver_id);
           if (p && !isActiveForPeriod(p)) return; // profil connu mais pas actif sur la période → pas affiché
-          driverAllocationMap.set(r.driver_id, { name: p?.full_name || p?.driver_id || r.driver_id?.slice(0, 8), netApproved: 0, netPending: 0, nbApproved: 0, nbPending: 0 });
+          driverAllocationMap.set(r.driver_id, { name: p?.full_name || p?.driver_id || r.driver_id?.slice(0, 8), netApproved: 0, netPending: 0, brut: 0, nbApproved: 0, nbPending: 0 });
         }
         const entry = driverAllocationMap.get(r.driver_id)!;
+        entry.brut += brutDuRapport(r);
         if (r.status === "approved") { entry.netApproved += r.net_after_expenses || 0; entry.nbApproved++; }
         else { entry.netPending += r.net_after_expenses || 0; entry.nbPending++; }
       });
@@ -469,6 +478,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         netApproved: d.netApproved,
         netPending: d.netPending,
         netDeclared: d.netApproved + d.netPending,
+        brutDeclared: d.brut,
         nbReports: d.nbApproved + d.nbPending,
         nbApproved: d.nbApproved,
         nbPending: d.nbPending,
