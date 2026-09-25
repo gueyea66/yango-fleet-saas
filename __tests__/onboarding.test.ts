@@ -2,7 +2,7 @@ import {
   mapRemunerationModel, numFromField, plateKey, slugify, texteRelance, ficheVide, etat,
   segmentDe, LISTE_CLIENT,
 } from "@/lib/onboarding-model";
-import { provisionOnboarding, makePassword, nextDriverId, type AdminDb } from "@/lib/onboarding";
+import { provisionOnboarding, makePassword, nextDriverId, couleurValide, type AdminDb } from "@/lib/onboarding";
 import type { OnbDoc } from "@/lib/onboarding-model";
 
 /* ────────────────────────────────────────────────────────────
@@ -436,5 +436,43 @@ describe("interface remise au client", () => {
     delete (doc as { uiV2?: boolean }).uiV2;
     const r = await provisionOnboarding({ admin, fileId: "nmk", doc, tenantId: null });
     expect(r.lignes.some((l) => l.quoi === "Interface")).toBe(false);
+  });
+});
+
+describe("couleur de marque du client", () => {
+  it("n'accepte qu'un hexadécimal à six chiffres, normalisé", () => {
+    expect(couleurValide("#125773")).toBe("#125773");
+    expect(couleurValide("125773")).toBe("#125773");
+    expect(couleurValide("  #125773  ")).toBe("#125773");
+    expect(couleurValide("#125773".toUpperCase())).toBe("#125773");
+  });
+
+  it("refuse tout le reste plutôt que d'écrire une valeur illisible", () => {
+    ["", "  ", "bleu", "#12577", "#1257733", "#12577g", "rgb(1,2,3)", null, undefined, 42]
+      .forEach((v) => expect(couleurValide(v)).toBeNull());
+  });
+
+  it("applique la couleur de la fiche à la création", async () => {
+    const { admin, tables } = fauxAdmin();
+    await provisionOnboarding({ admin, fileId: "nmk", doc: { ...ficheNMK(), couleur: "#125773" }, tenantId: null });
+    expect(tables.tenant_settings[0].primary_color).toBe("#125773");
+  });
+
+  it("garde l'orange par défaut quand la fiche ne dit rien", async () => {
+    const { admin, tables } = fauxAdmin();
+    await provisionOnboarding({ admin, fileId: "nmk", doc: ficheNMK(), tenantId: null });
+    expect(tables.tenant_settings[0].primary_color).toBe("#f5a623");
+  });
+
+  it("rejouée, repose la couleur — c'est ce qui permet de la corriger après coup", async () => {
+    const { admin, tables } = fauxAdmin();
+    const premier = await provisionOnboarding({ admin, fileId: "nmk", doc: ficheNMK(), tenantId: null });
+    expect(tables.tenant_settings[0].primary_color).toBe("#f5a623");
+
+    await provisionOnboarding({
+      admin, fileId: "nmk", doc: { ...premier.doc, couleur: "#125773" }, tenantId: premier.tenantId,
+    });
+    expect(tables.tenant_settings[0].primary_color).toBe("#125773");
+    expect(tables.tenant_settings).toHaveLength(1);
   });
 });

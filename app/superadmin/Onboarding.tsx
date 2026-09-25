@@ -597,6 +597,8 @@ export default function Onboarding({ superadminKey, notify }: Props) {
             aide="Laisser vide n'empêche rien : la mise en service se rejoue" set={setChamp} />
           <Champ chemin="uiV2" label="Interface" valeur={doc.uiV2 === false ? "v1" : "v2"} type="ui"
             aide="Appliqué à chaque mise en service — rejouer la bascule suffit à changer d'avis" set={setChamp} />
+          <Champ chemin="couleur" label="Couleur de marque" valeur={doc.couleur || ""} type="color"
+            aide="Le logo s'envoie à part, dans Clients → Gérer (son chemin contient l'identifiant de l'espace)" set={setChamp} />
           <Champ chemin="j0" label="Date du J0" valeur={doc.j0} type="date" aide="Le jour de l'acceptation et du premier versement" set={setChamp} />
         </div>
 

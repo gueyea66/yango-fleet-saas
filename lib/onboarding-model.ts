@@ -63,6 +63,18 @@ export interface OnbDoc {
    * on décrit le client, et elle doit se relire là où vit le reste du dossier.
    */
   uiV2?: boolean;
+  /**
+   * Couleur de marque du client, en hexadécimal. Le produit est vendu en
+   * marque blanche et le point A10 de la liste suit déjà « logo et couleur
+   * validés » — mais rien ne les appliquait : la mise en service écrivait
+   * l'orange de M3A. Un client qui ouvre son espace et voit les couleurs de
+   * son fournisseur n'a pas reçu ce qu'il a acheté.
+   *
+   * Le logo reste un envoi de fichier (console superadmin → Gérer) : son
+   * chemin de stockage contient l'identifiant du tenant, qui n'existe pas
+   * encore au moment où la fiche se remplit.
+   */
+  couleur?: string;
   plan?: string;
   vehiculesPrevus: number | string;
   j0: string;
@@ -186,7 +198,7 @@ export function slugify(s: string): string {
 export function ficheVide(nom: string): OnbDoc {
   return {
     nom, contact: "", sousDomaine: "", gestionnaire: "", gestionnaireEmail: "",
-    direction: "", directionEmail: "", uiV2: true,
+    direction: "", directionEmail: "", uiV2: true, couleur: "",
     vehiculesPrevus: 0, j0: "",
     a: {}, b: {}, c: {},
     vehicules: [], chauffeurs: [],
