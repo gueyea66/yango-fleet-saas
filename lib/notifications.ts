@@ -117,6 +117,35 @@ export async function sendTelegramToTenant(tenantId: string, title: string, body
   }
 }
 
+/**
+ * Relais Telegram vers l'ÉDITEUR, pas vers le client.
+ *
+ * `sendTelegramToTenant` prévient le client dans son propre canal. Il manquait
+ * l'inverse : ce qui relève de l'exploitation du service — un abonnement qui
+ * approche de son terme, par exemple — doit arriver chez celui qui peut agir,
+ * et avant le client. Sans ça, le premier au courant d'une échéance est celui
+ * qui la subit.
+ *
+ * Best-effort, comme l'autre : sans `TELEGRAM_BOT_TOKEN` ni
+ * `OPERATOR_TELEGRAM_CHAT_ID`, ne fait rien et ne casse rien.
+ */
+export async function sendTelegramToOperator(title: string, body: string) {
+  const token = (process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
+  const chatId = (process.env.OPERATOR_TELEGRAM_CHAT_ID ?? "").trim();
+  if (!token || !chatId) return;
+  try {
+    // Texte brut, pas de parse_mode : un underscore non apparié casse Markdown v1.
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: `${title}
+${body}` }),
+    });
+  } catch (e) {
+    console.warn("[notifications] relais Telegram éditeur échoué:", e instanceof Error ? e.message : e);
+  }
+}
+
 /** Tous les admins d'un tenant (un tenant peut en avoir plusieurs). */
 export async function getTenantAdminIds(tenantId: string): Promise<string[]> {
   const { data } = await admin
