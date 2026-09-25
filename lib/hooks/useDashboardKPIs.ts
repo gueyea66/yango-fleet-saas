@@ -4,6 +4,7 @@ import { getTenantId } from "@/lib/supabase/tenanted";
 import {
   coutCarburantParKm, carburantConsomme,
   computeOperationnel, computeTresorerie, joursOuvresProjetes,
+  amortissementParc, type VehiculeAmortissable,
 } from "@/lib/calc";
 
 import { CAT_AVANCE } from "@/lib/expenseCategories";
@@ -46,6 +47,14 @@ export interface DashboardKPIs {
   achatsCarburant: number;     // achats de carburant (front-load)
   autresDepensesOpe: number;   // dépenses hors solde & carburant
   netOperationnel: number;     // résultat opérationnel réel
+  // ── AMORTISSEMENT (coût du capital, charge non-cash) ──
+  // Le net opérationnel ci-dessus ignore l'usure des véhicules : un exploitant
+  // qui dégage 400 000 et doit encore rembourser 200 000 de véhicule se croirait
+  // rentable. `resultatNet` est la ligne qui dit la vérité.
+  amortissement: number;       // charge d'amortissement de la période
+  resultatNet: number;         // netOperationnel − amortissement
+  amortNonRenseignes: string[];// plaques dont le capital n'est pas paramétré
+  amortParVehicule: Array<{ plate: string; montant: number; mensualite: number; dureeMois: number | null; moisRestants: number | null }>;
   // ── Vue TRÉSORERIE ──
   decaissements: number;
   tresorerie: number;
@@ -131,6 +140,7 @@ const ZERO: DashboardKPIs = {
   joursOuvres: 0, prevJoursOuvres: null,
   soldeConsomme: 0, carburantConsomme: 0, coutCarburantKm: 0, provisionsSolde: 0,
   achatsCarburant: 0, autresDepensesOpe: 0, netOperationnel: 0,
+  amortissement: 0, resultatNet: 0, amortNonRenseignes: [], amortParVehicule: [],
   decaissements: 0, tresorerie: 0, avanceSolde: 0, avanceCarburant: 0,
   avancesProprietaire: 0, avancesParChauffeur: [],
   avgBrutPerDay: 0, avgNetPerDay: 0, avgDepensesPerDay: 0, avgKmPerDay: 0, avgSoldePerDay: 0,
@@ -161,6 +171,10 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       // km pour que le 1er jour de la période ait son delta (retour Abdou 03/09 —
       // « toujours prendre le km de la dernière déclaration, peu importe le mois »).
       let prevOdoReps: any[] = [];
+      // Parc amortissable : fourni par l'API admin uniquement. En contexte
+      // chauffeur il reste vide et l'amortissement vaut 0 — le coût du capital
+      // de la flotte ne le regarde pas (cloisonnement, migration 069).
+      let parcAmortissable: Array<{ id: string; plate: string; kmParMois: number | null; vehicule: VehiculeAmortissable }> = [];
 
       if (explicitTenantId) {
         // Admin context — bypass RLS via service-role API
@@ -177,6 +191,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         weekRep = json.weekRep || [];
         driverProfiles = json.driverProfiles || [];
         prevOdoReps = json.prevOdoReps || [];
+        parcAmortissable = json.parcAmortissable || [];
         prev = json.prev || null;
       } else {
         // Driver context — use anon client (driver reads their own data, RLS allows it)
@@ -335,6 +350,26 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         recettes: recettesReelles, soldeConsomme: totalSoldeConsomme, carburantConsomme: carbuConsomme,
         depensesOperationnelles: autresDepensesOpe, salaires: totalSalaries,
       });
+      // ── AMORTISSEMENT ──
+      // Soustrait APRÈS le net opérationnel, jamais mêlé aux charges saisies :
+      // c'est une charge calculée, non-cash, qui n'a ni justificatif ni
+      // chauffeur et ne sort pas de trésorerie. La mensualité de leasing, elle,
+      // appartient au bloc trésorerie et n'est pas ici — les cumuler dans le
+      // résultat compterait deux fois le même véhicule.
+      const amort = amortissementParc(parcAmortissable, periodStart, periodEnd);
+      const plaqueDe = new Map(parcAmortissable.map((v) => [v.id, v.plate]));
+      const amortissement = amort.montant;
+      const resultatNet = netOperationnel - amortissement;
+      const amortNonRenseignes = amort.nonRenseignes.map((id) => plaqueDe.get(id) || id);
+      const amortParVehicule = amort.parVehicule
+        .filter((r) => r.montant > 0)
+        .map((r) => ({
+          plate: plaqueDe.get(r.id) || r.id,
+          montant: r.montant, mensualite: r.mensualite,
+          dureeMois: r.dureeMois, moisRestants: r.moisRestants,
+        }))
+        .sort((a, b) => b.montant - a.montant);
+
       const treso = computeTresorerie({
         encaissements: recettesReelles, provisionsSolde, achatsCarburant,
         // Les avances propriétaire sont du cash réellement sorti : elles comptent
@@ -507,6 +542,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
 
       setKPIs({
         brutYango, netYango, horsYango, totalBrut, totalDepenses, netFinal,
+        amortissement, resultatNet, amortNonRenseignes, amortParVehicule,
         prevNetFinal: prev?.netFinal ?? null, prevTotalBrut: prev?.totalBrut ?? null, prevRecettes: prev?.recettes ?? null,
         joursOuvres, prevJoursOuvres: prev?.joursOuvres ?? null,
         soldeConsomme: totalSoldeConsomme, carburantConsomme: carbuConsomme, coutCarburantKm,
