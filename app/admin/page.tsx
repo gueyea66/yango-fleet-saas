@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
+import { baseAmortissable, dureeAmortissementMois } from "@/lib/calc";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useDashboardKPIs } from "@/lib/hooks/useDashboardKPIs";
@@ -1260,7 +1261,98 @@ function ExpiryBadge({ label, dateStr }: { label: string; dateStr: string | null
   );
 }
 
-const EMPTY_VEH = { plate: "", make: "", model: "", year: "", color: "", fuel_type: "essence", transmission: "manuelle", vin: "", mileage: "0", status: "active", insurance_company: "", insurance_number: "", insurance_expiry: "", visite_expiry: "", notes: "", driver_id: "", fleet_segment: "interne", owner_name: "" };
+const EMPTY_VEH = { plate: "", make: "", model: "", year: "", color: "", fuel_type: "essence", transmission: "manuelle", vin: "", mileage: "0", status: "active", insurance_company: "", insurance_number: "", insurance_expiry: "", visite_expiry: "", notes: "", driver_id: "", fleet_segment: "interne", owner_name: "", prix_acquisition: "", valeur_residuelle: "", date_acquisition: "", amort_plafond_km: "400000", amort_duree_max_mois: "36", amort_porte_par: "exploitant" };
+
+/**
+ * Km parcourus par mois, déduits des relevés de compteur déclarés.
+ *
+ * `null` quand la mesure n'est pas fiable : moins de deux relevés, moins de
+ * 14 jours d'écart, ou un compteur qui n'a pas bougé. Renvoyer une valeur
+ * quand même donnerait une durée d'amortissement fausse avec l'apparence d'un
+ * calcul — pire qu'un champ vide.
+ */
+function kmParMoisDepuisCompteur(releves: Array<{ date: string; end_odometer: number | null }>): number | null {
+  const pts = releves
+    .filter((r) => r.date && r.end_odometer != null && r.end_odometer > 0)
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (pts.length < 2) return null;
+
+  const premier = pts[0];
+  const dernier = pts[pts.length - 1];
+  const km = (dernier.end_odometer as number) - (premier.end_odometer as number);
+  const jours = Math.round(
+    (new Date(dernier.date + "T00:00:00Z").getTime() - new Date(premier.date + "T00:00:00Z").getTime()) / 86_400_000,
+  ) + 1;
+  if (km <= 0 || jours < 14) return null;
+
+  return Math.round((km / jours) * 30.4);
+}
+
+/**
+ * Aperçu en direct de l'amortissement pendant la saisie.
+ *
+ * Sa raison d'être : rendre visible l'erreur de saisie la plus coûteuse du
+ * formulaire — une valeur de revente renseignée à la cote d'AUJOURD'HUI plutôt
+ * qu'à celle de la fin de période. Une résiduelle à 62 % du prix d'achat divise
+ * l'amortissement par trois et ramène exactement l'image embellie que ces
+ * champs existent pour supprimer. L'exploitant doit le voir en saisissant, pas
+ * le découvrir six mois plus tard dans un résultat trop beau.
+ */
+function AmortissementApercu({ form, kmParMois, xof }: { form: any; kmParMois: number | null; xof: (n: number) => string }) {
+  const T4 = { color: "var(--sk-t4)" };
+
+  if (form.amort_porte_par === "proprietaire_tiers") {
+    return <div className="text-xs" style={T4}>Capital porté par un tiers — aucun amortissement imputé à votre résultat.</div>;
+  }
+
+  const v = {
+    prixAcquisition: form.prix_acquisition !== "" ? parseFloat(form.prix_acquisition) : null,
+    valeurResiduelle: form.valeur_residuelle !== "" ? parseFloat(form.valeur_residuelle) : null,
+    compteurActuel: parseInt(form.mileage) || 0,
+    plafondKm: parseInt(form.amort_plafond_km) || 400000,
+    dureeMaxMois: parseInt(form.amort_duree_max_mois) || 36,
+  };
+
+  const base = baseAmortissable(v);
+  if (base == null) return <div className="text-xs" style={T4}>Renseignez le prix d&apos;acquisition pour voir la charge mensuelle.</div>;
+  if (kmParMois == null) return <div className="text-xs" style={T4}>Rythme d&apos;usure pas encore mesurable — il faut au moins deux semaines de relevés de compteur.</div>;
+  if (!form.date_acquisition) return <div className="text-xs" style={T4}>Renseignez la date d&apos;acquisition pour démarrer l&apos;amortissement.</div>;
+
+  const duree = dureeAmortissementMois(v, kmParMois);
+  if (duree == null) return null;
+  const mensuelle = Math.round(base / duree);
+
+  const prix = v.prixAcquisition as number;
+  const partResiduelle = prix > 0 ? (v.valeurResiduelle ?? 0) / prix : 0;
+  // Au-delà de la moitié du prix d'achat, la résiduelle est presque toujours la
+  // cote actuelle et non celle de fin de période. Signalé, jamais bloqué : un
+  // véhicule récent peu roulé peut légitimement se situer là.
+  const residuelleSuspecte = partResiduelle > 0.5;
+
+  // La contrainte qui mord : le km si le véhicule atteint sa fin de vie avant
+  // la durée max, la durée max sinon. L'exploitant doit savoir laquelle pilote
+  // son chiffre pour comprendre quel champ agir.
+  const kmRestants = Math.max(0, v.plafondKm - v.compteurActuel);
+  const dureeKm = Math.max(1, Math.round(kmRestants / kmParMois));
+  const contrainte = dureeKm <= v.dureeMaxMois ? `fin de vie à ${xof(v.plafondKm)} km` : `durée maximale de ${v.dureeMaxMois} mois`;
+
+  return (
+    <div className="space-y-1">
+      <div className="text-sm font-semibold" style={{ color: "var(--sk-t1)" }}>
+        {xof(mensuelle)} XOF / mois <span className="font-normal text-xs" style={T4}>sur {duree} mois</span>
+      </div>
+      <div className="text-xs" style={T4}>
+        Base amortissable {xof(base)} · usure mesurée {xof(kmParMois)} km/mois · durée fixée par la {contrainte}.
+      </div>
+      {residuelleSuspecte && (
+        <div className="text-xs" style={{ color: "#f59e0b" }}>
+          Valeur de revente à {Math.round(partResiduelle * 100)} % du prix d&apos;achat. Ce champ attend la valeur en FIN de période,
+          après {xof(duree * kmParMois)} km de plus — pas la cote actuelle. Surévaluée, elle efface l&apos;amortissement.
+        </div>
+      )}
+    </div>
+  );
+}
 
 /**
  * `segments` / `onSegments` : en v2 le filtre de flotte est rendu une seule
@@ -1274,6 +1366,10 @@ function FleetTab({ tenantId, segments, onSegments, onCounts }: { tenantId: stri
   const [selected, setSelected] = useState<string | null>(null);
   const [vehicle, setVehicle] = useState<any>(null);
   const [maintenance, setMaintenance] = useState<any[]>([]);
+  // Rythme d'usure mesuré sur les relevés de compteur. `null` = pas encore
+  // mesurable ; l'aperçu doit alors dire « à mesurer » et non afficher un
+  // chiffre par défaut qui aurait l'air d'un résultat.
+  const [vehicleKmParMois, setVehicleKmParMois] = useState<number | null>(null);
   const [form, setForm] = useState({ ...EMPTY_VEH });
   const [maintForm, setMaintForm] = useState({ type: "maintenance", title: "", description: "", cost: "0", mileage_at: "", date: new Date().toISOString().slice(0, 10) });
   const [saving, setSaving] = useState(false);
@@ -1305,25 +1401,49 @@ function FleetTab({ tenantId, segments, onSegments, onCounts }: { tenantId: stri
   };
 
   const loadVehicle = async (id: string) => {
-    const [{ data: v }, { data: m }] = await Promise.all([
+    const [{ data: v }, { data: m }, { data: odo }] = await Promise.all([
       supabase.from("vehicles").select("*").eq("id", id).single(),
       supabase.from("vehicle_maintenance").select("*").eq("vehicle_id", id).order("date", { ascending: false }),
+      // Relevés de compteur, pour DÉDUIRE le rythme d'usure au lieu de le
+      // supposer. Un véhicule racheté à 149 000 km ne s'amortit pas sur la
+      // même durée qu'un véhicule neuf, même acheté le même jour au même prix.
+      supabase.from("daily_reports").select("date,end_odometer")
+        .eq("vehicle_id", id).not("end_odometer", "is", null).gt("end_odometer", 0)
+        .in("status", ["approved", "submitted"]).order("date"),
     ]);
     setVehicle(v);
     setMaintenance(m || []);
-    if (v) setForm({ plate: v.plate || "", make: v.make || "", model: v.model || "", year: String(v.year || ""), color: v.color || "", fuel_type: v.fuel_type || "essence", transmission: v.transmission || "manuelle", vin: v.vin || "", mileage: String(v.mileage || 0), status: v.status || "active", insurance_company: v.insurance_company || "", insurance_number: v.insurance_number || "", insurance_expiry: v.insurance_expiry || "", visite_expiry: v.visite_expiry || "", notes: v.notes || "", driver_id: v.driver_id || "", fleet_segment: segOf(v), owner_name: v.owner_name || "" });
+    setVehicleKmParMois(kmParMoisDepuisCompteur(odo || []));
+    if (v) setForm({ plate: v.plate || "", make: v.make || "", model: v.model || "", year: String(v.year || ""), color: v.color || "", fuel_type: v.fuel_type || "essence", transmission: v.transmission || "manuelle", vin: v.vin || "", mileage: String(v.mileage || 0), status: v.status || "active", insurance_company: v.insurance_company || "", insurance_number: v.insurance_number || "", insurance_expiry: v.insurance_expiry || "", visite_expiry: v.visite_expiry || "", notes: v.notes || "", driver_id: v.driver_id || "", fleet_segment: segOf(v), owner_name: v.owner_name || "", prix_acquisition: v.prix_acquisition != null ? String(v.prix_acquisition) : "", valeur_residuelle: v.valeur_residuelle != null ? String(v.valeur_residuelle) : "", date_acquisition: v.date_acquisition || "", amort_plafond_km: String(v.amort_plafond_km ?? 400000), amort_duree_max_mois: String(v.amort_duree_max_mois ?? 36), amort_porte_par: v.amort_porte_par || (segOf(v) === "partenaire" ? "proprietaire_tiers" : "exploitant") });
   };
 
   useEffect(() => { loadVehicles(); loadDrivers(); }, [tenantId]);
 
   const selectVehicle = async (id: string) => { setSelected(id); setShowForm(false); setShowMaintForm(false); await loadVehicle(id); };
 
-  const setF = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+  const setF = (k: string, v: string) => setForm((f) => {
+    const next = { ...f, [k]: v };
+    // Basculer un véhicule en flotte partenaire réaligne le porteur du capital :
+    // un véhicule hébergé pour un tiers ne doit pas charger notre résultat. Le
+    // formulaire d'édition expose le select juste en dessous, donc le cas
+    // inverse (un partenaire que nous finançons réellement) reste corrigeable.
+    if (k === "fleet_segment") next.amort_porte_par = v === "partenaire" ? "proprietaire_tiers" : "exploitant";
+    return next;
+  });
 
   const saveVehicle = async () => {
     if (!form.plate) { alert("Plaque requise"); return; }
     setSaving(true);
-    const payload = { tenant_id: tenantId, plate: form.plate, make: form.make, model: form.model, year: form.year ? parseInt(form.year) : null, color: form.color, fuel_type: form.fuel_type, transmission: form.transmission, vin: form.vin, mileage: parseInt(form.mileage) || 0, status: form.status, insurance_company: form.insurance_company, insurance_number: form.insurance_number, insurance_expiry: form.insurance_expiry || null, visite_expiry: form.visite_expiry || null, notes: form.notes, driver_id: form.driver_id || null, fleet_segment: form.fleet_segment || "interne", owner_name: form.owner_name || null };
+    const payload = { tenant_id: tenantId, plate: form.plate, make: form.make, model: form.model, year: form.year ? parseInt(form.year) : null, color: form.color, fuel_type: form.fuel_type, transmission: form.transmission, vin: form.vin, mileage: parseInt(form.mileage) || 0, status: form.status, insurance_company: form.insurance_company, insurance_number: form.insurance_number, insurance_expiry: form.insurance_expiry || null, visite_expiry: form.visite_expiry || null, notes: form.notes, driver_id: form.driver_id || null, fleet_segment: form.fleet_segment || "interne", owner_name: form.owner_name || null,
+      // Amortissement (migration 071). Champ vide ⇒ null et non 0 : 0 se lirait
+      // « véhicule gratuit » et le moteur afficherait une charge nulle au lieu
+      // de « à renseigner ».
+      prix_acquisition: form.prix_acquisition !== "" ? parseFloat(form.prix_acquisition) : null,
+      valeur_residuelle: form.valeur_residuelle !== "" ? parseFloat(form.valeur_residuelle) : null,
+      date_acquisition: form.date_acquisition || null,
+      amort_plafond_km: form.amort_plafond_km !== "" ? parseInt(form.amort_plafond_km) : 400000,
+      amort_duree_max_mois: form.amort_duree_max_mois !== "" ? parseInt(form.amort_duree_max_mois) : 36,
+      amort_porte_par: form.amort_porte_par || "exploitant" };
     if (isNew) {
       const { data } = await supabase.from("vehicles").insert(payload).select().single();
       await loadVehicles();
@@ -1408,6 +1528,29 @@ function FleetTab({ tenantId, segments, onSegments, onCounts }: { tenantId: stri
               <Field label="Expir. assurance"><InpText type="date" value={form.insurance_expiry} onChange={(v) => setF("insurance_expiry", v)} /></Field>
               <Field label="Expir. visite tech."><InpText type="date" value={form.visite_expiry} onChange={(v) => setF("visite_expiry", v)} /></Field>
             </div>
+
+            {/* ── Amortissement (migration 071) ──
+                Sans ces champs, le net affiché est un net HORS amortissement :
+                un exploitant qui dégage 400 000 et doit encore rembourser
+                200 000 de véhicule lit « 400 000 » et se croit rentable. */}
+            <div className="rounded-xl p-3 space-y-3" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-border)" }}>
+              <div className="text-xs uppercase tracking-widest font-semibold" style={{ color: "var(--sk-t4)" }}>Amortissement</div>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Prix d'acquisition (XOF)"><InpText type="number" value={form.prix_acquisition} onChange={(v) => setF("prix_acquisition", v)} /></Field>
+                <Field label="Valeur de revente en fin de période"><InpText type="number" value={form.valeur_residuelle} onChange={(v) => setF("valeur_residuelle", v)} /></Field>
+                <Field label="Date d'acquisition"><InpText type="date" value={form.date_acquisition} onChange={(v) => setF("date_acquisition", v)} /></Field>
+                <Field label="Fin de vie (km)"><InpText type="number" value={form.amort_plafond_km} onChange={(v) => setF("amort_plafond_km", v)} /></Field>
+                <Field label="Durée maximale (mois)"><InpText type="number" value={form.amort_duree_max_mois} onChange={(v) => setF("amort_duree_max_mois", v)} /></Field>
+                <Field label="Capital porté par">
+                  <select value={form.amort_porte_par} onChange={(e) => setF("amort_porte_par", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-border)", color: "var(--sk-t1)" }}>
+                    <option value="exploitant">Nous (amorti)</option>
+                    <option value="proprietaire_tiers">Propriétaire tiers (non amorti)</option>
+                  </select>
+                </Field>
+              </div>
+              <AmortissementApercu form={form} kmParMois={vehicleKmParMois} xof={xof} />
+            </div>
+
             <Field label="Chauffeur assigné">
               <select value={form.driver_id} onChange={(e) => setF("driver_id", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-border)", color: "var(--sk-t1)" }}>
                 <option value="">— Aucun —</option>
@@ -1537,6 +1680,13 @@ function FleetTab({ tenantId, segments, onSegments, onCounts }: { tenantId: stri
             </Field>
             <Field label="Expir. assurance"><InpText type="date" value={form.insurance_expiry} onChange={(v) => setF("insurance_expiry", v)} /></Field>
             <Field label="Expir. visite tech."><InpText type="date" value={form.visite_expiry} onChange={(v) => setF("visite_expiry", v)} /></Field>
+            {/* Amortissement dès la création : saisi à l'ajout, il ne sera pas
+                oublié. Un véhicule entré sans prix d'acquisition fait un
+                résultat de flotte incomplet sans que personne ne le remarque. */}
+            <Field label="Prix d'acquisition (XOF)"><InpText type="number" value={form.prix_acquisition} onChange={(v) => setF("prix_acquisition", v)} /></Field>
+            <Field label="Valeur de revente en fin de période"><InpText type="number" value={form.valeur_residuelle} onChange={(v) => setF("valeur_residuelle", v)} /></Field>
+            <Field label="Date d'acquisition"><InpText type="date" value={form.date_acquisition} onChange={(v) => setF("date_acquisition", v)} /></Field>
+            <Field label="Kilométrage actuel"><InpText type="number" value={form.mileage} onChange={(v) => setF("mileage", v)} /></Field>
           </div>
           <Field label="Chauffeur assigné">
             <select value={form.driver_id} onChange={(e) => setF("driver_id", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-border)", color: "var(--sk-t1)" }}>
