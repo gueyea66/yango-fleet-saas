@@ -6,20 +6,20 @@ EXP = ["MISAAL CRÉA SARL",
        "Organisation de manifestations — production audiovisuelle",
        "HLM 4, Villa n° 1385 — Dakar, Sénégal",
        "Tél. : +221 77 645 90 48"]
-DATE = "Dakar, le 24 septembre 2026"
+DATE = "Dakar, le 12 juillet 2026"
 DEST = ["FONSTAB", "Madame l'Administratrice",
         "Sphères ministérielles Ousmane Tanor Dieng", "Bâtiment C — Diamniadio, Sénégal"]
 OBJET = "Objet : demande d'agrément — organisation et couverture de manifestations"
 
 CORPS = [
   "Madame l'Administratrice,",
-  "Misaal Créa est une société établie à Dakar depuis 2016. Nous organisons des manifestations "
-  "professionnelles et institutionnelles — ateliers, séminaires, cérémonies, lancements, visites "
-  "de terrain — et nous en assurons le traitement audiovisuel. Nous sollicitons votre agrément "
-  "comme prestataire événementiel.",
-  "Notre intervention commence à la conception : choix du lieu, déroulé minuté, habillage de la "
-  "scène et de la salle. Le jour venu, nous installons le son, la lumière et les écrans, nous "
-  "tenons le minutage des interventions et nous restons en salle jusqu'au démontage.",
+  "Nous sollicitons votre agrément en qualité de prestataire événementiel. Misaal Créa exerce à "
+  "Dakar depuis 2016 : nous montons des manifestations professionnelles et institutionnelles — "
+  "ateliers, séminaires, cérémonies, lancements, visites de terrain — et nous en produisons "
+  "nous-mêmes les images.",
+  "Une rencontre se prépare avant d'être filmée. Nous arrêtons son déroulé et son minutage, "
+  "retenons le lieu et l'habillons, montons le son, la lumière et les écrans, puis nous tenons "
+  "la salle depuis le mot d'accueil jusqu'au démontage.",
   "Notre métier d'origine, la production vidéo, fait la différence sur le reste : caméras, "
   "matériel son et lumière et salle de montage nous appartiennent. Vous repartez donc de chaque "
   "manifestation avec un film de restitution, des séquences courtes pour vos supports, des "
