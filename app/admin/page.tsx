@@ -1324,10 +1324,13 @@ function AmortissementApercu({ form, kmParMois, xof }: { form: any; kmParMois: n
 
   const prix = v.prixAcquisition as number;
   const partResiduelle = prix > 0 ? (v.valeurResiduelle ?? 0) / prix : 0;
-  // Au-delà de la moitié du prix d'achat, la résiduelle est presque toujours la
-  // cote actuelle et non celle de fin de période. Signalé, jamais bloqué : un
-  // véhicule récent peu roulé peut légitimement se situer là.
-  const residuelleSuspecte = partResiduelle > 0.5;
+  // Seuil à 70 % et non 50 % : relevé d'annonces dakaroises du 25/09, le marché
+  // local décote très peu au kilométrage au-delà de 150 000 km — une Peugeot 208
+  // de 2019 à 218 000 km s'affiche 5,3 M, une Renault Mégane 2019 à 225 000 km
+  // s'affiche 6,8 M. C'est l'année et le modèle qui pilotent le prix, pas le
+  // compteur. Un seuil à 50 % crierait au loup sur des valeurs défendables, et
+  // un avertissement qui se déclenche toujours ne se lit plus.
+  const residuelleSuspecte = partResiduelle > 0.7;
 
   // La contrainte qui mord : le km si le véhicule atteint sa fin de vie avant
   // la durée max, la durée max sinon. L'exploitant doit savoir laquelle pilote
@@ -1346,8 +1349,9 @@ function AmortissementApercu({ form, kmParMois, xof }: { form: any; kmParMois: n
       </div>
       {residuelleSuspecte && (
         <div className="text-xs" style={{ color: "#f59e0b" }}>
-          Valeur de revente à {Math.round(partResiduelle * 100)} % du prix d&apos;achat. Ce champ attend la valeur en FIN de période,
-          après {xof(duree * kmParMois)} km de plus — pas la cote actuelle. Surévaluée, elle efface l&apos;amortissement.
+          Valeur de revente à {Math.round(partResiduelle * 100)} % du prix d&apos;achat. Vérifiez qu&apos;il s&apos;agit bien de la valeur
+          en FIN de période, à {xof(v.compteurActuel + duree * kmParMois)} km au compteur, et non de la cote actuelle.
+          Surévaluée, elle efface l&apos;amortissement et ramène un résultat embelli.
         </div>
       )}
     </div>
