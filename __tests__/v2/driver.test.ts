@@ -22,8 +22,8 @@ describe("navigation chauffeur 7 → 4 onglets", () => {
     expect(bottomNavFor("history")).toEqual({ visible: true, active: "home" });
     expect(bottomNavFor("repos")).toEqual({ visible: true, active: "home" });
   });
-  it("le Profil masque la barre", () => {
-    expect(bottomNavFor("profil")).toEqual({ visible: false, active: null });
+  it("le Profil est dans la barre — c'est lui qui porte la déconnexion", () => {
+    expect(bottomNavFor("profil")).toEqual({ visible: true, active: "profil" });
   });
 });
 
