@@ -407,3 +407,34 @@ describe("comptes administrateurs", () => {
     expect(comptes.map((c) => c.password)).toEqual(mdpAvant);
   });
 });
+
+describe("interface remise au client", () => {
+  it("pose ui_v2 sur le nouvel espace", async () => {
+    const { admin, tables } = fauxAdmin();
+    const doc = { ...ficheNMK(), uiV2: true };
+    await provisionOnboarding({ admin, fileId: "nmk", doc, tenantId: null });
+    expect(tables.tenant_settings[0].ui_v2).toBe(true);
+  });
+
+  it("rejouée avec uiV2 à false, ramène le client sur l'interface actuelle", async () => {
+    const { admin, tables } = fauxAdmin();
+    const premier = await provisionOnboarding({
+      admin, fileId: "nmk", doc: { ...ficheNMK(), uiV2: true }, tenantId: null,
+    });
+    expect(tables.tenant_settings[0].ui_v2).toBe(true);
+
+    await provisionOnboarding({
+      admin, fileId: "nmk", doc: { ...premier.doc, uiV2: false }, tenantId: premier.tenantId,
+    });
+    expect(tables.tenant_settings[0].ui_v2).toBe(false);
+    expect(tables.tenant_settings).toHaveLength(1);   // pas de doublon de réglages
+  });
+
+  it("ne touche pas à l'interface quand la fiche ne dit rien", async () => {
+    const { admin, tables } = fauxAdmin();
+    const doc = ficheNMK();
+    delete (doc as { uiV2?: boolean }).uiV2;
+    const r = await provisionOnboarding({ admin, fileId: "nmk", doc, tenantId: null });
+    expect(r.lignes.some((l) => l.quoi === "Interface")).toBe(false);
+  });
+});

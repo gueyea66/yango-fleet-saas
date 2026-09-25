@@ -114,6 +114,7 @@ export async function provisionOnboarding(args: ProvisionArgs): Promise<Provisio
     if (!t) tenantId = null;   // espace supprimé depuis : on le recrée
     else lignes.push({ quoi: `Espace « ${slug} »`, etat: "inchange", detail: "déjà en service" });
   }
+
   if (!tenantId) {
     const { data: bySlug } = await admin.from("tenants").select("id").eq("slug", slug).maybeSingle();
     if (bySlug) {
@@ -138,8 +139,21 @@ export async function provisionOnboarding(args: ProvisionArgs): Promise<Provisio
     await admin.from("tenant_settings").insert({
       tenant_id: tenantId, app_name: doc.nom.trim(),
       primary_color: "#f5a623", currency: "XOF", timezone: "Africa/Dakar",
+      ui_v2: doc.uiV2 === true,
     });
     lignes.push({ quoi: `Espace « ${slug} »`, etat: "cree", detail: `essai de ${trialDays} jours` });
+  }
+
+  // L'interface, une fois l'espace certain. Rejouable : changer d'avis sur la
+  // v2 après la première mise en service suffit à basculer le client, sans
+  // passer par la base. Sur un espace tout neuf l'insert ci-dessus a déjà posé
+  // la valeur ; l'écrire deux fois ne coûte rien et garde un seul chemin.
+  if (doc.uiV2 !== undefined) {
+    const { error } = await admin.from("tenant_settings")
+      .update({ ui_v2: doc.uiV2 === true }).eq("tenant_id", tenantId);
+    lignes.push(error
+      ? { quoi: "Interface", etat: "erreur", detail: error.message }
+      : { quoi: "Interface", etat: "maj", detail: doc.uiV2 ? "refonte v2" : "interface actuelle" });
   }
 
   /* 2 ── La règle de versement */
