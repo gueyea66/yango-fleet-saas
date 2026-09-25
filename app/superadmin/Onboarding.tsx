@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ETATS_CLIENT, ETATS_KYC, ETATS_M3A, LISTE_BENNES, LISTE_CLIENT, LISTE_M3A, MODES,
-  etat, ficheVide, slugify, texteRelance,
+  SEGMENTS, SEGMENT_LABELS, etat, ficheVide, segmentDe, slugify, texteRelance,
   type OnbChauffeur, type OnbDoc, type OnbFileRow, type OnbPoint, type OnbVehicule,
 } from "@/lib/onboarding-model";
 
@@ -21,7 +21,7 @@ interface ProvisionResult {
   ok: boolean;
   slug: string;
   identifiants: { nom: string; driverId: string; motDePasse: string }[];
-  adminIdentifiants?: { email: string; motDePasse: string };
+  adminIdentifiants?: { nom: string; email: string; motDePasse: string }[];
   lignes: ProvisionLigne[];
   doc: OnbDoc;
   error?: string;
@@ -422,18 +422,22 @@ export default function Onboarding({ superadminKey, notify }: Props) {
         <p style={LEAD}>
           Un véhicule par ligne. La plaque sert de clé : c&apos;est elle que les chauffeurs
           retrouvent dans l&apos;application, et elle qui évite les doublons à la mise en service.
+          La colonne <strong>Flotte</strong> distingue les véhicules du client de ceux qu&apos;il
+          héberge pour un tiers : sans elle, le compte de résultat additionne des recettes
+          qui ne sont pas les siennes.
         </p>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 760 }}>
             <thead>
               <tr>
                 <th style={TH}>Plaque</th><th style={TH}>Marque et modèle</th><th style={TH}>Année</th>
+                <th style={TH}>Flotte</th>
                 <th style={TH}>Propriétaire</th><th style={TH}>Mise en service</th><th style={TH} />
               </tr>
             </thead>
             <tbody>
               {doc.vehicules.length === 0 && (
-                <tr><td colSpan={6} style={{ padding: 16, fontSize: 13, color: "var(--sk-t3)", textAlign: "center" }}>
+                <tr><td colSpan={7} style={{ padding: 16, fontSize: 13, color: "var(--sk-t3)", textAlign: "center" }}>
                   Aucun véhicule saisi pour l&apos;instant.
                 </td></tr>
               )}
@@ -442,6 +446,13 @@ export default function Onboarding({ superadminKey, notify }: Props) {
                   <CelluleTexte valeur={v.plaque} label="Plaque" placeholder="DK-0000-AA" onChange={(x) => majVeh(v.id, "plaque", x)} />
                   <CelluleTexte valeur={v.modele} label="Marque et modèle" onChange={(x) => majVeh(v.id, "modele", x)} />
                   <CelluleTexte valeur={v.annee} label="Année" type="number" onChange={(x) => majVeh(v.id, "annee", x)} />
+                  <td style={{ padding: "4px 4px" }}>
+                    <select aria-label={`Flotte du véhicule ${v.plaque || "sans plaque"}`}
+                      value={segmentDe(v)} onChange={(e) => majVeh(v.id, "segment", e.target.value)}
+                      style={{ ...CHAMP, fontSize: 12, padding: "7px 8px" }}>
+                      {SEGMENTS.map((s) => <option key={s} value={s}>{SEGMENT_LABELS[s]}</option>)}
+                    </select>
+                  </td>
                   <CelluleTexte valeur={v.proprio} label="Propriétaire" onChange={(x) => majVeh(v.id, "proprio", x)} />
                   <CelluleTexte valeur={v.service} label="Mise en service" type="date" onChange={(x) => majVeh(v.id, "service", x)} />
                   <td style={{ padding: "4px 4px", width: 44 }}>
@@ -459,7 +470,7 @@ export default function Onboarding({ superadminKey, notify }: Props) {
         <div style={{ display: "flex", gap: 10, marginTop: 14, flexWrap: "wrap" }}>
           <button type="button" style={BTN_OR}
             onClick={() => modifier((d) => {
-              d.vehicules.push({ id: uid(), plaque: "", modele: "", annee: "", proprio: "", service: "" });
+              d.vehicules.push({ id: uid(), plaque: "", modele: "", annee: "", proprio: "", service: "", segment: "interne" });
               return d;
             })}>
             Ajouter un véhicule
@@ -571,7 +582,11 @@ export default function Onboarding({ superadminKey, notify }: Props) {
           <Champ chemin="sousDomaine" label="Sous-domaine" valeur={doc.sousDomaine} aide="Par exemple nmktransports.m3afleet.com" set={setChamp} />
           <Champ chemin="gestionnaire" label="Gestionnaire qui valide" valeur={doc.gestionnaire} set={setChamp} />
           <Champ chemin="gestionnaireEmail" label="Son adresse e-mail" valeur={doc.gestionnaireEmail || ""} type="email"
-            aide="Son compte administrateur sera créé à la mise en service" set={setChamp} />
+            aide="Préférer une boîte de rôle (exploitation@…) : le poste survit à la personne" set={setChamp} />
+          <Champ chemin="direction" label="Direction" valeur={doc.direction || ""}
+            aide="Second compte administrateur — celui qui regarde les chiffres" set={setChamp} />
+          <Champ chemin="directionEmail" label="Son adresse e-mail" valeur={doc.directionEmail || ""} type="email"
+            aide="Laisser vide n'empêche rien : la mise en service se rejoue" set={setChamp} />
           <Champ chemin="j0" label="Date du J0" valeur={doc.j0} type="date" aide="Le jour de l'acceptation et du premier versement" set={setChamp} />
         </div>
 
@@ -724,7 +739,7 @@ export default function Onboarding({ superadminKey, notify }: Props) {
               ))}
             </div>
 
-            {(rapport.identifiants.length > 0 || rapport.adminIdentifiants) && (
+            {(rapport.identifiants.length > 0 || (rapport.adminIdentifiants?.length ?? 0) > 0) && (
               <div style={{ ...CARTE, marginTop: 18, borderColor: "#f5a62355" }}>
                 <div style={TITRE}>Identifiants à remettre — affichés une seule fois</div>
                 <p style={{ ...LEAD, marginBottom: 12 }}>
@@ -749,9 +764,9 @@ export default function Onboarding({ superadminKey, notify }: Props) {
 
   function texteIdentifiants(r: ProvisionResult): string {
     const lignes: string[] = [`Accès — ${doc?.nom || r.slug}`, `Adresse : https://${r.slug}.m3afleet.com`, ""];
-    if (r.adminIdentifiants) {
-      lignes.push("Gestionnaire", `  Identifiant : ${r.adminIdentifiants.email}`, `  Mot de passe : ${r.adminIdentifiants.motDePasse}`, "");
-    }
+    (r.adminIdentifiants || []).forEach((a) => {
+      lignes.push(a.nom, `  Identifiant : ${a.email}`, `  Mot de passe : ${a.motDePasse}`, "");
+    });
     if (r.identifiants.length) {
       lignes.push("Chauffeurs");
       r.identifiants.forEach((i) => lignes.push(`  ${i.nom} — identifiant ${i.driverId} — mot de passe ${i.motDePasse}`));

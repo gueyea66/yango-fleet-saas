@@ -19,6 +19,7 @@ import {
   mapRemunerationModel,
   numFromField,
   plateKey,
+  segmentDe,
   slugify,
   type OnbDoc,
 } from "@/lib/onboarding-model";
@@ -60,7 +61,13 @@ export interface ProvisionResult {
   slug: string;
   /** Identifiants générés pendant CETTE passe — jamais relus ensuite. */
   identifiants: { nom: string; driverId: string; motDePasse: string }[];
-  adminIdentifiants?: { email: string; motDePasse: string };
+  /**
+   * Comptes admin ouverts pendant CETTE passe. Une liste, pas un seul compte :
+   * le gestionnaire valide au quotidien, la direction regarde — les deux ont
+   * besoin d'un accès, et remettre le même à deux personnes supprime la trace
+   * de qui a validé quoi.
+   */
+  adminIdentifiants?: { nom: string; email: string; motDePasse: string }[];
   lignes: ProvisionLigne[];
   /** Fiche enrichie des identifiants attribués, à ré-enregistrer. */
   doc: OnbDoc;
@@ -163,35 +170,54 @@ export async function provisionOnboarding(args: ProvisionArgs): Promise<Provisio
     lignes.push({ quoi: "Règle de versement", etat: "cree", detail: doc.regle?.mode || model });
   }
 
-  /* 3 ── Le compte du gestionnaire */
-  let adminIdentifiants: ProvisionResult["adminIdentifiants"];
-  const gestEmail = (doc.gestionnaireEmail || "").trim().toLowerCase();
-  if (gestEmail) {
+  /* 3 ── Les comptes admin : gestionnaire et direction */
+  // Deux rôles, deux comptes. Le gestionnaire valide les rapports au
+  // quotidien, la direction regarde les chiffres — partager un identifiant
+  // effacerait la trace de qui a validé quoi dans le journal. Une adresse vide
+  // est simplement sautée : la fiche se complète souvent après la première
+  // mise en service, qui est rejouable.
+  const adminIdentifiants: ProvisionResult["adminIdentifiants"] = [];
+  const comptesAdmin = [
+    { role: "Gestionnaire", nom: doc.gestionnaire, email: doc.gestionnaireEmail },
+    { role: "Direction", nom: doc.direction, email: doc.directionEmail },
+  ];
+
+  for (const compte of comptesAdmin) {
+    const email = (compte.email || "").trim().toLowerCase();
+    if (!email) continue;
+    const libelle = `${compte.role} ${email}`;
+
     const { data: dejaLa } = await admin.from("profiles")
-      .select("id").eq("tenant_id", tenantId).eq("email", gestEmail).maybeSingle();
+      .select("id").eq("tenant_id", tenantId).eq("email", email).maybeSingle();
     if (dejaLa) {
-      lignes.push({ quoi: `Gestionnaire ${gestEmail}`, etat: "inchange", detail: "compte déjà ouvert" });
-    } else {
-      const motDePasse = makePassword();
-      const { data: user, error: authError } = await admin.auth.admin.createUser({
-        email: gestEmail, password: motDePasse, email_confirm: true,
-      });
-      if (authError || !user?.user) {
-        lignes.push({ quoi: `Gestionnaire ${gestEmail}`, etat: "erreur", detail: authError?.message || "création refusée" });
-      } else {
-        const { error: pErr } = await admin.from("profiles").insert({
-          id: user.user.id, tenant_id: tenantId, email: gestEmail,
-          full_name: doc.gestionnaire?.trim() || gestEmail.split("@")[0], role: "admin",
-        });
-        if (pErr) {
-          await admin.auth.admin.deleteUser(user.user.id);
-          lignes.push({ quoi: `Gestionnaire ${gestEmail}`, etat: "erreur", detail: pErr.message });
-        } else {
-          adminIdentifiants = { email: gestEmail, motDePasse };
-          lignes.push({ quoi: `Gestionnaire ${gestEmail}`, etat: "cree" });
-        }
-      }
+      lignes.push({ quoi: libelle, etat: "inchange", detail: "compte déjà ouvert" });
+      continue;
     }
+
+    const motDePasse = makePassword();
+    const { data: user, error: authError } = await admin.auth.admin.createUser({
+      email, password: motDePasse, email_confirm: true,
+    });
+    if (authError || !user?.user) {
+      lignes.push({ quoi: libelle, etat: "erreur", detail: authError?.message || "création refusée" });
+      continue;
+    }
+
+    const nom = (compte.nom || "").trim() || email.split("@")[0];
+    const { error: pErr } = await admin.from("profiles").insert({
+      id: user.user.id, tenant_id: tenantId, email,
+      full_name: nom, role: "admin",
+    });
+    if (pErr) {
+      // Le compte d'authentification sans profil serait un fantôme : il peut se
+      // connecter et n'appartient à aucun tenant. On le retire.
+      await admin.auth.admin.deleteUser(user.user.id);
+      lignes.push({ quoi: libelle, etat: "erreur", detail: pErr.message });
+      continue;
+    }
+
+    adminIdentifiants.push({ nom: `${compte.role} — ${nom}`, email, motDePasse });
+    lignes.push({ quoi: libelle, etat: "cree" });
   }
 
   /* 4 ── Les chauffeurs (avant les véhicules : l'attribution en dépend) */
@@ -292,18 +318,25 @@ export async function provisionOnboarding(args: ProvisionArgs): Promise<Provisio
     // « Toyota Corolla » : la fiche tient marque et modèle dans une case, la
     // base les sépare. Le premier mot est la marque, le reste le modèle.
     const mots = (v.modele || "").trim().split(/\s+/).filter(Boolean);
+    const driverProfileId = profilParPlaque.get(key);
     const payload: Record<string, unknown> = {
       tenant_id: tenantId,
       plate: plaque.toUpperCase(),
       make: mots[0] || null,
       model: mots.slice(1).join(" ") || null,
       year: /^\d{4}$/.test(String(v.annee || "").trim()) ? parseInt(String(v.annee).trim(), 10) : null,
+      // `owner_name` est la colonne que lisent les filtres et les agrégats ;
+      // `notes` garde la phrase lisible, pour les espaces ouverts avant la 062.
+      owner_name: v.proprio?.trim() || null,
       notes: v.proprio ? `Propriétaire : ${v.proprio}` : null,
+      fleet_segment: segmentDe(v),
       status: "active",
+      // Explicitement null, pas omis : un véhicule sans chauffeur est un état
+      // normal (voiture à l'arrêt, en attente d'affectation) et omettre la clé
+      // laissait la valeur précédente en place lors d'un rejeu.
+      driver_id: driverProfileId ?? null,
       updated_at: new Date().toISOString(),
     };
-    const driverProfileId = profilParPlaque.get(key);
-    if (driverProfileId) payload.driver_id = driverProfileId;
 
     const dejaLa = parPlaque.get(key);
     if (dejaLa) {

@@ -1214,6 +1214,17 @@ const VEHICLE_STATUS_META: Record<string, { label: string; color: string }> = {
   sold:        { label: "Vendu",        color: "var(--sk-t4)" },
 };
 
+// Un parc Yango héberge souvent des voitures qui n'appartiennent pas à
+// l'exploitant : chez NMK, 5 des 13 véhicules sont à des tiers, dont deux à
+// M3A. Additionner les deux flottes sans les distinguer fait entrer dans le
+// compte de résultat du client des recettes qui ne sont pas les siennes.
+const SEGMENT_META: Record<string, { label: string; court: string; color: string }> = {
+  interne:    { label: "Flotte interne",   court: "Interne",   color: "#22c55e" },
+  partenaire: { label: "Flotte partenaire", court: "Partenaire", color: "#3b82f6" },
+};
+const segOf = (v: { fleet_segment?: string | null }) =>
+  v?.fleet_segment === "partenaire" ? "partenaire" : "interne";
+
 const MAINT_TYPE_META: Record<string, string> = {
   maintenance:       "Entretien",
   reparation:        "🔨 Réparation",
@@ -1241,7 +1252,7 @@ function ExpiryBadge({ label, dateStr }: { label: string; dateStr: string | null
   );
 }
 
-const EMPTY_VEH = { plate: "", make: "", model: "", year: "", color: "", fuel_type: "essence", transmission: "manuelle", vin: "", mileage: "0", status: "active", insurance_company: "", insurance_number: "", insurance_expiry: "", visite_expiry: "", notes: "", driver_id: "" };
+const EMPTY_VEH = { plate: "", make: "", model: "", year: "", color: "", fuel_type: "essence", transmission: "manuelle", vin: "", mileage: "0", status: "active", insurance_company: "", insurance_number: "", insurance_expiry: "", visite_expiry: "", notes: "", driver_id: "", fleet_segment: "interne", owner_name: "" };
 
 function FleetTab({ tenantId }: { tenantId: string }) {
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -1256,6 +1267,9 @@ function FleetTab({ tenantId }: { tenantId: string }) {
   const [showForm, setShowForm] = useState(false);
   const [showMaintForm, setShowMaintForm] = useState(false);
   const [isNew, setIsNew] = useState(false);
+  // Multi-sélection, les deux flottes cochées au départ : on montre le parc
+  // entier, puis on laisse isoler. L'inverse ferait croire à un parc amputé.
+  const [segFiltre, setSegFiltre] = useState<string[]>(["interne", "partenaire"]);
 
   const supabase = (createClient as any)();
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
@@ -1277,7 +1291,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
     ]);
     setVehicle(v);
     setMaintenance(m || []);
-    if (v) setForm({ plate: v.plate || "", make: v.make || "", model: v.model || "", year: String(v.year || ""), color: v.color || "", fuel_type: v.fuel_type || "essence", transmission: v.transmission || "manuelle", vin: v.vin || "", mileage: String(v.mileage || 0), status: v.status || "active", insurance_company: v.insurance_company || "", insurance_number: v.insurance_number || "", insurance_expiry: v.insurance_expiry || "", visite_expiry: v.visite_expiry || "", notes: v.notes || "", driver_id: v.driver_id || "" });
+    if (v) setForm({ plate: v.plate || "", make: v.make || "", model: v.model || "", year: String(v.year || ""), color: v.color || "", fuel_type: v.fuel_type || "essence", transmission: v.transmission || "manuelle", vin: v.vin || "", mileage: String(v.mileage || 0), status: v.status || "active", insurance_company: v.insurance_company || "", insurance_number: v.insurance_number || "", insurance_expiry: v.insurance_expiry || "", visite_expiry: v.visite_expiry || "", notes: v.notes || "", driver_id: v.driver_id || "", fleet_segment: segOf(v), owner_name: v.owner_name || "" });
   };
 
   useEffect(() => { loadVehicles(); loadDrivers(); }, [tenantId]);
@@ -1289,7 +1303,7 @@ function FleetTab({ tenantId }: { tenantId: string }) {
   const saveVehicle = async () => {
     if (!form.plate) { alert("Plaque requise"); return; }
     setSaving(true);
-    const payload = { tenant_id: tenantId, plate: form.plate, make: form.make, model: form.model, year: form.year ? parseInt(form.year) : null, color: form.color, fuel_type: form.fuel_type, transmission: form.transmission, vin: form.vin, mileage: parseInt(form.mileage) || 0, status: form.status, insurance_company: form.insurance_company, insurance_number: form.insurance_number, insurance_expiry: form.insurance_expiry || null, visite_expiry: form.visite_expiry || null, notes: form.notes, driver_id: form.driver_id || null };
+    const payload = { tenant_id: tenantId, plate: form.plate, make: form.make, model: form.model, year: form.year ? parseInt(form.year) : null, color: form.color, fuel_type: form.fuel_type, transmission: form.transmission, vin: form.vin, mileage: parseInt(form.mileage) || 0, status: form.status, insurance_company: form.insurance_company, insurance_number: form.insurance_number, insurance_expiry: form.insurance_expiry || null, visite_expiry: form.visite_expiry || null, notes: form.notes, driver_id: form.driver_id || null, fleet_segment: form.fleet_segment || "interne", owner_name: form.owner_name || null };
     if (isNew) {
       const { data } = await supabase.from("vehicles").insert(payload).select().single();
       await loadVehicles();
@@ -1345,6 +1359,12 @@ function FleetTab({ tenantId }: { tenantId: string }) {
                   {Object.entries(VEHICLE_STATUS_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                 </select>
               </Field>
+              <Field label="Flotte">
+                <select value={form.fleet_segment} onChange={(e) => setF("fleet_segment", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-border)", color: "var(--sk-t1)" }}>
+                  {Object.entries(SEGMENT_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                </select>
+              </Field>
+              <Field label="Propriétaire"><InpText type="text" value={form.owner_name} onChange={(v) => setF("owner_name", v)} /></Field>
               <Field label="Marque"><InpText type="text" value={form.make} onChange={(v) => setF("make", v)} /></Field>
               <Field label="Modèle"><InpText type="text" value={form.model} onChange={(v) => setF("model", v)} /></Field>
               <Field label="Année"><InpText type="number" value={form.year} onChange={(v) => setF("year", v)} /></Field>
@@ -1450,12 +1470,22 @@ function FleetTab({ tenantId }: { tenantId: string }) {
   }
 
   // ── VEHICLE LIST VIEW ──
+  const parSegment = (s: string) => vehicles.filter((v) => segOf(v) === s).length;
+  const vehiculesVus = vehicles.filter((v) => segFiltre.includes(segOf(v)));
+  const basculerSeg = (s: string) =>
+    setSegFiltre((f) => (f.includes(s) ? f.filter((x) => x !== s) : [...f, s]));
+  const mixte = parSegment("interne") > 0 && parSegment("partenaire") > 0;
+
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-xl font-bold text-white">Gestion de flotte</h2>
-          <p className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>{vehicles.length} véhicule{vehicles.length !== 1 ? "s" : ""}</p>
+          <p className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>
+            {vehicles.length} véhicule{vehicles.length !== 1 ? "s" : ""}
+            {mixte && ` · ${parSegment("interne")} interne${parSegment("interne") !== 1 ? "s" : ""} · ${parSegment("partenaire")} partenaire${parSegment("partenaire") !== 1 ? "s" : ""}`}
+            {vehiculesVus.length !== vehicles.length && ` — ${vehiculesVus.length} affiché${vehiculesVus.length !== 1 ? "s" : ""}`}
+          </p>
         </div>
         <button onClick={() => { setIsNew(true); setForm({ ...EMPTY_VEH }); setSelected("__new__"); setVehicle({}); setMaintenance([]); setShowForm(true); }}
           className="text-sm px-4 py-2 rounded-xl font-bold text-black"
@@ -1473,6 +1503,12 @@ function FleetTab({ tenantId }: { tenantId: string }) {
             <Field label="Marque"><InpText type="text" value={form.make} onChange={(v) => setF("make", v)} /></Field>
             <Field label="Modèle"><InpText type="text" value={form.model} onChange={(v) => setF("model", v)} /></Field>
             <Field label="Année"><InpText type="number" value={form.year} onChange={(v) => setF("year", v)} /></Field>
+            <Field label="Flotte">
+              <select value={form.fleet_segment} onChange={(e) => setF("fleet_segment", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-border)", color: "var(--sk-t1)" }}>
+                {Object.entries(SEGMENT_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </Field>
+            <Field label="Propriétaire"><InpText type="text" value={form.owner_name} onChange={(v) => setF("owner_name", v)} /></Field>
             <Field label="Couleur"><InpText type="text" value={form.color} onChange={(v) => setF("color", v)} /></Field>
             <Field label="Carburant">
               <select value={form.fuel_type} onChange={(e) => setF("fuel_type", e.target.value)} className="w-full rounded-xl px-3 py-2 text-sm outline-none" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-border)", color: "var(--sk-t1)" }}>
@@ -1499,6 +1535,30 @@ function FleetTab({ tenantId }: { tenantId: string }) {
         </div>
       )}
 
+      {/* Filtre de flotte — n'apparaît que si le parc est effectivement mixte :
+          un seul segment rendrait le filtre décoratif et trompeur. */}
+      {mixte && (
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <span className="text-[11px] uppercase tracking-wider" style={{ color: "var(--sk-t4)" }}>Flotte</span>
+          {Object.entries(SEGMENT_META).map(([k, meta]) => {
+            const actif = segFiltre.includes(k);
+            const n = parSegment(k);
+            return (
+              <button key={k} type="button" onClick={() => basculerSeg(k)}
+                aria-pressed={actif}
+                className="text-xs px-3 py-1.5 rounded-full font-semibold transition-all"
+                style={{
+                  background: actif ? `${meta.color}20` : "var(--sk-surface)",
+                  color: actif ? meta.color : "var(--sk-t3)",
+                  border: `1px solid ${actif ? `${meta.color}55` : "transparent"}`,
+                }}>
+                {meta.label} ({n})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {vehicles.length === 0 && !showForm && (
         <div className="text-center py-12">
           <div className="flex justify-center mb-3"><Car size={36} strokeWidth={1.6} style={{ color: "var(--sk-t3)" }} /></div>
@@ -1507,8 +1567,16 @@ function FleetTab({ tenantId }: { tenantId: string }) {
         </div>
       )}
 
+      {vehicles.length > 0 && vehiculesVus.length === 0 && (
+        <div className="text-center py-10">
+          <p className="text-sm" style={{ color: "var(--sk-t3)" }}>
+            Aucune flotte sélectionnée — cochez au moins un filtre ci-dessus pour voir le parc.
+          </p>
+        </div>
+      )}
+
       <div className="space-y-2">
-        {vehicles.map((v) => {
+        {vehiculesVus.map((v) => {
           const sm = VEHICLE_STATUS_META[v.status] || VEHICLE_STATUS_META.active;
           const insuranceDays = daysUntil(v.insurance_expiry);
           const visiteDays = daysUntil(v.visite_expiry);
@@ -1523,9 +1591,16 @@ function FleetTab({ tenantId }: { tenantId: string }) {
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-bold text-white">{v.plate}</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: `${sm.color}18`, color: sm.color }}>{sm.label}</span>
+                  {mixte && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full"
+                      style={{ background: `${SEGMENT_META[segOf(v)].color}18`, color: SEGMENT_META[segOf(v)].color }}>
+                      {SEGMENT_META[segOf(v)].court}
+                    </span>
+                  )}
                   {hasAlert && <AlertTriangle size={11} strokeWidth={2.2} style={{ color: "var(--tenant-color)" }} />}
                 </div>
                 <div className="text-xs" style={{ color: "var(--sk-t3)" }}>{v.make} {v.model} {v.year} {driver ? `· ${driver.full_name}` : ""}</div>
+                {v.owner_name && <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Propriétaire : {v.owner_name}</div>}
                 <div className="flex gap-3 mt-0.5">
                   {v.insurance_expiry && <ExpiryBadge label="Ass." dateStr={v.insurance_expiry} />}
                   {v.visite_expiry && <ExpiryBadge label="Visite" dateStr={v.visite_expiry} />}
@@ -2505,7 +2580,14 @@ function DailyTable({ data, periodFrom, periodTo }: { data: any[]; periodFrom: s
 // ─── DRIVER ALLOCATIONS BLOCK ─────────────────────────
 // prorataFactor (0–1) : proratise la BASE FIXE pour un chauffeur entré en cours de mois.
 // Les modèles proportionnels (percent/location) et la commission ne sont pas proratisés.
-function calcDriverSalary(netDeclared: number, cfg: any, prorataFactor: number = 1): number {
+// `brutDeclared` est le CA avant commission plateforme et avant dépenses.
+// Les paliers restent indexés sur le NET (c'est leur définition métier : un
+// palier de CA net) ; la commission, elle, se calcule sur le BRUT — sinon
+// « 20 % » ne veut pas dire la même chose pour deux chauffeurs selon ce qu'ils
+// ont dépensé en carburant ce mois-là. Repli sur netDeclared quand le brut
+// n'est pas fourni, pour les appels qui ne l'ont pas encore.
+function calcDriverSalary(netDeclared: number, cfg: any, prorataFactor: number = 1, brutDeclared?: number): number {
+  const brut = brutDeclared ?? netDeclared;
   const model: string = cfg.model || "tiered";
   const pf = prorataFactor > 0 && prorataFactor <= 1 ? prorataFactor : 1;
   if (model === "fixed") return (cfg.base_amount || 0) * pf;
@@ -2515,11 +2597,11 @@ function calcDriverSalary(netDeclared: number, cfg: any, prorataFactor: number =
     const tier = sorted.find((t) => netDeclared >= t.min_net) ?? sorted[sorted.length - 1];
     return (tier?.total_salary ?? cfg.base_amount ?? 0) * pf;
   }
-  if (model === "percent") return netDeclared * (cfg.commission_rate || 0);
+  if (model === "percent") return brut * (cfg.commission_rate || 0);
   if (model === "hybrid") {
     const base = (cfg.base_amount || 0) * pf;
     const bonus = cfg.bonus_threshold > 0 && netDeclared >= cfg.bonus_threshold ? (cfg.bonus_amount || 0) : 0;
-    return base + bonus + netDeclared * (cfg.commission_rate || 0);
+    return base + bonus + brut * (cfg.commission_rate || 0);
   }
   if (model === "location") return 0; // driver keeps their own net
   return 0;
@@ -2548,7 +2630,7 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
           // Config effective : modèle & base du chauffeur si définis, sinon tenant
           const effCfg = { ...cfg, model: d.salary_model || cfg.model, base_amount: d.base_amount ?? cfg.base_amount };
           const dModel: string = effCfg.model;
-          const salary = calcDriverSalary(d.netDeclared, effCfg, d.prorataFactor);
+          const salary = calcDriverSalary(d.netDeclared, effCfg, d.prorataFactor, d.brutDeclared);
           const isProrated = d.prorataFactor != null && d.prorataFactor < 1;
           const hasPending = d.nbPending > 0;
           return (
@@ -2636,7 +2718,7 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
   const allocations: any[] = Array.isArray(kpis.driverAllocations) ? kpis.driverAllocations : [];
   const realMasseSalariale = allocations.reduce((sum: number, d: any) => {
     const effCfg = { ...cfg, model: d.salary_model || cfg.model, base_amount: d.base_amount ?? cfg.base_amount };
-    return sum + calcDriverSalary(d.netDeclared, effCfg, d.prorataFactor);
+    return sum + calcDriverSalary(d.netDeclared, effCfg, d.prorataFactor, d.brutDeclared);
   }, 0);
 
   // Compute estimates per model
@@ -2664,7 +2746,10 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
       { label: "Marge après salaires", value: xof(kpis.totalBrut - masseSalariale), color: kpis.totalBrut - masseSalariale >= 0 ? "#22c55e" : "#ef4444" },
     ];
   } else if (model === "percent") {
-    const partDriver = kpis.totalBrut * (cfg.commission_rate || 0);
+    // kpis.totalBrut est un NET malgré son nom (somme de net_after_expenses) :
+    // la part chauffeur se prend donc sur la somme des bruts déclarés.
+    const brutPeriode = allocations.reduce((s: number, d: any) => s + (d.brutDeclared || 0), 0);
+    const partDriver = brutPeriode * (cfg.commission_rate || 0);
     const partOpe = kpis.totalBrut - partDriver;
     items = [
       { label: `Part drivers (${Math.round((cfg.commission_rate || 0) * 100)}%)`, value: xof(partDriver), color: "#ef4444" },
@@ -3938,10 +4023,10 @@ function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
       {cfg.model === "percent" && (
         <div className="rounded-2xl p-5 mb-4" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
           <div className="text-xs uppercase tracking-wider font-semibold mb-4" style={{ color: "var(--sk-t4)" }}>Part du chauffeur</div>
-          <label className={lbl} style={{ color: "var(--sk-t3)" }}>% du CA net reversé au chauffeur (0–1)</label>
+          <label className={lbl} style={{ color: "var(--sk-t3)" }}>% du CA brut reversé au chauffeur (0–1)</label>
           <input type="number" value={cfg.commission_rate} onChange={(e) => set("commission_rate", parseFloat(e.target.value) || 0)}
             className={inp} style={inpStyle} step="0.01" min="0" max="1" />
-          <div className="text-[10px] mt-1" style={{ color: "var(--sk-t4)" }}>Ex : 0.60 = le chauffeur garde 60% du CA net</div>
+          <div className="text-[10px] mt-1" style={{ color: "var(--sk-t4)" }}>Ex : 0.20 = le chauffeur garde 20 % du CA brut, avant commission plateforme et avant dépenses</div>
         </div>
       )}
 
@@ -3966,7 +4051,7 @@ function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
                 className={inp} style={inpStyle} />
             </div>
             <div>
-              <label className={lbl} style={{ color: "var(--sk-t3)" }}>% commission (optionnel, 0–1)</label>
+              <label className={lbl} style={{ color: "var(--sk-t3)" }}>% commission sur le brut (optionnel, 0–1)</label>
               <input type="number" value={cfg.commission_rate} onChange={(e) => set("commission_rate", parseFloat(e.target.value) || 0)}
                 className={inp} style={inpStyle} step="0.01" />
             </div>
