@@ -233,7 +233,24 @@ export interface VehiculeAmortissable {
   compteurActuel?: number | null;    // km au compteur aujourd'hui (vehicles.mileage)
   plafondKm?: number | null;         // fin de vie utile, défaut 400 000
   dureeMaxMois?: number | null;      // plafond de durée, défaut 36
-  porteePar?: string | null;         // 'exploitant' | 'proprietaire_tiers'
+  porteePar?: string | null;         // 'exploitant' | 'proprietaire_tiers' | null
+  segment?: string | null;           // fleet_segment, lu quand porteePar est null
+}
+
+/**
+ * Le capital du véhicule pèse-t-il sur le résultat de l'exploitant ?
+ *
+ * `amort_porte_par` n'a volontairement pas de défaut en base (migration 071) :
+ * la bonne valeur dépend du segment, et un DEFAULT SQL ne sait pas être
+ * conditionnel ligne par ligne. NULL veut donc dire « déduire du segment »
+ * — un véhicule de flotte partenaire est hébergé pour un tiers, son capital
+ * n'est pas le nôtre. Une valeur explicite l'emporte toujours : un partenaire
+ * peut confier un véhicule que l'exploitant finance réellement.
+ */
+export function porteParExploitant(v: VehiculeAmortissable): boolean {
+  if (v.porteePar === "proprietaire_tiers") return false;
+  if (v.porteePar === "exploitant") return true;
+  return v.segment !== "partenaire";
 }
 
 export const AMORT_PLAFOND_KM_DEFAUT = 400_000;
@@ -318,7 +335,7 @@ export function amortissementPeriode(params: {
 
   // Véhicule hébergé pour un tiers : son capital n'est pas porté par
   // l'exploitant. Le charger reviendrait à imputer à NMK un actif de M3A.
-  if (v.porteePar === "proprietaire_tiers") return { ...VIDE, raison: "porte_par_tiers" };
+  if (!porteParExploitant(v)) return { ...VIDE, raison: "porte_par_tiers" };
 
   const base = baseAmortissable(v);
   const duree = dureeAmortissementMois(v, params.kmParMois);

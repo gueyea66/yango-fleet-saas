@@ -62,19 +62,36 @@ ALTER TABLE fleet.vehicles
   -- global : retour Abdou du 25/09, les véhicules peuvent aller jusqu'à
   -- 400 000 éventuellement selon la marque — un Toyota et un Chevrolet ne
   -- meurent pas au même compteur.
-  ADD COLUMN IF NOT EXISTS amort_plafond_km      INT,
+  --
+  -- Les trois colonnes à défaut portent leur DEFAULT dès l'ADD COLUMN : depuis
+  -- PostgreSQL 11 les lignes existantes le reçoivent immédiatement, sans
+  -- réécriture de table et — c'est le point — sans passer par un UPDATE. Un
+  -- UPDATE de rattrapage déclencherait `guard_vehicles_iud` (migration 048),
+  -- qui refuse toute écriture hors serveur de confiance ou admin : dans le SQL
+  -- Editor `auth.uid()` est nul, et la migration échouait sur « RLS: véhicule
+  -- non rattaché au chauffeur courant ». Faire porter la valeur par le DDL
+  -- évite d'avoir à neutraliser la garde, ne serait-ce qu'un instant.
+  ADD COLUMN IF NOT EXISTS amort_plafond_km      INT  DEFAULT 400000,
   -- Plafond de durée. Borne la durée déduite du kilométrage : sans elle, un
   -- véhicule peu roulé s'amortirait sur 50 mois et plus, ce qui n'a pas de
   -- sens économique sur une occasion.
-  ADD COLUMN IF NOT EXISTS amort_duree_max_mois  INT,
+  ADD COLUMN IF NOT EXISTS amort_duree_max_mois  INT  DEFAULT 36,
   -- 'lineaire' | 'km'. Le mode 'km' exige une couverture télématique
   -- suffisante sur la période, sinon le moteur retombe sur 'lineaire' et le
   -- signale à l'écran (au 25/09 : 1 véhicule sur 15 équipé, 13 jours de
   -- données sur 25 — le linéaire est le seul défaut viable).
-  ADD COLUMN IF NOT EXISTS amort_methode         TEXT,
+  ADD COLUMN IF NOT EXISTS amort_methode         TEXT DEFAULT 'lineaire',
   -- Qui porte le financement. Un véhicule hébergé pour un tiers ne coûte pas
   -- son capital à l'exploitant : amortissement 0. Sans ce champ on chargerait
   -- NMK d'un actif qui appartient à M3A.
+  --
+  -- Volontairement SANS défaut : la bonne valeur dépend de `fleet_segment`, et
+  -- un DEFAULT ne sait pas être conditionnel ligne par ligne. NULL signifie
+  -- donc « déduire du segment » — le moteur applique la règle (`lib/calc.ts`,
+  -- `porteParExploitant`) et l'écran laisse l'admin la surcharger au cas par
+  -- cas, un partenaire pouvant confier un véhicule que l'exploitant finance
+  -- réellement. Écrire une valeur devinée en base aurait fige un choix que
+  -- personne n'a fait.
   ADD COLUMN IF NOT EXISTS amort_porte_par       TEXT;
 
 COMMENT ON COLUMN fleet.vehicles.valeur_residuelle IS
@@ -82,29 +99,11 @@ COMMENT ON COLUMN fleet.vehicles.valeur_residuelle IS
 COMMENT ON COLUMN fleet.vehicles.amort_porte_par IS
   'exploitant | proprietaire_tiers — proprietaire_tiers implique amortissement 0.';
 
--- Défauts appliqués aux lignes existantes ET aux suivantes. 400 000 km et
--- 36 mois : plafond km validé par Abdou le 25/09 ; 36 mois est la durée
--- économique maximale retenue pour une occasion en usage VTC intensif.
-ALTER TABLE fleet.vehicles
-  ALTER COLUMN amort_plafond_km     SET DEFAULT 400000,
-  ALTER COLUMN amort_duree_max_mois SET DEFAULT 36,
-  ALTER COLUMN amort_methode        SET DEFAULT 'lineaire',
-  ALTER COLUMN amort_porte_par      SET DEFAULT 'exploitant';
-
--- Rattrapage des lignes créées avant la migration. Ne touche que les NULL :
--- rejouer la migration ne réécrit jamais une valeur saisie à la main.
-UPDATE fleet.vehicles SET amort_plafond_km     = 400000      WHERE amort_plafond_km     IS NULL;
-UPDATE fleet.vehicles SET amort_duree_max_mois = 36          WHERE amort_duree_max_mois IS NULL;
-UPDATE fleet.vehicles SET amort_methode        = 'lineaire'  WHERE amort_methode        IS NULL;
-
--- Un véhicule de segment « partenaire » est hébergé pour un tiers : par
--- défaut son capital n'est pas porté par l'exploitant. Modifiable ensuite au
--- cas par cas (un partenaire peut avoir confié un véhicule que l'exploitant
--- finance réellement).
-UPDATE fleet.vehicles
-   SET amort_porte_par = CASE WHEN fleet_segment = 'partenaire'
-                              THEN 'proprietaire_tiers' ELSE 'exploitant' END
- WHERE amort_porte_par IS NULL;
+-- Aucun UPDATE de rattrapage ici, volontairement : les DEFAULT posés plus haut
+-- ont déjà rempli les lignes existantes, et toute écriture DML sur
+-- `fleet.vehicles` se heurterait à la garde `guard_vehicles_iud`.
+-- 400 000 km et 36 mois : plafond validé par Abdou le 25/09 ; 36 mois est la
+-- durée économique maximale retenue pour une occasion en usage VTC intensif.
 
 ALTER TABLE fleet.vehicles
   DROP CONSTRAINT IF EXISTS vehicles_amort_methode_chk,

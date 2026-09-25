@@ -1,6 +1,6 @@
 import {
   baseAmortissable, dureeAmortissementMois, amortissementPeriode, amortissementParc,
-  pointMortParJour, financementPeriode,
+  pointMortParJour, financementPeriode, porteParExploitant,
   AMORT_PLAFOND_KM_DEFAUT, AMORT_DUREE_MAX_DEFAUT,
   type VehiculeAmortissable,
 } from "@/lib/calc";
@@ -78,6 +78,32 @@ describe("durée d'amortissement", () => {
     expect(dureeAmortissementMois(sansDefauts, 20_000)).toBe(20);
     expect(AMORT_PLAFOND_KM_DEFAUT).toBe(400_000);
     expect(AMORT_DUREE_MAX_DEFAUT).toBe(36);
+  });
+});
+
+describe("qui porte le capital", () => {
+  it("déduit du segment quand le champ n'a pas été renseigné", () => {
+    // La colonne n'a pas de défaut en base : NULL veut dire « déduire ».
+    expect(porteParExploitant({ segment: "partenaire" })).toBe(false);
+    expect(porteParExploitant({ segment: "interne" })).toBe(true);
+    // Véhicule d'avant la segmentation (migration 063) : il appartient à son
+    // exploitant, pas à un tiers fantôme.
+    expect(porteParExploitant({})).toBe(true);
+  });
+
+  it("laisse une valeur explicite l'emporter sur le segment", () => {
+    // Un partenaire peut confier un véhicule que l'exploitant finance vraiment.
+    expect(porteParExploitant({ segment: "partenaire", porteePar: "exploitant" })).toBe(true);
+    expect(porteParExploitant({ segment: "interne", porteePar: "proprietaire_tiers" })).toBe(false);
+  });
+
+  it("n'impute rien à un véhicule de flotte partenaire non renseigné", () => {
+    const r = amortissementPeriode({
+      vehicule: { ...ORLANDO, porteePar: null, segment: "partenaire" },
+      fromISO: "2026-09-01", toISO: "2026-09-30", kmParMois: ORLANDO_KM_MOIS,
+    });
+    expect(r.montant).toBe(0);
+    expect(r.raison).toBe("porte_par_tiers");
   });
 });
 

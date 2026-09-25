@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
-import { baseAmortissable, dureeAmortissementMois } from "@/lib/calc";
+import { baseAmortissable, dureeAmortissementMois, porteParExploitant } from "@/lib/calc";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useDashboardKPIs } from "@/lib/hooks/useDashboardKPIs";
@@ -1418,7 +1418,7 @@ function FleetTab({ tenantId, segments, onSegments, onCounts }: { tenantId: stri
     setVehicle(v);
     setMaintenance(m || []);
     setVehicleKmParMois(kmParMoisDepuisCompteur(odo || []));
-    if (v) setForm({ plate: v.plate || "", make: v.make || "", model: v.model || "", year: String(v.year || ""), color: v.color || "", fuel_type: v.fuel_type || "essence", transmission: v.transmission || "manuelle", vin: v.vin || "", mileage: String(v.mileage || 0), status: v.status || "active", insurance_company: v.insurance_company || "", insurance_number: v.insurance_number || "", insurance_expiry: v.insurance_expiry || "", visite_expiry: v.visite_expiry || "", notes: v.notes || "", driver_id: v.driver_id || "", fleet_segment: segOf(v), owner_name: v.owner_name || "", prix_acquisition: v.prix_acquisition != null ? String(v.prix_acquisition) : "", valeur_residuelle: v.valeur_residuelle != null ? String(v.valeur_residuelle) : "", date_acquisition: v.date_acquisition || "", amort_plafond_km: String(v.amort_plafond_km ?? 400000), amort_duree_max_mois: String(v.amort_duree_max_mois ?? 36), amort_porte_par: v.amort_porte_par || (segOf(v) === "partenaire" ? "proprietaire_tiers" : "exploitant") });
+    if (v) setForm({ plate: v.plate || "", make: v.make || "", model: v.model || "", year: String(v.year || ""), color: v.color || "", fuel_type: v.fuel_type || "essence", transmission: v.transmission || "manuelle", vin: v.vin || "", mileage: String(v.mileage || 0), status: v.status || "active", insurance_company: v.insurance_company || "", insurance_number: v.insurance_number || "", insurance_expiry: v.insurance_expiry || "", visite_expiry: v.visite_expiry || "", notes: v.notes || "", driver_id: v.driver_id || "", fleet_segment: segOf(v), owner_name: v.owner_name || "", prix_acquisition: v.prix_acquisition != null ? String(v.prix_acquisition) : "", valeur_residuelle: v.valeur_residuelle != null ? String(v.valeur_residuelle) : "", date_acquisition: v.date_acquisition || "", amort_plafond_km: String(v.amort_plafond_km ?? 400000), amort_duree_max_mois: String(v.amort_duree_max_mois ?? 36), amort_porte_par: porteParExploitant({ porteePar: v.amort_porte_par, segment: segOf(v) }) ? "exploitant" : "proprietaire_tiers" });
   };
 
   useEffect(() => { loadVehicles(); loadDrivers(); }, [tenantId]);
