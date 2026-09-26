@@ -358,7 +358,7 @@ function AttachRow({ files, onAdd, onRemove }: { files: File[]; onAdd: (f: FileL
             style={{ width: 44, height: 44, background: "none", border: "none", color: "var(--v2-negative-ink)", cursor: "pointer" }}><X size={16} aria-hidden /></button>
         </div>
       ))}
-      <input ref={ref} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.pdf" multiple hidden onChange={(e) => { onAdd(e.target.files); e.target.value = ""; }} />
+      <input ref={ref} type="file" accept="image/*,.pdf" multiple hidden onChange={(e) => { onAdd(e.target.files); e.target.value = ""; }} />
     </Card>
   );
 }
