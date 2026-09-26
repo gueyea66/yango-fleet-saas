@@ -315,6 +315,8 @@ function ExpensePanel({ expense, onRefresh, onAction }: { expense: any; onRefres
   const [edit, setEdit] = useState(false);
   const name = nameOf(expense);
   const images = ev.uploads.filter((u: any) => u.isImg);
+  const autres = ev.uploads.filter((u: any) => !u.isImg);
+  const pjRef = useRef<HTMLInputElement>(null);
   const act = async (status: "approved" | "rejected") => {
     onAction(expense.id, status === "approved" ? `Dépense validée — ${name} est notifié` : `Dépense rejetée — ${name} est notifié`);
     await ev.updateStatus(status);
@@ -369,13 +371,37 @@ function ExpensePanel({ expense, onRefresh, onAction }: { expense: any; onRefres
           )}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>Reçu</div>
-          {images.length === 0 && <div style={{ fontSize: 13, color: "var(--sk-t3)" }}>Aucune photo</div>}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>Reçu</span>
+            {/* Ajout et retrait : la v2 ne savait qu'afficher. Un reçu envoyé
+                sur la mauvaise dépense y restait attaché pour toujours, et un
+                reçu oublié ne pouvait pas être rattrapé côté gestionnaire. */}
+            <button type="button" onClick={() => pjRef.current?.click()} disabled={ev.uploading} className="v2-focus"
+              style={{ background: "none", border: "none", color: "var(--tenant-color)", fontSize: 12, cursor: "pointer", padding: 0 }}>
+              {ev.uploading ? "Envoi\u2026" : "+ Ajouter"}
+            </button>
+          </div>
+          <input ref={pjRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.pdf" multiple hidden
+            onChange={(e) => { Array.from(e.target.files || []).forEach(ev.uploadFile); e.target.value = ""; }} />
+          {ev.uploads.length === 0 && <div style={{ fontSize: 13, color: "var(--sk-t3)" }}>Aucune photo</div>}
           {images.map((u: any, i: number) => (
-            <a key={i} href={u.publicUrl} target="_blank" rel="noopener noreferrer" className="v2-focus" style={{ display: "block", borderRadius: 10, overflow: "hidden", border: "1px solid var(--sk-surface)" }}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- URL de stockage signée */}
-              <img src={u.publicUrl} alt={u.file_name} style={{ width: "100%", maxHeight: 220, objectFit: "cover", display: "block" }} />
-            </a>
+            <div key={i} style={{ position: "relative" }}>
+              <a href={u.publicUrl} target="_blank" rel="noopener noreferrer" className="v2-focus" style={{ display: "block", borderRadius: 10, overflow: "hidden", border: "1px solid var(--sk-surface)" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- URL de stockage signée */}
+                <img src={u.publicUrl} alt={u.file_name} style={{ width: "100%", maxHeight: 220, objectFit: "cover", display: "block" }} />
+              </a>
+              <button type="button" onClick={() => ev.deleteUpload(u)} disabled={ev.uploading}
+                aria-label={`Supprimer ${u.file_name}`} title={`Supprimer ${u.file_name}`}
+                style={{ position: "absolute", top: 6, right: 6, width: 26, height: 26, borderRadius: 13, background: "rgba(0,0,0,.65)", color: "#fff", border: "none", cursor: "pointer", fontSize: 12, lineHeight: 1 }}>✕</button>
+            </div>
+          ))}
+          {autres.map((u: any, i: number) => (
+            <div key={`f${i}`} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 10, background: "var(--sk-surface)", fontSize: 13 }}>
+              <span aria-hidden>📄</span>
+              <a href={u.publicUrl} target="_blank" rel="noopener noreferrer" style={{ flex: 1, color: "inherit", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.file_name}</a>
+              <button type="button" onClick={() => ev.deleteUpload(u)} disabled={ev.uploading}
+                aria-label={`Supprimer ${u.file_name}`} style={{ background: "none", border: "none", color: "var(--v2-negative-ink)", cursor: "pointer" }}>✕</button>
+            </div>
           ))}
         </div>
       </div>

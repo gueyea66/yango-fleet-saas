@@ -148,7 +148,7 @@ export function ExpenseV2({ profile, onNav }: { profile: Profile; onNav: (t: Dri
             ))}
           </div>
         )}
-        <input ref={photoRef} type="file" accept="image/*,.pdf" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+        <input ref={photoRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.pdf" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <div>
