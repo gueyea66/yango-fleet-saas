@@ -125,7 +125,15 @@ export function ExpenseV2({ profile, onNav }: { profile: Profile; onNav: (t: Dri
           )}
         </div>
 
-        <button type="button" onClick={() => photoRef.current?.click()} className="v2-focus"
+        {/* <label> et non <button onClick={ref.click()}> : le clic sur un label
+            ouvre le sélecteur nativement, sans JavaScript, sans ref et sans
+            dépendre de ce qui se passe sur la couche d'événements. Le bouton
+            précédent ne déclenchait rien sur cet écran alors que le même code
+            fonctionne dans le rapport — plutôt que de deviner pourquoi, on
+            retire la dépendance. Le clavier garde son chemin via onKeyDown,
+            un label n'étant pas activable par Entrée. */}
+        <label htmlFor="v2-exp-photo" className="v2-focus" tabIndex={0}
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); photoRef.current?.click(); } }}
           style={{ display: "flex", alignItems: "center", gap: 14, padding: 14, borderRadius: 16, border: pendingFiles.length ? "1px solid var(--sk-surface)" : "1.5px dashed var(--sk-border)", background: pendingFiles.length ? "var(--sk-bg)" : "transparent", color: "inherit", textAlign: "left", cursor: "pointer" }}>
           <span style={{ width: 48, height: 48, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", flex: "none",
             color: pendingFiles.length ? "var(--fleet-positive)" : "var(--tenant-color)", background: pendingFiles.length ? "rgba(74,222,128,.12)" : "rgba(var(--tenant-color-rgb),.1)" }}>
@@ -139,7 +147,7 @@ export function ExpenseV2({ profile, onNav }: { profile: Profile; onNav: (t: Dri
               {pendingFiles.length ? "Touche pour en ajouter" : "Recommandé — validation plus rapide"}
             </span>
           </span>
-        </button>
+        </label>
         {pendingFiles.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: -8 }}>
             {pendingFiles.map((f, i) => (
@@ -151,7 +159,13 @@ export function ExpenseV2({ profile, onNav }: { profile: Profile; onNav: (t: Dri
             ))}
           </div>
         )}
-        <input ref={photoRef} type="file" accept="image/*,.pdf" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
+        {/* Caché par le style et non par l'attribut `hidden` : un input
+            `display: none` reste associable à son label, mais certains moteurs
+            refusent de l'activer. Là il est dans le flux, invisible et sans
+            emprise, donc toujours cliquable par son label. */}
+        <input ref={photoRef} id="v2-exp-photo" type="file" accept="image/*,.pdf" multiple
+          style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
+          onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <div>

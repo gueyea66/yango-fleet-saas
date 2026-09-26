@@ -343,14 +343,19 @@ function CaptureTile({ title, sub, camera, slot, disabled, onPick, onClear }: {
 
 function AttachRow({ files, onAdd, onRemove }: { files: File[]; onAdd: (f: FileList | null) => void; onRemove: (i: number) => void }) {
   const ref = useRef<HTMLInputElement>(null);
+  // Même mécanisme natif que la dépense : le clic sur un label ouvre le
+  // sélecteur sans passer par JavaScript. Aligné ici alors que cet écran
+  // fonctionnait, pour que les deux formulaires ne divergent pas — deux
+  // mécanismes pour un même geste, c'est deux fois plus à déboguer.
   return (
     <Card mobile flush>
-      <button type="button" onClick={() => ref.current?.click()} className="v2-row v2-focus"
+      <label htmlFor="v2-rep-attach" className="v2-row v2-focus" tabIndex={0}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); ref.current?.click(); } }}
         style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", minHeight: 52, padding: "0 16px", background: "none", border: "none", color: "var(--sk-t1)", fontSize: 15, cursor: "pointer", borderBottom: files.length ? "1px solid var(--sk-surface)" : "none" }}>
         <Paperclip size={20} aria-hidden style={{ color: "var(--sk-t2)" }} />
         <span style={{ flex: 1, textAlign: "left" }}>Joindre une photo</span>
         <span style={{ fontSize: 13, color: "var(--v2-muted)" }}>optionnel</span>
-      </button>
+      </label>
       {files.map((f, i) => (
         <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 8px 0 16px", minHeight: 44, fontSize: 13, color: "var(--sk-t2)", borderBottom: i < files.length - 1 ? "1px solid var(--sk-surface)" : "none" }}>
           <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
@@ -358,7 +363,9 @@ function AttachRow({ files, onAdd, onRemove }: { files: File[]; onAdd: (f: FileL
             style={{ width: 44, height: 44, background: "none", border: "none", color: "var(--v2-negative-ink)", cursor: "pointer" }}><X size={16} aria-hidden /></button>
         </div>
       ))}
-      <input ref={ref} type="file" accept="image/*,.pdf" multiple hidden onChange={(e) => { onAdd(e.target.files); e.target.value = ""; }} />
+      <input ref={ref} id="v2-rep-attach" type="file" accept="image/*,.pdf" multiple
+        style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
+        onChange={(e) => { onAdd(e.target.files); e.target.value = ""; }} />
     </Card>
   );
 }
