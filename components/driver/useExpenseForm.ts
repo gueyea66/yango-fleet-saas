@@ -30,8 +30,16 @@ export function useExpenseForm(profile: Profile) {
   }, [isTechnical, form.type, targets.length]);
 
   const addFiles = (files: FileList | null) => {
-    if (!files) return;
-    setPendingFiles((prev) => [...prev, ...Array.from(files)]);
+    if (!files || files.length === 0) return;
+    // Copie SYNCHRONE, avant tout retour à React. Le callback passé à
+    // setState est exécuté plus tard : `Array.from(files)` s'y trouvait, et
+    // l'appelant fait `e.target.value = ""` juste après pour permettre de
+    // resélectionner le même fichier. Vider l'input vide aussi la FileList,
+    // qui est vivante — au moment où React évaluait le callback, il ne restait
+    // plus rien à copier. Le sélecteur s'ouvrait, le fichier était choisi, et
+    // rien ne s'ajoutait au formulaire.
+    const ajouts = Array.from(files);
+    setPendingFiles((prev) => [...prev, ...ajouts]);
   };
 
   const submit = async () => {
