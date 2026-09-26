@@ -7,6 +7,7 @@ import { resolveRates, computeCommissions } from "@/lib/calc";
 import { computeElementsReels, hasElementsReels } from "@/lib/calcReel";
 import { platLabel } from "@/lib/tenant/platformLabel";
 import { logAction } from "@/lib/logAction";
+import { envoyerPieces, messageEchecs } from "@/lib/uploadPieces";
 import type { AiScanResult, Cfg, Profile } from "./shared";
 
 export function useReportForm(profile: Profile, cfg: Cfg) {
@@ -199,15 +200,16 @@ export function useReportForm(profile: Profile, cfg: Cfg) {
       if (newReport?.id) {
         setReportId(newReport.id);
         // Upload pending files via API (service role)
-        for (const file of pendingFiles) {
-          const ext = file.name.split(".").pop();
-          const path = `${profile.id}/report_${newReport.id}_${Date.now()}.${ext}`;
-          const fd = new FormData(); fd.append("file", file); fd.append("path", path);
-          const up = await fetch("/api/kyc-upload", { method: "POST", body: fd });
-          const upRes = await up.json().catch(() => ({}));
-          // L'API force le préfixe tenantId : on stocke le chemin réel retourné
-          await supabase.from("uploads").insert({ driver_id: profile.id, tenant_id: profile.tenant_id, file_name: file.name, file_path: upRes.path || path, file_type: "report", file_size: file.size, ref_id: newReport.id });
-        }
+        // Même correctif que la dépense : une pièce refusée est annoncée, et
+        // seules les pièces réellement stockées sont enregistrées.
+        const rPieces = await envoyerPieces({
+          fichiers: pendingFiles, driverId: profile.id, tenantId: profile.tenant_id,
+          fileType: "report", refId: newReport.id,
+        });
+        const nomsKO = new Set(rPieces.echecs.map((e) => e.nom));
+        setPendingFiles((prev) => prev.filter((f) => nomsKO.has(f.name)));
+        const msgPieces = messageEchecs(rPieces);
+        if (msgPieces) alert(msgPieces);
         // Photos scannées (déjà dans le bucket via la route d'extraction) →
         // rattachées au rapport comme pièces jointes classiques.
         for (let i = 0; i < aiStoredFiles.length; i++) {

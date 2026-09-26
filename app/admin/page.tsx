@@ -2403,7 +2403,7 @@ function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh, gr
 
 // ─── EXPENSE MODAL ───────────────────────────────────
 function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: () => void; onRefresh: () => void }) {
-  const { uploads, uploading, saving, currentStatus, editAmount, setEditAmount, editDate, setEditDate, editCategory, setEditCategory, editDesc, setEditDesc, saveEdit, updateStatus, uploadFile } = useExpenseReview(expense, onRefresh);
+  const { uploads, uploading, saving, currentStatus, editAmount, setEditAmount, editDate, setEditDate, editCategory, setEditCategory, editDesc, setEditDesc, saveEdit, updateStatus, uploadFile, deleteUpload } = useExpenseReview(expense, onRefresh);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const xof = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.round(n || 0));
@@ -2490,19 +2490,30 @@ function ExpenseModal({ expense, onClose, onRefresh }: { expense: any; onClose: 
             {uploads.filter((u: any) => u.isImg).length > 0 && (
               <div className="grid grid-cols-3 gap-2 mb-2">
                 {uploads.filter((u: any) => u.isImg).map((u: any, i: number) => (
-                  <a key={i} href={u.publicUrl} target="_blank" rel="noopener noreferrer">
-                    <img src={u.publicUrl} alt={u.file_name} className="w-full h-20 object-cover rounded-lg" style={{ border: "1px solid var(--sk-surface)" }} />
-                  </a>
+                  <div key={i} className="relative">
+                    <a href={u.publicUrl} target="_blank" rel="noopener noreferrer">
+                      <img src={u.publicUrl} alt={u.file_name} className="w-full h-20 object-cover rounded-lg" style={{ border: "1px solid var(--sk-surface)" }} />
+                    </a>
+                    <button type="button" onClick={() => deleteUpload(u)} disabled={uploading}
+                      aria-label={`Supprimer ${u.file_name}`} title={`Supprimer ${u.file_name}`}
+                      className="absolute top-1 right-1 w-6 h-6 rounded-full text-xs font-bold leading-none"
+                      style={{ background: "rgba(0,0,0,.65)", color: "#fff", border: "none", cursor: "pointer" }}>
+                      ✕
+                    </button>
+                  </div>
                 ))}
               </div>
             )}
             {uploads.filter((u: any) => !u.isImg).map((u: any, i: number) => (
-              <a key={i} href={u.publicUrl} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-2 text-xs p-2 rounded-lg mb-1"
+              <div key={i} className="flex items-center gap-2 text-xs p-2 rounded-lg mb-1"
                 style={{ background: "var(--sk-surface)", color: "var(--sk-t2)" }}>
-                <span>📄</span><span className="truncate flex-1">{u.file_name}</span>
-                <span style={{ color: "var(--tenant-color)" }}>Ouvrir →</span>
-              </a>
+                <span>📄</span>
+                <a href={u.publicUrl} target="_blank" rel="noopener noreferrer" className="truncate flex-1" style={{ color: "inherit" }}>{u.file_name}</a>
+                <a href={u.publicUrl} target="_blank" rel="noopener noreferrer" style={{ color: "var(--tenant-color)" }}>Ouvrir →</a>
+                <button type="button" onClick={() => deleteUpload(u)} disabled={uploading}
+                  aria-label={`Supprimer ${u.file_name}`} title={`Supprimer ${u.file_name}`}
+                  style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", padding: "0 2px" }}>✕</button>
+              </div>
             ))}
             {uploads.length === 0 && <div className="text-xs text-center py-1" style={{ color: "var(--sk-t4)" }}>Aucune pièce jointe</div>}
           </div>

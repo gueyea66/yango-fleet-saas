@@ -99,7 +99,7 @@ export function ProfilV2({ profile, onBack, onSignOut }: { profile: Profile; onB
                     )}
                   </>
                 )}
-                <input type="file" accept="image/*,.pdf" hidden ref={(el) => { fileRefs.current[doc.type] = el; }}
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.pdf" hidden ref={(el) => { fileRefs.current[doc.type] = el; }}
                   onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadDoc(f, doc.type); e.target.value = ""; }} />
               </div>
             );
