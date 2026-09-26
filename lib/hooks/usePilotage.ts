@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { CAT_AVANCE, CAT_ENTRETIEN, CAT_REPARATION, CATS_MAINTENANCE } from "@/lib/expenseCategories";
+import { CAT_AVANCE, CAT_ENTRETIEN, CAT_REPARATION, CATS_MAINTENANCE, CATS_PROVISIONNEES } from "@/lib/expenseCategories";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
 import { amortissementPeriode, kmParMoisDepuisCompteur, type VehiculeAmortissable } from "@/lib/calc";
 
@@ -203,20 +203,29 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   const maintenanceReelle = (eb: ExpenseBreakdown[]): number =>
     eb.filter((e) => CATS_MAINTENANCE.includes(e.category)).reduce((s, e) => s + e.amount, 0);
 
+  /** Part provisionnée : l'entretien programmé seul. */
+  const entretienReel = (eb: ExpenseBreakdown[]): number =>
+    eb.filter((e) => CATS_PROVISIONNEES.includes(e.category)).reduce((s, e) => s + e.amount, 0);
+
+  /** Pannes de la période — jamais lissées, elles pèsent le mois où elles tombent. */
+  const reparationsReelles = (eb: ExpenseBreakdown[]): number =>
+    eb.filter((e) => e.category === CAT_REPARATION).reduce((s, e) => s + e.amount, 0);
+
   /**
-   * Charge maintenance = max(dotation, dépense réelle).
+   * Charge maintenance = max(dotation, entretien réel) + réparations.
    *
    * Mécanisme arrêté avec Abdou le 26/09 : dotation GLOBALE pour la flotte,
    * remise à zéro chaque mois (pas de report), et ce qui dépasse passe en
-   * charge directe. La dotation agit donc comme un plancher — elle lisse les
-   * mois creux où rien ne casse — et le réel prend le dessus dès qu'il la
-   * dépasse, pour qu'un gros sinistre ne soit jamais masqué.
+   * charge directe. Sans report d'un mois sur l'autre, un solde de provision
+   * n'a pas de raison d'exister : le max suffit et se lit en une ligne.
    *
-   * Sans report d'un mois sur l'autre, un solde de provision n'a pas de raison
-   * d'exister : le max suffit et se lit en une ligne.
+   * La dotation ne couvre que l'ENTRETIEN PROGRAMMÉ — vidange, filtres, AdBlue
+   * — parce que lui seul est prévisible et revient au kilométrage. Les pannes
+   * s'ajoutent en entier, sans lissage : provisionner l'aléa reviendrait à
+   * étaler un sinistre et à masquer le mois où il s'est produit.
    */
   const chargeMaintenance = (eb: ExpenseBreakdown[]): number =>
-    Math.max(provMaintenance, maintenanceReelle(eb));
+    Math.max(provMaintenance, entretienReel(eb)) + reparationsReelles(eb);
 
   // ── AMORTISSEMENT DU PARC ──
   // Calculé sur le mois demandé, véhicule par véhicule : un véhicule acquis en
@@ -612,7 +621,11 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
     // Cash et non dotation : une provision ne sort d'aucun compte. Ce tableau
     // répond à « ai-je de quoi payer ce mois-ci », donc il projette la dépense
     // d'entretien attendue. Le P&L, lui, retient max(dotation, réel).
-    const maint = avgDailyEntretien * projDays;
+    // Entretien projeté au rythme réel + les pannes DÉJÀ constatées ce mois-ci.
+    // Les pannes ne s'extrapolent pas (un mois sans casse ne promet rien sur le
+    // suivant), mais celles qui sont tombées ont bien vidé le compte.
+    const reparationsDuMois = offset === 0 ? reparationsReelles(curPnL.expensesByCategory) : 0;
+    const maint = avgDailyEntretien * projDays + reparationsDuMois;
     // Mois courant : masse salariale précise (réel versé sinon prorata actifs) ; futurs : actifs du mois prochain
     const sal = offset === 0 ? projectedTotalSalary : futureMonthSalary;
     // ⛔ Pas d'amortissement ici, et il ne faut pas en ajouter : le cash flow
