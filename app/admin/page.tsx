@@ -1481,6 +1481,43 @@ function FleetTab({ tenantId, segments, onSegments, onCounts }: { tenantId: stri
     return next;
   });
 
+  /**
+   * Suppression d'un véhicule créé par erreur — il manquait, et un doublon sans
+   * moyen de le retirer pollue le parc et fait remonter en permanence un
+   * « capital non renseigné » dans le résultat.
+   *
+   * Refusée dès qu'il y a de l'historique. `daily_reports.vehicle_id` est en
+   * SET NULL (les déclarations survivent mais perdent leur véhicule, donc les
+   * km et l'amortissement) et `vehicle_maintenance` est en CASCADE (l'entretien
+   * est détruit). Pour un véhicule qui a servi, la bonne opération est le
+   * statut « inactif », pas la suppression.
+   */
+  const deleteVehicle = async () => {
+    if (!selected || selected === "__new__") return;
+    const [{ count: nbReports }, { count: nbMaint }] = await Promise.all([
+      supabase.from("daily_reports").select("id", { count: "exact", head: true }).eq("vehicle_id", selected),
+      supabase.from("vehicle_maintenance").select("id", { count: "exact", head: true }).eq("vehicle_id", selected),
+    ]);
+    if ((nbReports || 0) > 0 || (nbMaint || 0) > 0) {
+      alert(
+        `Suppression impossible : ce véhicule a ${nbReports || 0} déclaration(s) et ${nbMaint || 0} entretien(s).
+
+` +
+        `Les supprimer effacerait de l'historique. Passez-le en statut « Inactif » : il sort du parc actif et des calculs sans rien détruire.`,
+      );
+      return;
+    }
+    if (!confirm(`Supprimer définitivement le véhicule ${form.plate} ?
+
+Aucune déclaration ni entretien n'y est rattaché. Cette action est irréversible.`)) return;
+    setSaving(true);
+    const { error } = await supabase.from("vehicles").delete().eq("id", selected);
+    setSaving(false);
+    if (error) { alert(`Suppression refusée : ${error.message}`); return; }
+    setSelected(null); setVehicle(null); setShowForm(false);
+    await loadVehicles();
+  };
+
   const saveVehicle = async () => {
     if (!form.plate) { alert("Plaque requise"); return; }
     setSaving(true);
@@ -1608,10 +1645,17 @@ function FleetTab({ tenantId, segments, onSegments, onCounts }: { tenantId: stri
               </select>
             </Field>
             <Field label="Notes"><InpText type="text" value={form.notes} onChange={(v) => setF("notes", v)} /></Field>
-            <button onClick={saveVehicle} disabled={saving} className="w-full py-2.5 rounded-xl text-sm font-bold transition-all"
-              style={{ background: saving ? "var(--sk-border)" : "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))", color: saving ? "var(--sk-t3)" : "#000" }}>
-              {saving ? "Enregistrement..." : "✓ Enregistrer"}
-            </button>
+            <div className="flex gap-2">
+              <button onClick={saveVehicle} disabled={saving} className="flex-1 py-2.5 rounded-xl text-sm font-bold transition-all"
+                style={{ background: saving ? "var(--sk-border)" : "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))", color: saving ? "var(--sk-t3)" : "#000" }}>
+                {saving ? "Enregistrement..." : "✓ Enregistrer"}
+              </button>
+              <button onClick={deleteVehicle} disabled={saving} className="px-4 py-2.5 rounded-xl text-sm font-semibold transition-all"
+                style={{ background: "var(--sk-surface)", color: "#ef4444" }}
+                title="Supprimer ce véhicule (refusé s'il a un historique)">
+                Supprimer
+              </button>
+            </div>
           </div>
         )}
 
