@@ -57,16 +57,24 @@ export async function POST(req: NextRequest) {
 
     // Une pièce n'est signée que si une ligne `uploads` du tenant la déclare.
     // Un chemin inventé, ou celui d'un autre tenant, ne remonte simplement pas.
-    let q = admin.from("uploads").select("file_path, driver_id")
-      .eq("tenant_id", tenantId).in("file_path", uniques);
-    // Un chauffeur ne voit que ses propres pièces — même cloisonnement que la
-    // migration 069, qui l'a déjà appliqué aux tables de données.
-    if (role !== "admin") q = q.eq("driver_id", userId);
+    // Deux tables portent des pièces : `uploads` (reçus, justificatifs) et
+    // `kyc_documents` (identité, permis). Les deux vivent dans le même bucket,
+    // donc les deux doivent pouvoir être signées.
+    const interroger = (table: string) => {
+      let q = admin.from(table).select("file_path, driver_id")
+        .eq("tenant_id", tenantId).in("file_path", uniques);
+      // Un chauffeur ne voit que ses propres pièces — même cloisonnement que la
+      // migration 069, qui l'a déjà appliqué aux tables de données.
+      if (role !== "admin") q = q.eq("driver_id", userId);
+      return q;
+    };
 
-    const { data: lignes, error } = await q;
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const [rUploads, rKyc] = await Promise.all([interroger("uploads"), interroger("kyc_documents")]);
+    if (rUploads.error) return NextResponse.json({ error: rUploads.error.message }, { status: 500 });
+    if (rKyc.error) return NextResponse.json({ error: rKyc.error.message }, { status: 500 });
 
-    const autorises = [...new Set((lignes ?? []).map((l: { file_path: string }) => l.file_path))];
+    const lignes = [...(rUploads.data ?? []), ...(rKyc.data ?? [])];
+    const autorises = [...new Set(lignes.map((l: { file_path: string }) => l.file_path))];
     if (autorises.length === 0) return NextResponse.json({ urls: {} });
 
     const { data: signes, error: errSign } = await storage.storage

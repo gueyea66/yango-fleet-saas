@@ -1941,10 +1941,13 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
       emergency_name: p?.emergency_name || "", emergency_phone: p?.emergency_phone || "",
       emergency_relation: p?.emergency_relation || "", phone_number: p?.phone_number || "",
     });
+    // Signature côté serveur : le client n'a plus de droit de lecture direct
+    // sur le bucket, et 95 pièces héritées n'ont pas le préfixe tenant que les
+    // policies storage exigent — la route vérifie en base, pas sur le chemin.
+    const signees = await obtenirUrlsSignees((docs || []).map((d: any) => d.file_path));
     const urls: Record<string, string> = {};
     for (const doc of (docs || [])) {
-      const { data: su } = await supabase.storage.from("kyc-documents").createSignedUrl(doc.file_path, 3600);
-      if (su?.signedUrl) urls[doc.doc_type] = su.signedUrl;
+      if (signees[doc.file_path]) urls[doc.doc_type] = signees[doc.file_path];
     }
     setDocUrls(urls);
   };
