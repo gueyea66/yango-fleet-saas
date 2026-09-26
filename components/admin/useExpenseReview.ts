@@ -128,7 +128,13 @@ export function useExpenseReview(expense: any, onRefresh: () => void) {
       const supabase = createClient() as any;
       const { error } = await supabase.from("uploads").delete().eq("id", upload.id);
       if (error) throw error;
-      await supabase.storage.from("kyc-documents").remove([upload.file_path]).catch(() => {});
+      // Le retrait du fichier passe par le serveur : aucune policy DELETE
+      // n'existe sur storage.objects, donc l'appel client échouait en silence
+      // et laissait l'objet dans le bucket.
+      await fetch("/api/kyc-delete", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: upload.file_path }),
+      }).catch(() => {});
       setUploads((p) => p.filter((u) => u.id !== upload.id));
       logAction({
         tenantId: expense.tenant_id, entityType: "expense", entityId: expense.id,
