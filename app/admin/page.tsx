@@ -26,9 +26,11 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
+import { obtenirUrlsSignees } from "@/lib/signedUrls";
 import { baseAmortissable, dureeAmortissementMois, porteParExploitant, kmParMoisDepuisCompteur } from "@/lib/calc";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { getTenantId } from "@/lib/supabase/tenanted";
 import { useDashboardKPIs } from "@/lib/hooks/useDashboardKPIs";
 import NotificationBell from "@/components/NotificationBell";
 import ThemeToggle from "@/components/ThemeToggle";
@@ -3427,6 +3429,11 @@ function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId, v2 }: {
 
 // ─── PAYMENT UPLOAD (reusable) ────────────────────────
 function PaymentUpload({ paymentId, driverId }: { paymentId: string; driverId: string }) {
+  // Le tenant vient de la session, pas d'une prop : les deux appelants ne
+  // l'avaient pas sous la main, et le déduire ici évite de le faire descendre
+  // à travers des composants qui n'en ont pas d'autre usage.
+  const [tenantId, setTenantId] = useState<string | null>(null);
+  useEffect(() => { getTenantId().then(setTenantId).catch(() => setTenantId(null)); }, []);
   const [uploads, setUploads] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -3435,12 +3442,14 @@ function PaymentUpload({ paymentId, driverId }: { paymentId: string; driverId: s
   useEffect(() => {
     const supabase = createClient() as any;
     supabase.from("uploads").select("*").eq("driver_id", driverId).eq("file_type", "payment")
-      .order("created_at", { ascending: false }).then(({ data }: any) => {
-        const enriched = (data || []).filter((u: any) => u.file_path?.includes(paymentId)).map((u: any) => {
-          const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(u.file_path);
-          return { ...u, publicUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(u.file_name) };
-        });
-        setUploads(enriched);
+      .order("created_at", { ascending: false }).then(async ({ data }: any) => {
+        const liees = (data || []).filter((u: any) => u.ref_id === paymentId || u.file_path?.includes(paymentId));
+        const urls = await obtenirUrlsSignees(liees.map((u: any) => u.file_path));
+        setUploads(liees.map((u: any) => ({
+          ...u,
+          publicUrl: urls[u.file_path] || "",
+          isImg: /\.(jpg|jpeg|png|gif|webp|heic|heif)$/i.test(u.file_name),
+        })));
       });
   }, [paymentId, driverId]);
 
@@ -3448,11 +3457,23 @@ function PaymentUpload({ paymentId, driverId }: { paymentId: string; driverId: s
     setUploading(true);
     try {
       const supabase = createClient() as any;
-      const path = `payment/${driverId}/${paymentId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-      await supabase.storage.from("kyc-documents").upload(path, file, { upsert: true });
-      const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(path);
-      await supabase.from("uploads").insert({ driver_id: driverId, file_name: file.name, file_path: path, file_type: "payment", file_size: file.size });
-      setUploads((p) => [...p, { file_name: file.name, publicUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(file.name) }]);
+      // Passe par la route au lieu d'écrire directement dans le bucket : elle
+      // valide le type et la taille, force le préfixe tenant, et continue de
+      // fonctionner une fois le bucket privé — un upload client direct, lui,
+      // dépendrait des policies storage.
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("path", `payment/${driverId}/${paymentId}/${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`);
+      const res = await fetch("/api/kyc-upload", { method: "POST", body: fd });
+      const result = await res.json().catch(() => ({}));
+      if (!res.ok || !result.path) throw new Error(result.error || "Envoi refusé");
+      // ref_id et tenant_id manquaient : la pièce n'était retrouvée que par le
+      // repli « le chemin contient l'id » et échappait au cloisonnement.
+      const { data: ligne } = await supabase.from("uploads").insert({
+        driver_id: driverId, tenant_id: tenantId, file_name: file.name, file_path: result.path,
+        file_type: "payment", file_size: file.size, ref_id: paymentId,
+      }).select().single();
+      setUploads((p) => [...p, { ...ligne, publicUrl: result.signedUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic|heif)$/i.test(file.name) }]);
     } catch (err: any) { alert("Upload : " + err.message); }
     finally { setUploading(false); }
   };
