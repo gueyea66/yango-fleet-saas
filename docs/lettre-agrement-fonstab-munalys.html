@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<title>Munalys — Demande d'agrément FONSTAB</title>
+<style>
+  @page { size: A4; margin: 0; }
+  :root {
+    --vert: #1e3a2e;
+    --or: #c9a227;
+    --ink: #22282a;
+    --gris: #6b7472;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  body {
+    font-family: "Helvetica Neue", Arial, Helvetica, sans-serif;
+    font-size: 10.4pt;
+    line-height: 1.5;
+    color: var(--ink);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .feuille { position: relative; width: 210mm; height: 297mm; overflow: hidden; display: flex; flex-direction: column; }
+
+  /* filigrane */
+  .filigrane {
+    position: absolute; top: 155mm; left: 50%; transform: translate(-50%, -50%);
+    width: 120mm; opacity: .045; z-index: 0;
+  }
+
+  /* en-tête */
+  .entete { text-align: center; padding: 12mm 22mm 4.5mm; flex: 0 0 auto; }
+  .entete img { width: 52mm; display: inline-block; }
+  .coord {
+    font-size: 7.4pt; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--gris); margin-top: 3.5mm;
+  }
+  .coord .sep { color: var(--or); margin: 0 2mm; }
+  .filet { padding: 0 34mm; flex: 0 0 auto; }
+  .filet div { height: .4mm; background: var(--or); opacity: .8; }
+
+  .corps { position: relative; z-index: 1; padding: 9mm 22mm 0; flex: 1 0 auto; }
+
+  .haut { display: flex; justify-content: space-between; align-items: flex-start; gap: 14mm; margin-bottom: 6mm; }
+  .lieu { font-size: 10pt; color: var(--gris); padding-top: 1mm; }
+  .dest { text-align: right; line-height: 1.45; }
+  .dest .nom { font-weight: 700; color: var(--vert); letter-spacing: .04em; }
+
+  .objet {
+    border-left: 2.4pt solid var(--or); background: #f7f6f1;
+    padding: 3mm 5mm; margin-bottom: 6mm; font-size: 10.4pt;
+  }
+  .objet span { text-transform: uppercase; letter-spacing: .12em; font-size: 7.6pt; color: var(--gris); display: block; margin-bottom: .8mm; }
+  .objet strong { color: var(--vert); font-weight: 700; }
+
+  p { margin: 0 0 3.2mm; text-align: justify; }
+
+  .phases { margin: 1mm 0 4.5mm; }
+  .phase { display: flex; gap: 5mm; padding: 2.4mm 0; border-bottom: .5pt solid #e7e5dc; }
+  .phase:last-child { border-bottom: 0; }
+  .phase .num {
+    flex: 0 0 auto; width: 15mm; color: var(--or); font-size: 8pt; letter-spacing: .14em;
+    text-transform: uppercase; padding-top: .6mm;
+  }
+  .phase .txt { flex: 1 1 auto; }
+  .phase .txt b { color: var(--vert); }
+
+  .signature { margin-top: 6mm; margin-bottom: 4mm; text-align: right; }
+  .signature .nom { font-weight: 700; color: var(--vert); margin-top: 9mm; letter-spacing: .03em; }
+  .signature .role { font-size: 9.4pt; color: var(--gris); }
+
+  .pied {
+    position: relative; z-index: 1; margin-top: auto; flex: 0 0 auto;
+    border-top: .75pt solid #e3e1d8; padding: 3mm 22mm 6mm;
+    font-size: 7.4pt; letter-spacing: .04em; color: var(--gris); text-align: center;
+  }
+  .pied .barre { color: var(--or); }
+</style>
+</head>
+<body>
+<div class="feuille">
+
+  <img class="filigrane" src="assets/filigrane-munalys.png" alt="" />
+
+  <div class="entete">
+    <img src="assets/logo-munalys-entete.png" alt="Munalys — Pâtisserie &amp; Cake Design" />
+    <div class="coord">
+      Ngor Almadies, Zone 13 — Dakar <span class="sep">◆</span> +221 78 958 58 48
+    </div>
+  </div>
+  <div class="filet"><div></div></div>
+
+  <div class="corps">
+
+    <div class="haut">
+      <div class="lieu">Dakar, le 5 août 2026</div>
+      <div class="dest">
+        <span class="nom">FONSTAB</span><br />
+        Madame l'Administratrice<br />
+        Sphères ministérielles Ousmane Tanor Dieng<br />
+        Bâtiment C — Diamniadio
+      </div>
+    </div>
+
+    <div class="objet">
+      <span>Objet</span>
+      <strong>Demande d'agrément — organisation d'événements</strong>
+    </div>
+
+    <p>Madame l'Administratrice,</p>
+
+    <p>Je sollicite l'agrément de Munalys Sweet by My-Mouna Cake comme prestataire événementiel
+    du FONSTAB.</p>
+
+    <p>J'organise des manifestations professionnelles et institutionnelles de bout en bout :
+    ateliers de travail, séminaires, journées d'information, cérémonies officielles, lancements
+    de projet, foires et salons — à Dakar comme dans les régions.</p>
+
+    <div class="phases">
+      <div class="phase">
+        <div class="num">Avant</div>
+        <div class="txt"><b>Préparation</b> — visite du site, plan de salle, chiffrage détaillé,
+        invitations et suivi des confirmations, commandes auprès des fournisseurs.</div>
+      </div>
+      <div class="phase">
+        <div class="num">Pendant</div>
+        <div class="txt"><b>Exécution</b> — installation et décor, sonorisation, réception des
+        invités et liste de présence, restauration, conduite du protocole, reportage photo.</div>
+      </div>
+      <div class="phase">
+        <div class="num">Après</div>
+        <div class="txt"><b>Clôture</b> — démontage, remise en état du site, remise des photos et
+        d'un rapport de clôture avec les dépenses justifiées.</div>
+      </div>
+    </div>
+
+    <p>Vous n'avez qu'un seul interlocuteur, du premier devis au rapport final. Mon équipe et mon
+    matériel de réception me permettent de recevoir jusqu'à 500 invités, et mon atelier de Ngor
+    Almadies assure la restauration sans recours à un tiers.</p>
+
+    <p>L'événementiel figure parmi les activités inscrites à mon registre du commerce
+    SN DKR 2025 A 19114&nbsp;; mon NINEA est le 012149698.</p>
+
+    <p>Vous trouverez ci-joint l'accusé d'immatriculation au registre du commerce et l'avis NINEA.
+    Je me tiens à votre disposition pour toute précision.</p>
+
+    <p>Je vous prie d'agréer, Madame l'Administratrice, l'assurance de ma considération
+    respectueuse.</p>
+
+    <div class="signature">
+      <div class="nom">Maimouna Ousmane DIAGANA</div>
+      <div class="role">Gérante</div>
+    </div>
+
+  </div>
+
+  <div class="pied">
+    MUNALYS SWEET BY MY-MOUNA CAKE <span class="barre">·</span> RCCM SN DKR 2025 A 19114
+    <span class="barre">·</span> NINEA 012149698 <span class="barre">·</span> Ngor Almadies, Zone 13, Dakar
+    <span class="barre">·</span> +221 78 958 58 48
+  </div>
+
+</div>
+</body>
+</html>
