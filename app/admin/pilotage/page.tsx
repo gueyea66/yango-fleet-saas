@@ -363,9 +363,11 @@ function Overview({ data, params }: { data: ReturnType<typeof usePilotage>; para
   const bigCards = [
     { icon: "📈", label: "CA projeté (mois)", value: xof(p?.revenue ?? 0), unit: "XOF", sub: `Moy/j: ${xof(data.avgDailyMetrics.revenue)}`, color: "var(--tenant-color)" },
     { icon: "💸", label: "Charges projetées", value: xof((p?.totalExpenses ?? 0) + (p?.salaries ?? 0) + (p?.maintenance ?? 0)), unit: "XOF", sub: `Exp + salaires + maintenance`, color: "#ef4444" },
-    { icon: "💰", label: "EBITDA projeté", value: xof(p?.ebitda ?? 0), unit: "XOF", sub: `Marge: ${pct(p?.margin ?? 0)}`, color: (p?.ebitda ?? 0) >= 0 ? "#22c55e" : "#ef4444" },
-    { icon: "📆", label: "Projection Trimestre", value: xof(data.quarterProjection.revenue), unit: "XOF", sub: `EBITDA: ${xof(data.quarterProjection.ebitda)}`, color: "#3b82f6" },
-    { icon: "🗓️", label: "Projection Annuelle", value: xof(data.yearProjection.revenue), unit: "XOF", sub: `EBITDA: ${xof(data.yearProjection.ebitda)}`, color: "#a855f7" },
+    // Résultat NET et non EBITDA : c'est le chiffre qu'on regarde pour savoir si
+    // le mois a gagné de l'argent, véhicules compris. L'EBITDA reste en sous-titre.
+    { icon: "💰", label: "Résultat net projeté", value: xof(p?.ebit ?? 0), unit: "XOF", sub: `Marge ${pct(p?.marginEbit ?? 0)} · avant amort. ${xof(p?.ebitda ?? 0)}`, color: (p?.ebit ?? 0) >= 0 ? "#22c55e" : "#ef4444" },
+    { icon: "📆", label: "Projection Trimestre", value: xof(data.quarterProjection.revenue), unit: "XOF", sub: `Résultat net: ${xof(data.quarterProjection.ebit)}`, color: "#3b82f6" },
+    { icon: "🗓️", label: "Projection Annuelle", value: xof(data.yearProjection.revenue), unit: "XOF", sub: `Résultat net: ${xof(data.yearProjection.ebit)}`, color: "#a855f7" },
     { icon: "📊", label: "Marge moy. historique", value: pct(avgPastMargin), unit: "", sub: `Sur ${past.length} mois`, color: avgPastMargin > 0 ? "#22c55e" : "#ef4444" },
     { icon: "⛽", label: "Coût carburant / jour", value: xof(data.avgDailyMetrics.fuel), unit: "XOF", sub: data.avgDailyMetrics.fuelPricePerLiter > 0 ? `≈ ${xof(data.avgDailyMetrics.fuelPricePerLiter)} XOF/L · ${data.avgDailyMetrics.totalLiters.toFixed(0)}L total` : "Déclarez les litres pour + de précision", color: "#f97316" },
   ];
@@ -508,6 +510,21 @@ function PnLDetailed({ data }: { data: ReturnType<typeof usePilotage> }) {
                 ))}
               </tr>
               <PnLRow label="Marge EBITDA %" values={all.map((m) => m.margin)} color="#22c55e" isPct />
+              {/* EBITDA est PAR DÉFINITION avant amortissement (le « DA » de
+                  l'acronyme) : s'arrêter là, c'est présenter un résultat dont
+                  l'usure des véhicules est absente. Les deux lignes suivantes
+                  vont jusqu'au résultat d'exploitation. */}
+              <PnLRow label="📉 Amortissement véhicules" values={all.map((m) => -m.amortissement)} color="#ef4444" />
+              <tr style={{ borderTop: "2px solid #2a2f3d", background: "var(--sk-surface)" }}>
+                <td className="py-2.5 pr-4 font-bold text-white">🏁 RÉSULTAT NET</td>
+                {all.map((m) => (
+                  <td key={m.month} className="py-2.5 px-3 text-right font-mono font-bold"
+                    style={{ color: m.ebit >= 0 ? "#22c55e" : "#ef4444", fontStyle: m.isProjection ? "italic" : "normal" }}>
+                    {xof(m.ebit)}
+                  </td>
+                ))}
+              </tr>
+              <PnLRow label="Marge nette %" values={all.map((m) => m.marginEbit)} color="#22c55e" isPct />
               <PnLRow label="Moy/jour" values={all.map((m) => m.dailyAvg)} color="var(--sk-t2)" small />
             </tbody>
           </table>
@@ -546,9 +563,9 @@ function PnLDetailed({ data }: { data: ReturnType<typeof usePilotage> }) {
             <SH title="Landing Mois · Trimestre · Année" sub="Basé sur la tendance actuelle" />
             <div className="space-y-3">
               {[
-                { label: "Fin de mois", rev: data.currentProjection?.revenue ?? 0, ebitda: data.currentProjection?.ebitda ?? 0, margin: data.currentProjection?.margin ?? 0, color: "var(--tenant-color)" },
-                { label: "Fin de trimestre", rev: data.quarterProjection.revenue, ebitda: data.quarterProjection.ebitda, margin: data.quarterProjection.marginPct, color: "#3b82f6" },
-                { label: "Fin d'année", rev: data.yearProjection.revenue, ebitda: data.yearProjection.ebitda, margin: data.yearProjection.marginPct, color: "#a855f7" },
+                { label: "Fin de mois", rev: data.currentProjection?.revenue ?? 0, ebitda: data.currentProjection?.ebit ?? 0, margin: data.currentProjection?.marginEbit ?? 0, color: "var(--tenant-color)" },
+                { label: "Fin de trimestre", rev: data.quarterProjection.revenue, ebitda: data.quarterProjection.ebit, margin: data.quarterProjection.marginEbitPct, color: "#3b82f6" },
+                { label: "Fin d'année", rev: data.yearProjection.revenue, ebitda: data.yearProjection.ebit, margin: data.yearProjection.marginEbitPct, color: "#a855f7" },
               ].map((p) => (
                 <div key={p.label} className="rounded-xl p-3 flex items-center justify-between" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
                   <div>
@@ -556,7 +573,7 @@ function PnLDetailed({ data }: { data: ReturnType<typeof usePilotage> }) {
                     <div className="text-sm font-mono font-bold text-white">{xof(p.rev)} <span className="text-xs font-normal" style={{ color: "var(--sk-t4)" }}>XOF</span></div>
                   </div>
                   <div className="text-right">
-                    <div className="text-xs" style={{ color: "var(--sk-t4)" }}>EBITDA</div>
+                    <div className="text-xs" style={{ color: "var(--sk-t4)" }}>Résultat net</div>
                     <div className="text-sm font-mono font-bold" style={{ color: p.ebitda >= 0 ? "#22c55e" : "#ef4444" }}>{xof(p.ebitda)}</div>
                     <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Marge: {pct(p.margin)}</div>
                   </div>

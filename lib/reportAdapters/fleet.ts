@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Decision, Insight, ReportDataset, Section, TableSection } from "@/lib/report-agent/types";
 import { CAT_AVANCE } from "@/lib/expenseCategories";
+import { amortissementPeriode, kmParMoisDepuisCompteur } from "@/lib/calc";
 
 /**
  * Adaptateur M3A Fleet pour le noyau lib/report-agent : (Supabase fleet) →
@@ -51,10 +52,12 @@ interface PeriodAgg {
   expenseRows: { date: string; driver_id: string | null; category: string; amount: number; description: string }[];
   pending: number;
   reportRows: { date: string; driver_id: string; brut: number; bonus: number; hors: number; courses: number }[];
+  /** Usure des véhicules sur la période. Sans elle le rapport annonce un net embelli. */
+  amortissement: number;
 }
 
 async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: string): Promise<PeriodAgg> {
-  const [{ data: profiles }, repsQ, expsQ, paysQ] = await Promise.all([
+  const [{ data: profiles }, repsQ, expsQ, paysQ, vehsQ, odoQ] = await Promise.all([
     admin.from("profiles").select("id, driver_id, full_name, account_type, hire_date, contract_end_date")
       .eq("tenant_id", tenantId),
     admin.from("daily_reports")
@@ -65,6 +68,15 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
       .eq("tenant_id", tenantId).gte("expense_date", dateFrom).lte("expense_date", dateTo).limit(20000),
     admin.from("payments").select("driver_id,amount,payment_date,salary_month,type")
       .eq("tenant_id", tenantId).limit(20000),
+    admin.from("vehicles")
+      .select("id,mileage,fleet_segment,prix_acquisition,valeur_residuelle,date_acquisition,amort_plafond_km,amort_duree_max_mois,amort_porte_par")
+      .eq("tenant_id", tenantId),
+    // Relevés de compteur sur tout l'historique : le rythme d'usure se mesure
+    // sur la durée, pas sur le seul mois rapporté.
+    admin.from("daily_reports").select("vehicle_id,date,end_odometer")
+      .eq("tenant_id", tenantId).not("vehicle_id", "is", null)
+      .not("end_odometer", "is", null).gt("end_odometer", 0)
+      .in("status", ["approved", "submitted"]).order("date").limit(20000),
   ]);
 
   const isRepos = (r: { comment?: string | null }) => String(r.comment || "").startsWith("[REPOS]");
@@ -140,8 +152,25 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
   // les dépenses sans chauffeur comptent dans le total (même règle que le recap)
   tot.dep = Math.round(Array.from(depCat.values()).reduce((s, v) => s + v, 0));
 
+  const relevesVeh = new Map<string, Array<{ date: string; end_odometer: number | null }>>();
+  for (const r of (odoQ.data || []) as any[]) {
+    if (!r.vehicle_id) continue;
+    (relevesVeh.get(r.vehicle_id) ?? relevesVeh.set(r.vehicle_id, []).get(r.vehicle_id)!)
+      .push({ date: r.date, end_odometer: r.end_odometer });
+  }
+  const amortissement = Math.round(((vehsQ.data || []) as any[]).reduce((total, v) => total + amortissementPeriode({
+    vehicule: {
+      prixAcquisition: v.prix_acquisition, valeurResiduelle: v.valeur_residuelle,
+      dateAcquisition: v.date_acquisition, compteurActuel: v.mileage,
+      plafondKm: v.amort_plafond_km, dureeMaxMois: v.amort_duree_max_mois,
+      porteePar: v.amort_porte_par, segment: v.fleet_segment,
+    },
+    fromISO: dateFrom, toISO: dateTo,
+    kmParMois: kmParMoisDepuisCompteur(relevesVeh.get(v.id) || []),
+  }).montant, 0));
+
   return {
-    drivers, tot, depCat, avances,
+    drivers, tot, depCat, avances, amortissement,
     expenseRows: allExpenses.map((e) => ({
       date: e.expense_date || "", driver_id: e.driver_id,
       category: e.category || "Autre", amount: Math.round(e.amount || 0),
@@ -157,7 +186,9 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
 }
 
 const recetteOf = (a: { brut: number; bonus: number; hors: number }) => a.brut + a.bonus + a.hors;
-const netFinalOf = (p: PeriodAgg) => p.tot.net - p.tot.dep - (p.tot.sal + p.tot.aco);
+// Amortissement compris : un rapport mensuel qui annonce un net dont l'usure
+// des véhicules est absente présente une rentabilité que l'exploitant n'a pas.
+const netFinalOf = (p: PeriodAgg) => p.tot.net - p.tot.dep - (p.tot.sal + p.tot.aco) - p.amortissement;
 
 function previousRange(dateFrom: string, dateTo: string): { dateFrom: string; dateTo: string } {
   const from = new Date(`${dateFrom}T00:00:00Z`);
@@ -328,6 +359,7 @@ function baseFacts(p: PeriodAgg, prefix = ""): Record<string, number> {
   put("carburant_fcfa", carb);
   put("remuneration_versee_fcfa", p.tot.sal + p.tot.aco);
   put("dont_acomptes_fcfa", p.tot.aco);
+  put("amortissement_fcfa", p.amortissement);
   put("net_final_fcfa", netFinal);
   put("jours_travailles", p.tot.jours);
   put("repos_declares", p.tot.repos);
@@ -431,7 +463,9 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
     },
     kpis: [
       { label: "Recette brute", value: fmt(recette), sub: `Yango ${fmt(cur.tot.brut)} + bonus ${fmt(cur.tot.bonus)} + hors ${fmt(cur.tot.hors)}`, accent: true },
-      { label: "Net final", value: fmt(netFinal), sub: recette > 0 ? `${pct(netFinal, recette)} % de la recette` : "—", accent: true },
+      { label: "Net final", value: fmt(netFinal), sub: cur.amortissement > 0
+          ? `après amortissement −${fmt(cur.amortissement)}${recette > 0 ? ` · ${pct(netFinal, recette)} % de la recette` : ""}`
+          : (recette > 0 ? `${pct(netFinal, recette)} % de la recette` : "—"), accent: true },
       { label: "Dépenses", value: fmt(cur.tot.dep), sub: recette > 0 ? `${pct(cur.tot.dep, recette)} % de la recette` : "—" },
       { label: "Activité", value: `${fmt(cur.tot.courses)} courses`, sub: `${cur.tot.jours} jours travaillés${cur.tot.repos ? ` · ${cur.tot.repos} repos` : ""} · ${activeDrivers} chauffeur${activeDrivers > 1 ? "s" : ""}` },
     ],

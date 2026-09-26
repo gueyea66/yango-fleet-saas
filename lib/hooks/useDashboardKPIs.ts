@@ -53,6 +53,10 @@ export interface DashboardKPIs {
   // rentable. `resultatNet` est la ligne qui dit la vérité.
   amortissement: number;       // charge d'amortissement de la période
   resultatNet: number;         // netOperationnel − amortissement
+  // Même soustraction appliquée au « net final » (vue commissions) : c'est LUI
+  // que la vue simple v2 met en grand, et il ignorait l'amortissement.
+  netFinalApresAmort: number;
+  margeApresAmort: number;
   amortNonRenseignes: string[];// plaques dont le capital n'est pas paramétré
   amortParVehicule: Array<{ plate: string; montant: number; mensualite: number; dureeMois: number | null; moisRestants: number | null }>;
   // ── Vue TRÉSORERIE ──
@@ -140,7 +144,8 @@ const ZERO: DashboardKPIs = {
   joursOuvres: 0, prevJoursOuvres: null,
   soldeConsomme: 0, carburantConsomme: 0, coutCarburantKm: 0, provisionsSolde: 0,
   achatsCarburant: 0, autresDepensesOpe: 0, netOperationnel: 0,
-  amortissement: 0, resultatNet: 0, amortNonRenseignes: [], amortParVehicule: [],
+  amortissement: 0, resultatNet: 0, netFinalApresAmort: 0, margeApresAmort: 0,
+  amortNonRenseignes: [], amortParVehicule: [],
   decaissements: 0, tresorerie: 0, avanceSolde: 0, avanceCarburant: 0,
   avancesProprietaire: 0, avancesParChauffeur: [],
   avgBrutPerDay: 0, avgNetPerDay: 0, avgDepensesPerDay: 0, avgKmPerDay: 0, avgSoldePerDay: 0,
@@ -360,6 +365,8 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       const plaqueDe = new Map(parcAmortissable.map((v) => [v.id, v.plate]));
       const amortissement = amort.montant;
       const resultatNet = netOperationnel - amortissement;
+      const netFinalApresAmort = netFinal - amortissement;
+      const margeApresAmort = recettesReelles > 0 ? (netFinalApresAmort / recettesReelles) * 100 : 0;
       const amortNonRenseignes = amort.nonRenseignes.map((id) => plaqueDe.get(id) || id);
       const amortParVehicule = amort.parVehicule
         .filter((r) => r.montant > 0)
@@ -542,7 +549,8 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
 
       setKPIs({
         brutYango, netYango, horsYango, totalBrut, totalDepenses, netFinal,
-        amortissement, resultatNet, amortNonRenseignes, amortParVehicule,
+        amortissement, resultatNet, netFinalApresAmort, margeApresAmort,
+        amortNonRenseignes, amortParVehicule,
         prevNetFinal: prev?.netFinal ?? null, prevTotalBrut: prev?.totalBrut ?? null, prevRecettes: prev?.recettes ?? null,
         joursOuvres, prevJoursOuvres: prev?.joursOuvres ?? null,
         soldeConsomme: totalSoldeConsomme, carburantConsomme: carbuConsomme, coutCarburantKm,
