@@ -37,7 +37,13 @@ export function useReportForm(profile: Profile, cfg: Cfg) {
       if (k === "yango_cash" || k === "yango_card") next.yango_gross = deriveGross(next);
       return next;
     });
-  const addFiles = (files: FileList | null) => { if (files) setPendingFiles((prev) => [...prev, ...Array.from(files)]); };
+  // Copie synchrone : voir useExpenseForm. Le reset de l'input par l'appelant
+  // vidait la FileList avant que React n'évalue le callback de setState.
+  const addFiles = (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const ajouts = Array.from(files);
+    setPendingFiles((prev) => [...prev, ...ajouts]);
+  };
 
   // Pré-remplissage depuis l'extraction vision : seules les valeurs LUES
   // remplacent le champ ; le chauffeur vérifie et corrige avant de soumettre.
