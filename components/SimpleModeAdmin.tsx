@@ -206,7 +206,12 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
   const nbDays = kpis.dailyRows.length || 1;
   const recettesBrutes = kpis.brutYango + kpis.horsYango;
   const coutKm = totalKm > 0 ? (kpis.soldeConsomme + kpis.carburantConsomme) / totalKm : 0;
-  const netParKm = totalKm > 0 ? kpis.netFinal / totalKm : 0;
+  const amort = kpis.amortissement || 0;
+  const netAffiche = amort > 0 ? kpis.netFinalApresAmort : kpis.netFinal;
+  const margeAffichee = amort > 0 ? kpis.margeApresAmort : kpis.monthMarginPercent;
+  // Net d'amortissement : un coût de revient au kilomètre qui ignore l'usure du
+  // véhicule est l'indicateur le plus trompeur qu'on puisse donner.
+  const netParKm = totalKm > 0 ? netAffiche / totalKm : 0;
 
   const inputCls = "w-full rounded-xl px-3 py-2.5 text-sm outline-none";
   const inputStyle: React.CSSProperties = { background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" };
@@ -254,9 +259,11 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
           <>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
               <div className="col-span-2 md:col-span-1">
-                <KpiCard big label="Net final" value={`${kpis.netFinal >= 0 ? "+" : ""}${xof(kpis.netFinal)}`}
-                  color={kpis.netFinal >= 0 ? "#22c55e" : "#ef4444"}
-                  sub={`${kpis.monthMarginPercent.toFixed(1)} % de marge`} />
+                <KpiCard big label={amort > 0 ? "Résultat net" : "Net final"} value={`${netAffiche >= 0 ? "+" : ""}${xof(netAffiche)}`}
+                  color={netAffiche >= 0 ? "#22c55e" : "#ef4444"}
+                  sub={amort > 0
+                    ? `${margeAffichee.toFixed(1)} % de marge · après amortissement −${xof(amort)}`
+                    : `${margeAffichee.toFixed(1)} % de marge`} />
               </div>
               <KpiCard label="Recettes brutes" value={xof(recettesBrutes)} color="var(--tenant-color)" sub={`moy. ${xof(kpis.avgBrutPerDay)} / jour`} />
               <KpiCard label="Dépenses" value={`− ${xof(kpis.totalDepenses)}`} color="#ef4444" sub="carburant · solde · autres" />
@@ -440,7 +447,7 @@ export default function SimpleModeAdmin({ tenantId, appName, platformLabel, onSw
                         <td className="px-3 py-2.5 text-right font-bold" style={{ color: "var(--tenant-color)" }}>{xof(kpis.brutYango)}</td>
                         <td className="px-3 py-2.5 text-right font-bold" style={{ color: "#a855f7" }}>{xof(kpis.horsYango)}</td>
                         <td className="px-3 py-2.5 text-right font-bold" style={{ color: "#ef4444" }}>−{xof(kpis.totalDepenses)}</td>
-                        <td className="px-3 py-2.5 text-right font-bold" style={{ color: kpis.netFinal >= 0 ? "#22c55e" : "#ef4444" }}>{xof(kpis.netFinal)}</td>
+                        <td className="px-3 py-2.5 text-right font-bold" style={{ color: netAffiche >= 0 ? "#22c55e" : "#ef4444" }}>{xof(netAffiche)}</td>
                         <td className="px-3 py-2.5 text-right font-bold">{xof(totalKm)}</td>
                       </tr>
                     </tbody>

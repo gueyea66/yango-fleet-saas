@@ -10,10 +10,15 @@ const agg = (over: Partial<PeriodAggregates>): PeriodAggregates => {
     depensesOpe: 30_000, netOperationnel: 300_000, km: 700,
     coutCarburantParKm: 128.5, reportsApproved: 12, reportsAttendus: 14,
     reposDeclares: 0, tauxSoumission: 85.7, joursOuvres: 7,
+    // Parc non paramétré par défaut : ces fixtures testent les seuils, pas
+    // l'amortissement. Un cas qui veut l'exercer passe `amortissement` et
+    // laisse `resultatNet` se déduire, comme le fait computePeriodAggregates.
+    amortissement: 0,
     ...over,
   };
   return {
     netParJourOuvre: Math.round(merged.netOperationnel / Math.max(1, merged.joursOuvres)),
+    resultatNet: merged.netOperationnel - merged.amortissement,
     ...merged,
   } as PeriodAggregates;
 };
