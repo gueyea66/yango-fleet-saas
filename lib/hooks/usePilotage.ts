@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { CAT_AVANCE } from "@/lib/expenseCategories";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
+import { amortissementPeriode, kmParMoisDepuisCompteur, type VehiculeAmortissable } from "@/lib/calc";
 
 // ── PARAMETERS ────────────────────────────────────────
 export const DEFAULT_PARAMS = {
@@ -30,6 +31,13 @@ export interface MonthlyPnL {
   month: string; label: string; revenue: number;
   expensesByCategory: ExpenseBreakdown[]; totalExpenses: number;
   salaries: number; maintenance: number; ebitda: number; margin: number;
+  // EBITDA = Earnings Before Interest, Taxes, Depreciation and Amortization :
+  // il est PAR DÉFINITION avant amortissement. C'est pour ça que le coût du
+  // capital manquait au P&L — pas un oubli de calcul, un choix d'indicateur.
+  // `ebit` est le résultat d'exploitation, ce qui reste une fois les véhicules
+  // usés déduits, et `margin` continue de porter sur l'EBITDA pour ne pas
+  // changer la sémantique des écrans existants.
+  amortissement: number; ebit: number; marginEbit: number;
   workingDays: number; dailyAvg: number; isProjection?: boolean;
 }
 
@@ -51,6 +59,7 @@ export interface CashFlowMonth {
 export interface SimulationResult {
   nVehicles: number; revenue: number; expenses: number; maintenance: number;
   salaries: number; ebitda: number; marginPct: number; deltaEbitda: number;
+  amortissement: number; ebit: number; deltaEbit: number;
 }
 
 export interface DailyOperational {
@@ -75,8 +84,8 @@ export interface WeekdayStats {
 export interface PilotageData {
   historicalPnL: MonthlyPnL[];
   currentProjection: MonthlyPnL | null;
-  quarterProjection: { revenue: number; ebitda: number; marginPct: number };
-  yearProjection: { revenue: number; ebitda: number; marginPct: number };
+  quarterProjection: { revenue: number; ebitda: number; marginPct: number; amortissement: number; ebit: number; marginEbitPct: number };
+  yearProjection: { revenue: number; ebitda: number; marginPct: number; amortissement: number; ebit: number; marginEbitPct: number };
   drivers: DriverPilotage[];
   cashFlow: CashFlowMonth[];
   vehicleSimulations: SimulationResult[];
@@ -98,7 +107,7 @@ export interface PilotageData {
 }
 
 interface RawData {
-  reports: any[]; expenses: any[]; payments: any[]; profiles: any[];
+  reports: any[]; expenses: any[]; payments: any[]; profiles: any[]; vehicles: any[];
 }
 
 const WEEKDAYS = ["Dim","Lun","Mar","Mer","Jeu","Ven","Sam"];
@@ -183,6 +192,29 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   // Maintenance = provision mensuelle GLOBALE de la flotte, répartie au périmètre.
   const provMaintenance = params.maintenanceCostPerMonth * (nVehicles > 0 ? nScope / nVehicles : 1);
 
+  // ── AMORTISSEMENT DU PARC ──
+  // Calculé sur le mois demandé, véhicule par véhicule : un véhicule acquis en
+  // cours de mois ou déjà totalement amorti ne porte pas la même charge que
+  // ses voisins. Le rythme d'usure vient du compteur, sur tout l'historique.
+  const releveParVehicule = new Map<string, Array<{ date: string; end_odometer: number | null }>>();
+  reports.forEach((r: any) => {
+    if (!r.vehicle_id || r.end_odometer == null || r.end_odometer <= 0) return;
+    (releveParVehicule.get(r.vehicle_id) ?? releveParVehicule.set(r.vehicle_id, []).get(r.vehicle_id)!)
+      .push({ date: r.date, end_odometer: r.end_odometer });
+  });
+  const parcAmort = (raw.vehicles || []).map((v: any) => ({
+    kmParMois: kmParMoisDepuisCompteur(releveParVehicule.get(v.id) || []),
+    vehicule: {
+      prixAcquisition: v.prix_acquisition, valeurResiduelle: v.valeur_residuelle,
+      dateAcquisition: v.date_acquisition, compteurActuel: v.mileage,
+      plafondKm: v.amort_plafond_km, dureeMaxMois: v.amort_duree_max_mois,
+      porteePar: v.amort_porte_par, segment: v.fleet_segment,
+    } as VehiculeAmortissable,
+  }));
+  /** Charge d'amortissement du parc sur [from, to]. */
+  const amortSur = (from: string, to: string): number =>
+    parcAmort.reduce((s: number, x: any) => s + amortissementPeriode({ vehicule: x.vehicule, fromISO: from, toISO: to, kmParMois: x.kmParMois }).montant, 0);
+
   const getED = (e: any) => e.expense_date || e.created_at?.slice(0, 10) || "";
   const getSM = (p: any) => p.salary_month?.slice(0, 7) || p.payment_date?.slice(0, 7) || "";
 
@@ -215,8 +247,10 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
     const salaries = payments.filter((p) => getSM(p) === m).reduce((s, p) => s + (p.amount || 0), 0);
     const maintenance = provMaintenance;
     const ebitda = revenue - totalExp - salaries - maintenance;
+    const amortissement = amortSur(start, end);
+    const ebit = ebitda - amortissement;
     const rDays = new Set(mr.map((r) => r.date)).size || 1;
-    return { month: m, label: ml(m), revenue, expensesByCategory: eb, totalExpenses: totalExp, salaries, maintenance, ebitda, margin: revenue > 0 ? (ebitda / revenue) * 100 : 0, workingDays: rDays, dailyAvg: revenue / rDays, isProjection: false };
+    return { month: m, label: ml(m), revenue, expensesByCategory: eb, totalExpenses: totalExp, salaries, maintenance, ebitda, margin: revenue > 0 ? (ebitda / revenue) * 100 : 0, amortissement, ebit, marginEbit: revenue > 0 ? (ebit / revenue) * 100 : 0, workingDays: rDays, dailyAvg: revenue / rDays, isProjection: false };
   });
 
   // ── CURRENT MONTH PROJECTION ──────────────────────
@@ -332,6 +366,12 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
     projExpByCategory.push({ category: "Solde Yango", amount: effectiveSoldePerDay * workingDaysTotal, pct: 0 });
   const projTotalExp = projExpByCategory.reduce((s, e) => s + e.amount, 0);
   const projEbitda = projRevenue - projTotalExp - projectedTotalSalary - projMaintenance;
+  // L'amortissement se projette sur le MOIS ENTIER et non au prorata du
+  // réalisé : c'est une charge calendaire, pas un taux journalier qu'on
+  // extrapole. Le véhicule s'use le mois entier, y compris les jours de repos.
+  const [curY, curM] = curMonthStr.split("-").map(Number);
+  const projAmort = amortSur(`${curMonthStr}-01`, `${curMonthStr}-${String(dim(curY, curM)).padStart(2, "0")}`);
+  const projEbit = projEbitda - projAmort;
 
   const currentProjection: MonthlyPnL = {
     month: curMonthStr, label: ml(curMonthStr) + " ★ proj.",
@@ -339,6 +379,8 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
     totalExpenses: projTotalExp, salaries: projectedTotalSalary,
     maintenance: projMaintenance, ebitda: projEbitda,
     margin: projRevenue > 0 ? (projEbitda / projRevenue) * 100 : 0,
+    amortissement: projAmort, ebit: projEbit,
+    marginEbit: projRevenue > 0 ? (projEbit / projRevenue) * 100 : 0,
     workingDays: workingDaysTotal, dailyAvg: dailyAvgCur, isProjection: true,
   };
 
@@ -357,8 +399,22 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   const quarterEbitda = projEbitda + futureMonthEbitda * 2;
   const yearRevenue = projRevenue + futureMonthRev * 11;
   const yearEbitda = projEbitda + futureMonthEbitda * 11;
-  const quarterProjection = { revenue: quarterRevenue, ebitda: quarterEbitda, marginPct: quarterRevenue > 0 ? (quarterEbitda / quarterRevenue) * 100 : 0 };
-  const yearProjection = { revenue: yearRevenue, ebitda: yearEbitda, marginPct: yearRevenue > 0 ? (yearEbitda / yearRevenue) * 100 : 0 };
+  // Amortissement des mois à venir : calculé mois par mois et non projAmort × N.
+  // Un véhicule arrive au bout de sa durée en cours d'horizon — sur un an, la
+  // charge tombe pour de bon à ce moment-là, et la projection doit le montrer
+  // plutôt que de traîner un amortissement déjà terminé.
+  const amortMoisFutur = (offset: number): number => {
+    const d = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+    const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    return amortSur(`${m}-01`, `${m}-${String(dim(d.getFullYear(), d.getMonth() + 1)).padStart(2, "0")}`);
+  };
+  const sommeAmort = (n: number) => Array.from({ length: n }, (_, i) => amortMoisFutur(i + 1)).reduce((a, b) => a + b, 0);
+  const quarterAmort = projAmort + sommeAmort(2);
+  const yearAmort = projAmort + sommeAmort(11);
+  const quarterEbit = quarterEbitda - quarterAmort;
+  const yearEbit = yearEbitda - yearAmort;
+  const quarterProjection = { revenue: quarterRevenue, ebitda: quarterEbitda, marginPct: quarterRevenue > 0 ? (quarterEbitda / quarterRevenue) * 100 : 0, amortissement: quarterAmort, ebit: quarterEbit, marginEbitPct: quarterRevenue > 0 ? (quarterEbit / quarterRevenue) * 100 : 0 };
+  const yearProjection = { revenue: yearRevenue, ebitda: yearEbitda, marginPct: yearRevenue > 0 ? (yearEbitda / yearRevenue) * 100 : 0, amortissement: yearAmort, ebit: yearEbit, marginEbitPct: yearRevenue > 0 ? (yearEbit / yearRevenue) * 100 : 0 };
 
   // ── GLOBAL EXPENSE BREAKDOWN ──────────────────────
   const globalExpBreakdown = breakdownForPeriod(sixAgo, todayStr);
@@ -518,6 +574,9 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
     const maint = provMaintenance;
     // Mois courant : masse salariale précise (réel versé sinon prorata actifs) ; futurs : actifs du mois prochain
     const sal = offset === 0 ? projectedTotalSalary : futureMonthSalary;
+    // ⛔ Pas d'amortissement ici, et il ne faut pas en ajouter : le cash flow
+    // suit l'argent qui entre et sort, or l'amortissement ne sort d'aucun
+    // compte. C'est la mensualité de leasing qui a sa place dans ce tableau.
     return { month: m, label: ml(m), revenue: rev, fuel, solde, other, maintenance: maint, salaries: sal, net: rev - fuel - solde - other - maint - sal, isProjection: isProj };
   });
 
@@ -535,6 +594,13 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   const revPerVehicle = nVehicles > 0 ? (activeDailyRevRate / nVehicles) * workingDaysTotal : 0;
   const expPerVehicle = revPerVehicle * avgExpRatio;
   const maintPerVehicle = nVehicles > 0 ? params.maintenanceCostPerMonth / nVehicles : params.maintenanceCostPerMonth;
+  // Un véhicule simulé s'use comme les autres : sans cette ligne, « +1 véhicule »
+  // promettait un gain net alors qu'il faut d'abord acheter le véhicule. À défaut
+  // de connaître son prix, on prend la charge moyenne des véhicules déjà amortis
+  // du parc ; zéro si aucun n'est encore paramétré — mieux vaut ne rien avancer
+  // que d'inventer un coût d'acquisition.
+  const vehiculesAmortis = parcAmort.filter((x: any) => amortissementPeriode({ vehicule: x.vehicule, fromISO: `${curMonthStr}-01`, toISO: `${curMonthStr}-${String(dim(curY, curM)).padStart(2, "0")}`, kmParMois: x.kmParMois }).montant > 0).length;
+  const amortPerVehicle = vehiculesAmortis > 0 ? projAmort / vehiculesAmortis : 0;
   const SIMULATION_MAX_EXTRA = 10;
   const vehicleSimulations: SimulationResult[] = Array.from({ length: SIMULATION_MAX_EXTRA + 1 }, (_, extra) => {
     const n = nVehicles + extra;
@@ -543,7 +609,9 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
     const maint = projMaintenance + maintPerVehicle * extra;
     const sal = projectedTotalSalary + tier(revPerVehicle, params.salaryRules).total_salary * extra;
     const ebitda = rev - exp - maint - sal;
-    return { nVehicles: n, revenue: rev, expenses: exp, maintenance: maint, salaries: sal, ebitda, marginPct: rev > 0 ? (ebitda / rev) * 100 : 0, deltaEbitda: extra === 0 ? 0 : ebitda - projEbitda };
+    const amortissement = projAmort + amortPerVehicle * extra;
+    const ebit = ebitda - amortissement;
+    return { nVehicles: n, revenue: rev, expenses: exp, maintenance: maint, salaries: sal, ebitda, marginPct: rev > 0 ? (ebitda / rev) * 100 : 0, deltaEbitda: extra === 0 ? 0 : ebitda - projEbitda, amortissement, ebit, deltaEbit: extra === 0 ? 0 : ebit - projEbit };
   });
 
   // ── INSIGHTS ──────────────────────────────────────
@@ -556,7 +624,18 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   const fuelPct = totalRevAll > 0 ? (totalFuel / totalRevAll) * 100 : 0;
   if (fuelPct > params.fuelPctOfRevenue * 1.15) insights.push({ type: "warning", title: "Carburant au-dessus du budget", body: `Carburant représente ${fuelPct.toFixed(1)}% du CA (budget: ${params.fuelPctOfRevenue}%).`, value: `${fuelPct.toFixed(1)}%` });
   drivers.filter((d) => d.paceAlert).forEach((d) => insights.push({ type: "warning", title: `${d.name} — Rythme faible`, body: `Moy: ${xofFmt(d.dailyAvg)} XOF/j. Besoin: ${xofFmt(d.neededDailyAvg)} XOF/j.`, value: `${xofFmt(d.projectedMonthNet)} XOF` }));
-  if (vehicleSimulations.length > 1) insights.push({ type: "opportunity", title: "Simulation +1 véhicule", body: `+${xofFmt(vehicleSimulations[1].deltaEbitda)} XOF d'EBITDA/mois.`, value: `+${xofFmt(vehicleSimulations[1].deltaEbitda)} XOF` });
+  // Gain net d'amortissement, pas d'EBITDA : annoncer « +X d'EBITDA » pour un
+  // véhicule qu'il faut d'abord acheter est exactement l'image embellie qu'on
+  // cherche à supprimer. Le signe peut devenir négatif, et c'est l'information.
+  if (vehicleSimulations.length > 1) {
+    const d = vehicleSimulations[1].deltaEbit;
+    insights.push({
+      type: d >= 0 ? "opportunity" : "warning",
+      title: "Simulation +1 véhicule",
+      body: `${d >= 0 ? "+" : ""}${xofFmt(d)} XOF/mois après amortissement du véhicule.`,
+      value: `${d >= 0 ? "+" : ""}${xofFmt(d)} XOF`,
+    });
+  }
   const bestWd = [...weekdayStats].sort((a, b) => b.avgNet - a.avgNet)[0];
   if (bestWd && bestWd.count >= 2) insights.push({ type: "tip", title: `${bestWd.day} = meilleur jour`, body: `Moyenne de ${xofFmt(bestWd.avgNet)} XOF sur ${bestWd.count} ${bestWd.day.toLowerCase()}s — priorisez ce jour.`, value: xofFmt(bestWd.avgNet) });
   insights.push({ type: "tip", title: "Maintenance planifiée", body: `Provision globale de ${xofFmt(params.maintenanceCostPerMonth)} XOF/mois pour la flotte, intégrée dans les projections.` });
@@ -590,7 +669,7 @@ export function usePilotage(params: PilotageParams = DEFAULT_PARAMS, tenantId?: 
       // Retry sur erreur transitoire (401 refresh token, cold start) — fix
       // « refresh ne charge pas, il faut refresh à nouveau » (03/09).
       const json = await fetchJsonRetry(`/api/admin/pilotage-data?${params_url}`);
-      setRaw({ reports: json.reports || [], expenses: json.expenses || [], payments: json.payments || [], profiles: json.profiles || [] });
+      setRaw({ reports: json.reports || [], expenses: json.expenses || [], payments: json.payments || [], profiles: json.profiles || [], vehicles: json.vehicles || [] });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur de chargement");
     } finally {
