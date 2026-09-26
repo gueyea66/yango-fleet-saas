@@ -47,5 +47,21 @@ export const CAT_AVANCE = "Décaissement propriétaire";
 export const CAT_ENTRETIEN = "Entretien";
 export const CAT_REPARATION = "Réparation";
 
-/** Postes couverts par la provision maintenance (mécanique du véhicule). */
+/**
+ * Tout ce qui touche la mécanique du véhicule. Sert aux analyses et aux règles
+ * qui suivent le coût global d'un véhicule, et à sortir ces postes des
+ * « autres dépenses récurrentes » où ils seraient comptés deux fois.
+ */
 export const CATS_MAINTENANCE: readonly string[] = [CAT_ENTRETIEN, CAT_REPARATION];
+
+/**
+ * Ce que la dotation de provision couvre — l'entretien programmé SEULEMENT.
+ *
+ * Précision d'Abdou le 26/09 : « réparation = panne exceptionnelle ; huile,
+ * vidange, ça c'est justement la provision ». On provisionne ce qui est
+ * prévisible et revient au kilométrage (vidange, filtres, AdBlue) ; une panne
+ * est un accident de parcours et passe en charge au moment où elle tombe.
+ * L'inverse — provisionner l'aléa — reviendrait à lisser un sinistre et à
+ * masquer le mois où il se produit.
+ */
+export const CATS_PROVISIONNEES: readonly string[] = [CAT_ENTRETIEN];
