@@ -10,6 +10,7 @@ import { recomputeReportNet } from "@/lib/reportNet";
 import { logAction } from "@/lib/logAction";
 import { Wallet, Paperclip, Calendar, HandCoins } from "lucide-react";
 import { xof, type Profile } from "./shared";
+import { obtenirUrlsSignees } from "@/lib/signedUrls";
 
 // ─── UPLOAD BLOCK (reusable) ─────────────────────────
 export function UploadBlock({ driverId, refId, refType, label = "Photos / Reçus" }: { driverId: string; refId: string | null; refType: string; label?: string }) {
@@ -26,17 +27,17 @@ export function UploadBlock({ driverId, refId, refType, label = "Photos / Reçus
     supabase.from("uploads").select("file_name,file_path,file_type,ref_id")
       .eq("driver_id", driverId)
       .eq("file_type", refType)
-      .then(({ data }: any) => {
+      .then(async ({ data }: any) => {
         if (data?.length) {
-          const mapped = data
+          const liees = data
             // Match by ref_id (new) OR by path containing refId (legacy)
-            .filter((f: any) => f.ref_id === refId || f.file_path?.includes(refId))
-            .map((f: any) => {
-              const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(f.file_path);
-              const isImg = /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(f.file_name);
-              return { name: f.file_name, url: publicUrl, isImg };
-            });
-          setFiles(mapped);
+            .filter((f: any) => f.ref_id === refId || f.file_path?.includes(refId));
+          const urls = await obtenirUrlsSignees(liees.map((f: any) => f.file_path));
+          setFiles(liees.map((f: any) => ({
+            name: f.file_name,
+            url: urls[f.file_path] || "",
+            isImg: /\.(jpg|jpeg|png|gif|webp|heic|heif)$/i.test(f.file_name),
+          })));
         }
         setLoadingFiles(false);
       });
