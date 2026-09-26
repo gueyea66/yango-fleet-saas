@@ -16,6 +16,7 @@ import {
   achatsCarburantPeriode, depensesOpePeriode, isReposReport, kmPeriode, soldeConsommePeriode,
 } from "./dataReader";
 import { coutCarburantParKm } from "@/lib/calc";
+import { CATS_MAINTENANCE } from "@/lib/expenseCategories";
 import { paramsHash } from "./insightEngine";
 import type { RecoDraft } from "./recommendationEngine";
 
@@ -265,8 +266,13 @@ export function ruleFraisEvitables(ctx: AdvancedCtx): RecoDraft[] {
     });
   }
 
-  const entretien30 = sumCat(ctx, "Entretien", from30, ctx.today);
-  const entretienPrev = sumCat(ctx, "Entretien", from60, shiftDays(from30, -1));
+  // Entretien ET réparation : depuis que la catégorie « Réparation » existe
+  // (26/09), suivre le seul « Entretien » ferait perdre de vue les deux tiers
+  // du poste et la règle cesserait de se déclencher sur une vraie dérive.
+  const sumMaint = (from: string, to: string) =>
+    CATS_MAINTENANCE.reduce((t, c) => t + sumCat(ctx, c, from, to), 0);
+  const entretien30 = sumMaint(from30, ctx.today);
+  const entretienPrev = sumMaint(from60, shiftDays(from30, -1));
   if (entretien30 > 50_000 && entretien30 > entretienPrev * 2) {
     out.push({
       rule_id: "frais_evitables" as RuleId,

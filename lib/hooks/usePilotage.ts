@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { CAT_AVANCE } from "@/lib/expenseCategories";
+import { CAT_AVANCE, CAT_ENTRETIEN, CAT_REPARATION, CATS_MAINTENANCE } from "@/lib/expenseCategories";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
 import { amortissementPeriode, kmParMoisDepuisCompteur, type VehiculeAmortissable } from "@/lib/calc";
 
@@ -125,9 +125,16 @@ export const xofFmt = (n: number) => new Intl.NumberFormat("fr-FR").format(Math.
 
 // ── COMPUTE (pure, no DB) ─────────────────────────────
 // Dépenses PONCTUELLES : non extrapolées dans les projections (one-shot).
-const PONCTUELLES = new Set(["Amende", "Contrôle routier"]);
+// Une réparation est un accident de parcours, pas un rythme : extrapoler les
+// 103 000 F d'une pompe à huile sur tous les jours ouvrés restants fabriquait
+// une projection de charges qui n'avait aucune chance de se réaliser.
+const PONCTUELLES = new Set(["Amende", "Contrôle routier", CAT_REPARATION]);
 // Une dépense "autre récurrente" = ni carburant, ni solde, ni ponctuelle.
-const isRecurrentOther = (cat: string) => cat !== "Carburant" && cat !== "Solde Yango" && !PONCTUELLES.has(cat);
+const isRecurrentOther = (cat: string) =>
+  cat !== "Carburant" && cat !== "Solde Yango" && !PONCTUELLES.has(cat)
+  // La maintenance a sa propre ligne dans le P&L comme dans le cash flow :
+  // la laisser ici la comptait une seconde fois.
+  && !CATS_MAINTENANCE.includes(cat);
 
 function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: string | null, refMonth?: string | null): Omit<PilotageData, "loading" | "fetching" | "error" | "refresh"> {
   // Comptes techniques (décaissements, ex. « Founder ») : exclus de l'effectif et de
@@ -192,6 +199,25 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   // Maintenance = provision mensuelle GLOBALE de la flotte, répartie au périmètre.
   const provMaintenance = params.maintenanceCostPerMonth * (nVehicles > 0 ? nScope / nVehicles : 1);
 
+  /** Entretien + réparations réellement dépensés sur la période. */
+  const maintenanceReelle = (eb: ExpenseBreakdown[]): number =>
+    eb.filter((e) => CATS_MAINTENANCE.includes(e.category)).reduce((s, e) => s + e.amount, 0);
+
+  /**
+   * Charge maintenance = max(dotation, dépense réelle).
+   *
+   * Mécanisme arrêté avec Abdou le 26/09 : dotation GLOBALE pour la flotte,
+   * remise à zéro chaque mois (pas de report), et ce qui dépasse passe en
+   * charge directe. La dotation agit donc comme un plancher — elle lisse les
+   * mois creux où rien ne casse — et le réel prend le dessus dès qu'il la
+   * dépasse, pour qu'un gros sinistre ne soit jamais masqué.
+   *
+   * Sans report d'un mois sur l'autre, un solde de provision n'a pas de raison
+   * d'exister : le max suffit et se lit en une ligne.
+   */
+  const chargeMaintenance = (eb: ExpenseBreakdown[]): number =>
+    Math.max(provMaintenance, maintenanceReelle(eb));
+
   // ── AMORTISSEMENT DU PARC ──
   // Calculé sur le mois demandé, véhicule par véhicule : un véhicule acquis en
   // cours de mois ou déjà totalement amorti ne porte pas la même charge que
@@ -245,8 +271,12 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
     const eb = breakdownForPeriod(start, end);
     const totalExp = eb.reduce((s, e) => s + e.amount, 0);
     const salaries = payments.filter((p) => getSM(p) === m).reduce((s, p) => s + (p.amount || 0), 0);
-    const maintenance = provMaintenance;
-    const ebitda = revenue - totalExp - salaries - maintenance;
+    const maintenance = chargeMaintenance(eb);
+    // `totalExp` contient déjà l'entretien et les réparations réels : on les en
+    // retire pour ne garder que `maintenance`, sinon le poste est compté deux
+    // fois. C'était le cas avant le 26/09 — la provision s'ajoutait aux
+    // dépenses réelles au lieu de les absorber.
+    const ebitda = revenue - (totalExp - maintenanceReelle(eb)) - salaries - maintenance;
     const amortissement = amortSur(start, end);
     const ebit = ebitda - amortissement;
     const rDays = new Set(mr.map((r) => r.date)).size || 1;
@@ -315,6 +345,14 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
     .reduce((s, e) => s + (e.amount || 0), 0);
   const avgDailyOtherRecurrent = otherRecurrentHist / activeDaysAll;
 
+  // Entretien courant seul : c'est le seul poste de maintenance qui a un rythme.
+  // La réparation est ponctuelle (cf. PONCTUELLES) et ne s'extrapole pas — un
+  // mois sans panne ne promet rien sur le suivant, dans un sens comme dans l'autre.
+  const entretienHist = expenses
+    .filter((e) => (e.category || "") === CAT_ENTRETIEN)
+    .reduce((s, e) => s + (e.amount || 0), 0);
+  const avgDailyEntretien = entretienHist / activeDaysAll;
+
   const effectiveFuelPerDay = params.fuelDailyOverride > 0 ? params.fuelDailyOverride : avgDailyFuelCost;
   const effectiveSoldePerDay = params.soldeDailyOverride > 0 ? params.soldeDailyOverride : avgDailySoldeCost;
 
@@ -342,7 +380,6 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
     if (ratio === 0) return sum;                            // inactif : pas de salaire estimé
     return sum + tier(driverProjNet(p), params.salaryRules).total_salary * ratio;
   }, 0);
-  const projMaintenance = provMaintenance;
 
   // Projection dépenses : taux journalier MTD × jours ouvrés restants (pas de scaling proportionnel)
   // Fuel et solde utilisent l'override ou la moyenne réelle par jour ouvré
@@ -365,7 +402,8 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   if (!curPnL.expensesByCategory.find((e) => e.category === "Solde Yango") && effectiveSoldePerDay > 0)
     projExpByCategory.push({ category: "Solde Yango", amount: effectiveSoldePerDay * workingDaysTotal, pct: 0 });
   const projTotalExp = projExpByCategory.reduce((s, e) => s + e.amount, 0);
-  const projEbitda = projRevenue - projTotalExp - projectedTotalSalary - projMaintenance;
+  const projMaintenance = chargeMaintenance(projExpByCategory);
+  const projEbitda = projRevenue - (projTotalExp - maintenanceReelle(projExpByCategory)) - projectedTotalSalary - projMaintenance;
   // L'amortissement se projette sur le MOIS ENTIER et non au prorata du
   // réalisé : c'est une charge calendaire, pas un taux journalier qu'on
   // extrapole. Le véhicule s'use le mois entier, y compris les jours de repos.
@@ -571,7 +609,10 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
     const solde = effectiveSoldePerDay > 0 ? effectiveSoldePerDay * projDays : rev * (params.soldePctOfRevenue / 100);
     // Autres = taux journalier RÉEL des dépenses récurrentes (hors ponctuelles), pas le ratio global gonflé
     const other = avgDailyOtherRecurrent * projDays;
-    const maint = provMaintenance;
+    // Cash et non dotation : une provision ne sort d'aucun compte. Ce tableau
+    // répond à « ai-je de quoi payer ce mois-ci », donc il projette la dépense
+    // d'entretien attendue. Le P&L, lui, retient max(dotation, réel).
+    const maint = avgDailyEntretien * projDays;
     // Mois courant : masse salariale précise (réel versé sinon prorata actifs) ; futurs : actifs du mois prochain
     const sal = offset === 0 ? projectedTotalSalary : futureMonthSalary;
     // ⛔ Pas d'amortissement ici, et il ne faut pas en ajouter : le cash flow

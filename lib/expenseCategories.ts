@@ -10,6 +10,7 @@ export const EXPENSE_CATEGORIES = [
   "Péage",
   "Contrôle routier",
   "Entretien",
+  "Réparation",
   "Lavage",
   "Amende",
   "Solde Yango",
@@ -27,3 +28,24 @@ export const EXPENSE_CATEGORIES = [
  * Réservée aux comptes techniques (ex. « Founder ») dans le formulaire chauffeur.
  */
 export const CAT_AVANCE = "Décaissement propriétaire";
+
+/**
+ * Entretien COURANT (vidange, filtres, AdBlue, climatisation) contre
+ * RÉPARATION (panne, casse, pièce détachée, main d'œuvre).
+ *
+ * Ajouté le 26/09 sur constat d'Abdou : faute de catégorie, les réparations
+ * étaient saisies en « Entretien ». Sur le parc M3A, cela représentait environ
+ * les deux tiers du poste — 553 500 F de réparations dans 816 200 F d'« Entretien ».
+ * Les mélanger a deux conséquences concrètes :
+ *
+ *   • les projections extrapolaient une réparation ponctuelle comme si elle se
+ *     répétait chaque jour ouvré du mois (cf. PONCTUELLES dans usePilotage) ;
+ *   • l'entretien courant est prévisible et se budgète, la réparation est
+ *     aléatoire et se provisionne. Un seul poste ne peut pas se piloter des
+ *     deux façons.
+ */
+export const CAT_ENTRETIEN = "Entretien";
+export const CAT_REPARATION = "Réparation";
+
+/** Postes couverts par la provision maintenance (mécanique du véhicule). */
+export const CATS_MAINTENANCE: readonly string[] = [CAT_ENTRETIEN, CAT_REPARATION];
