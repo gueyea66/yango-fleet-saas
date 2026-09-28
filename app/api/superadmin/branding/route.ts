@@ -96,6 +96,11 @@ export async function POST(req: NextRequest) {
     const uiModeRaw = formData.get("ui_mode");
     const uiModeVal = (typeof uiModeRaw === "string" && ["full", "simple"].includes(uiModeRaw)) ? uiModeRaw : null;
 
+    // Refonte v2 : "1"/"0" plutot qu'un booleen, le multipart ne transporte que
+    // du texte. Absent = on ne touche pas au drapeau existant.
+    const uiV2Raw = formData.get("ui_v2");
+    const uiV2Val = (typeof uiV2Raw === "string" && ["0", "1"].includes(uiV2Raw)) ? uiV2Raw === "1" : null;
+
     const platformRaw = formData.get("platform_label");
     const platformVal = (typeof platformRaw === "string" && platformRaw.trim()) ? platformRaw.trim().slice(0, 30) : null;
 
@@ -141,7 +146,7 @@ export async function POST(req: NextRequest) {
       patch.logo_url = null;
     }
 
-    if (Object.keys(patch).length === 0 && !skinVal && !uiModeVal && !platformVal) {
+    if (Object.keys(patch).length === 0 && !skinVal && !uiModeVal && !platformVal && uiV2Val === null) {
       return NextResponse.json({ error: "Aucune modification fournie" }, { status: 400 });
     }
 
@@ -183,7 +188,19 @@ export async function POST(req: NextRequest) {
       if (platErr) console.warn("[branding] platform_label non enregistré (migration 038 requise ?):", platErr.message);
     }
 
-    return NextResponse.json({ ok: true, updated: { ...patch, ...(skinVal ? { skin: skinVal } : {}), ...(uiModeVal ? { ui_mode: uiModeVal } : {}), ...(platformVal ? { platform_label: platformVal } : {}) } });
+    // ui_v2 : meme pattern best-effort (migration 062 requise). C'est le seul
+    // chemin applicatif pour allumer la refonte chez un client — sans lui, le
+    // drapeau ne pouvait etre pose qu'en base (bloquee par guard_admin_only) ou
+    // navigateur par navigateur, ce qui a fait croire a un cache recalcitrant.
+    if (uiV2Val !== null) {
+      const { error: v2Err } = await adminClient
+        .from("tenant_settings")
+        .update({ ui_v2: uiV2Val, updated_at: new Date().toISOString() })
+        .eq("tenant_id", tenantId);
+      if (v2Err) console.warn("[branding] ui_v2 non enregistré (migration 062 requise ?):", v2Err.message);
+    }
+
+    return NextResponse.json({ ok: true, updated: { ...patch, ...(skinVal ? { skin: skinVal } : {}), ...(uiModeVal ? { ui_mode: uiModeVal } : {}), ...(platformVal ? { platform_label: platformVal } : {}), ...(uiV2Val !== null ? { ui_v2: uiV2Val } : {}) } });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: err.status ?? 500 });
   }

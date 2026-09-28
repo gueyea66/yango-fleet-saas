@@ -5,7 +5,7 @@ import { useRef, useState } from "react";
 interface Props {
   tenantId: string;
   superadminKey: string;
-  initial: { app_name?: string; primary_color?: string; operator_name?: string; logo_url?: string | null; skin?: string | null; ui_mode?: string | null; platform_label?: string | null };
+  initial: { app_name?: string; primary_color?: string; operator_name?: string; logo_url?: string | null; skin?: string | null; ui_mode?: string | null; platform_label?: string | null; ui_v2?: boolean | null };
   notify: (text: string, ok?: boolean) => void;
   onSaved: () => void;
 }
@@ -20,6 +20,11 @@ export default function BrandingEditor({ tenantId, superadminKey, initial, notif
   const [color, setColor] = useState(initial.primary_color || "#f5a623");
   const [skin, setSkin] = useState(initial.skin || "midnight");
   const [uiMode, setUiMode] = useState(initial.ui_mode || "full");
+  // Refonte v2 : jusqu'ici le drapeau ne s'allumait qu'en base ou par un
+  // forcage local propre a UN navigateur (localStorage m3a-ui=v2) — d'ou des
+  // clients qui voyaient la v2 sur leur ordinateur et l'ancienne UI sur leur
+  // telephone. Le reglage vit desormais ici, cote client, pour tous les appareils.
+  const [uiV2, setUiV2] = useState(initial.ui_v2 === true ? "1" : "0");
   const [platformLabel, setPlatformLabel] = useState(initial.platform_label || "Yango");
   const [operator, setOperator] = useState(initial.operator_name || "");
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -47,6 +52,7 @@ export default function BrandingEditor({ tenantId, superadminKey, initial, notif
       if (color) fd.set("primary_color", color);
       fd.set("skin", skin);
       fd.set("ui_mode", uiMode);
+      fd.set("ui_v2", uiV2);
       if (platformLabel.trim()) fd.set("platform_label", platformLabel.trim());
       fd.set("operator_name", operator);
       if (logoFile) fd.set("logo", logoFile);
@@ -134,6 +140,13 @@ export default function BrandingEditor({ tenantId, superadminKey, initial, notif
             <select value={uiMode} onChange={e => setUiMode(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
               <option value="full">Complète (défaut)</option>
               <option value="simple">Simple (propriétaire)</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 10, color: "#6b7280", display: "block", marginBottom: 3 }}>Refonte v2 (tous les appareils du client)</label>
+            <select value={uiV2} onChange={e => setUiV2(e.target.value)} style={{ ...inputStyle, cursor: "pointer" }}>
+              <option value="0">Interface actuelle (défaut)</option>
+              <option value="1">Nouvelle interface v2</option>
             </select>
           </div>
           <div style={{ display: "flex", alignItems: "flex-end" }}>
