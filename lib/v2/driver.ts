@@ -7,11 +7,18 @@
 import type { SalaryTier } from "@/lib/tenant/types";
 
 export type DriverTab = "home" | "report" | "expense" | "history" | "profil" | "pilotage" | "repos";
-export type DriverNavTab = "home" | "report" | "expense" | "pilotage";
+export type DriverNavTab = "home" | "report" | "expense" | "pilotage" | "profil";
 
 /**
- * 7 onglets conservés → 4 dans la barre du bas. Historique et Repos s'ouvrent
- * depuis l'Accueil (onglet Accueil actif) ; le Profil, depuis l'avatar, masque la barre.
+ * 7 onglets conservés → 5 dans la barre du bas. Historique et Repos s'ouvrent
+ * depuis l'Accueil et gardent son onglet actif.
+ *
+ * Le Profil était volontairement hors barre, ouvert par l'avatar de l'en-tête.
+ * Mais c'est l'écran qui porte le bouton « Se déconnecter », et l'avatar est un
+ * cercle d'initiales sans libellé, visible seulement depuis l'Accueil : en
+ * pratique, les chauffeurs ne trouvaient pas comment se déconnecter. Un moyen
+ * de quitter sa session doit être atteignable depuis n'importe quel écran, pas
+ * deviné — le Profil rejoint donc la barre. L'avatar reste, en raccourci.
  */
 export function bottomNavFor(tab: DriverTab): { visible: boolean; active: DriverNavTab | null } {
   switch (tab) {
@@ -24,7 +31,7 @@ export function bottomNavFor(tab: DriverTab): { visible: boolean; active: Driver
     case "repos":
       return { visible: true, active: "home" };
     case "profil":
-      return { visible: false, active: null };
+      return { visible: true, active: "profil" };
   }
 }
 

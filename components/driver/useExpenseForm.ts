@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { CAT_AVANCE, EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
 import { logAction } from "@/lib/logAction";
+import { envoyerPieces, messageEchecs } from "@/lib/uploadPieces";
 import type { Profile } from "./shared";
 
 export function useExpenseForm(profile: Profile) {
@@ -29,8 +30,16 @@ export function useExpenseForm(profile: Profile) {
   }, [isTechnical, form.type, targets.length]);
 
   const addFiles = (files: FileList | null) => {
-    if (!files) return;
-    setPendingFiles((prev) => [...prev, ...Array.from(files)]);
+    if (!files || files.length === 0) return;
+    // Copie SYNCHRONE, avant tout retour à React. Le callback passé à
+    // setState est exécuté plus tard : `Array.from(files)` s'y trouvait, et
+    // l'appelant fait `e.target.value = ""` juste après pour permettre de
+    // resélectionner le même fichier. Vider l'input vide aussi la FileList,
+    // qui est vivante — au moment où React évaluait le callback, il ne restait
+    // plus rien à copier. Le sélecteur s'ouvrait, le fichier était choisi, et
+    // rien ne s'ajoutait au formulaire.
+    const ajouts = Array.from(files);
+    setPendingFiles((prev) => [...prev, ...ajouts]);
   };
 
   const submit = async () => {
@@ -48,16 +57,18 @@ export function useExpenseForm(profile: Profile) {
       if (error) throw error;
       const expId = data?.id || null;
       setExpenseId(expId);
-      // Upload pending files via API (service role)
+      // Pièces jointes : un échec est désormais dit, jamais avalé. Les fichiers
+      // qui n'ont pas pu partir restent dans la file pour être réessayés sans
+      // ressaisir la dépense.
       if (expId && pendingFiles.length > 0) {
-        for (const file of pendingFiles) {
-          const ext = file.name.split(".").pop();
-          const path = `${profile.id}/expense_${expId}_${Date.now()}.${ext}`;
-          const fd = new FormData(); fd.append("file", file); fd.append("path", path);
-          const up = await fetch("/api/kyc-upload", { method: "POST", body: fd });
-          const upRes = await up.json().catch(() => ({}));
-          await supabase.from("uploads").insert({ driver_id: profile.id, tenant_id: profile.tenant_id, file_name: file.name, file_path: upRes.path || path, file_type: "expense", file_size: file.size, ref_id: expId });
-        }
+        const r = await envoyerPieces({
+          fichiers: pendingFiles, driverId: profile.id, tenantId: profile.tenant_id,
+          fileType: "expense", refId: expId,
+        });
+        const noms = new Set(r.echecs.map((e) => e.nom));
+        setPendingFiles((prev) => prev.filter((f) => noms.has(f.name)));
+        const msg = messageEchecs(r);
+        if (msg) alert(msg);
       }
       if (expId) {
         logAction({

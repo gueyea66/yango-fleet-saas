@@ -104,8 +104,10 @@ export function buildKpiInsights(params: {
   // travaillés ne déclenche pas une fausse alerte de baisse (les valeurs
   // affichées restent les totaux bruts de période).
   {
-    const delta = cur.netOperationnel - prev.netOperationnel;
-    const p = pct(delta, prev.netOperationnel);
+    // Résultat NET des deux côtés : comparer deux semaines hors amortissement
+    // masquerait qu'une semaine « en progrès » ne couvre toujours pas l'usure.
+    const delta = cur.resultatNet - prev.resultatNet;
+    const p = pct(delta, prev.resultatNet);
     const pParJourOuvre = pct(cur.netParJourOuvre - prev.netParJourOuvre, prev.netParJourOuvre);
     if (p !== null && pParJourOuvre !== null && pParJourOuvre <= thresholds.net_operationnel_delta_pct) {
       const causes = decomposeNetDelta(cur, prev);
@@ -113,7 +115,7 @@ export function buildKpiInsights(params: {
         out.push({
           kpi_name: "net_operationnel",
           period_start: cur.from, period_end: cur.to,
-          current_value: cur.netOperationnel, previous_value: prev.netOperationnel,
+          current_value: cur.resultatNet, previous_value: prev.resultatNet,
           delta_value: delta, delta_pct: p, causes,
           calculation_source: source("computeOperationnel+decomposeNetDelta", tenantId, cur.from, cur.to),
         });

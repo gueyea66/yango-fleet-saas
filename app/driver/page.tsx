@@ -589,12 +589,12 @@ function ReportTab({ profile, onBack, cfg }: { profile: Profile; onBack: () => v
               <label className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-center cursor-pointer"
                 style={{ background: "rgba(var(--tenant-color-rgb),.08)", border: "1px solid rgba(var(--tenant-color-rgb),.25)", color: "var(--tenant-color)" }}>
                 📷 Photo
-                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addFiles(e.target.files)} />
+                <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
               </label>
               <label className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-center cursor-pointer"
                 style={{ background: "transparent", border: "1px solid var(--sk-border)", color: "var(--sk-t3)" }}>
                 📁 Fichier
-                <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,video/*" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
+                <input type="file" accept="image/*,.pdf" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
               </label>
             </div>
           </div>
@@ -687,12 +687,12 @@ function ExpenseTab({ profile, onBack }: { profile: Profile; onBack: () => void 
             <label className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-center cursor-pointer"
               style={{ background: "rgba(var(--tenant-color-rgb),.08)", border: "1px solid rgba(var(--tenant-color-rgb),.25)", color: "var(--tenant-color)" }}>
               📷 Photo
-              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addFiles(e.target.files)} />
+              <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
             </label>
             <label className="flex-1 py-2.5 rounded-xl text-xs font-semibold text-center cursor-pointer"
               style={{ background: "transparent", border: "1px solid var(--sk-border)", color: "var(--sk-t3)" }}>
               📁 Fichier
-              <input type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,video/*" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} />
+              <input type="file" accept="image/*,.pdf" multiple className="hidden" onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
             </label>
           </div>
         </div>

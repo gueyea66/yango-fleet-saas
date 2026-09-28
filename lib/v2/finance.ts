@@ -136,3 +136,25 @@ export function recentMovements(
 
 /** Mois (AAAA-MM-01) à pré-remplir dans « Nouveau paiement » : fin de la période. */
 export const salaryMonthOf = (range: Range) => `${range.to.slice(0, 7)}-01`;
+
+/**
+ * Détail des décaissements (même composition que computeTresorerie) :
+ * achats de solde + carburant + autres dépenses + décaissements propriétaire
+ * + paiements chauffeurs (salaires, acomptes, bonus). La somme = la carte.
+ */
+export function decaissementsDetail(k: {
+  decaissements: number; provisionsSolde: number; achatsCarburant: number;
+  autresDepensesOpe: number; avancesProprietaire: number;
+}): { label: string; amount: number }[] {
+  const paiements = k.decaissements - k.provisionsSolde - k.achatsCarburant - k.autresDepensesOpe - k.avancesProprietaire;
+  return [
+    { label: "Achats de solde Yango", amount: k.provisionsSolde },
+    { label: "Achats de carburant", amount: k.achatsCarburant },
+    { label: "Autres dépenses validées", amount: k.autresDepensesOpe },
+    { label: "Décaissements propriétaire", amount: k.avancesProprietaire },
+    { label: "Paiements chauffeurs (salaires, acomptes, bonus)", amount: paiements },
+  ];
+}
+
+/** Marge après salaires = CA net − salaires dus (formule du bloc Rémunération actuel). */
+export const margeApresSalaires = (caNet: number, masse: number) => caNet - masse;

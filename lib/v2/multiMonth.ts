@@ -18,6 +18,7 @@ const SUM_KEYS = [
   "soldeConsomme", "carburantConsomme", "provisionsSolde", "achatsCarburant", "autresDepensesOpe",
   "netOperationnel", "decaissements", "tresorerie", "avanceSolde", "avanceCarburant", "avancesProprietaire",
   "monthRevenue", "monthExpenses", "monthNetMargin", "totalFuelCost",
+  "amortissement", "resultatNet", "netFinalApresAmort",
 ] as const;
 
 /** Jours actifs d'un mois, retrouvés depuis une moyenne arrondie (total / moyenne). */
@@ -51,6 +52,14 @@ export function mergeMonthlyKpis(list: DashboardKPIs[]): DashboardKPIs {
   const km = list.reduce((s, k) => s + (k.coutCarburantKm > 0 ? k.achatsCarburant / k.coutCarburantKm : 0), 0);
   out.coutCarburantKm = km > 0 ? out.achatsCarburant / km : 0;
   out.monthMarginPercent = out.totalBrut > 0 ? (out.netFinal / out.totalBrut) * 100 : 0;
+  // Amortissement : même règle que le hook (marge sur les recettes réelles).
+  const recettesReelles = out.brutYango + out.horsYango;
+  out.margeApresAmort = recettesReelles > 0 ? (out.netFinalApresAmort / recettesReelles) * 100 : 0;
+  out.amortNonRenseignes = [...new Set(list.flatMap((k) => k.amortNonRenseignes ?? []))];
+  out.amortParVehicule = mergeBy(list.flatMap((k) => k.amortParVehicule ?? []), (r) => r.plate,
+    // Montants additionnés ; mensualité / durée / mois restants = mois le plus récent.
+    (a, b) => ({ ...b, montant: a.montant + b.montant }))
+    .sort((a, b) => b.montant - a.montant);
 
   // Comparaisons masquées : « mois précédent » n'a pas de sens pour une sélection non contiguë.
   out.prevNetFinal = null; out.prevTotalBrut = null; out.prevRecettes = null; out.prevJoursOuvres = null;
@@ -73,7 +82,7 @@ export function mergeMonthlyKpis(list: DashboardKPIs[]): DashboardKPIs {
     .sort((a, b) => b.restant - a.restant);
   out.driverAllocations = mergeBy(list.flatMap((k) => k.driverAllocations), (r) => r.driver_id,
     (a, b) => ({
-      ...a, netDeclared: a.netDeclared + b.netDeclared, netApproved: a.netApproved + b.netApproved, netPending: a.netPending + b.netPending,
+      ...a, netDeclared: a.netDeclared + b.netDeclared, brutDeclared: a.brutDeclared + b.brutDeclared, netApproved: a.netApproved + b.netApproved, netPending: a.netPending + b.netPending,
       nbReports: a.nbReports + b.nbReports, nbApproved: a.nbApproved + b.nbApproved, nbPending: a.nbPending + b.nbPending,
     }))
     .sort((a, b) => b.netDeclared - a.netDeclared);

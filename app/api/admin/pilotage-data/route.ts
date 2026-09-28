@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       fetchAllRows(() => srcQ(dQ(tQ(admin.from("expenses").select("*")))).order("expense_date")),
       fetchAllRows(() => dQ(tQ(admin.from("payments").select("*"))).order("payment_date")),
       tQ(admin.from("profiles").select("*").eq("role", "driver")).then((r: any) => r.data || []),
-      tQ(admin.from("vehicles").select("id,plate,driver_id")).then((r: any) => r.data || []),
+      tQ(admin.from("vehicles").select("id,plate,driver_id,mileage,fleet_segment,prix_acquisition,valeur_residuelle,date_acquisition,amort_plafond_km,amort_duree_max_mois,amort_porte_par")).then((r: any) => r.data || []),
     ]);
 
     return Response.json({

@@ -1,13 +1,14 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, CircleCheck, Clock, CircleX, CircleDashed, ExternalLink } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, CircleCheck, Clock, CircleX, CircleDashed, ExternalLink } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Badge, Button, Card, Segmented } from "@/components/ui";
 import { formatAmount } from "@/lib/v2/format";
 import { monthNameFr, shortDayFr, type DayStatus } from "@/lib/v2/driver";
 import { financeKpis, kycState, teamCounts, driverDayGrid, type KycState } from "@/lib/v2/team";
 import { initials } from "@/lib/v2/format";
+import { decaissementsDetail, margeApresSalaires } from "@/lib/v2/finance";
 import { ReportPanel } from "./PendingV2";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- lignes non typées (convention du projet) */
@@ -34,7 +35,24 @@ export function FinanceKpisV2({ kpis, masse }: { kpis: any; masse?: { amount: nu
       {masse
         ? <Kpi label="Masse salariale" value={formatAmount(masse.amount)} sub={`${masse.drivers} chauffeur${masse.drivers > 1 ? "s" : ""}, prorata inclus`} />
         : <Kpi label="Masse salariale" value={f.masseSalariale != null ? formatAmount(f.masseSalariale) : "—"} sub="sur la période" />}
-      <Kpi label="Marge après salaires" value={formatAmount(f.margeApresSalaires)} tone={f.margeApresSalaires >= 0 ? "pos" : "neg"} sub="net final" />
+      {masse
+        ? (() => { const m = margeApresSalaires(kpis.totalBrut ?? 0, masse.amount); return <Kpi label="Marge après salaires" value={formatAmount(m)} tone={m >= 0 ? "pos" : "neg"} sub="CA net − salaires dus" />; })()
+        : <Kpi label="Marge après salaires" value={formatAmount(f.margeApresSalaires)} tone={f.margeApresSalaires >= 0 ? "pos" : "neg"} sub="net final" />}
+      <details className="v2-details" style={{ gridColumn: "1 / -1" }}>
+        <summary className="v2-focus" style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: "var(--v2-muted)", listStyle: "none" }}>
+          <ChevronDown size={14} aria-hidden className="v2-details-chevron" /> Détail des décaissements
+        </summary>
+        <Card padding="6px 18px" style={{ marginTop: 8 }}>
+          {decaissementsDetail(kpis).map((d, i) => (
+            <div key={d.label} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "8px 0", fontSize: 14, borderTop: i ? "1px solid var(--sk-border)" : "none" }}>
+              <span>{d.label}</span><span className="v2-num">{formatAmount(d.amount)}</span>
+            </div>
+          ))}
+          <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", fontSize: 14, fontWeight: 600, borderTop: "1px solid var(--sk-border)" }}>
+            <span>Total</span><span className="v2-num">{formatAmount(f.decaissements)}</span>
+          </div>
+        </Card>
+      </details>
     </div>
   );
 }

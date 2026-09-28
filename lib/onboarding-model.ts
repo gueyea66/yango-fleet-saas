@@ -15,6 +15,12 @@ export interface OnbVehicule {
   annee: string;
   proprio: string;
   service: string;
+  /**
+   * 'interne' (le véhicule appartient au client) ou 'partenaire' (il appartient
+   * à un tiers qui le confie au parc). Optionnel pour les fiches antérieures
+   * à la 063 ; `segmentDe()` les traite comme internes.
+   */
+  segment?: string;
 }
 
 export interface OnbChauffeur {
@@ -48,6 +54,27 @@ export interface OnbDoc {
   sousDomaine: string;
   gestionnaire: string;
   gestionnaireEmail?: string;
+  /** Second compte admin : la direction du client, à côté du gestionnaire. */
+  direction?: string;
+  directionEmail?: string;
+  /**
+   * Interface remise au client. `true` = refonte v2. Porté par la fiche et non
+   * par un réglage à part : c'est une décision par client, prise au moment où
+   * on décrit le client, et elle doit se relire là où vit le reste du dossier.
+   */
+  uiV2?: boolean;
+  /**
+   * Couleur de marque du client, en hexadécimal. Le produit est vendu en
+   * marque blanche et le point A10 de la liste suit déjà « logo et couleur
+   * validés » — mais rien ne les appliquait : la mise en service écrivait
+   * l'orange de M3A. Un client qui ouvre son espace et voit les couleurs de
+   * son fournisseur n'a pas reçu ce qu'il a acheté.
+   *
+   * Le logo reste un envoi de fichier (console superadmin → Gérer) : son
+   * chemin de stockage contient l'identifiant du tenant, qui n'existe pas
+   * encore au moment où la fiche se remplit.
+   */
+  couleur?: string;
   plan?: string;
   vehiculesPrevus: number | string;
   j0: string;
@@ -114,6 +141,14 @@ export const ETATS_CLIENT = ["À demander", "Demandé", "Reçu"] as const;
 export const ETATS_M3A = ["À faire", "En cours", "Fait"] as const;
 export const ETATS_KYC = ["À collecter", "Partiel", "Complet"] as const;
 
+/* ── Segmentation du parc ─────────────────────────── */
+// Le vocabulaire vit dans `lib/fleetSegment.ts` : la fiche, la base, l'onglet
+// Flotte et la carte des signaux v2 doivent dire le même mot.
+export {
+  SEGMENTS, SEGMENT_META, SEGMENT_LABELS, segmentDe, TOUS_SEGMENTS,
+  compterParSegment, estMixte, basculerSegment, type Segment,
+} from "@/lib/fleetSegment";
+
 export const MODES = [
   "Loyer journalier",
   "Commission sur le brut",
@@ -163,6 +198,7 @@ export function slugify(s: string): string {
 export function ficheVide(nom: string): OnbDoc {
   return {
     nom, contact: "", sousDomaine: "", gestionnaire: "", gestionnaireEmail: "",
+    direction: "", directionEmail: "", uiV2: true, couleur: "",
     vehiculesPrevus: 0, j0: "",
     a: {}, b: {}, c: {},
     vehicules: [], chauffeurs: [],

@@ -19,6 +19,7 @@ import {
   mapRemunerationModel,
   numFromField,
   plateKey,
+  segmentDe,
   slugify,
   type OnbDoc,
 } from "@/lib/onboarding-model";
@@ -35,6 +36,17 @@ export function makePassword(len = 10): string {
   let out = "";
   for (let i = 0; i < len; i++) out += alphabet[randomInt(alphabet.length)];
   return out;
+}
+
+/**
+ * Couleur hexadécimale à six chiffres, normalisée en minuscules avec le dièse.
+ * Rend `null` sur tout le reste : mieux vaut garder la couleur par défaut que
+ * d'écrire une valeur que le navigateur ignorera en silence.
+ */
+export function couleurValide(v: unknown): string | null {
+  const s = String(v ?? "").trim();
+  const m = /^#?([0-9a-fA-F]{6})$/.exec(s);
+  return m ? "#" + m[1].toLowerCase() : null;
 }
 
 /** Prochain identifiant libre de la serie D01, D02... pour ce tenant. */
@@ -60,7 +72,13 @@ export interface ProvisionResult {
   slug: string;
   /** Identifiants générés pendant CETTE passe — jamais relus ensuite. */
   identifiants: { nom: string; driverId: string; motDePasse: string }[];
-  adminIdentifiants?: { email: string; motDePasse: string };
+  /**
+   * Comptes admin ouverts pendant CETTE passe. Une liste, pas un seul compte :
+   * le gestionnaire valide au quotidien, la direction regarde — les deux ont
+   * besoin d'un accès, et remettre le même à deux personnes supprime la trace
+   * de qui a validé quoi.
+   */
+  adminIdentifiants?: { nom: string; email: string; motDePasse: string }[];
   lignes: ProvisionLigne[];
   /** Fiche enrichie des identifiants attribués, à ré-enregistrer. */
   doc: OnbDoc;
@@ -107,6 +125,7 @@ export async function provisionOnboarding(args: ProvisionArgs): Promise<Provisio
     if (!t) tenantId = null;   // espace supprimé depuis : on le recrée
     else lignes.push({ quoi: `Espace « ${slug} »`, etat: "inchange", detail: "déjà en service" });
   }
+
   if (!tenantId) {
     const { data: bySlug } = await admin.from("tenants").select("id").eq("slug", slug).maybeSingle();
     if (bySlug) {
@@ -130,9 +149,36 @@ export async function provisionOnboarding(args: ProvisionArgs): Promise<Provisio
 
     await admin.from("tenant_settings").insert({
       tenant_id: tenantId, app_name: doc.nom.trim(),
-      primary_color: "#f5a623", currency: "XOF", timezone: "Africa/Dakar",
+      primary_color: couleurValide(doc.couleur) ?? "#f5a623",
+      currency: "XOF", timezone: "Africa/Dakar",
+      ui_v2: doc.uiV2 === true,
     });
     lignes.push({ quoi: `Espace « ${slug} »`, etat: "cree", detail: `essai de ${trialDays} jours` });
+  }
+
+  // L'interface, une fois l'espace certain. Rejouable : changer d'avis sur la
+  // v2 après la première mise en service suffit à basculer le client, sans
+  // passer par la base. Sur un espace tout neuf l'insert ci-dessus a déjà posé
+  // la valeur ; l'écrire deux fois ne coûte rien et garde un seul chemin.
+  if (doc.uiV2 !== undefined) {
+    const { error } = await admin.from("tenant_settings")
+      .update({ ui_v2: doc.uiV2 === true }).eq("tenant_id", tenantId);
+    lignes.push(error
+      ? { quoi: "Interface", etat: "erreur", detail: error.message }
+      : { quoi: "Interface", etat: "maj", detail: doc.uiV2 ? "refonte v2" : "interface actuelle" });
+  }
+
+  // La couleur du client, même traitement : posée à la création, reposée au
+  // rejeu. Une couleur invalide est ignorée plutôt qu'écrite — une valeur que
+  // le navigateur ne sait pas lire rendrait l'espace illisible, et l'erreur
+  // serait invisible en base.
+  const couleur = couleurValide(doc.couleur);
+  if (couleur) {
+    const { error } = await admin.from("tenant_settings")
+      .update({ primary_color: couleur }).eq("tenant_id", tenantId);
+    lignes.push(error
+      ? { quoi: "Couleur de marque", etat: "erreur", detail: error.message }
+      : { quoi: "Couleur de marque", etat: "maj", detail: couleur });
   }
 
   /* 2 ── La règle de versement */
@@ -163,35 +209,54 @@ export async function provisionOnboarding(args: ProvisionArgs): Promise<Provisio
     lignes.push({ quoi: "Règle de versement", etat: "cree", detail: doc.regle?.mode || model });
   }
 
-  /* 3 ── Le compte du gestionnaire */
-  let adminIdentifiants: ProvisionResult["adminIdentifiants"];
-  const gestEmail = (doc.gestionnaireEmail || "").trim().toLowerCase();
-  if (gestEmail) {
+  /* 3 ── Les comptes admin : gestionnaire et direction */
+  // Deux rôles, deux comptes. Le gestionnaire valide les rapports au
+  // quotidien, la direction regarde les chiffres — partager un identifiant
+  // effacerait la trace de qui a validé quoi dans le journal. Une adresse vide
+  // est simplement sautée : la fiche se complète souvent après la première
+  // mise en service, qui est rejouable.
+  const adminIdentifiants: ProvisionResult["adminIdentifiants"] = [];
+  const comptesAdmin = [
+    { role: "Gestionnaire", nom: doc.gestionnaire, email: doc.gestionnaireEmail },
+    { role: "Direction", nom: doc.direction, email: doc.directionEmail },
+  ];
+
+  for (const compte of comptesAdmin) {
+    const email = (compte.email || "").trim().toLowerCase();
+    if (!email) continue;
+    const libelle = `${compte.role} ${email}`;
+
     const { data: dejaLa } = await admin.from("profiles")
-      .select("id").eq("tenant_id", tenantId).eq("email", gestEmail).maybeSingle();
+      .select("id").eq("tenant_id", tenantId).eq("email", email).maybeSingle();
     if (dejaLa) {
-      lignes.push({ quoi: `Gestionnaire ${gestEmail}`, etat: "inchange", detail: "compte déjà ouvert" });
-    } else {
-      const motDePasse = makePassword();
-      const { data: user, error: authError } = await admin.auth.admin.createUser({
-        email: gestEmail, password: motDePasse, email_confirm: true,
-      });
-      if (authError || !user?.user) {
-        lignes.push({ quoi: `Gestionnaire ${gestEmail}`, etat: "erreur", detail: authError?.message || "création refusée" });
-      } else {
-        const { error: pErr } = await admin.from("profiles").insert({
-          id: user.user.id, tenant_id: tenantId, email: gestEmail,
-          full_name: doc.gestionnaire?.trim() || gestEmail.split("@")[0], role: "admin",
-        });
-        if (pErr) {
-          await admin.auth.admin.deleteUser(user.user.id);
-          lignes.push({ quoi: `Gestionnaire ${gestEmail}`, etat: "erreur", detail: pErr.message });
-        } else {
-          adminIdentifiants = { email: gestEmail, motDePasse };
-          lignes.push({ quoi: `Gestionnaire ${gestEmail}`, etat: "cree" });
-        }
-      }
+      lignes.push({ quoi: libelle, etat: "inchange", detail: "compte déjà ouvert" });
+      continue;
     }
+
+    const motDePasse = makePassword();
+    const { data: user, error: authError } = await admin.auth.admin.createUser({
+      email, password: motDePasse, email_confirm: true,
+    });
+    if (authError || !user?.user) {
+      lignes.push({ quoi: libelle, etat: "erreur", detail: authError?.message || "création refusée" });
+      continue;
+    }
+
+    const nom = (compte.nom || "").trim() || email.split("@")[0];
+    const { error: pErr } = await admin.from("profiles").insert({
+      id: user.user.id, tenant_id: tenantId, email,
+      full_name: nom, role: "admin",
+    });
+    if (pErr) {
+      // Le compte d'authentification sans profil serait un fantôme : il peut se
+      // connecter et n'appartient à aucun tenant. On le retire.
+      await admin.auth.admin.deleteUser(user.user.id);
+      lignes.push({ quoi: libelle, etat: "erreur", detail: pErr.message });
+      continue;
+    }
+
+    adminIdentifiants.push({ nom: `${compte.role} — ${nom}`, email, motDePasse });
+    lignes.push({ quoi: libelle, etat: "cree" });
   }
 
   /* 4 ── Les chauffeurs (avant les véhicules : l'attribution en dépend) */
@@ -292,18 +357,25 @@ export async function provisionOnboarding(args: ProvisionArgs): Promise<Provisio
     // « Toyota Corolla » : la fiche tient marque et modèle dans une case, la
     // base les sépare. Le premier mot est la marque, le reste le modèle.
     const mots = (v.modele || "").trim().split(/\s+/).filter(Boolean);
+    const driverProfileId = profilParPlaque.get(key);
     const payload: Record<string, unknown> = {
       tenant_id: tenantId,
       plate: plaque.toUpperCase(),
       make: mots[0] || null,
       model: mots.slice(1).join(" ") || null,
       year: /^\d{4}$/.test(String(v.annee || "").trim()) ? parseInt(String(v.annee).trim(), 10) : null,
+      // `owner_name` est la colonne que lisent les filtres et les agrégats ;
+      // `notes` garde la phrase lisible, pour les espaces ouverts avant la 062.
+      owner_name: v.proprio?.trim() || null,
       notes: v.proprio ? `Propriétaire : ${v.proprio}` : null,
+      fleet_segment: segmentDe(v),
       status: "active",
+      // Explicitement null, pas omis : un véhicule sans chauffeur est un état
+      // normal (voiture à l'arrêt, en attente d'affectation) et omettre la clé
+      // laissait la valeur précédente en place lors d'un rejeu.
+      driver_id: driverProfileId ?? null,
       updated_at: new Date().toISOString(),
     };
-    const driverProfileId = profilParPlaque.get(key);
-    if (driverProfileId) payload.driver_id = driverProfileId;
 
     const dejaLa = parPlaque.get(key);
     if (dejaLa) {

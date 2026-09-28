@@ -7,7 +7,7 @@ import { Segmented, type SegmentOption } from "@/components/ui";
 import type { useDashboardKPIs } from "@/lib/hooks/useDashboardKPIs";
 import { displayLabel } from "@/lib/tenant/platformLabel";
 import { formatAmount, formatPct } from "@/lib/v2/format";
-import { costBreakdown, variationPct, cleanCategory, parseDashView, DASH_VIEW_KEY, type DashView } from "@/lib/v2/dashboard";
+import { costBreakdown, variationPct, cleanCategory, parseDashView, DASH_VIEW_KEY, LIGNE_AMORTISSEMENT, type DashView } from "@/lib/v2/dashboard";
 import { ValidationQueueV2 } from "./ValidationQueueV2";
 
 type Kpis = ReturnType<typeof useDashboardKPIs>;
@@ -54,7 +54,14 @@ export function DashboardV2({ view, kpis, plat, tenantId, driverIds, range, onKp
 
   const recettes = kpis.brutYango + kpis.horsYango;
   const netVar = variationPct(kpis.netFinal, kpis.prevNetFinal, kpis.joursOuvres, kpis.prevJoursOuvres);
-  const costs = costBreakdown(kpis.expenseBreakdown, recettes);
+  // Le grand chiffre est net d'amortissement. La variation, elle, reste
+  // calculée hors amortissement des deux côtés : la période précédente n'en a
+  // pas de calculé, et comparer un net amorti à un net non amorti fabriquerait
+  // une chute qui n'a pas eu lieu.
+  const amort = kpis.amortissement || 0;
+  const netAffiche = amort > 0 ? kpis.netFinalApresAmort : kpis.netFinal;
+  const margeAffichee = amort > 0 ? kpis.margeApresAmort : kpis.monthMarginPercent;
+  const costs = costBreakdown(kpis.expenseBreakdown, recettes, kpis.amortissement);
   const days = kpis.dailyRows;
   const maxDay = Math.max(1, ...days.map((d) => Math.max(d.brutYango + d.horsYango, d.netFinal)));
 
@@ -67,14 +74,28 @@ export function DashboardV2({ view, kpis, plat, tenantId, driverIds, range, onKp
       {kpis.loading ? loadingBlock(116) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
           <div style={{ ...card, padding: "18px 20px", gridColumn: "span 1" }}>
-            <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>Net final</div>
-            <div className="v2-num" style={{ fontSize: 34, fontWeight: 600, letterSpacing: "-.03em", marginTop: 6, color: kpis.netFinal >= 0 ? "var(--fleet-positive)" : "var(--v2-negative-ink)" }}>
-              {formatAmount(kpis.netFinal)} <span style={{ fontSize: 14, color: "var(--v2-muted)", letterSpacing: 0 }}>XOF</span>
+            <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>{amort > 0 ? "Résultat net" : "Net final"}</div>
+            <div className="v2-num" style={{ fontSize: 34, fontWeight: 600, letterSpacing: "-.03em", marginTop: 6, color: netAffiche >= 0 ? "var(--fleet-positive)" : "var(--v2-negative-ink)" }}>
+              {formatAmount(netAffiche)} <span style={{ fontSize: 14, color: "var(--v2-muted)", letterSpacing: 0 }}>XOF</span>
             </div>
             <div style={{ fontSize: 13, color: "var(--v2-muted)", marginTop: 4 }}>
               {netVar != null && <><span style={{ color: netVar >= 0 ? "var(--fleet-positive)" : "var(--v2-negative-ink)" }}>{netVar >= 0 ? "+" : ""}{Math.round(netVar)} %</span> vs période précédente · </>}
-              marge {formatPct(kpis.monthMarginPercent)}
+              marge {formatPct(margeAffichee)}
             </div>
+            {/* La décomposition reste sous les yeux : sans elle, un exploitant
+                qui dégage 400 000 en devant encore rembourser 200 000 de
+                véhicule lirait « 400 000 » et se croirait rentable. */}
+            {amort > 0 && (
+              <div style={{ fontSize: 12, color: "var(--v2-muted)", marginTop: 6, paddingTop: 6, borderTop: "1px solid var(--sk-surface)" }}>
+                avant amortissement <span className="v2-num">{formatAmount(kpis.netFinal)}</span>
+                {" · "}amortissement <span className="v2-num" style={{ color: "var(--v2-negative-ink)" }}>−{formatAmount(amort)}</span>
+              </div>
+            )}
+            {(kpis.amortNonRenseignes?.length ?? 0) > 0 && (
+              <div style={{ fontSize: 12, color: "var(--v2-warning-ink, #f59e0b)", marginTop: 6 }}>
+                Capital non renseigné sur {kpis.amortNonRenseignes.join(", ")} — résultat encore optimiste.
+              </div>
+            )}
           </div>
           <div style={{ ...card, padding: "18px 20px" }}>
             <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>Total recettes</div>
@@ -118,6 +139,9 @@ export function DashboardV2({ view, kpis, plat, tenantId, driverIds, range, onKp
                 <div key={c.type} style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr .8fr .9fr", gap: 8, alignItems: "center", padding: "6px 0", fontSize: 13 }}>
                   <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     <span style={{ width: 8, height: 8, borderRadius: 2, background: color, flex: "none" }} />{displayLabel(cleanCategory(c.type))}
+                    {c.type === LIGNE_AMORTISSEMENT && (
+                      <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 4, background: "var(--sk-surface)", color: "var(--v2-muted)", flex: "none" }}>calculé</span>
+                    )}
                   </span>
                   <span className="v2-num" style={{ textAlign: "right" }}>{formatAmount(c.amount)}</span>
                   <span className="v2-num" style={{ textAlign: "right", color: "var(--v2-nav-inactive)" }}>{formatPct(c.pctCA)}</span>

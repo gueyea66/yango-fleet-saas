@@ -457,8 +457,9 @@ export default function SuperAdminPage() {
                   <div style={{ display: "flex", gap: 8 }}>
                     <select value={globalSettings.defaultPlan} onChange={e => setGlobalSettings(p => ({ ...p, defaultPlan: e.target.value }))}
                       style={{ ...S.input, flex: 1, cursor: "pointer" }}>
-                      <option value="standard">Standard — 35 000 XOF/mois</option>
-                      <option value="pro">Pro — 75 000 XOF/mois</option>
+                      {(Object.entries(PLAN_LIMITS) as [Plan, typeof PLAN_LIMITS[Plan]][]).map(([p, l]) => (
+                        <option key={p} value={p}>{l.label} — {l.price}</option>
+                      ))}
                     </select>
                     <button onClick={() => saveGlobalSetting("default_plan", globalSettings.defaultPlan)} disabled={settingsLoading}
                       style={{ background: "#22c55e", color: "var(--sk-deep)", border: "none", borderRadius: 8, padding: "10px 14px", fontWeight: 700, cursor: "pointer" }}>
@@ -574,8 +575,9 @@ export default function SuperAdminPage() {
                   {/* Plan selector */}
                   <select value={t.plan} onChange={e => changePlan(t.id, e.target.value)}
                     style={{ background: planColor + "15", border: `0.5px solid ${planColor}40`, borderRadius: 20, padding: "4px 10px", color: planColor, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
-                    <option value="standard">Standard</option>
-                    <option value="pro">Pro</option>
+                    {(Object.entries(PLAN_LIMITS) as [Plan, typeof PLAN_LIMITS[Plan]][]).map(([p, l]) => (
+                      <option key={p} value={p}>{l.label}</option>
+                    ))}
                   </select>
 
                   {/* Expiry badge */}
@@ -770,8 +772,9 @@ export default function SuperAdminPage() {
               <label style={S.label}>Plan initial</label>
               <select value={form.plan} onChange={e => setForm({ ...form, plan: e.target.value })}
                 style={{ ...S.input, cursor: "pointer" }}>
-                <option value="standard">Standard — 35 000 XOF/mois</option>
-                <option value="pro">Pro — 75 000 XOF/mois</option>
+                {(Object.entries(PLAN_LIMITS) as [Plan, typeof PLAN_LIMITS[Plan]][]).map(([p, l]) => (
+                  <option key={p} value={p}>{l.label} — {l.price}</option>
+                ))}
               </select>
             </div>
             <div>
@@ -1059,8 +1062,9 @@ function PaymentsTab({ tenants, superadminKey, notify }: {
               onChange={e => setPlanOverride(p => ({ ...p, [t.id]: e.target.value }))}
               style={{ background: "#1a1f2e", border: "0.5px solid var(--sk-border)", color: "var(--sk-t1)", borderRadius: 6, padding: "6px 10px", fontSize: 12 }}
             >
-              <option value="standard">Standard</option>
-              <option value="pro">Pro</option>
+              {(Object.entries(PLAN_LIMITS) as [Plan, typeof PLAN_LIMITS[Plan]][]).map(([p, l]) => (
+                <option key={p} value={p}>{l.label}</option>
+              ))}
             </select>
             <input
               type="number" min={1} max={12}

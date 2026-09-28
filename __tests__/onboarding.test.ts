@@ -1,8 +1,8 @@
 import {
   mapRemunerationModel, numFromField, plateKey, slugify, texteRelance, ficheVide, etat,
-  LISTE_CLIENT,
+  segmentDe, LISTE_CLIENT,
 } from "@/lib/onboarding-model";
-import { provisionOnboarding, makePassword, nextDriverId, type AdminDb } from "@/lib/onboarding";
+import { provisionOnboarding, makePassword, nextDriverId, couleurValide, type AdminDb } from "@/lib/onboarding";
 import type { OnbDoc } from "@/lib/onboarding-model";
 
 /* ────────────────────────────────────────────────────────────
@@ -212,7 +212,8 @@ describe("mise en service", () => {
 
     // les identifiants ne sortent qu'ici
     expect(r.identifiants).toHaveLength(2);
-    expect(r.adminIdentifiants?.email).toBe("daniel@nmk.sn");
+    expect(r.adminIdentifiants).toHaveLength(1);
+    expect(r.adminIdentifiants?.[0].email).toBe("daniel@nmk.sn");
     expect(r.doc.chauffeurs[0].driverId).toBe("D01");
     expect(r.doc.chauffeurs[1].driverId).toBe("D02");
   });
@@ -323,5 +324,155 @@ describe("mise en service", () => {
 
     expect(tables.vehicles).toHaveLength(2);
     expect(tables.profiles.filter((p) => p.role === "driver")).toHaveLength(2);
+  });
+});
+
+/* ── Segmentation du parc et second compte admin ──────── */
+
+describe("segmentation de flotte", () => {
+  it("traite une fiche sans segment comme interne", () => {
+    expect(segmentDe({ segment: "partenaire" })).toBe("partenaire");
+    expect(segmentDe({ segment: "interne" })).toBe("interne");
+    expect(segmentDe({})).toBe("interne");
+    expect(segmentDe(null)).toBe("interne");
+    expect(segmentDe({ segment: "n'importe quoi" })).toBe("interne");
+  });
+
+  it("écrit le segment et le propriétaire sur le véhicule", async () => {
+    const { admin, tables } = fauxAdmin();
+    const doc = ficheNMK();
+    doc.vehicules[1].segment = "partenaire";
+    doc.vehicules[1].proprio = "M3A Solutions";
+    await provisionOnboarding({ admin, fileId: "nmk", doc, tenantId: null });
+
+    const interne = tables.vehicles.find((v) => v.plate === "DK-1234-AA")!;
+    const partenaire = tables.vehicles.find((v) => v.plate === "DK-5678-BB")!;
+    expect(interne.fleet_segment).toBe("interne");
+    expect(partenaire.fleet_segment).toBe("partenaire");
+    expect(partenaire.owner_name).toBe("M3A Solutions");
+  });
+
+  it("enregistre un véhicule sans chauffeur avec driver_id à null", async () => {
+    const { admin, tables } = fauxAdmin();
+    const doc = ficheNMK();
+    doc.chauffeurs = [];      // le parc existe, personne ne le conduit encore
+    const r = await provisionOnboarding({ admin, fileId: "nmk", doc, tenantId: null });
+
+    expect(r.ok).toBe(true);
+    expect(tables.vehicles).toHaveLength(2);
+    expect(tables.vehicles.every((v) => v.driver_id === null)).toBe(true);
+  });
+});
+
+describe("comptes administrateurs", () => {
+  it("ouvre un compte pour le gestionnaire ET pour la direction", async () => {
+    const { admin, tables } = fauxAdmin();
+    const doc = ficheNMK();
+    doc.direction = "Nicolas";
+    doc.directionEmail = "nicolas@nmk.sn";
+    const r = await provisionOnboarding({ admin, fileId: "nmk", doc, tenantId: null });
+
+    expect(tables.profiles.filter((p) => p.role === "admin")).toHaveLength(2);
+    expect(r.adminIdentifiants).toHaveLength(2);
+    expect(r.adminIdentifiants?.map((a) => a.email).sort())
+      .toEqual(["daniel@nmk.sn", "nicolas@nmk.sn"]);
+    // deux mots de passe distincts : partager un identifiant effacerait la
+    // trace de qui a validé quoi
+    expect(r.adminIdentifiants![0].motDePasse).not.toBe(r.adminIdentifiants![1].motDePasse);
+  });
+
+  it("saute une adresse vide sans échouer", async () => {
+    const { admin, tables } = fauxAdmin();
+    const doc = ficheNMK();
+    doc.direction = "Nicolas";
+    doc.directionEmail = "";
+    const r = await provisionOnboarding({ admin, fileId: "nmk", doc, tenantId: null });
+
+    expect(r.ok).toBe(true);
+    expect(tables.profiles.filter((p) => p.role === "admin")).toHaveLength(1);
+  });
+
+  it("rejouée, ne recrée aucun des deux comptes admin", async () => {
+    const { admin, tables, comptes } = fauxAdmin();
+    const doc = ficheNMK();
+    doc.direction = "Nicolas";
+    doc.directionEmail = "nicolas@nmk.sn";
+    const premier = await provisionOnboarding({ admin, fileId: "nmk", doc, tenantId: null });
+    const mdpAvant = comptes.map((c) => c.password);
+
+    const second = await provisionOnboarding({ admin, fileId: "nmk", doc: premier.doc, tenantId: premier.tenantId });
+
+    expect(tables.profiles.filter((p) => p.role === "admin")).toHaveLength(2);
+    expect(second.adminIdentifiants).toHaveLength(0);
+    expect(comptes.map((c) => c.password)).toEqual(mdpAvant);
+  });
+});
+
+describe("interface remise au client", () => {
+  it("pose ui_v2 sur le nouvel espace", async () => {
+    const { admin, tables } = fauxAdmin();
+    const doc = { ...ficheNMK(), uiV2: true };
+    await provisionOnboarding({ admin, fileId: "nmk", doc, tenantId: null });
+    expect(tables.tenant_settings[0].ui_v2).toBe(true);
+  });
+
+  it("rejouée avec uiV2 à false, ramène le client sur l'interface actuelle", async () => {
+    const { admin, tables } = fauxAdmin();
+    const premier = await provisionOnboarding({
+      admin, fileId: "nmk", doc: { ...ficheNMK(), uiV2: true }, tenantId: null,
+    });
+    expect(tables.tenant_settings[0].ui_v2).toBe(true);
+
+    await provisionOnboarding({
+      admin, fileId: "nmk", doc: { ...premier.doc, uiV2: false }, tenantId: premier.tenantId,
+    });
+    expect(tables.tenant_settings[0].ui_v2).toBe(false);
+    expect(tables.tenant_settings).toHaveLength(1);   // pas de doublon de réglages
+  });
+
+  it("ne touche pas à l'interface quand la fiche ne dit rien", async () => {
+    const { admin, tables } = fauxAdmin();
+    const doc = ficheNMK();
+    delete (doc as { uiV2?: boolean }).uiV2;
+    const r = await provisionOnboarding({ admin, fileId: "nmk", doc, tenantId: null });
+    expect(r.lignes.some((l) => l.quoi === "Interface")).toBe(false);
+  });
+});
+
+describe("couleur de marque du client", () => {
+  it("n'accepte qu'un hexadécimal à six chiffres, normalisé", () => {
+    expect(couleurValide("#125773")).toBe("#125773");
+    expect(couleurValide("125773")).toBe("#125773");
+    expect(couleurValide("  #125773  ")).toBe("#125773");
+    expect(couleurValide("#125773".toUpperCase())).toBe("#125773");
+  });
+
+  it("refuse tout le reste plutôt que d'écrire une valeur illisible", () => {
+    ["", "  ", "bleu", "#12577", "#1257733", "#12577g", "rgb(1,2,3)", null, undefined, 42]
+      .forEach((v) => expect(couleurValide(v)).toBeNull());
+  });
+
+  it("applique la couleur de la fiche à la création", async () => {
+    const { admin, tables } = fauxAdmin();
+    await provisionOnboarding({ admin, fileId: "nmk", doc: { ...ficheNMK(), couleur: "#125773" }, tenantId: null });
+    expect(tables.tenant_settings[0].primary_color).toBe("#125773");
+  });
+
+  it("garde l'orange par défaut quand la fiche ne dit rien", async () => {
+    const { admin, tables } = fauxAdmin();
+    await provisionOnboarding({ admin, fileId: "nmk", doc: ficheNMK(), tenantId: null });
+    expect(tables.tenant_settings[0].primary_color).toBe("#f5a623");
+  });
+
+  it("rejouée, repose la couleur — c'est ce qui permet de la corriger après coup", async () => {
+    const { admin, tables } = fauxAdmin();
+    const premier = await provisionOnboarding({ admin, fileId: "nmk", doc: ficheNMK(), tenantId: null });
+    expect(tables.tenant_settings[0].primary_color).toBe("#f5a623");
+
+    await provisionOnboarding({
+      admin, fileId: "nmk", doc: { ...premier.doc, couleur: "#125773" }, tenantId: premier.tenantId,
+    });
+    expect(tables.tenant_settings[0].primary_color).toBe("#125773");
+    expect(tables.tenant_settings).toHaveLength(1);
   });
 });

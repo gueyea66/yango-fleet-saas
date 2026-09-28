@@ -23,6 +23,9 @@ const NAV = [
   { key: "report" as const, label: "Rapport", icon: ClipboardList },
   { key: "expense" as const, label: "Dépense", icon: Receipt },
   { key: "pilotage" as const, label: "Pilotage", icon: Gauge },
+  // Le Profil porte la déconnexion : il doit être dans la barre, pas seulement
+  // derrière l'avatar de l'en-tête.
+  { key: "profil" as const, label: "Profil", icon: UserRound },
 ];
 
 const noop = () => {};
@@ -30,7 +33,7 @@ const noop = () => {};
 /**
  * App chauffeur v2 (Driver.dc.html) — rendue par app/driver/page.tsx quand le
  * drapeau ui_v2 est allumé, après le chargement du profil (inchangé).
- * Le type d'onglet garde ses 7 valeurs ; la barre du bas n'en montre que 4.
+ * Le type d'onglet garde ses 7 valeurs ; la barre du bas n'en montre que 5.
  */
 export default function DriverAppV2({ profile, cfg, onSignOut }: { profile: Profile; cfg: Cfg; onSignOut: () => void }) {
   const [tab, setTab] = useState<DriverTab>("home");

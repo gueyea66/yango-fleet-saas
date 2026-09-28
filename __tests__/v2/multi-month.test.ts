@@ -21,13 +21,15 @@ function kpi(o: Partial<DashboardKPIs>): DashboardKPIs {
     monthRevenue: 0, monthExpenses: 0, monthNetMargin: 0, monthMarginPercent: 0, avgFuelConsumption: 0, totalFuelCost: 0,
     totalDrivers: 3, avgRevenuePerDriver: 0,
     dailyRows: [], expenseBreakdown: [], dailyExpByCategory: [], dailyTrendData: [], topDrivers: [], driverAllocations: [],
+    amortissement: 0, resultatNet: 0, netFinalApresAmort: 0, margeApresAmort: 0,
+    amortNonRenseignes: [], amortParVehicule: [],
     loading: false, error: null,
     ...o,
   };
 }
 
 const alloc = (driver_id: string, net: number) => ({
-  driver_id, name: driver_id, netDeclared: net, netApproved: net, netPending: 0, nbReports: 10, nbApproved: 10, nbPending: 0,
+  driver_id, name: driver_id, netDeclared: net, brutDeclared: net * 2, netApproved: net, netPending: 0, nbReports: 10, nbApproved: 10, nbPending: 0,
   hire_date: null, prorataFactor: 1, salary_model: null, base_amount: null,
 });
 
@@ -68,6 +70,19 @@ describe("Juil + Sep = somme des deux mois pris séparément", () => {
     expect(m.expenseBreakdown[0]).toMatchObject({ type: "💵 Salaires", amount: 400_000 });
     expect(m.expenseBreakdown.find((r) => r.type === "Carburant")?.amount).toBe(300_000);
     expect(m.driverAllocations.find((d) => d.driver_id === "a")?.netDeclared).toBe(1_100_000);
+  });
+  it("amortissement et brut déclaré additionnés, marge après amortissement recalculée", () => {
+    const j = { ...juil, brutYango: 800_000, horsYango: 200_000, amortissement: 50_000, netFinalApresAmort: 350_000, resultatNet: 10,
+      amortNonRenseignes: ["DK-1"], amortParVehicule: [{ plate: "AA-1", montant: 30_000, mensualite: 30_000, dureeMois: 36, moisRestants: 20 }] };
+    const s2 = { ...sep, brutYango: 400_000, horsYango: 100_000, amortissement: 50_000, netFinalApresAmort: 50_000, resultatNet: 5,
+      amortNonRenseignes: ["DK-1", "DK-2"], amortParVehicule: [{ plate: "AA-1", montant: 30_000, mensualite: 30_000, dureeMois: 36, moisRestants: 18 }] };
+    const r = mergeMonthlyKpis([j, s2]);
+    expect(r.amortissement).toBe(100_000);
+    expect(r.resultatNet).toBe(15);
+    expect(r.margeApresAmort).toBeCloseTo((400_000 / 1_500_000) * 100);
+    expect(r.amortNonRenseignes).toEqual(["DK-1", "DK-2"]);
+    expect(r.amortParVehicule).toEqual([{ plate: "AA-1", montant: 60_000, mensualite: 30_000, dureeMois: 36, moisRestants: 18 }]);
+    expect(r.driverAllocations.find((d) => d.driver_id === "a")?.brutDeclared).toBe(2_200_000);
   });
   it("un mois encore en chargement → chargement", () => {
     expect(mergeMonthlyKpis([juil, { ...sep, loading: true }]).loading).toBe(true);

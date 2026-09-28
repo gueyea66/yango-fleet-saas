@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { recomputeReportNet } from "@/lib/reportNet";
 import { logAction } from "@/lib/logAction";
+import { obtenirUrlsSignees } from "@/lib/signedUrls";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- signature d'origine
 export function useReportReview(report: any, onRefresh: () => void) {
@@ -27,12 +28,14 @@ export function useReportReview(report: any, onRefresh: () => void) {
       const supabase = createClient() as any;
       const { data } = await supabase.from("uploads").select("*").eq("driver_id", report.driver_id).order("created_at", { ascending: false });
       // Keep files linked to this report: either by ref_id or file_path (legacy path)
-      const enriched = (data || [])
-        .filter((u: any) => u.ref_id === report.id || u.file_path?.includes(report.id))
-        .map((u: any) => {
-        const { data: { publicUrl } } = supabase.storage.from("kyc-documents").getPublicUrl(u.file_path);
-        return { ...u, publicUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(u.file_name) };
-      });
+      const liees = (data || [])
+        .filter((u: any) => u.ref_id === report.id || u.file_path?.includes(report.id));
+      const urls = await obtenirUrlsSignees(liees.map((u: any) => u.file_path));
+      const enriched = liees.map((u: any) => ({
+        ...u,
+        publicUrl: urls[u.file_path] || "",
+        isImg: /\.(jpg|jpeg|png|gif|webp|heic|heif)$/i.test(u.file_name),
+      }));
       setUploads(enriched);
     })();
   }, [report.driver_id]);

@@ -258,8 +258,11 @@ async function buildBriefingContent(
 
   // Projection fin de mois : net opérationnel MTD projeté sur les jours ouvrés
   const mtd = computePeriodAggregates(win, monthStart, today, iso(Date.parse(today) - 30 * DAY));
+  // Projeté sur le RÉSULTAT NET : projeter un net avant amortissement donnerait
+  // une fin de mois plus belle que la réalité, exactement ce qu'on cherche à
+  // supprimer. La charge d'amortissement du mois est déjà dedans.
   const netProjete = projeterResultat({
-    resultatRealise: mtd.netOperationnel,
+    resultatRealise: mtd.resultatNet,
     joursOuvresEcoules: Math.max(1, joursOuvresRealises(monthStart, today, reposFleetDates)),
     joursOuvresCible: joursOuvresProjetes(monthStart, monthEnd),
   });
@@ -268,7 +271,7 @@ async function buildBriefingContent(
   const kpis: BriefingKpi[] = [
     // Net : évolution hebdo PAR JOUR OUVRÉ (une semaine avec repos flotte ne
     // crée pas une fausse variation) ; la valeur affichée reste le total 7 j.
-    { kpi_name: "net_operationnel", value: cur.netOperationnel, unit: "FCFA", delta_pct_wow: deltaPct(cur.netParJourOuvre, prev.netParJourOuvre), badge: "calculated" },
+    { kpi_name: "net_operationnel", value: cur.resultatNet, unit: "FCFA", delta_pct_wow: deltaPct(cur.netParJourOuvre, prev.netParJourOuvre), badge: "calculated" },
     { kpi_name: "carburant_km", value: cur.coutCarburantParKm, unit: "FCFA/km", delta_pct_wow: deltaPct(cur.coutCarburantParKm, prev.coutCarburantParKm), badge: "calculated" },
     { kpi_name: "taux_soumission", value: cur.tauxSoumission, unit: "%", delta_pct_wow: deltaPct(cur.tauxSoumission, prev.tauxSoumission), badge: "calculated" },
   ];

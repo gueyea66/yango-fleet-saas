@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireAnyAuth } from "@/lib/auth/server";
 
-const ALLOWED_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
+// HEIC/HEIF ajoutés le 26/09 : c'est le format par défaut de nombreux
+// téléphones, et une photo de reçu prise avec l'appareil natif était refusée
+// sans que le chauffeur comprenne pourquoi. Mieux vaut stocker la preuve dans
+// un format que tous les navigateurs n'affichent pas que ne pas l'avoir.
+const ALLOWED_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 const BUCKET = "kyc-documents";
 
@@ -64,7 +68,8 @@ export async function POST(req: NextRequest) {
 
     // Validation de la taille
     if (buffer.byteLength > MAX_FILE_SIZE_BYTES) {
-      return NextResponse.json({ error: "Fichier trop volumineux (max 10 MB)" }, { status: 400 });
+      const mo = (buffer.byteLength / 1024 / 1024).toFixed(1);
+      return NextResponse.json({ error: `Fichier de ${mo} Mo, maximum 10 Mo` }, { status: 400 });
     }
 
     // Sanitisation du path — isolation tenant + intra-tenant (chauffeur)
@@ -127,6 +132,14 @@ function detectMimeType(buffer: Buffer, fallback: string): string {
       buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 &&
       buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50) {
     return "image/webp";
+  }
+
+  // HEIC / HEIF : boîte ISO-BMFF « ftyp » à l'offset 4, marque à l'offset 8.
+  if (buffer.length >= 12 &&
+      buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70) {
+    const marque = buffer.subarray(8, 12).toString("ascii");
+    if (["heic", "heix", "hevc", "heim", "heis"].includes(marque)) return "image/heic";
+    if (["mif1", "msf1"].includes(marque)) return "image/heif";
   }
 
   return fallback;

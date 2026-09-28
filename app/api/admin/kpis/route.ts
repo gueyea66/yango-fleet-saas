@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import { requireAdminAuth } from "@/lib/auth/server";
 import { CAT_AVANCE } from "@/lib/expenseCategories";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { kmParMoisDepuisCompteur } from "@/lib/calc";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +53,8 @@ export async function GET(req: NextRequest) {
       driverProfiles,
       prevReps,
       prevOdoReps,
+      vehicles,
+      odoParVehicule,
     ] = await Promise.all([
       fetchAllRows(() => srcQ(dQ(tQ(admin.from("daily_reports").select("*")))).gte("date", periodStart).lte("date", periodEnd).order("date")),
       fetchAllRows(() => srcQ(dQ(tQ(admin.from("expenses").select("*")))).order("expense_date")),
@@ -64,6 +67,19 @@ export async function GET(req: NextRequest) {
       // période est utilisée — 1000 lignes triées du plus récent au plus ancien
       // en couvrent largement l'ensemble (le plafond PostgREST est de 1000).
       srcQ(dQ(tQ(admin.from("daily_reports").select("driver_id,date,end_odometer,status")))).lt("date", periodStart).not("end_odometer", "is", null).order("date", { ascending: false }).limit(1000).then((r: any) => r.data || []),
+      // Amortissement : le parc et ses paramètres de capital. Réservé au
+      // contexte admin — un chauffeur n'a pas à connaître ce que coûte la
+      // flotte (même règle de cloisonnement que la migration 069).
+      admin.from("vehicles")
+        .select("id,plate,mileage,fleet_segment,prix_acquisition,valeur_residuelle,date_acquisition,amort_plafond_km,amort_duree_max_mois,amort_methode,amort_porte_par")
+        .eq("tenant_id", tenantId).then((r: any) => r.data || []),
+      // Relevés de compteur par véhicule, sur TOUT l'historique et non sur la
+      // seule période : le rythme d'usure se mesure sur la durée. Mesuré sur un
+      // mois isolé, un véhicule immobilisé deux semaines afficherait une durée
+      // d'amortissement doublée.
+      fetchAllRows(() => tQ(admin.from("daily_reports").select("vehicle_id,date,end_odometer"))
+        .not("vehicle_id", "is", null).not("end_odometer", "is", null).gt("end_odometer", 0)
+        .in("status", ["approved", "submitted"]).order("date")),
     ]);
 
     // ── Évolution vs période précédente (Net final & Total recettes) ──
@@ -89,7 +105,34 @@ export async function GET(req: NextRequest) {
       .filter((d) => !prevWorked.has(d as string)).length;
     const prevJoursOuvres = Math.max(0, prevLen - prevReposFleet);
 
+    // ── Parc amortissable ──
+    // Le rythme d'usure est mesuré ici, côté serveur, pour que le client reçoive
+    // un parc directement exploitable par `amortissementParc()` et non un
+    // historique de compteurs à recalculer à chaque rendu.
+    const relevesParVehicule = new Map<string, Array<{ date: string; end_odometer: number | null }>>();
+    for (const r of (odoParVehicule || []) as any[]) {
+      if (!r.vehicle_id) continue;
+      (relevesParVehicule.get(r.vehicle_id) ?? relevesParVehicule.set(r.vehicle_id, []).get(r.vehicle_id)!)
+        .push({ date: r.date, end_odometer: r.end_odometer });
+    }
+    const parcAmortissable = ((vehicles || []) as any[]).map((v) => ({
+      id: v.id,
+      plate: String(v.plate ?? "").trim(),
+      kmParMois: kmParMoisDepuisCompteur(relevesParVehicule.get(v.id) || []),
+      vehicule: {
+        prixAcquisition: v.prix_acquisition,
+        valeurResiduelle: v.valeur_residuelle,
+        dateAcquisition: v.date_acquisition,
+        compteurActuel: v.mileage,
+        plafondKm: v.amort_plafond_km,
+        dureeMaxMois: v.amort_duree_max_mois,
+        porteePar: v.amort_porte_par,
+        segment: v.fleet_segment,
+      },
+    }));
+
     return Response.json({
+      parcAmortissable,
       allReps: allReps || [],
       allExps: allExps || [],
       allPayments: allPayments || [],

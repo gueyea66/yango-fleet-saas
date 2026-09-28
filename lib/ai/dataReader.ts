@@ -6,11 +6,13 @@
  * comptes techniques exclus.
  */
 import { aiAdmin } from "./adminClient";
-import { soldeConsomme, coutCarburantParKm, carburantConsomme, computeOperationnel } from "@/lib/calc";
+import { soldeConsomme, coutCarburantParKm, carburantConsomme, computeOperationnel,
+  amortissementPeriode, kmParMoisDepuisCompteur } from "@/lib/calc";
 import { CAT_AVANCE } from "@/lib/expenseCategories";
 
 export interface RawReport {
   driver_id: string;
+  vehicle_id?: string | null;
   date: string;               // YYYY-MM-DD
   status: string;             // approved | submitted | rejected
   yango_gross: number | null;
@@ -67,10 +69,30 @@ export function activeDriverIds(win: TenantWindow, date: string): Set<string> {
   return new Set(win.drivers.filter((d) => isDriverActiveOn(d, date)).map((d) => d.id));
 }
 
+export interface RawVehicle {
+  id: string;
+  plate: string | null;
+  mileage: number | null;
+  fleet_segment: string | null;
+  prix_acquisition: number | null;
+  valeur_residuelle: number | null;
+  date_acquisition: string | null;
+  amort_plafond_km: number | null;
+  amort_duree_max_mois: number | null;
+  amort_porte_par: string | null;
+}
+
 export interface TenantWindow {
   drivers: RawDriver[];
   reports: RawReport[];   // triés par date croissante
   expenses: RawExpense[];
+  /**
+   * Parc et paramètres de capital — sans lui le briefing commente un net embelli.
+   * Optionnel : `fetchTenantWindow` le remplit toujours, mais les fixtures des
+   * règles IA ne portent pas sur le parc et n'ont pas à le déclarer. Absent,
+   * l'amortissement vaut 0 et le briefing se comporte comme avant.
+   */
+  vehicles?: RawVehicle[];
 }
 
 import { fetchAllRows } from "@/lib/fetchAllRows";
@@ -87,13 +109,13 @@ export async function fetchTenantWindow(tenantId: string, days = 70): Promise<Te
   // Lectures paginées : 70 jours d'une flotte de 15 véhicules dépassent le
   // plafond PostgREST de 1000 lignes (cf. lib/fetchAllRows) — les règles et le
   // briefing tournaient sinon sur une fenêtre amputée.
-  const [drvRows, repRows, expRows] = await Promise.all([
+  const [drvRows, repRows, expRows, vehRows] = await Promise.all([
     admin.from("profiles")
       .select("id, full_name, account_type, active, salary_model, hire_date, contract_end_date")
       .eq("tenant_id", tenantId).eq("role", "driver")
       .then((r: { data: unknown }) => (r.data ?? []) as RawDriver[]),
     fetchAllRows<RawReport>(() => admin.from("daily_reports")
-      .select("driver_id, date, status, yango_gross, yango_bonus, off_yango_revenue, solde_yango, end_odometer, yango_trip_count, off_yango_trip_count, commission_amount, comment")
+      .select("driver_id, vehicle_id, date, status, yango_gross, yango_bonus, off_yango_revenue, solde_yango, end_odometer, yango_trip_count, off_yango_trip_count, commission_amount, comment")
       .eq("tenant_id", tenantId)
       .gte("date", from)
       .order("date", { ascending: true })),
@@ -102,6 +124,10 @@ export async function fetchTenantWindow(tenantId: string, days = 70): Promise<Te
       .eq("tenant_id", tenantId)
       .gte("expense_date", from)
       .order("expense_date", { ascending: true })),
+    admin.from("vehicles")
+      .select("id, plate, mileage, fleet_segment, prix_acquisition, valeur_residuelle, date_acquisition, amort_plafond_km, amort_duree_max_mois, amort_porte_par")
+      .eq("tenant_id", tenantId)
+      .then((r: { data: unknown }) => (r.data ?? []) as RawVehicle[]),
   ]);
   const drv = { data: drvRows }, rep = { data: repRows }, exp = { data: expRows };
 
@@ -115,6 +141,7 @@ export async function fetchTenantWindow(tenantId: string, days = 70): Promise<Te
     expenses: ((exp.data ?? []) as RawExpense[]).filter(
       (e) => !e.driver_id || !technical.has(e.driver_id)
     ),
+    vehicles: vehRows ?? [],
   };
 }
 
@@ -272,6 +299,10 @@ export interface PeriodAggregates {
   depensesOpe: number;
   /** Net opérationnel AVANT salaires (comparaison hebdo — les salaires sont mensuels). */
   netOperationnel: number;
+  /** Usure des véhicules sur la période, proratisée. */
+  amortissement: number;
+  /** netOperationnel − amortissement. Le chiffre que le briefing doit commenter. */
+  resultatNet: number;
   km: number;
   coutCarburantParKm: number; // ratio historique appliqué (FCFA/km)
   reportsApproved: number;    // rapports travaillés (hors [REPOS])
@@ -280,6 +311,26 @@ export interface PeriodAggregates {
   tauxSoumission: number;     // %
   joursOuvres: number;        // jours ouvrés flotte : calendaires − repos « flotte entière »
   netParJourOuvre: number;    // net opérationnel ramené au jour ouvré (base de comparaison)
+}
+
+/** Amortissement du parc d'un tenant sur [from, to]. */
+function amortissementParcWindow(win: TenantWindow, from: string, to: string): number {
+  const releves = new Map<string, Array<{ date: string; end_odometer: number | null }>>();
+  for (const r of win.reports) {
+    if (!r.vehicle_id || r.end_odometer == null || r.end_odometer <= 0) continue;
+    (releves.get(r.vehicle_id) ?? releves.set(r.vehicle_id, []).get(r.vehicle_id)!)
+      .push({ date: r.date, end_odometer: r.end_odometer });
+  }
+  return (win.vehicles ?? []).reduce((total, v) => total + amortissementPeriode({
+    vehicule: {
+      prixAcquisition: v.prix_acquisition, valeurResiduelle: v.valeur_residuelle,
+      dateAcquisition: v.date_acquisition, compteurActuel: v.mileage,
+      plafondKm: v.amort_plafond_km, dureeMaxMois: v.amort_duree_max_mois,
+      porteePar: v.amort_porte_par, segment: v.fleet_segment,
+    },
+    fromISO: from, toISO: to,
+    kmParMois: kmParMoisDepuisCompteur(releves.get(v.id) || []),
+  }).montant, 0);
 }
 
 /**
@@ -302,6 +353,12 @@ export function computePeriodAggregates(
     recettes, soldeConsomme: solde, carburantConsomme: carburant,
     depensesOperationnelles: depensesOpe, salaires: 0,
   });
+
+  // Sans cette ligne, le briefing commente une semaine « rentable » alors que
+  // les véhicules s'usent sans être remboursés. Le rythme d'usure vient de
+  // toute la fenêtre chargée, pas de la seule période comparée.
+  const amortissement = Math.round(amortissementParcWindow(win, from, to));
+  const resultatNet = netOperationnel - amortissement;
 
   // Actif = flag + contrat couvrant au moins une partie de la période.
   const activeIds = activeDriverIds(win, from);
@@ -359,6 +416,8 @@ export function computePeriodAggregates(
     carburantConsomme: carburant,
     depensesOpe: Math.round(depensesOpe),
     netOperationnel: Math.round(netOperationnel),
+    amortissement,
+    resultatNet: Math.round(resultatNet),
     km,
     coutCarburantParKm: Math.round(ratio * 100) / 100,
     reportsApproved: approvedCount,

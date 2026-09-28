@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { isDriverActiveOn } from "@/lib/drivers";
-import { getTenantAdminIds, sendNotification, sendTelegramToTenant } from "@/lib/notifications";
+import { getTenantAdminIds, sendNotification, sendTelegramToOperator, sendTelegramToTenant } from "@/lib/notifications";
 import { CAT_AVANCE } from "@/lib/expenseCategories";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,9 @@ export const maxDuration = 300;
  * Rappels du soir (retour Abdou 02/09 — « un vrai système d'alerte ») :
  *  1. chauffeur actif sans rapport AUJOURD'HUI → rappel de soumission (in-app + push) ;
  *  2. assurance / visite technique qui expire → alerte admins à J-30/14/7/3/1/0 ;
- *  3. abonnement / essai qui expire → alerte admins à J-7/3/1.
+ *  3. abonnement / essai qui expire → alerte admins du client à J-7/3/1,
+ *     ET un récapitulatif à l'éditeur dès J-21 — c'est lui qui peut agir, et
+ *     il doit l'apprendre avant son client.
  * Déclenché par GitHub Actions (20h05 Dakar) — les 2 crons Vercel sont pris.
  * Auth : Authorization: Bearer CRON_SECRET (même convention que le batch IA).
  */
@@ -24,6 +26,10 @@ const admin = createClient(
 
 const EXPIRY_STEPS = new Set([30, 14, 7, 3, 1, 0]);
 const PLAN_STEPS = new Set([7, 3, 1]);
+// L'éditeur est prévenu plus tôt : relancer un client, émettre une facture et
+// encaisser ne se font pas en sept jours. Un seul message par jour concerné,
+// tous clients confondus — une alerte par tenant serait du bruit.
+const OPERATOR_STEPS = new Set([21, 14, 7, 3, 1, 0]);
 const AVANCE_STEPS = new Set([7, 14]); // jours depuis la remise de l'avance
 const daysUntil = (dateStr: string, today: string) =>
   Math.round((Date.parse(dateStr) - Date.parse(today)) / 86_400_000);
@@ -41,6 +47,8 @@ async function handle(req: NextRequest) {
 
   let reminders = 0, expiries = 0, plans = 0, avancesAlerts = 0;
   const errors: string[] = [];
+  /** Échéances à signaler à l'éditeur, agrégées pour un seul message. */
+  const echeances: { nom: string; plan: string; jours: number; date: string }[] = [];
 
   for (const t of tenants || []) {
     try {
@@ -131,6 +139,10 @@ async function handle(req: NextRequest) {
       const planEnd = t.plan_expires_at ?? t.trial_ends_at;
       if (planEnd) {
         const dd = daysUntil(String(planEnd).slice(0, 10), today);
+        if (OPERATOR_STEPS.has(dd)) {
+          echeances.push({ nom: t.name || "(sans nom)", plan: t.plan || "?", jours: dd,
+                           date: String(planEnd).slice(0, 10) });
+        }
         if (PLAN_STEPS.has(dd)) {
           await notifyAdmins("plan_expiring", "⚠️ Abonnement bientôt expiré",
             `Votre ${t.plan === "trial" ? "période d'essai" : "abonnement"} expire dans ${dd} jour${dd > 1 ? "s" : ""}. Contactez-nous pour continuer sans interruption.`,
@@ -143,7 +155,22 @@ async function handle(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ date: today, reminders, expiries, plans, avancesAlerts, errors });
+  // Un message à l'éditeur, après la boucle : il veut la liste, pas dix
+  // notifications séparées. Rien à signaler = rien d'envoyé.
+  if (echeances.length) {
+    echeances.sort((a, b) => a.jours - b.jours);
+    await sendTelegramToOperator(
+      "M3A Fleet - echeances d abonnement",
+      echeances.map((e) => e.jours === 0
+        ? `${e.nom} (${e.plan}) expire AUJOURD HUI ${e.date}`
+        : `${e.nom} (${e.plan}) expire dans ${e.jours} jour${e.jours > 1 ? "s" : ""} le ${e.date}`
+      ).join("\n") +
+      "\n\nProlonger : panneau superadmin, onglet Paiements."
+    );
+  }
+
+  return NextResponse.json({ date: today, reminders, expiries, plans, avancesAlerts,
+                             echeances: echeances.length, errors });
 }
 
 export async function GET(req: NextRequest) { return handle(req); }
