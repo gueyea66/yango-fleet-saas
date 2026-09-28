@@ -9,6 +9,8 @@ export type PeriodKind = "jour" | "7j" | "mois" | "annee" | "dates";
 export interface AdminPeriod {
   kind: PeriodKind;
   month: string;   // AAAA-MM (kind = mois)
+  /** plusieurs mois, même non contigus (kind = mois, ≥ 2 entrées triées) */
+  months?: string[];
   year: number;    // kind = annee
   from: string;    // AAAA-MM-JJ (kind = dates)
   to: string;
@@ -34,18 +36,38 @@ export function defaultPeriod(today: Date): AdminPeriod {
   return { kind: "mois", month: t.slice(0, 7), year: today.getFullYear(), from: t, to: t };
 }
 
-/** Bornes incluses (AAAA-MM-JJ) de la période choisie. Le mois et l'année sont complets. */
-export function periodRange(p: AdminPeriod, today: Date): { from: string; to: string } {
+export type PeriodRange = { from: string; to: string; months?: string[] };
+
+const monthBounds = (month: string) => {
+  const [y, m] = month.split("-").map(Number);
+  return { from: `${y}-${pad(m)}-01`, to: `${y}-${pad(m)}-${pad(new Date(y, m, 0).getDate())}` };
+};
+
+/** Mois choisis (kind = mois) : un seul, ou plusieurs même non contigus. */
+export function selectedMonths(p: AdminPeriod): string[] {
+  if (p.kind !== "mois") return [];
+  return p.months && p.months.length > 1 ? p.months : [p.month];
+}
+
+export const isMultiMonth = (p: AdminPeriod) => selectedMonths(p).length > 1;
+
+/**
+ * Bornes incluses (AAAA-MM-JJ) de la période choisie. Le mois et l'année sont
+ * complets. Plusieurs mois : enveloppe + liste `months` (inRange s'y limite).
+ */
+export function periodRange(p: AdminPeriod, today: Date): PeriodRange {
   const t = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  if (isMultiMonth(p)) {
+    const ms = selectedMonths(p);
+    return { from: monthBounds(ms[0]).from, to: monthBounds(ms[ms.length - 1]).to, months: ms };
+  }
   switch (p.kind) {
     case "jour":
       return { from: isoDate(t), to: isoDate(t) };
     case "7j":
       return { from: isoDate(addDays(t, -6)), to: isoDate(t) };
-    case "mois": {
-      const [y, m] = p.month.split("-").map(Number);
-      return { from: `${y}-${pad(m)}-01`, to: `${y}-${pad(m)}-${pad(new Date(y, m, 0).getDate())}` };
-    }
+    case "mois":
+      return monthBounds(p.month);
     case "annee":
       return { from: `${p.year}-01-01`, to: `${p.year}-12-31` };
     case "dates":
@@ -59,10 +81,49 @@ export function daysInclusive(from: string, to: string): number {
   return Math.round((parseIso(to).getTime() - parseIso(from).getTime()) / 86_400_000) + 1;
 }
 
-export function inRange(date: string | null | undefined, r: { from: string; to: string }): boolean {
+export function inRange(date: string | null | undefined, r: PeriodRange): boolean {
   if (!date) return false;
   const d = date.slice(0, 10);
+  if (r.months && !r.months.includes(d.slice(0, 7))) return false;
   return d >= r.from && d <= r.to;
+}
+
+/** Une plage continue par mois choisi (un appel useDashboardKPIs chacune). */
+export function monthRanges(p: AdminPeriod, today: Date): { from: string; to: string }[] {
+  if (isMultiMonth(p)) return selectedMonths(p).map(monthBounds);
+  const r = periodRange(p, today);
+  return [{ from: r.from, to: r.to }];
+}
+
+/**
+ * Sélection dans la grille des mois : clic = ce mois seul ; Ctrl/Cmd (ou mode
+ * « plusieurs mois » sur mobile) = ajoute / retire ; Maj = plage depuis l'ancre.
+ * Jamais vide : retirer le dernier mois le garde.
+ */
+export function nextMonthSelection(
+  current: string[], clicked: string, mods: { toggle?: boolean; range?: boolean; anchor?: string | null },
+): string[] {
+  let next: string[];
+  if (mods.range && mods.anchor) {
+    const [a, b] = mods.anchor <= clicked ? [mods.anchor, clicked] : [clicked, mods.anchor];
+    const span: string[] = [];
+    for (let m = a; m <= b; m = shiftMonth(m, 1)) span.push(m);
+    next = [...new Set([...current, ...span])];
+  } else if (mods.toggle) {
+    next = current.includes(clicked) ? current.filter((m) => m !== clicked) : [...current, clicked];
+    if (next.length === 0) next = [clicked];
+  } else {
+    next = [clicked];
+  }
+  return next.sort();
+}
+
+/** Applique une sélection de mois à la période (1 mois → sélection simple). */
+export function withMonths(p: AdminPeriod, months: string[]): AdminPeriod {
+  const ms = [...new Set(months)].sort();
+  return ms.length > 1
+    ? { ...p, kind: "mois", month: ms[ms.length - 1], months: ms }
+    : { ...p, kind: "mois", month: ms[0] ?? p.month, months: undefined };
 }
 
 /** Mois précédent / suivant (AAAA-MM). */
@@ -93,12 +154,22 @@ const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 export const monthLabel = (month: string) => { const [y, m] = month.split("-").map(Number); return `${cap(MOIS[m - 1])} ${y}`; };
 const ddmm = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+const MOIS_COURT = ["Janv", "Févr", "Mars", "Avr", "Mai", "Juin", "Juil", "Août", "Sep", "Oct", "Nov", "Déc"];
+
+/** « Juil + Sep 2026 », « Déc 2025 + Janv 2026 », « 3 mois ». */
+export function monthsLabel(months: string[]): string {
+  if (months.length === 1) return monthLabel(months[0]);
+  if (months.length > 2) return `${months.length} mois`;
+  const [a, b] = months;
+  const short = (m: string) => MOIS_COURT[Number(m.slice(5, 7)) - 1];
+  return a.slice(0, 4) === b.slice(0, 4) ? `${short(a)} + ${short(b)} ${a.slice(0, 4)}` : `${short(a)} ${a.slice(0, 4)} + ${short(b)} ${b.slice(0, 4)}`;
+}
 
 /** Libellé de la pastille de dates. */
 export function periodLabel(p: AdminPeriod, today: Date): string {
   const r = periodRange(p, today);
   switch (p.kind) {
-    case "mois": return monthLabel(p.month);
+    case "mois": return monthsLabel(selectedMonths(p));
     case "annee": return String(p.year);
     case "jour": return `Aujourd'hui · ${ddmm(r.from)}`;
     default: return r.from === r.to ? ddmm(r.from) : `${ddmm(r.from)} → ${ddmm(r.to)}`;
@@ -122,7 +193,11 @@ export function parseAdminFilter(search: string | URLSearchParams, today: Date):
   const p = sp.get("p");
   let period = base;
   if (p === "jour" || p === "7j") period = { ...base, kind: p };
-  else if (p === "mois") period = { ...base, kind: "mois", month: isMonth(sp.get("m")) ? (sp.get("m") as string) : base.month };
+  else if (p === "mois") {
+    // ?m=2026-07,2026-09 : plusieurs mois ; valeurs invalides ignorées
+    const ms = (sp.get("m") || "").split(",").map((x) => x.trim()).filter(isMonth);
+    period = ms.length ? withMonths(base, ms) : { ...base, kind: "mois" };
+  }
   else if (p === "annee") {
     const y = Number(sp.get("y"));
     period = { ...base, kind: "annee", year: Number.isInteger(y) && y >= 2000 && y <= 2100 ? y : base.year };
@@ -138,7 +213,7 @@ export function serializeAdminFilter(period: AdminPeriod, drivers: string[], bas
   const sp = new URLSearchParams(typeof base === "string" ? base : base.toString());
   for (const k of ["p", "m", "y", "du", "au", "d"]) sp.delete(k);
   sp.set("p", period.kind);
-  if (period.kind === "mois") sp.set("m", period.month);
+  if (period.kind === "mois") sp.set("m", selectedMonths(period).join(","));
   if (period.kind === "annee") sp.set("y", String(period.year));
   if (period.kind === "dates") { sp.set("du", period.from); sp.set("au", period.to); }
   if (drivers.length) sp.set("d", drivers.join(","));
