@@ -14,21 +14,28 @@ export interface BottomNavItem<K extends string> {
  * Couleur active : --fleet-positive (chauffeur) ou --tenant-color (propriétaire).
  */
 export function BottomNav<K extends string>({
-  items, active, onChange, accent = "var(--fleet-positive)", fixed = true,
+  items, active, onChange, accent = "var(--fleet-positive)", fixed = true, sticky = false,
 }: {
   items: BottomNavItem<K>[];
   active: K | null;
   onChange: (key: K) => void;
   accent?: string;
   fixed?: boolean;
+  /**
+   * `sticky` : la barre reste collée en bas de l'écran pendant que la PAGE
+   * défile, tout en restant dans le flux (elle respecte donc la largeur max du
+   * gabarit, ce que `fixed` ne fait pas). C'est ce que veut la coque chauffeur.
+   */
+  sticky?: boolean;
 }) {
   return (
     <nav
       aria-label="Navigation principale"
       style={{
-        position: fixed ? "fixed" : "relative",
-        left: 0,
-        right: 0,
+        position: fixed ? "fixed" : sticky ? "sticky" : "relative",
+        // en sticky, pas de calage horizontal : la barre suit la largeur du gabarit
+        left: sticky && !fixed ? undefined : 0,
+        right: sticky && !fixed ? undefined : 0,
         bottom: 0,
         zIndex: 40,
         height: "calc(64px + env(safe-area-inset-bottom, 0px))",

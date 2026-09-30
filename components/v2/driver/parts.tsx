@@ -12,6 +12,8 @@ export function ScreenHeader({ title, onBack, right }: { title: ReactNode; onBac
         display: "flex", alignItems: "center", gap: 8, minHeight: 60, flex: "none",
         padding: onBack ? "8px 12px 8px 4px" : "8px 16px",
         background: "var(--sk-bg)", borderBottom: "1px solid var(--sk-surface)",
+        // la PAGE défile désormais : l'en-tête reste visible (retour + titre)
+        position: "sticky", top: 0, zIndex: 30,
       }}
     >
       {onBack && (
@@ -26,10 +28,17 @@ export function ScreenHeader({ title, onBack, right }: { title: ReactNode; onBac
   );
 }
 
-/** Corps d'écran défilant (padding horizontal 16). */
+/**
+ * Corps d'écran (padding horizontal 16).
+ *
+ * Plus de `overflow-y: auto` ni de `min-height: 0` ici : c'est la page qui
+ * défile. `flex: 1` continue de récupérer la place libre — les `marginTop:
+ * "auto"` des boutons restent collés en bas sur les écrans courts — mais quand
+ * le contenu dépasse, le bloc grandit et le document défile au lieu de couper.
+ */
 export function ScreenBody({ children, gap = 16, padding = "24px 16px", style }: { children: ReactNode; gap?: number; padding?: string; style?: CSSProperties }) {
   return (
-    <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding, display: "flex", flexDirection: "column", gap, ...style }}>
+    <div style={{ flex: 1, padding, display: "flex", flexDirection: "column", gap, ...style }}>
       {children}
     </div>
   );

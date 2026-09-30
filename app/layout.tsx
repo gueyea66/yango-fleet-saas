@@ -49,8 +49,10 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html:
               `try{if(localStorage.getItem("m3a-theme")==="light")document.documentElement.dataset.theme="light"}catch(e){}` +
-              // Refonte UI v2 forcée sur l'appareil (QA) : typo scopée posée avant le 1er rendu.
-              `try{if(localStorage.getItem("m3a-ui")==="v2")document.documentElement.dataset.ui="v2"}catch(e){}`,
+              // Refonte UI v2 : forçage appareil (QA) OU dernier drapeau tenant
+              // connu (m3a-ui-tenant) — typo scopée posée avant le 1er rendu,
+              // pas de flash de l'ancienne version le temps de la réponse réseau.
+              `try{if(localStorage.getItem("m3a-ui")==="v2"||localStorage.getItem("m3a-ui-tenant")==="1")document.documentElement.dataset.ui="v2"}catch(e){}`,
           }}
         />
         <PwaRegister />

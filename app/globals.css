@@ -199,6 +199,14 @@ html[data-ui="v2"] body {
 .v2-hover-border:hover { border-color: var(--sk-border) !important; }
 .v2-row { transition: background-color 0.15s; }
 .v2-row:hover { background-color: rgba(var(--tenant-color-rgb), 0.05); }
+/* Coque de l'app chauffeur v2 : hauteur PLANCHER, jamais plafond. Le
+   défilement est celui de la page — un 100dvh mal résolu par le navigateur
+   mobile (barre d'URL) ne peut donc plus rendre le bas de l'écran
+   inatteignable. `100vh` d'abord = repli pour les navigateurs sans dvh. */
+.v2-driver-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
 .v2-focus:focus-visible,
 .v2-btn:focus-visible {
   outline: 2px solid var(--tenant-color);
