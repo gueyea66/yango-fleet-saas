@@ -9,9 +9,18 @@ const Ctx = createContext<TenantContext | null>(null);
 // Après connexion, le tenant du PROFIL fait autorité sur le hostname (retour
 // Abdou 03/09 : connecté au compte test depuis l'apex, il voyait le branding
 // par défaut). Les pages authentifiées poussent ici les settings de LEUR tenant.
+//
+// L'override est ACCUMULÉ au niveau module, pas seulement transmis : le
+// chargement par hostname (loadTenantContext) remplaçait tout l'état à son
+// arrivée et effaçait l'override quand il arrivait en second. Un aller-retour
+// réseau plus lent d'un rafraîchissement à l'autre suffisait donc à perdre
+// `ui_v2` — l'app basculait entre l'ancienne et la nouvelle UI au hasard.
+// Conservé ici, l'override est réappliqué par-dessus, quel que soit l'ordre.
+let pendingOverride: Partial<TenantContext["settings"]> = {};
 let overrideListener: ((s: Partial<TenantContext["settings"]>) => void) | null = null;
 export function applyTenantBrandingOverride(s: Partial<TenantContext["settings"]>) {
-  overrideListener?.(s);
+  pendingOverride = { ...pendingOverride, ...s };
+  overrideListener?.(pendingOverride);
 }
 
 const FALLBACK: TenantContext = {
@@ -24,11 +33,18 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [ctx, setCtx] = useState<TenantContext>(FALLBACK);
 
   useEffect(() => {
+    let alive = true;
+    overrideListener = (s) => { if (alive) setCtx((prev) => ({ ...prev, settings: { ...prev.settings, ...s } })); };
+    // Un override déjà poussé (effet enfant monté avant celui du provider) est
+    // repris immédiatement plutôt que perdu.
+    if (Object.keys(pendingOverride).length) overrideListener(pendingOverride);
     loadTenantContext()
-      .then(setCtx)
+      .then((loaded) => {
+        // L'override du profil garde la main sur le chargement par hostname.
+        if (alive) setCtx({ ...loaded, settings: { ...loaded.settings, ...pendingOverride } });
+      })
       .catch((err) => console.error("Tenant load failed:", err));
-    overrideListener = (s) => setCtx((prev) => ({ ...prev, settings: { ...prev.settings, ...s } }));
-    return () => { overrideListener = null; };
+    return () => { alive = false; overrideListener = null; };
   }, []);
 
   // Inject CSS variables + page title from tenant settings

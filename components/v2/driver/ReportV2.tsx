@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Check, Plus, ScanLine, Paperclip, X, ChevronDown, Receipt } from "lucide-react";
+import { Camera, Check, Images, ScanLine, Paperclip, X, ChevronDown, Receipt } from "lucide-react";
 import { Card, Badge, Button } from "@/components/ui";
 import { useReportForm } from "@/components/driver/useReportForm";
 import { useAiScan } from "@/components/driver/useAiScan";
@@ -13,12 +13,18 @@ import { needsReview, netCheck, nextTierInfo, type DriverTab } from "@/lib/v2/dr
 import { ScreenHeader, ScreenBody, Notice, InlineNumber, DoneHero, SkeletonBlock, fieldStyle } from "./parts";
 
 type Step = "capture" | "reading" | "review";
-type Slot = { file: File; url: string } | null;
+type Shot = { file: File; url: string };
 
-const SLOTS = [
-  { title: "Vue « Comparatif »", sub: "Espèces, carte, bonus, commissions", camera: false },
-  { title: "Vue « Argent »", sub: "Solde du portefeuille, commandes", camera: false },
-  { title: "Photo du compteur", sub: "Kilométrage fin de journée", camera: true },
+/** Limite de l'extraction vision (app/api/ai/extract-declaration : MAX_IMAGES). */
+const MAX_SHOTS = 3;
+
+// Ce que le chauffeur doit fournir — une aide affichée, plus trois cases
+// séparées : l'extraction lit les images sans se soucier de l'ordre, et un
+// emplacement par image imposait trois passages dans le sélecteur de fichiers.
+const EXPECTED = [
+  { title: "Vue « Comparatif »", sub: "Espèces, carte, bonus, commissions" },
+  { title: "Vue « Argent »", sub: "Solde du portefeuille, commandes" },
+  { title: "Photo du compteur", sub: "Kilométrage fin de journée" },
 ];
 
 // Champs de l'écran de vérification : clé du formulaire ↔ clé de l'extraction.
@@ -55,7 +61,8 @@ export function ReportV2({ profile, cfg, onNav }: { profile: Profile; cfg: Cfg; 
 
   const [step, setStep] = useState<Step | null>(null);
   const [source, setSource] = useState<"ai" | "manual">("manual");
-  const [slots, setSlots] = useState<Slot[]>([null, null, null]);
+  const [shots, setShots] = useState<Shot[]>([]);
+  const [shotsNote, setShotsNote] = useState<string | null>(null);
   const [probeDone, setProbeDone] = useState(false);
   const [more, setMore] = useState(false);
 
@@ -74,18 +81,34 @@ export function ReportV2({ profile, cfg, onNav }: { profile: Profile; cfg: Cfg; 
   const resolvedStep: Step | null = step ?? (enabled && canEdit ? "capture" : probeDone ? "review" : null);
 
   // Libère les aperçus d'images.
-  const slotsRef = useRef(slots);
-  useEffect(() => { slotsRef.current = slots; }, [slots]);
-  useEffect(() => () => { slotsRef.current.forEach((s) => s && URL.revokeObjectURL(s.url)); }, []);
+  const shotsRef = useRef(shots);
+  useEffect(() => { shotsRef.current = shots; }, [shots]);
+  useEffect(() => () => { shotsRef.current.forEach((s) => URL.revokeObjectURL(s.url)); }, []);
 
-  const setSlot = (i: number, file: File | null) =>
-    setSlots((prev) => prev.map((s, j) => {
-      if (j !== i) return s;
-      if (s) URL.revokeObjectURL(s.url);
-      return file ? { file, url: URL.createObjectURL(file) } : null;
-    }));
+  // Ajout groupé : galerie (plusieurs images en une fois) ou appareil photo.
+  // Le surplus au-delà de MAX_SHOTS est ignoré, et on le DIT — sans quoi le
+  // chauffeur croirait avoir envoyé une image que l'extraction n'a pas vue.
+  const addShots = (list: FileList | File[] | null) => {
+    const picked = Array.from(list || []).filter((f) => f.type.startsWith("image/"));
+    if (picked.length === 0) return;
+    const room = MAX_SHOTS - shots.length;
+    if (room <= 0) {
+      setShotsNote(`Maximum ${MAX_SHOTS} images — retire-en une pour en ajouter une autre.`);
+      return;
+    }
+    setShotsNote(picked.length > room ? `Seules les ${room === 1 ? "1re" : `${room} premières`} images ont été gardées (maximum ${MAX_SHOTS}).` : null);
+    const kept = picked.slice(0, room).map((file) => ({ file, url: URL.createObjectURL(file) }));
+    setShots((prev) => [...prev, ...kept]);
+  };
 
-  const files = slots.filter(Boolean).map((s) => (s as { file: File }).file);
+  const removeShot = (i: number) => {
+    const s = shots[i];
+    if (s) URL.revokeObjectURL(s.url);
+    setShotsNote(null);
+    setShots((prev) => prev.filter((_, j) => j !== i));
+  };
+
+  const files = shots.map((s) => s.file);
 
   const read = async () => {
     setStep("reading");
@@ -158,20 +181,19 @@ export function ReportV2({ profile, cfg, onNav }: { profile: Profile; cfg: Cfg; 
           <div>
             <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: "-.01em" }}>{reading ? "Lecture de tes captures…" : "Ajoute tes captures"}</div>
             <div style={{ fontSize: 14, color: "var(--v2-muted)", marginTop: 6, lineHeight: 1.5 }}>
-              {reading ? (message || "Quelques secondes.") : "Les champs se remplissent seuls. Tu vérifies, tu envoies."}
+              {reading ? (message || "Quelques secondes.") : `Sélectionne tes ${MAX_SHOTS} images d'un coup dans la galerie. Les champs se remplissent seuls : tu vérifies, tu envoies.`}
             </div>
           </div>
           {rejectedToday && <Notice tone="neg">Ton précédent rapport du {ddmm(form.date)} a été rejeté{rejectedToday.rejection_reason ? ` : ${rejectedToday.rejection_reason}` : ""}. Corrige et renvoie.</Notice>}
           {phase === "error" && !reading && <Notice tone="wait">{message}</Notice>}
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }} aria-busy={reading}>
-            {SLOTS.map((s, i) => (
-              <CaptureTile key={i} title={s.title} sub={s.sub} camera={s.camera} slot={slots[i]} disabled={reading}
-                onPick={(f) => setSlot(i, f)} onClear={() => setSlot(i, null)} />
-            ))}
+          {shotsNote && <Notice tone="info">{shotsNote}</Notice>}
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }} aria-busy={reading}>
+            <CaptureStrip shots={shots} disabled={reading} onAdd={addShots} onRemove={removeShot} />
+            <CaptureChecklist count={shots.length} />
           </div>
           <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
             <Button size="xl" icon={ScanLine} block disabled={files.length === 0 || reading || saving} onClick={read}>
-              {reading ? "Lecture en cours…" : "Lire mes captures"}
+              {reading ? "Lecture en cours…" : `Lire mes captures${files.length ? ` (${files.length})` : ""}`}
             </Button>
             <button type="button" disabled={reading} onClick={() => { setSource("manual"); setStep("review"); }} className="v2-focus"
               style={{ minHeight: 44, background: "none", border: "none", color: "var(--sk-t2)", fontSize: 14, cursor: "pointer" }}>
@@ -184,7 +206,7 @@ export function ReportV2({ profile, cfg, onNav }: { profile: Profile; cfg: Cfg; 
   }
 
   // ── 1c — vérification (ou saisie manuelle) ──────────────────────────────
-  const thumbs = slots.filter(Boolean) as { file: File; url: string }[];
+  const thumbs = shots;
   const moreFilled = MORE_ROWS.some((r) => (form as Record<string, string>)[r.key]) || !!form.comment;
   const showMore = more || moreFilled;
   const legacyGross = !form.yango_cash && !form.yango_card && !!form.yango_gross;
@@ -294,50 +316,93 @@ export function ReportV2({ profile, cfg, onNav }: { profile: Profile; cfg: Cfg; 
   );
 }
 
-function CaptureTile({ title, sub, camera, slot, disabled, onPick, onClear }: {
-  title: string; sub: string; camera: boolean; slot: Slot; disabled: boolean;
-  onPick: (f: File) => void; onClear: () => void;
+/**
+ * Bande de captures : vignettes déjà choisies + deux entrées.
+ *
+ * « Choisir mes captures » ouvre la galerie en `multiple` — les trois images
+ * partent en une seule fois. « Prendre une photo » ouvre l'appareil (utile pour
+ * le compteur) mais n'est plus imposé : la photo du tableau de bord peut aussi
+ * venir de la galerie, comme les autres.
+ */
+function CaptureStrip({ shots, disabled, onAdd, onRemove }: {
+  shots: Shot[]; disabled: boolean;
+  onAdd: (l: FileList | null) => void; onRemove: (i: number) => void;
 }) {
-  const ref = useRef<HTMLInputElement>(null);
-  const filled = !!slot;
+  const galRef = useRef<HTMLInputElement>(null);
+  const camRef = useRef<HTMLInputElement>(null);
+  const full = shots.length >= MAX_SHOTS;
   return (
-    <div style={{
-      display: "flex", alignItems: "center", gap: 14, padding: 12, borderRadius: 16,
-      background: filled ? "var(--sk-bg)" : "transparent",
-      border: filled ? "1px solid var(--sk-surface)" : "1.5px dashed var(--sk-border)",
-      opacity: disabled ? 0.7 : 1,
-    }}>
-      <button type="button" onClick={() => ref.current?.click()} disabled={disabled} aria-label={`${filled ? "Remplacer" : "Ajouter"} : ${title}`} className="v2-focus"
-        style={{ width: 52, height: 72, borderRadius: 8, flex: "none", padding: 0, overflow: "hidden", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-          border: filled ? "none" : "1px solid var(--sk-surface)", background: "transparent", color: "var(--tenant-color)" }}>
-        {filled
-          // eslint-disable-next-line @next/next/no-img-element -- aperçu local (blob:)
-          ? <img src={slot.url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          : camera ? <Camera size={22} aria-hidden /> : <Plus size={22} aria-hidden />}
-      </button>
-      <button type="button" onClick={() => ref.current?.click()} disabled={disabled} className="v2-focus"
-        style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: 0, color: "inherit", cursor: "pointer" }}>
-        <div style={{ fontSize: 15, fontWeight: 600, color: "var(--sk-t1)" }}>{title}</div>
-        <div style={{ fontSize: 13, color: "var(--v2-muted)", marginTop: 2 }}>{sub}</div>
-      </button>
-      {filled ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(74,222,128,.14)", color: "var(--fleet-positive)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Check size={16} aria-label="Ajoutée" />
-          </span>
-          {!disabled && (
-            <button type="button" onClick={onClear} aria-label={`Retirer : ${title}`} className="v2-focus"
-              style={{ width: 32, height: 44, background: "none", border: "none", color: "var(--sk-t3)", cursor: "pointer" }}>
-              <X size={16} aria-hidden />
-            </button>
-          )}
-        </div>
-      ) : (
-        <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tenant-color)" }}>Ajouter</span>
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {shots.length > 0 && (
+        <ul style={{ display: "flex", gap: 10, listStyle: "none", margin: 0, padding: 0, flexWrap: "wrap" }}>
+          {shots.map((s, i) => (
+            <li key={s.url} style={{ position: "relative", width: 84, height: 112, borderRadius: 12, overflow: "hidden", border: "1px solid var(--sk-surface)", background: "var(--sk-bg)" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- aperçu local (blob:) */}
+              <img src={s.url} alt={`Capture ${i + 1} : ${s.file.name}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <span aria-hidden style={{ position: "absolute", left: 6, bottom: 6, width: 22, height: 22, borderRadius: "50%", background: "rgba(74,222,128,.9)", color: "#06210f", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Check size={14} />
+              </span>
+              {!disabled && (
+                <button type="button" onClick={() => onRemove(i)} aria-label={`Retirer la capture ${i + 1}`} className="v2-focus"
+                  style={{ position: "absolute", top: 2, right: 2, width: 32, height: 32, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "50%", background: "rgba(0,0,0,.55)", border: "none", color: "#fff", cursor: "pointer" }}>
+                  <X size={15} aria-hidden />
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
       )}
-      <input ref={ref} type="file" accept="image/*" hidden {...(camera ? { capture: "environment" as const } : {})}
-        onChange={(e) => { const f = e.target.files?.[0]; if (f) onPick(f); e.target.value = ""; }} />
+
+      <label htmlFor="v2-rep-gallery" className="v2-focus" tabIndex={disabled || full ? -1 : 0}
+        onKeyDown={(e) => { if (!disabled && !full && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); galRef.current?.click(); } }}
+        style={{
+          display: "flex", alignItems: "center", gap: 14, padding: 14, borderRadius: 16, cursor: disabled || full ? "not-allowed" : "pointer",
+          border: shots.length ? "1px solid var(--sk-surface)" : "1.5px dashed var(--sk-border)",
+          background: shots.length ? "var(--sk-bg)" : "transparent", opacity: disabled || full ? 0.55 : 1,
+        }}>
+        <span style={{ width: 44, height: 44, flex: "none", borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--v2-select-bg)", color: "var(--tenant-color)" }}>
+          <Images size={22} aria-hidden />
+        </span>
+        <span style={{ flex: 1, minWidth: 0 }}>
+          <span style={{ display: "block", fontSize: 15, fontWeight: 600, color: "var(--sk-t1)" }}>Choisir mes captures</span>
+          <span style={{ display: "block", fontSize: 13, color: "var(--v2-muted)", marginTop: 2 }}>
+            {full ? `${MAX_SHOTS} images sur ${MAX_SHOTS} — retires-en une pour changer` : `Galerie · plusieurs images à la fois (${shots.length}/${MAX_SHOTS})`}
+          </span>
+        </span>
+      </label>
+
+      <button type="button" onClick={() => camRef.current?.click()} disabled={disabled || full} className="v2-focus"
+        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 48, borderRadius: 14, background: "none", border: "1px solid var(--sk-surface)", color: "var(--sk-t2)", fontSize: 14, cursor: disabled || full ? "not-allowed" : "pointer", opacity: disabled || full ? 0.55 : 1 }}>
+        <Camera size={18} aria-hidden /> Prendre une photo
+      </button>
+
+      <input ref={galRef} id="v2-rep-gallery" type="file" accept="image/*" multiple disabled={disabled || full}
+        style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
+        onChange={(e) => { onAdd(e.target.files); e.target.value = ""; }} />
+      <input ref={camRef} type="file" accept="image/*" capture="environment" hidden disabled={disabled || full}
+        onChange={(e) => { onAdd(e.target.files); e.target.value = ""; }} />
     </div>
+  );
+}
+
+/** Rappel de ce qu'on attend — coché au fur et à mesure du nombre d'images. */
+function CaptureChecklist({ count }: { count: number }) {
+  return (
+    <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+      {EXPECTED.map((e, i) => {
+        const done = i < count;
+        return (
+          <li key={e.title} style={{ display: "flex", alignItems: "flex-start", gap: 10, fontSize: 13, lineHeight: 1.4 }}>
+            <span aria-hidden style={{ width: 18, height: 18, flex: "none", marginTop: 1, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: done ? "rgba(74,222,128,.14)" : "var(--sk-bg)", color: done ? "var(--fleet-positive)" : "var(--sk-t3)", border: done ? "none" : "1px solid var(--sk-surface)" }}>
+              {done ? <Check size={12} /> : null}
+            </span>
+            <span style={{ color: done ? "var(--sk-t2)" : "var(--v2-muted)" }}>
+              {e.title} <span style={{ color: "var(--sk-t3)" }}>— {e.sub}</span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

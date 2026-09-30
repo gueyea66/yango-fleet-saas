@@ -51,7 +51,7 @@ export default function DriverAppV2({ profile, cfg, onSignOut }: { profile: Prof
     case "home":
       screen = (
         <>
-          <header style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 64, padding: "10px 12px 10px 16px", background: "var(--sk-bg)", borderBottom: "1px solid var(--sk-surface)", flex: "none" }}>
+          <header style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 64, padding: "10px 12px 10px 16px", background: "var(--sk-bg)", borderBottom: "1px solid var(--sk-surface)", flex: "none", position: "sticky", top: 0, zIndex: 30 }}>
             <BrandLogo size={32} />
             <div style={{ flex: 1, minWidth: 0, fontSize: 16, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{profile.full_name}</div>
             <div style={{ width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center" }}><NotificationBell /></div>
@@ -88,13 +88,21 @@ export default function DriverAppV2({ profile, cfg, onSignOut }: { profile: Prof
       break;
   }
 
+  // Le défilement est celui de la PAGE, pas d'un conteneur interne.
+  // Avant : la coque était figée à `height: 100dvh` et tout le contenu vivait
+  // dans un `overflow-y: auto`. Dès que le navigateur mobile résolvait 100dvh
+  // sur la hauteur « barre d'URL masquée » (ce qu'il fait au chargement), la
+  // coque dépassait la zone visible SANS que la page puisse défiler : le bas
+  // du formulaire et la barre d'onglets devenaient inatteignables. Avec
+  // `min-height` + défilement de page, un 100dvh imprécis ne tronque plus
+  // rien — au pire le bouton descend de quelques pixels.
   return (
-    <div style={{ minHeight: "100dvh", background: "var(--sk-deep)", color: "var(--sk-t1)", display: "flex", justifyContent: "center" }}>
+    <div className="v2-driver-shell" style={{ background: "var(--sk-deep)", color: "var(--sk-t1)", display: "flex", justifyContent: "center" }}>
       <PushOnboarding role="driver" />
-      <div style={{ width: "100%", maxWidth: 520, height: "100dvh", display: "flex", flexDirection: "column", background: "var(--sk-deep)", borderLeft: "1px solid var(--sk-bg)", borderRight: "1px solid var(--sk-bg)" }}>
+      <div className="v2-driver-shell" style={{ width: "100%", maxWidth: 520, display: "flex", flexDirection: "column", background: "var(--sk-deep)", borderLeft: "1px solid var(--sk-bg)", borderRight: "1px solid var(--sk-bg)" }}>
         {/* key : chaque onglet repart de son état initial, comme l'UI actuelle */}
-        <div key={tab} style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>{screen}</div>
-        {nav.visible && <BottomNav<DriverNavTab> fixed={false} items={NAV} active={nav.active} onChange={go} />}
+        <div key={tab} style={{ flex: 1, display: "flex", flexDirection: "column" }}>{screen}</div>
+        {nav.visible && <BottomNav<DriverNavTab> fixed={false} sticky items={NAV} active={nav.active} onChange={go} />}
       </div>
     </div>
   );

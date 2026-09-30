@@ -1,4 +1,4 @@
-import { resolveUiV2, UI_V2_STORAGE_KEY } from "@/lib/v2/flag";
+import { resolveUiV2, resolveUiV2WithHint, UI_V2_HINT_KEY, UI_V2_STORAGE_KEY } from "@/lib/v2/flag";
 import { formatAmount, formatDecimal, formatPct, sharePct, initials } from "@/lib/v2/format";
 import { parseFilterParams, serializeFilterParams, periodRange, rangeLabel } from "@/lib/v2/filters";
 
@@ -18,6 +18,27 @@ describe("drapeau UI v2", () => {
     expect(resolveUiV2(false, "v2")).toBe(true);
     expect(resolveUiV2(undefined, "V2")).toBe(false);
     expect(resolveUiV2(undefined, "1")).toBe(false);
+  });
+});
+
+// L'app basculait entre l'ancienne et la nouvelle version d'un rafraîchissement
+// à l'autre : le drapeau du tenant n'arrive qu'après un aller-retour réseau, et
+// l'écran partait de « éteint » en attendant. L'appareil mémorise donc le
+// dernier drapeau connu — sans jamais primer sur la réponse de la base.
+describe("drapeau UI v2 — stabilité au rafraîchissement", () => {
+  it("le drapeau tenant tranche dès qu'il est connu, dans les deux sens", () => {
+    expect(resolveUiV2WithHint(true, null, false)).toBe(true);
+    expect(resolveUiV2WithHint(false, null, true)).toBe(false);
+  });
+  it("drapeau tenant pas encore lu : l'indice de l'appareil répond", () => {
+    expect(UI_V2_HINT_KEY).toBe("m3a-ui-tenant");
+    expect(resolveUiV2WithHint(undefined, null, true)).toBe(true);
+    expect(resolveUiV2WithHint(undefined, null, false)).toBe(false);
+    expect(resolveUiV2WithHint(null, null, null)).toBe(false);
+  });
+  it("le forçage QA de l'appareil reste prioritaire", () => {
+    expect(resolveUiV2WithHint(false, "v2", false)).toBe(true);
+    expect(resolveUiV2WithHint(undefined, "v2", null)).toBe(true);
   });
 });
 

@@ -74,21 +74,22 @@ export default function DriverApp() {
         setProfile(data);
         // Load remuneration config for this tenant
         if (data.tenant_id) {
-          // Libellé plateforme du tenant (select * : tolère migration 038 absente)
-          void supabase.from("tenant_settings").select("*").eq("tenant_id", data.tenant_id).maybeSingle()
-            .then(({ data: ts }: any) => {
-              if (ts?.platform_label) { setPlatformLabel(ts.platform_label); setPlat(ts.platform_label); }
-              if (ts) applyTenantBrandingOverride({
-                app_name: ts.app_name, logo_url: ts.logo_url, primary_color: ts.primary_color,
-                skin: ts.skin, operator_name: ts.operator_name, currency: ts.currency,
-                ui_v2: ts.ui_v2, // drapeau refonte UI v2 (migration 062)
-              });
-            });
-          const { data: remun } = await supabase
-            .from("remuneration_config")
-            .select("*")
-            .eq("tenant_id", data.tenant_id)
-            .maybeSingle();
+          // Les réglages du tenant sont ATTENDUS avant de rendre l'app : c'est
+          // eux qui portent `ui_v2`. En lecture détachée, l'écran s'affichait
+          // en ancienne UI puis basculait (ou pas, selon qui répondait le
+          // premier) — la bascule aléatoire d'un rafraîchissement à l'autre.
+          // Les deux lectures partent ensemble : pas d'aller-retour en plus.
+          const [{ data: ts }, { data: remun }] = await Promise.all([
+            // select * : tolère migration 038 absente
+            supabase.from("tenant_settings").select("*").eq("tenant_id", data.tenant_id).maybeSingle(),
+            supabase.from("remuneration_config").select("*").eq("tenant_id", data.tenant_id).maybeSingle(),
+          ]);
+          if (ts?.platform_label) { setPlatformLabel(ts.platform_label); setPlat(ts.platform_label); }
+          if (ts) applyTenantBrandingOverride({
+            app_name: ts.app_name, logo_url: ts.logo_url, primary_color: ts.primary_color,
+            skin: ts.skin, operator_name: ts.operator_name, currency: ts.currency,
+            ui_v2: ts.ui_v2, // drapeau refonte UI v2 (migration 062)
+          });
           if (remun) {
             setCfg({
               ...DEFAULT_CFG,
