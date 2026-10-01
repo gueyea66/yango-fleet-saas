@@ -66,6 +66,7 @@ export const ADMIN_DESTINATIONS: DestinationDef[] = [
     subTabs: [
       { tab: "settings", label: "Entreprise & marque" },
       { tab: "remuneration", label: "Rémunération" },
+      { tab: "fleetroom", label: "Import Fleetroom" },
       { tab: "import", label: "Import historique" },
       { tab: "journal", label: "Journal" },
     ],

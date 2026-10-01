@@ -36,6 +36,7 @@ import NotificationBell from "@/components/NotificationBell";
 import ThemeToggle from "@/components/ThemeToggle";
 import PushOnboarding from "@/components/PushOnboarding";
 import ImportHistoriqueModal from "@/components/ImportHistoriqueModal";
+import FleetroomImportTab from "@/components/FleetroomImportTab";
 import { useTenant, applyTenantBrandingOverride } from "@/lib/tenant/context";
 import SimpleModeAdmin from "@/components/SimpleModeAdmin";
 import { setPlatformLabel, platLabel, displayLabel } from "@/lib/tenant/platformLabel";
@@ -347,6 +348,7 @@ export default function AdminPage() {
         ["remuneration","💼", "Rémunération"],
         ["boitiers",    "📡", "Boîtiers GPS"],
         ["journal",     "📋", "Journal"],
+        ["fleetroom",   "🚕", "Import Fleetroom"],
         ["import",      "📥", "Import historique"],
         ["settings",    "⚙️", "Paramètres"],
       ],
@@ -799,6 +801,8 @@ export default function AdminPage() {
 
         {tab === "journal" && <ActionLogsTab filterDriverId={filterDriverId} />}
 
+        {tab === "fleetroom" && <FleetroomImportTab />}
+
         {tab === "import" && (
           <div className="p-6 max-w-2xl">
             <h2 className="text-xl font-bold text-white mb-2">Import d'historique</h2>
@@ -1121,7 +1125,7 @@ export default function AdminPage() {
         )}
 
         {/* ── DRIVER / VEHICLE FILTER BAR — visible on all data tabs, masquable ── */}
-        {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage"].includes(tab) && allDrivers.length > 0 && !showFilters && (
+        {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage", "fleetroom"].includes(tab) && allDrivers.length > 0 && !showFilters && (
           <div className="mb-6">
             <button onClick={() => toggleFilters(true)}
               className="text-xs px-3 py-1.5 rounded-lg font-semibold"
@@ -1132,7 +1136,7 @@ export default function AdminPage() {
             </button>
           </div>
         )}
-        {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage"].includes(tab) && allDrivers.length > 0 && showFilters && (
+        {!["drivers", "remuneration", "settings", "kyc", "journal", "pilotage", "fleetroom"].includes(tab) && allDrivers.length > 0 && showFilters && (
           <div className="mb-6 rounded-xl px-4 py-3 flex flex-wrap items-center gap-2" style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
             <span className="text-[10px] font-bold uppercase tracking-widest mr-1" style={{ color: "var(--sk-t4)" }}>Vue :</span>
             <button onClick={() => setFilterDriverIds([])}

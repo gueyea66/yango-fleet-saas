@@ -7,7 +7,7 @@ const CURRENT_TABS = [
   "dashboard", "pending", "history", "calendrier",
   "payments", "avances", "pilotage",
   "suivi", "vehicles", "drivers", "kyc",
-  "remuneration", "boitiers", "journal", "import", "settings",
+  "remuneration", "boitiers", "journal", "fleetroom", "import", "settings",
 ];
 
 describe("navigation gestionnaire 13 → 8", () => {

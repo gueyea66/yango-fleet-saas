@@ -123,7 +123,7 @@ export async function ingestFleetroom(
     } else {
       const so = parseSoldes(rows, f.soldesJour!);
       period = { from: f.soldesJour!, to: f.soldesJour! };
-      payload = so.map(({ plate_or_code: _ignored, ...s }) => s);
+      payload = so.map((s) => ({ driver_name: s.driver_name, jour: s.jour, solde_debut: s.solde_debut, solde_fin: s.solde_fin }));
     }
 
     const { data: imp, error: impErr } = await sb.schema("fleet").from("fleetroom_imports").insert({
