@@ -30,6 +30,9 @@ if (!slug || args.length === 0) {
 (async () => {
   const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
     auth: { persistSession: false },
+    // Node 20 n'a pas de WebSocket natif ; le temps réel n'est pas utilisé ici.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    realtime: { transport: class {} as any },
   });
   const { data: tenant, error } = await sb.schema("fleet").from("tenants").select("id, name").eq("slug", slug).single();
   if (error || !tenant) throw new Error(`tenant « ${slug} » introuvable`);
