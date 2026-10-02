@@ -220,7 +220,9 @@ export default function NotificationBell() {
             </button>
           )}
 
-          <div style={{ maxHeight: "360px", overflowY: "auto" }}>
+          {/* Mobile : le panneau (fixed, top 72) tient dans l'écran visible —
+              la liste défile en interne au lieu de passer sous le bas d'écran. */}
+          <div style={{ maxHeight: isMobile ? "min(360px, calc(100dvh - 200px))" : "360px", overflowY: "auto", overscrollBehavior: "contain" }}>
             {notifications.length === 0 ? (
               <div style={{ padding: "24px 16px", textAlign: "center", color: "var(--sk-t3)", fontSize: "13px" }}>
                 Aucune notification

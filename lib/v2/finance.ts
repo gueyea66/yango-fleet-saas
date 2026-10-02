@@ -75,15 +75,21 @@ export function masseSalariale(allocations: SalaryAllocation[], cfg: any, salary
  * Reste à payer = dû − avances − versé (jamais négatif).
  */
 export function salaryRows(allocations: SalaryAllocation[], cfg: any, payments: PaymentLike[], range: Range, salaryOf: SalaryFn): SalaryRow[] {
-  const inPeriod = payments.filter((p) => inRange(paymentSalaryDate(p), range));
+  // Un salaire est mensuel. Mois complets : paiements imputés sur ces mois.
+  // Période partielle (Jour, 7 j, Dates) : le mois de fin seulement — celui
+  // qu'enregistre « Marquer payé » (salaryMonthOf). Avant, le 1er du mois
+  // tombait hors d'une plage partielle : le paiement n'était jamais compté.
+  const months = isFullMonths(range) ? monthsOf(range) : [range.to.slice(0, 7)];
+  const inPeriod = payments.filter((p) => months.includes(paymentSalaryDate(p).slice(0, 7)));
   return allocations.map((d) => {
     const eff = effectiveCfg(cfg, d);
-    const du = salaryOf(d.netDeclared, eff, d.prorataFactor ?? undefined);
+    // arrondi au franc : un reste de 0,33 XOF laissait le bouton affiché
+    const du = Math.round(salaryOf(d.netDeclared, eff, d.prorataFactor ?? undefined));
     const mine = inPeriod.filter((p) => p.driver_id === d.driver_id);
     const avances = mine.filter((p) => p.type === "acompte").reduce((s, p) => s + (p.amount || 0), 0);
     const salaires = mine.filter((p) => p.type === "salaire");
     const verse = salaires.reduce((s, p) => s + (p.amount || 0), 0);
-    const reste = Math.max(0, du - avances - verse);
+    const reste = Math.max(0, Math.round(du - avances - verse));
     const lastPaid = salaires.map((p) => p.payment_date || p.created_at?.slice(0, 10) || "").filter(Boolean).sort().pop() ?? null;
     return {
       driverId: d.driver_id, name: d.name, palier: palierLabel(d.netDeclared, eff),
@@ -132,6 +138,28 @@ export function recentMovements(
     .sort((a, b) => (b.date === a.date ? (b.at > a.at ? 1 : b.at < a.at ? -1 : 0) : b.date > a.date ? 1 : -1))
     .slice(0, limit)
     .map((m) => ({ key: m.key, date: m.date, label: m.label, amount: m.amount }));
+}
+
+/** La plage couvre-t-elle des mois calendaires entiers (du 1er au dernier jour) ? */
+export function isFullMonths(range: Range): boolean {
+  if (range.from.slice(8, 10) !== "01") return false;
+  const [y, m] = range.to.slice(0, 7).split("-").map(Number);
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return Number(range.to.slice(8, 10)) === last;
+}
+
+/** Mois (AAAA-MM) couverts par une plage incluse, dans l'ordre. */
+export function monthsOf(range: Range): string[] {
+  const out: string[] = [];
+  let [y, m] = range.from.slice(0, 7).split("-").map(Number);
+  const end = range.to.slice(0, 7);
+  for (let i = 0; i < 240; i++) {
+    const cur = `${y}-${String(m).padStart(2, "0")}`;
+    out.push(cur);
+    if (cur >= end) break;
+    m += 1; if (m > 12) { m = 1; y += 1; }
+  }
+  return out;
 }
 
 /** Mois (AAAA-MM-01) à pré-remplir dans « Nouveau paiement » : fin de la période. */

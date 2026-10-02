@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { logAction } from "@/lib/logAction";
 import { obtenirUrlsSignees } from "@/lib/signedUrls";
+import { enrichUpload } from "@/lib/v2/history";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- signature d'origine
 export function useExpenseReview(expense: any, onRefresh: () => void) {
@@ -61,26 +62,29 @@ export function useExpenseReview(expense: any, onRefresh: () => void) {
     finally { setSaving(false); }
   };
 
+  // `reloadUploads` : bouton « Réessayer » quand une photo n'a pas pu être signée.
+  const [uploadsTick, setUploadsTick] = useState(0);
+  const reloadUploads = () => setUploadsTick((t) => t + 1);
+
   useEffect(() => {
+    let annule = false;
     (async () => {
       const supabase = createClient() as any;
-      const { data } = await supabase.from("uploads").select("*")
+      const { data, error } = await supabase.from("uploads").select("*")
         .eq("driver_id", expense.driver_id)
         .eq("file_type", "expense")
         .order("created_at", { ascending: false });
+      if (error) console.error("[useExpenseReview] lecture des pièces :", error.message);
       const liees = (data || [])
         .filter((u: any) => u.ref_id === expense.id || u.file_path?.includes(expense.id));
       // URLs signées : le bucket n'est plus public, une pièce ne s'ouvre que
       // pour qui a le droit de la voir.
       const urls = await obtenirUrlsSignees(liees.map((u: any) => u.file_path));
-      const enriched = liees.map((u: any) => ({
-        ...u,
-        publicUrl: urls[u.file_path] || "",
-        isImg: /\.(jpg|jpeg|png|gif|webp|heic|heif)$/i.test(u.file_name),
-      }));
-      setUploads(enriched);
+      if (annule) return;
+      setUploads(liees.map((u: any) => enrichUpload(u, urls[u.file_path])));
     })();
-  }, [expense.id, expense.driver_id]);
+    return () => { annule = true; };
+  }, [expense.id, expense.driver_id, uploadsTick]);
 
   const uploadFile = async (file: File) => {
     setUploading(true);
@@ -103,7 +107,7 @@ export function useExpenseReview(expense: any, onRefresh: () => void) {
         file_type: "expense", file_size: file.size, ref_id: expense.id,
       }).select().single();
       if (errIns) throw errIns;
-      setUploads((p) => [...p, { ...ligne, publicUrl: result.signedUrl, isImg: /\.(jpg|jpeg|png|gif|webp|heic|heif)$/i.test(file.name) }]);
+      setUploads((p) => [...p, enrichUpload(ligne, result.signedUrl)]);
     } catch (err: any) { alert("Erreur : " + err.message); }
     finally { setUploading(false); }
   };
@@ -145,5 +149,5 @@ export function useExpenseReview(expense: any, onRefresh: () => void) {
     finally { setUploading(false); }
   };
 
-  return { uploads, setUploads, uploading, saving, currentStatus, deleteUpload, editAmount, setEditAmount, editDate, setEditDate, editCategory, setEditCategory, editDesc, setEditDesc, saveEdit, updateStatus, uploadFile };
+  return { uploads, setUploads, reloadUploads, uploading, saving, currentStatus, deleteUpload, editAmount, setEditAmount, editDate, setEditDate, editCategory, setEditCategory, editDesc, setEditDesc, saveEdit, updateStatus, uploadFile };
 }

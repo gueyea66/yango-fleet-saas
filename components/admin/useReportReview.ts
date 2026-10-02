@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { recomputeReportNet } from "@/lib/reportNet";
 import { logAction } from "@/lib/logAction";
 import { obtenirUrlsSignees } from "@/lib/signedUrls";
+import { enrichUpload } from "@/lib/v2/history";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- signature d'origine
 export function useReportReview(report: any, onRefresh: () => void) {
@@ -23,22 +24,27 @@ export function useReportReview(report: any, onRefresh: () => void) {
   const [uploads, setUploads] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
 
+  // `reloadUploads` : bouton « Réessayer » quand une photo n'a pas pu être signée.
+  const [uploadsTick, setUploadsTick] = useState(0);
+  const reloadUploads = () => setUploadsTick((t) => t + 1);
+
   useEffect(() => {
+    let annule = false;
     (async () => {
       const supabase = createClient() as any;
-      const { data } = await supabase.from("uploads").select("*").eq("driver_id", report.driver_id).order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("uploads").select("*").eq("driver_id", report.driver_id).order("created_at", { ascending: false });
+      if (error) console.error("[useReportReview] lecture des pièces :", error.message);
       // Keep files linked to this report: either by ref_id or file_path (legacy path)
       const liees = (data || [])
         .filter((u: any) => u.ref_id === report.id || u.file_path?.includes(report.id));
       const urls = await obtenirUrlsSignees(liees.map((u: any) => u.file_path));
-      const enriched = liees.map((u: any) => ({
-        ...u,
-        publicUrl: urls[u.file_path] || "",
-        isImg: /\.(jpg|jpeg|png|gif|webp|heic|heif)$/i.test(u.file_name),
-      }));
-      setUploads(enriched);
+      if (annule) return;
+      setUploads(liees.map((u: any) => enrichUpload(u, urls[u.file_path])));
     })();
-  }, [report.driver_id]);
+    return () => { annule = true; };
+    // Dépend de report.id (et plus seulement du chauffeur) : passer d'un rapport
+    // à l'autre du MÊME chauffeur affichait les photos du précédent.
+  }, [report.id, report.driver_id, uploadsTick]);
 
   // Net recalculé dans le MODE D'ORIGINE du rapport (lib/reportNet) : éléments
   // réels si des commissions lues dans l'app sont stockées, sinon taux figés.
@@ -131,11 +137,18 @@ export function useReportReview(report: any, onRefresh: () => void) {
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || "Upload échoué");
       const supabase = createClient() as any;
-      await supabase.from("uploads").insert({ driver_id: report.driver_id, file_name: file.name, file_path: result.path, file_type: "admin-report", file_size: file.size });
-      setUploads((p) => [...p, { file_name: file.name, file_path: result.path, file_type: "admin-report", created_at: new Date().toISOString() }]);
+      // `tenant_id` et `ref_id` manquaient : le garde-fou SQL (guard_uploads)
+      // ne complète pas le tenant pour un admin, la ligne restait à NULL — donc
+      // invisible (RLS) et jamais signée par /api/kyc-signed-urls.
+      const { data: ligne, error: errIns } = await supabase.from("uploads").insert({
+        driver_id: report.driver_id, tenant_id: report.tenant_id, ref_id: report.id,
+        file_name: file.name, file_path: result.path, file_type: "admin-report", file_size: file.size,
+      }).select().single();
+      if (errIns) throw errIns;
+      setUploads((p) => [...p, enrichUpload(ligne, result.signedUrl)]);
     } catch (err: any) { alert("Erreur : " + err.message); }
     finally { setUploading(false); }
   };
 
-  return { saving, note, setNote, yangoGrossEdit, setYangoGrossEdit, yangoBonus, setYangoBonus, horsYangoEdit, setHorsYangoEdit, soldeEdit, setSoldeEdit, dateEdit, setDateEdit, kmEdit, setKmEdit, yangoTripsEdit, setYangoTripsEdit, offYangoTripsEdit, setOffYangoTripsEdit, serviceSuppEdit, setServiceSuppEdit, uploads, uploading, recalc, saveFields, updateStatus, uploadFile };
+  return { saving, note, setNote, yangoGrossEdit, setYangoGrossEdit, yangoBonus, setYangoBonus, horsYangoEdit, setHorsYangoEdit, soldeEdit, setSoldeEdit, dateEdit, setDateEdit, kmEdit, setKmEdit, yangoTripsEdit, setYangoTripsEdit, offYangoTripsEdit, setOffYangoTripsEdit, serviceSuppEdit, setServiceSuppEdit, uploads, uploading, reloadUploads, recalc, saveFields, updateStatus, uploadFile };
 }

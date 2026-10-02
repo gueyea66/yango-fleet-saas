@@ -6,7 +6,7 @@
  */
 import type { FilterPeriod } from "./filters";
 
-export type AdminDestination = "dash" | "valid" | "pilot" | "fleet" | "team" | "fin" | "hist" | "set";
+export type AdminDestination = "dash" | "valid" | "pilot" | "perf" | "fleet" | "team" | "fin" | "hist" | "set";
 
 export interface SubTab {
   tab: string;       // identifiant d'onglet existant
@@ -30,6 +30,14 @@ export const ADMIN_DESTINATIONS: DestinationDef[] = [
   { key: "dash", label: "Tableau de bord", subTabs: [{ tab: "dashboard", label: "Tableau de bord" }], filter: { period: true, driver: true } },
   { key: "valid", label: "À valider", subTabs: [{ tab: "pending", label: "À valider" }], filter: { period: true, driver: true } },
   { key: "pilot", label: "Pilotage", subTabs: [{ tab: "pilotage", label: "Pilotage" }], filter: {} },
+  {
+    key: "perf", label: "Performance", filter: { period: true, driver: true },
+    subTabs: [
+      { tab: "classement", label: "Classement" },
+      { tab: "kpichauffeurs", label: "KPI chauffeurs" },
+      { tab: "extraction", label: "Extraction" },
+    ],
+  },
   {
     key: "fleet", label: "Véhicules", filter: {},
     subTabs: [
@@ -57,7 +65,7 @@ export const ADMIN_DESTINATIONS: DestinationDef[] = [
   {
     key: "hist", label: "Historique", secondary: true, filter: { period: true, driver: true },
     subTabs: [
-      { tab: "history", label: "Calendrier" },
+      { tab: "history", label: "Historique" },
       { tab: "calendrier", label: "Planning" },
     ],
   },

@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- lignes non typées (convention du projet) */
-import { masseSalariale, palierLabel, paymentSalaryDate, recentMovements, salaryMonthOf, salaryRows } from "@/lib/v2/finance";
+import { isFullMonths, masseSalariale, monthsOf, palierLabel, paymentSalaryDate, recentMovements, salaryMonthOf, salaryRows } from "@/lib/v2/finance";
 
 // Moteur de test : même forme que calcDriverSalary (paliers + prorata).
 const salaryOf = (net: number, cfg: any, pf = 1) => {
@@ -75,5 +75,49 @@ describe("derniers mouvements", () => {
   it("10 lignes au plus", () => {
     const many = Array.from({ length: 15 }, (_, i) => ({ id: String(i), driver_id: "a", amount: 1, type: "salaire", payment_date: `2026-09-${String(i + 1).padStart(2, "0")}` }));
     expect(recentMovements({ payments: many, reports: [], expenses: [], range: sep, nameOf: () => "x" })).toHaveLength(10);
+  });
+});
+
+describe("Marquer payé : paiement compté quelle que soit la période", () => {
+  const pay = [{ id: "9", driver_id: "a", amount: 150_000, type: "salaire", payment_date: "2026-09-15", salary_month: "2026-09-01" }];
+  it.each([
+    ["Jour", { from: "2026-09-15", to: "2026-09-15" }],
+    ["7 j", { from: "2026-09-09", to: "2026-09-15" }],
+    ["Dates", { from: "2026-09-08", to: "2026-09-21" }],
+  ])("période %s : le salaire de septembre est versé", (_l, range) => {
+    const r = salaryRows([allocs[0]], cfg, pay, range, salaryOf)[0];
+    expect(r.verse).toBe(150_000);
+    expect(r.reste).toBe(0);
+    expect(r.paidOn).toBe("2026-09-15");
+  });
+  it("un dû fractionnaire arrondi au franc ne laisse pas de reste fantôme", () => {
+    const r = salaryRows([{ ...allocs[0], prorataFactor: 1 / 3 }], cfg, [{ ...pay[0], amount: 50_000 }], sep, salaryOf)[0];
+    expect(r.du).toBe(50_000);
+    expect(r.reste).toBe(0);
+    expect(r.paidOn).not.toBeNull();
+  });
+});
+
+describe("monthsOf", () => {
+  it("mois couverts", () => {
+    expect(monthsOf({ from: "2026-09-28", to: "2026-10-03" })).toEqual(["2026-09", "2026-10"]);
+    expect(monthsOf({ from: "2025-12-01", to: "2026-01-31" })).toEqual(["2025-12", "2026-01"]);
+    expect(monthsOf({ from: "2026-09-15", to: "2026-09-15" })).toEqual(["2026-09"]);
+  });
+});
+
+describe("période partielle à cheval sur deux mois", () => {
+  it("7 j du 28/09 au 03/10 : seul octobre (mois de fin) compte", () => {
+    const pay = [{ id: "s", driver_id: "a", amount: 150_000, type: "salaire", payment_date: "2026-09-30", salary_month: "2026-09-01" }];
+    const r = salaryRows([allocs[0]], cfg, pay, { from: "2026-09-28", to: "2026-10-03" }, salaryOf)[0];
+    expect(r.verse).toBe(0);
+    expect(r.paidOn).toBeNull();
+  });
+  it("mois entiers détectés", () => {
+    expect(isFullMonths({ from: "2026-09-01", to: "2026-09-30" })).toBe(true);
+    expect(isFullMonths({ from: "2026-01-01", to: "2026-12-31" })).toBe(true);
+    expect(isFullMonths({ from: "2026-02-01", to: "2026-02-28" })).toBe(true);
+    expect(isFullMonths({ from: "2026-09-08", to: "2026-09-21" })).toBe(false);
+    expect(isFullMonths({ from: "2026-09-01", to: "2026-09-15" })).toBe(false);
   });
 });
