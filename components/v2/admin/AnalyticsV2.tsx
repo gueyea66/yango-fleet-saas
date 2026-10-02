@@ -14,7 +14,7 @@ import { formatAmount, formatDecimal } from "@/lib/v2/format";
 import { totalRow, type Column, type ReportDef, type ReportKey, type ReportResult, type Row } from "@/lib/analytics/reports";
 import type { SegmentFilter } from "@/lib/analytics/segment";
 import { statutDe } from "@/lib/analytics/trends";
-import { ObjectifControl, ObjectiveValue, SegmentFilterControl, StatusPill, usePerfMeta } from "./perfShared";
+import { HorsYangoControl, ObjectifControl, ObjectiveValue, SegmentFilterControl, StatusPill, usePerfMeta } from "./perfShared";
 
 type Range = { from: string; to: string };
 type Statut = "approved" | "all";
@@ -26,12 +26,15 @@ interface Common {
   /** filtre « type de véhicule » partagé par les écrans Performance */
   segment: SegmentFilter;
   onSegment: (s: SegmentFilter) => void;
+  /** CA avec (true) ou sans (false) les recettes hors Yango */
+  horsYango: boolean;
+  onHorsYango: (v: boolean) => void;
 }
 
 /* ── Accès API ─────────────────────────────────────────────── */
 
 const qs = (report: string, c: Common, statut: Statut, extra: Record<string, string> = {}) => {
-  const p = new URLSearchParams({ report, dateFrom: c.range.from, dateTo: c.range.to, statut, segment: c.segment, ...extra });
+  const p = new URLSearchParams({ report, dateFrom: c.range.from, dateTo: c.range.to, statut, segment: c.segment, hors: c.horsYango ? "1" : "0", ...extra });
   if (c.driverIds.length) p.set("driverIds", c.driverIds.join(","));
   return `/api/admin/analytics?${p}`;
 };
@@ -227,6 +230,7 @@ export function ClassementV2(c: Common) {
       <Header title="Classement des chauffeurs" sub={c.periodLabel}
         right={<>
           <SegmentFilterControl value={c.segment} onChange={c.onSegment} meta={meta} />
+          <HorsYangoControl value={c.horsYango} onChange={c.onHorsYango} />
           <Segmented options={STATUT_OPTS} value={statut} onChange={setStatut} ariaLabel="Déclarations prises en compte" />
           <ObjectifControl meta={meta} onSaved={() => { void reload(); void run(); }} />
           {data?.hasFleetroom && (
@@ -237,7 +241,7 @@ export function ClassementV2(c: Common) {
           <ExportButton report="classement" c={c} statut={statut} disabled={!rows.length} />
         </>} />
       <p style={{ margin: 0, fontSize: 12, color: "var(--v2-muted)" }}>
-        Cliquez sur un en-tête pour trier. Pastille du CA/jour : vert ≥ objectif, ambre 80–100 %, rouge &lt; 80 %. CA = brut Yango + bonus + hors Yango. Km = compteur{data?.hasFleetroom ? ", sinon distance des courses Yango" : ""}. Comptes techniques exclus.
+        Cliquez sur un en-tête pour trier. Pastille du CA/jour : vert ≥ objectif, ambre 80–100 %, rouge &lt; 80 %. CA = brut Yango + bonus{c.horsYango ? " + hors Yango" : " (hors Yango exclu)"}. Km = compteur{data?.hasFleetroom ? ", sinon distance des courses Yango" : ""}. Comptes techniques exclus.
       </p>
       {data?.truncated && <ErrorBox msg="Données plafonnées à 30 000 lignes : chiffres partiels, réduisez la période." />}
       {error ? <ErrorBox msg={error} /> : (
@@ -311,6 +315,7 @@ export function KpiChauffeursV2(c: Common) {
       <Header title="KPI chauffeurs" sub={c.periodLabel}
         right={<>
           <SegmentFilterControl value={c.segment} onChange={c.onSegment} meta={meta} />
+          <HorsYangoControl value={c.horsYango} onChange={c.onHorsYango} />
           <Segmented options={STATUT_OPTS} value={statut} onChange={setStatut} ariaLabel="Déclarations prises en compte" />
           <ObjectifControl meta={meta} onSaved={() => { void reload(); void run(); }} />
         </>} />
@@ -393,11 +398,14 @@ export function ExtractionV2(c: Common) {
       .then((j) => setCatalog(Array.isArray(j.reports) ? j.reports : [])).catch(() => setCatalog([]));
   }, []);
   // un autre choix (rapport, période, statut) invalide l'aperçu affiché
-  useEffect(() => { reset(); }, [reset, report, statut, c.segment, c.range.from, c.range.to, c.driverIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { reset(); }, [reset, report, statut, c.segment, c.horsYango, c.range.from, c.range.to, c.driverIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
   const def = catalog?.find((r) => r.key === report);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <Header title="Extraction de données" sub={c.periodLabel} right={<SegmentFilterControl value={c.segment} onChange={c.onSegment} meta={perfMeta} />} />
+      <Header title="Extraction de données" sub={c.periodLabel} right={<>
+        <SegmentFilterControl value={c.segment} onChange={c.onSegment} meta={perfMeta} />
+        <HorsYangoControl value={c.horsYango} onChange={c.onHorsYango} />
+      </>} />
       <Card>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>

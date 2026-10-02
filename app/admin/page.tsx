@@ -118,6 +118,8 @@ export default function AdminPage() {
   const [filterDriverIds, setFilterDriverIds] = useState<string[]>([]);
   // Performance : filtre « type de véhicule » commun aux onglets (interne / externe)
   const [perfSegment, setPerfSegment] = useState<SegmentFilter>("all");
+  // Performance : CA avec ou sans recettes hors Yango (commun aux onglets)
+  const [perfHors, setPerfHors] = useState(true);
   // Compat : les onglets annexes (KYC, paiements, avances…) restent mono-chauffeur
   // et ne se filtrent que lorsqu'exactement un chauffeur est sélectionné.
   const filterDriverId = filterDriverIds.length === 1 ? filterDriverIds[0] : "";
@@ -819,7 +821,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {tab === "tendances" && <TendancesV2 driverIds={filterDriverIds} segment={perfSegment} onSegment={setPerfSegment} anchor={periodTo} />}
+        {tab === "tendances" && <TendancesV2 driverIds={filterDriverIds} segment={perfSegment} onSegment={setPerfSegment} horsYango={perfHors} onHorsYango={setPerfHors} anchor={periodTo} />}
         {(tab === "classement" || tab === "kpichauffeurs" || tab === "extraction") && (() => {
           // même période et mêmes chauffeurs que la barre de filtres (v2) ou les mois choisis (legacy)
           const common = {
@@ -828,6 +830,8 @@ export default function AdminPage() {
             periodLabel: uiV2 ? periodLabel(v2Period, new Date()) : `${periodFrom.split("-").reverse().join("/")} → ${periodTo.split("-").reverse().join("/")}`,
             segment: perfSegment,
             onSegment: setPerfSegment,
+            horsYango: perfHors,
+            onHorsYango: setPerfHors,
           };
           return tab === "classement" ? <ClassementV2 {...common} /> : tab === "kpichauffeurs" ? <KpiChauffeursV2 {...common} /> : <ExtractionV2 {...common} />;
         })()}
