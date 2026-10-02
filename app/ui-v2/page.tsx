@@ -18,6 +18,7 @@ import { PendingV2 } from "@/components/v2/admin/PendingV2";
 import { FinanceKpisV2, HistoryV2, TeamV2 } from "@/components/v2/admin/SectionsV2";
 import { VehiclesSignalV2 } from "@/components/v2/admin/VehiclesSignalV2";
 import { TendancesV2 } from "@/components/v2/admin/TendancesV2";
+import { SaisieOperateurV2 } from "@/components/v2/admin/OperateurV2";
 import { computeTrends, lastBuckets } from "@/lib/analytics/trends";
 import type { SegmentFilter } from "@/lib/analytics/segment";
 import { FLEET_SEG_OPTS } from "@/lib/v2/fleetScope";
@@ -201,6 +202,8 @@ function AdminShellDemo() {
           renderDocuments={() => <Card style={{ minHeight: 160, color: "var(--v2-muted)", fontSize: 14 }}>Documents KYC du chauffeur (composant actuel)</Card>} />
       ) : tab === "history" ? (
         <HistoryV2 reports={DEMO_HISTORY} drivers={DEMO_DRIVERS} loading={false} onRefresh={() => {}} />
+      ) : tab === "saisie" ? (
+        <SaisieOperateurV2 drivers={DEMO_DRIVERS} tenantId="demo-tenant" />
       ) : tab === "tendances" ? (
         <TendancesV2 driverIds={[]} segment={demoSeg} horsYango={demoHors} onHorsYango={setDemoHors} demo={DEMO_TRENDS} />
       ) : tab === "payments" || tab === "avances" ? (

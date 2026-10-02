@@ -60,6 +60,7 @@ import { isFullMonths, masseSalariale, paymentSalaryDate, recentMovements, salar
 import { CollapsedHistoryV2, MovementsV2, SalaryTableV2 } from "@/components/v2/admin/FinanceV2";
 import { ClassementV2, ExtractionV2, KpiChauffeursV2 } from "@/components/v2/admin/AnalyticsV2";
 import { TendancesV2 } from "@/components/v2/admin/TendancesV2";
+import { AdministrateursV2, ObjectifFlotteV2, SaisieOperateurV2, SaisiesAValiderV2 } from "@/components/v2/admin/OperateurV2";
 import type { SegmentFilter } from "@/lib/analytics/segment";
 import { driverScope, segCountsOf, FLEET_SEG_OPTS } from "@/lib/v2/fleetScope";
 import { Segmented } from "@/components/ui";
@@ -361,6 +362,7 @@ export default function AdminPage() {
       items: [
         ["dashboard",   "📊", "Dashboard"],
         ["pending",     "⏳", "Soumissions"],
+        ["saisie",      "✍️", "Saisie opérateur"],
         ["history",     "📜", "Historique"],
         ["calendrier",  "📅", "Calendrier"],
       ],
@@ -400,6 +402,7 @@ export default function AdminPage() {
         ["journal",     "📋", "Journal"],
         ["fleetroom",   "🚕", "Import Fleetroom"],
         ["import",      "📥", "Import historique"],
+        ["administrateurs", "🛡️", "Administrateurs"],
         ["settings",    "⚙️", "Paramètres"],
       ],
     },
@@ -834,6 +837,8 @@ export default function AdminPage() {
           </div>
         )}
 
+        {tab === "saisie" && adminTenantId && <SaisieOperateurV2 drivers={allDrivers} tenantId={adminTenantId} />}
+        {tab === "administrateurs" && <AdministrateursV2 />}
         {tab === "tendances" && <TendancesV2 driverIds={filterDriverIds} segment={fleetSegment} horsYango={perfHors} onHorsYango={setPerfHors} anchor={periodTo} />}
         {(tab === "classement" || tab === "kpichauffeurs" || tab === "extraction") && (() => {
           // même période et mêmes chauffeurs que la barre de filtres (v2) ou les mois choisis (legacy)
@@ -938,6 +943,10 @@ export default function AdminPage() {
           }}
         >
           {tab === "dashboard" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            {v2Range && (
+              <ObjectifFlotteV2 range={v2Range} driverIds={filterDriverIds} segment={fleetSegment} periodLabel={periodLabel(v2Period, new Date())} />
+            )}
             <DashboardV2
               view={dashView}
               kpis={kpis}
@@ -949,13 +958,18 @@ export default function AdminPage() {
               onOpenValidation={() => setTab("pending")}
               advanced={dashboardContent}
             />
+            </div>
           ) : tab === "pending" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            <SaisiesAValiderV2 onChanged={() => { setKpiTick((t) => t + 1); loadReports(scopeDriverIds); }} />
             <PendingV2
               reports={reports.filter((r) => r.status === "submitted" && (!v2Range || inRange(r.date, v2Range)))}
-              expenses={expenses.filter((e) => (e.status || "submitted") === "submitted" && (!v2Range || inRange(e.expense_date || e.created_at, v2Range)))}
+              // charges saisies par un opérateur : validées dans « Saisies opérateur » (preuve obligatoire)
+              expenses={expenses.filter((e) => (e.status || "submitted") === "submitted" && e.source !== "operateur" && (!v2Range || inRange(e.expense_date || e.created_at, v2Range)))}
               loading={loadingReports}
               onRefresh={() => loadReports(scopeDriverIds)}
             />
+            </div>
           ) : tab === "kyc" ? (
             <TeamV2
               drivers={allDrivers}
