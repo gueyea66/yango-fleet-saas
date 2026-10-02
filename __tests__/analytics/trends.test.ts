@@ -88,3 +88,12 @@ describe("filtre hors Yango", () => {
     expect(r.off_yango_revenue).toBe(43_000);
   });
 });
+
+describe("granularité jour", () => {
+  it("une période par jour, libellé court, 14 jours glissants", () => {
+    expect(bucketOf("2026-10-02", "jour")).toEqual({ key: "2026-10-02", label: "ven. 02/10", from: "2026-10-02", to: "2026-10-02" });
+    const b = lastBuckets("2026-10-02", "jour", 14);
+    expect(b).toHaveLength(14);
+    expect(b[0].key).toBe("2026-09-19");
+  });
+});

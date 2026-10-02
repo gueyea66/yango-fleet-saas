@@ -25,6 +25,7 @@ import { HorsYangoControl, ObjectifControl, SERIES_COLOR, STATUS_COLOR, STATUS_I
 type Statut2 = "approved" | "all";
 
 const GRAN_OPTS: { key: Granularite; label: string }[] = [
+  { key: "jour", label: "Jour" },
   { key: "semaine", label: "Semaine" }, { key: "mois", label: "Mois" },
   { key: "trimestre", label: "Trimestre" }, { key: "annee", label: "Année" },
 ];

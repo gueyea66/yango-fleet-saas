@@ -9,10 +9,11 @@
  */
 import { caOf, coursesOf, isRepos, type ReportLike } from "./driverStats";
 
-export type Granularite = "semaine" | "mois" | "trimestre" | "annee";
-export const GRANULARITES: Granularite[] = ["semaine", "mois", "trimestre", "annee"];
+export type Granularite = "jour" | "semaine" | "mois" | "trimestre" | "annee";
+export const GRANULARITES: Granularite[] = ["jour", "semaine", "mois", "trimestre", "annee"];
 /** Nombre de périodes affichées par défaut */
-export const PERIODES_PAR_DEFAUT: Record<Granularite, number> = { semaine: 12, mois: 12, trimestre: 8, annee: 3 };
+export const PERIODES_PAR_DEFAUT: Record<Granularite, number> = { jour: 14, semaine: 12, mois: 12, trimestre: 8, annee: 3 };
+const JOURS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
 export const OBJECTIF_DEFAUT = 40_000;
 
 export type Statut = "atteint" | "proche" | "sous";
@@ -52,6 +53,10 @@ export function bucketOf(day: string, g: Granularite): Bucket {
   const d = utc(day);
   const y = d.getUTCFullYear(), m = d.getUTCMonth();
   switch (g) {
+    case "jour": {
+      const k = iso(d);
+      return { key: k, label: `${JOURS[d.getUTCDay()]} ${k.slice(8, 10)}/${k.slice(5, 7)}`, from: k, to: k };
+    }
     case "semaine": {
       const { year, week, monday } = isoWeek(d);
       const sunday = new Date(monday); sunday.setUTCDate(monday.getUTCDate() + 6);
