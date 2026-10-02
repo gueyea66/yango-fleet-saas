@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { requireAdminAuth } from "@/lib/auth/server";
+import { requireAdminAuth, requireValideurAuth } from "@/lib/auth/server";
 import { ingestFleetroom, type FleetroomFile } from "@/lib/fleetroom/ingest";
 
 // Un export journalier pèse ~100 Ko ; un mois ~2 Mo. La limite Vercel du corps
@@ -42,7 +42,8 @@ export async function GET() {
 /* ── POST — dépôt des exports (multipart : files[], soldesJour?) ── */
 export async function POST(req: NextRequest) {
   try {
-    const { tenantId, userId } = await requireAdminAuth();
+    // import = déclarations directement validées : admin valideur uniquement
+    const { tenantId, userId } = await requireValideurAuth();
     const form = await req.formData();
     const soldesJour = (form.get("soldesJour") as string | null) || undefined;
     const files: FleetroomFile[] = [];

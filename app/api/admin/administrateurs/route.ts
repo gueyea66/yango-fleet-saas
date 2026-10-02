@@ -29,7 +29,7 @@ export async function GET() {
   try {
     const { tenantId, userId } = await requireAdminAuth();
     const { data, error } = await admins(tenantId);
-    if (error) return bad(MIGRATION_MSG, 409);
+    if (error) return error.code === "42703" ? bad(MIGRATION_MSG, 409) : bad("Lecture impossible", 500);
     const me = (data || []).find((a: any) => a.id === userId);
     return NextResponse.json({ me: { id: userId, peut_valider: !!me?.peut_valider }, admins: data || [] }, { headers: { "Cache-Control": "no-store" } });
   } catch (err: any) {
@@ -43,7 +43,7 @@ export async function PATCH(req: NextRequest) {
     const b = await req.json().catch(() => ({}));
     if (typeof b.id !== "string" || typeof b.peut_valider !== "boolean") return bad("Requête invalide");
     const { data: list, error } = await admins(tenantId);
-    if (error) return bad(MIGRATION_MSG, 409);
+    if (error) return error.code === "42703" ? bad(MIGRATION_MSG, 409) : bad("Lecture impossible", 500);
     const me = (list || []).find((a: any) => a.id === userId);
     if (!me?.peut_valider) return bad("Réservé à un administrateur valideur", 403);
     const cible = (list || []).find((a: any) => a.id === b.id);

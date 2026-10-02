@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { requireAdminAuth } from "@/lib/auth/server";
+import { requireAdminAuth, requireValideurAuth } from "@/lib/auth/server";
 
 const serviceClient = createServiceClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -31,7 +31,8 @@ export async function GET() {
  */
 export async function PATCH(req: NextRequest) {
   try {
-    const { tenantId } = await requireAdminAuth();
+    // résoudre un écart réécrit une journée validée : admin valideur uniquement
+    const { tenantId } = await requireValideurAuth();
     const { driver_id, jour, action } = await req.json();
     if (!driver_id || !/^\d{4}-\d{2}-\d{2}$/.test(jour ?? "") || !["keep_declared", "use_fleetroom"].includes(action)) {
       return NextResponse.json({ error: "Paramètres invalides" }, { status: 400 });

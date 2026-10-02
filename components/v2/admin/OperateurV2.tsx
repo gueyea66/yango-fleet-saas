@@ -312,7 +312,7 @@ export function AdministrateursV2() {
 
 export function ObjectifFlotteV2({ range, driverIds, segment, periodLabel }: { range: { from: string; to: string }; driverIds: string[]; segment: SegmentFilter; periodLabel: string }) {
   const { meta, reload } = usePerfMeta();
-  const [rows, setRows] = useState<{ name: string; caParJour: number | null; jours: number }[] | null>(null);
+  const [rows, setRows] = useState<{ id: string; name: string; caParJour: number | null; jours: number }[] | null>(null);
   const [tick, setTick] = useState(0);
   useEffect(() => {
     const p = new URLSearchParams({ report: "classement", dateFrom: range.from, dateTo: range.to, statut: "approved", segment, hors: "1" });
@@ -320,7 +320,7 @@ export function ObjectifFlotteV2({ range, driverIds, segment, periodLabel }: { r
     let stop = false;
     fetch(`/api/admin/analytics?${p}`, { cache: "no-store" }).then((r) => r.json()).then((j) => {
       if (stop || !Array.isArray(j.rows)) return;
-      setRows(j.rows.filter((r: { jours: number }) => r.jours > 0).map((r: { name: string; caParJour: number | null; jours: number }) => ({ name: r.name, caParJour: r.caParJour, jours: r.jours })));
+      setRows(j.rows.filter((r: { jours: number }) => r.jours > 0).map((r: { driverId: string; name: string; caParJour: number | null; jours: number }) => ({ id: r.driverId, name: r.name, caParJour: r.caParJour, jours: r.jours })));
     }).catch(() => undefined);
     return () => { stop = true; };
   }, [range.from, range.to, driverIds.join(","), segment, tick]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -341,7 +341,7 @@ export function ObjectifFlotteV2({ range, driverIds, segment, periodLabel }: { r
         {sorted.map((r) => {
           const st = statutDe(r.caParJour, objectif);
           return (
-            <div key={r.name} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 10, background: "var(--sk-surface)", borderLeft: `4px solid ${st ? STATUS_COLOR[st] : "var(--sk-border)"}` }}>
+            <div key={r.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 10, background: "var(--sk-surface)", borderLeft: `4px solid ${st ? STATUS_COLOR[st] : "var(--sk-border)"}` }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 13, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
                 <div style={{ fontSize: 11, color: "var(--v2-muted)" }}>{r.jours} j · {r.caParJour != null ? formatAmount(r.caParJour) : "—"} / jour</div>

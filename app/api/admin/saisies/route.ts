@@ -38,8 +38,9 @@ async function moi(userId: string, tenantId: string) {
 
 /** Le chauffeur appartient-il au tenant ? (jamais d'écriture pour un autre tenant) */
 async function chauffeurDuTenant(driverId: string, tenantId: string) {
-  const { data } = await admin.from("profiles").select("id").eq("id", driverId).eq("tenant_id", tenantId).eq("role", "driver").maybeSingle();
-  return !!data;
+  const { data } = await admin.from("profiles").select("id, account_type, active").eq("id", driverId).eq("tenant_id", tenantId).eq("role", "driver").maybeSingle();
+  // ni compte technique (Founder…), ni chauffeur désactivé
+  return !!data && data.account_type !== "technical" && data.active !== false;
 }
 
 export async function GET(req: NextRequest) {

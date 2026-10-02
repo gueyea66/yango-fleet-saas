@@ -211,3 +211,18 @@ export function getClientIp(req: { headers: { get: (key: string) => string | nul
     "unknown"
   );
 }
+
+/**
+ * Admin valideur (migration 075) : refuse un admin « saisie seule » sur les
+ * routes qui créent des données validées (import Fleetroom, résolution des
+ * écarts). Colonne absente (migration non appliquée) → tout admin passe.
+ */
+export async function requireValideurAuth(): Promise<AuthedAdmin> {
+  const auth = await requireAdminAuth();
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("profiles").select("peut_valider").eq("id", auth.userId).single();
+  if (!error && data && data.peut_valider === false) {
+    throw Object.assign(new Error("Réservé à un administrateur valideur (profil « saisie seule »)"), { status: 403 });
+  }
+  return auth;
+}
