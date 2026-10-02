@@ -24,6 +24,8 @@ export interface AdminShellFilters {
   drivers: DriverOption[];
   driverIds: string[];
   onDriverIdsChange: (ids: string[]) => void;
+  /** filtre « type de véhicule » (interne / externe), affiché avec le filtre chauffeurs */
+  segment?: ReactNode;
 }
 
 /**
@@ -193,6 +195,7 @@ export default function AdminShellV2({
             {(showPeriod || showDrivers) && (
               <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 {showPeriod && <PeriodFilter value={filters.period!} onChange={filters.onPeriodChange!} />}
+                {showDrivers && filters.segment}
                 {showDrivers && <DriverMultiSelect drivers={filters.drivers} value={filters.driverIds} onChange={filters.onDriverIdsChange} />}
               </div>
             )}

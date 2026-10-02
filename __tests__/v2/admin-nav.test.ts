@@ -4,11 +4,11 @@ import {
 
 // Onglets de la sidebar actuelle (tabGroups de app/admin/page.tsx).
 const CURRENT_TABS = [
-  "dashboard", "pending", "history", "calendrier",
+  "dashboard", "pending", "saisie", "history", "calendrier",
   "payments", "avances", "pilotage",
   "tendances", "classement", "kpichauffeurs", "extraction",
   "suivi", "vehicles", "drivers", "kyc",
-  "remuneration", "boitiers", "journal", "fleetroom", "import", "settings",
+  "remuneration", "boitiers", "journal", "fleetroom", "import", "settings", "administrateurs",
 ];
 
 describe("navigation gestionnaire 13 → 8", () => {

@@ -20,11 +20,12 @@ import { Button, Card, Segmented } from "@/components/ui";
 import { formatAmount } from "@/lib/v2/format";
 import type { SegmentFilter } from "@/lib/analytics/segment";
 import type { BucketStats, Granularite, Statut, TrendsResult } from "@/lib/analytics/trends";
-import { ObjectifControl, SegmentFilterControl, SERIES_COLOR, STATUS_COLOR, STATUS_ICON, STATUS_LABEL, StatusPill, usePerfMeta } from "./perfShared";
+import { HorsYangoControl, ObjectifControl, SERIES_COLOR, STATUS_COLOR, STATUS_ICON, STATUS_LABEL, StatusPill, usePerfMeta } from "./perfShared";
 
 type Statut2 = "approved" | "all";
 
 const GRAN_OPTS: { key: Granularite; label: string }[] = [
+  { key: "jour", label: "Jour" },
   { key: "semaine", label: "Semaine" }, { key: "mois", label: "Mois" },
   { key: "trimestre", label: "Trimestre" }, { key: "annee", label: "Année" },
 ];
@@ -35,13 +36,13 @@ const pct = (v: number | null) => (v == null ? "—" : `${Math.round(v * 100)} %
 
 /* ── Données ───────────────────────────────────────────────── */
 
-function useTrends(params: { granularite: Granularite; segment: SegmentFilter; statut: Statut2; driverIds: string[]; dateTo: string; tick: number; enabled: boolean }) {
+function useTrends(params: { granularite: Granularite; segment: SegmentFilter; statut: Statut2; driverIds: string[]; dateTo: string; tick: number; enabled: boolean; horsYango: boolean }) {
   const [data, setData] = useState<(TrendsResult & { truncated?: boolean }) | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const seq = useRef(0);
   const url = (() => {
-    const p = new URLSearchParams({ report: "tendances", granularite: params.granularite, segment: params.segment, statut: params.statut, dateTo: params.dateTo });
+    const p = new URLSearchParams({ report: "tendances", granularite: params.granularite, segment: params.segment, statut: params.statut, dateTo: params.dateTo, hors: params.horsYango ? "1" : "0" });
     if (params.driverIds.length) p.set("driverIds", params.driverIds.join(","));
     return `/api/admin/analytics?${p}`;
   })();
@@ -160,10 +161,13 @@ const Row = ({ k: key, v }: { k: string; v: string }) => (
 
 /* ── Écran ─────────────────────────────────────────────────── */
 
-export function TendancesV2({ driverIds, segment, onSegment, anchor, demo }: {
+export function TendancesV2({ driverIds, segment, horsYango = true, onHorsYango, anchor, demo }: {
   driverIds: string[];
+  /** filtre « type de véhicule » de la barre de filtres globale */
   segment: SegmentFilter;
-  onSegment: (s: SegmentFilter) => void;
+  /** CA avec ou sans recettes hors Yango (filtre partagé de Performance) */
+  horsYango?: boolean;
+  onHorsYango?: (v: boolean) => void;
   /** fin de la période choisie dans la barre de filtres : dernière période affichée (jamais après aujourd'hui) */
   anchor?: string;
   /** vitrine /ui-v2 : données fictives, aucun appel réseau */
@@ -175,7 +179,7 @@ export function TendancesV2({ driverIds, segment, onSegment, anchor, demo }: {
   const { meta, reload } = usePerfMeta();
   const today = new Date().toISOString().slice(0, 10);
   const dateTo = anchor && anchor < today ? anchor : today;
-  const fetched = useTrends({ granularite, segment, statut, driverIds, dateTo, tick, enabled: !demo });
+  const fetched = useTrends({ granularite, segment, statut, driverIds, dateTo, tick, enabled: !demo, horsYango });
   const { loading, error, url } = fetched;
   const data: (TrendsResult & { truncated?: boolean }) | null = demo ?? fetched.data;
   const [exporting, setExporting] = useState(false);
@@ -225,7 +229,7 @@ export function TendancesV2({ driverIds, segment, onSegment, anchor, demo }: {
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <Segmented options={GRAN_OPTS} value={granularite} onChange={setGranularite} ariaLabel="Granularité" />
-          <SegmentFilterControl value={segment} onChange={onSegment} meta={meta} />
+          {onHorsYango && <HorsYangoControl value={horsYango} onChange={onHorsYango} />}
           <Segmented options={STATUT_OPTS} value={statut} onChange={setStatut} ariaLabel="Déclarations prises en compte" />
           <ObjectifControl meta={meta} onSaved={() => { void reload(); setTick((t) => t + 1); }} />
           <Button size="sm" variant="outline" icon={Download} disabled={exporting || !data} onClick={() => void exportXlsx()}>{exporting ? "…" : "Excel"}</Button>
@@ -322,7 +326,7 @@ export function TendancesV2({ driverIds, segment, onSegment, anchor, demo }: {
             </Card>
             <Card>
               <div style={{ fontSize: 15, fontWeight: 600 }}>CA total par période</div>
-              <div style={{ fontSize: 12, color: "var(--v2-muted)", marginBottom: 8 }}>Volume de la flotte (brut + bonus + hors Yango).</div>
+              <div style={{ fontSize: 12, color: "var(--v2-muted)", marginBottom: 8 }}>Volume de la flotte (brut + bonus{horsYango ? " + hors Yango" : ", hors Yango exclu"}).</div>
               <div style={{ width: "100%", height: 220 }}>
                 <ResponsiveContainer>
                   <BarChart data={buckets} margin={{ top: 16, right: 8, left: 0, bottom: 0 }} barCategoryGap="22%">

@@ -87,6 +87,13 @@ export async function POST(request: Request) {
           const existing = users?.find((u: any) => u.email?.toLowerCase() === virtualEmail.toLowerCase());
           if (!existing) return Response.json({ error: "Utilisateur introuvable" }, { status: 500 });
           authUserId = existing.id;
+          // Compte existant : on ne le reprend que s'il s'agit déjà d'un chauffeur de CE
+          // tenant (recréation). Jamais un admin, jamais le compte d'un autre tenant
+          // (sinon : changement de mot de passe + rattachement = prise de contrôle).
+          const { data: deja } = await adminClient.from("profiles").select("tenant_id, role").eq("id", authUserId).maybeSingle();
+          if (deja && (deja.tenant_id !== tenantId || deja.role !== "driver")) {
+            return Response.json({ error: "Cet identifiant chauffeur est déjà utilisé." }, { status: 409 });
+          }
           await adminClient.auth.admin.updateUserById(authUserId, { password, email_confirm: true });
         } else {
           return Response.json({ error: authError.message }, { status: 500 });
@@ -125,8 +132,8 @@ export async function POST(request: Request) {
       if (!driverProfileId) return Response.json({ error: "driverProfileId manquant" }, { status: 400 });
 
       // Vérifier que le chauffeur appartient au tenant de l'admin
-      const { data: prof } = await adminClient.from("profiles").select("id, tenant_id").eq("id", driverProfileId).single();
-      if (!prof || prof.tenant_id !== tenantId) {
+      const { data: prof } = await adminClient.from("profiles").select("id, tenant_id, role").eq("id", driverProfileId).single();
+      if (!prof || prof.tenant_id !== tenantId || prof.role !== "driver") {
         return Response.json({ error: "Chauffeur introuvable dans ce tenant" }, { status: 403 });
       }
 
@@ -156,8 +163,8 @@ export async function POST(request: Request) {
         return Response.json({ error: "driverProfileId et active (booléen) requis" }, { status: 400 });
       }
 
-      const { data: prof } = await adminClient.from("profiles").select("id, tenant_id").eq("id", driverProfileId).single();
-      if (!prof || prof.tenant_id !== tenantId) {
+      const { data: prof } = await adminClient.from("profiles").select("id, tenant_id, role").eq("id", driverProfileId).single();
+      if (!prof || prof.tenant_id !== tenantId || prof.role !== "driver") {
         return Response.json({ error: "Chauffeur introuvable dans ce tenant" }, { status: 403 });
       }
 
@@ -179,15 +186,16 @@ export async function POST(request: Request) {
       // Vérifier que le chauffeur appartient bien au tenant de l'admin
       const { data: profile } = await adminClient
         .from("profiles")
-        .select("id, tenant_id")
+        .select("id, tenant_id, role")
         .eq("driver_id", driverId)
-        .single();
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
 
-      if (profile && profile.tenant_id !== tenantId) {
+      if (!profile || profile.tenant_id !== tenantId || profile.role !== "driver") {
         return Response.json({ error: "Chauffeur non trouvé dans ce tenant" }, { status: 403 });
       }
 
-      const profileId = profile?.id ?? driverId;
+      const profileId = profile.id;
       await adminClient.from("profiles").delete().eq("id", profileId);
       await adminClient.auth.admin.deleteUser(profileId).catch(() => {});
       audit({ tenantId, userId, action: "driver.delete", resourceType: "driver", resourceId: driverId, ip });
@@ -201,8 +209,8 @@ export async function POST(request: Request) {
         return Response.json({ error: "Mot de passe requis (8 caractères minimum)" }, { status: 400 });
       }
       // Le chauffeur doit appartenir au tenant de l'admin
-      const { data: prof } = await adminClient.from("profiles").select("id, tenant_id").eq("id", driverProfileId).single();
-      if (!prof || prof.tenant_id !== tenantId) {
+      const { data: prof } = await adminClient.from("profiles").select("id, tenant_id, role").eq("id", driverProfileId).single();
+      if (!prof || prof.tenant_id !== tenantId || prof.role !== "driver") {
         return Response.json({ error: "Chauffeur introuvable dans ce tenant" }, { status: 403 });
       }
       // profile.id === auth user id (créés ensemble)

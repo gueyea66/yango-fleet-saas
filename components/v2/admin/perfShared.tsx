@@ -97,6 +97,22 @@ export function SegmentFilterControl({ value, onChange, meta }: { value: Segment
   return <Segmented options={SEG_OPTS} value={value} onChange={onChange} ariaLabel="Type de véhicule" />;
 }
 
+/* ── Filtre hors Yango ───────────────────────────────────────────── */
+
+const HORS_OPTS: { key: "1" | "0"; label: string }[] = [
+  { key: "1", label: "Avec hors Yango" },
+  { key: "0", label: "Yango seul" },
+];
+
+/** Inclut ou exclut les recettes (et courses) hors Yango du CA de Performance. */
+export function HorsYangoControl({ value, onChange }: { value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <span title="Yango seul : périmètre comparable à un compte alimenté par Fleetroom (Yango uniquement)">
+      <Segmented options={HORS_OPTS} value={value ? "1" : "0"} onChange={(k) => onChange(k === "1")} ariaLabel="Recettes hors Yango" />
+    </span>
+  );
+}
+
 /* ── Objectif (lecture + réglage) ────────────────────────────────── */
 
 export function ObjectifControl({ meta, onSaved }: { meta: PerfMeta | null; onSaved: () => void }) {

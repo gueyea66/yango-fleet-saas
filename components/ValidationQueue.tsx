@@ -26,7 +26,8 @@ export function useValidationQueue(tenantId: string, onChanged?: () => void) {
       ]);
       setDriverNames(Object.fromEntries((profs || []).map((p: any) => [p.id, p.full_name])));
       setPending((json.reports || []).filter((r: any) => r.status === "submitted"));
-      setPendingExp((json.expenses || []).filter((e: any) => e.status === "submitted"));
+      // charges saisies par un opérateur : validées dans « Saisies opérateur » (preuve obligatoire)
+      setPendingExp((json.expenses || []).filter((e: any) => e.status === "submitted" && e.source !== "operateur"));
     } catch { /* silencieux — le bloc s'affiche vide */ }
   }, [tenantId]);
 

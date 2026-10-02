@@ -4,7 +4,7 @@
  *
  *   ?report=catalog                         → rapports disponibles pour ce tenant
  *   ?report=<clé>&dateFrom&dateTo           → aperçu JSON (colonnes + lignes)
- *     [&driverIds=uuid,uuid] [&statut=approved|all] [&segment=all|interne|partenaire] [&format=xlsx]
+ *     [&driverIds=uuid,uuid] [&statut=approved|all] [&segment=all|interne|partenaire] [&hors=1|0] [&format=xlsx]
  *   ?report=tendances&granularite=semaine|mois|trimestre|annee[&dateTo][&n]
  *                                           → CA/jour vs objectif par période
  *
@@ -18,7 +18,7 @@ import { requireAdminAuth } from "@/lib/auth/server";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { getPlanLimits } from "@/lib/plans";
 import { CAT_AVANCE } from "@/lib/expenseCategories";
-import { driverStats, sortStats } from "@/lib/analytics/driverStats";
+import { driverStats, sortStats, sansHorsYango } from "@/lib/analytics/driverStats";
 import {
   REPORTS, isReportKey, classementColumns, classementRow, declarationsRows, depensesRows, paiementsRows,
   syntheseJourRows, kpiJourRows, coursesRows, type ReportResult,
@@ -87,6 +87,9 @@ export async function GET(req: NextRequest) {
     const driverIds = (sp.get("driverIds") || "").split(",").map((s) => s.trim()).filter(Boolean);
     if (driverIds.some((id) => !UUID.test(id))) return bad("Identifiant chauffeur invalide");
     const statut = sp.get("statut") === "all" ? "all" : "approved";
+    // hors=0 : CA et courses limités à Yango (classement, KPI, tendances, synthèse)
+    const horsYango = sp.get("hors") !== "0";
+    const perimetre = (rows: any[]) => (horsYango ? rows : rows.map(sansHorsYango));
     const format = sp.get("format") === "xlsx" ? "xlsx" : "json";
 
     if (format === "xlsx") {
@@ -140,7 +143,8 @@ export async function GET(req: NextRequest) {
     switch (report) {
       case "classement": {
         const [{ rows: reports, raw: rawReports }, { rows: orders, raw: rawOrders }, expenses, seeds] = await Promise.all([
-          readReports("driver_id,date,status,comment,yango_gross,yango_bonus,off_yango_revenue,yango_trip_count,off_yango_trip_count,net_after_expenses,end_odometer"),
+          readReports("driver_id,date,status,comment,yango_gross,yango_bonus,off_yango_revenue,yango_trip_count,off_yango_trip_count,net_after_expenses,end_odometer")
+            .then((x) => ({ ...x, rows: perimetre(x.rows) })),
           tenantHasFleetroom ? readOrders("yango_driver_id,jour,status,cancel_reason,started_at,ended_at,distance_m,cash,cashless") : Promise.resolve({ rows: [] as any[], raw: 0 }),
           // statut / catégorie filtrés en JS : NULL compte comme validé et hors avance,
           // comme le tableau de bord (un .in / .neq PostgREST écarterait les NULL)
@@ -171,14 +175,14 @@ export async function GET(req: NextRequest) {
       }
       case "synthese_jour": {
         const { rows: reports, raw } = await readReports("driver_id,date,comment,yango_gross,yango_bonus,off_yango_revenue,yango_trip_count,off_yango_trip_count,net_after_expenses");
-        result = { ...syntheseJourRows(reports), truncated: raw >= ROW_CAP };
+        result = { ...syntheseJourRows(perimetre(reports)), truncated: raw >= ROW_CAP };
         break;
       }
       case "tendances": {
         const { rows: reports, raw } = await readReports("driver_id,date,status,comment,yango_gross,yango_bonus,off_yango_revenue,yango_trip_count,off_yango_trip_count,net_after_expenses");
-        const trends = computeTrends({ reports, drivers: profiles || [], objectif, granularite, buckets: trendBuckets, today: todayIso });
+        const trends = computeTrends({ reports: perimetre(reports), drivers: profiles || [], objectif, granularite, buckets: trendBuckets, today: todayIso });
         if (format === "json") {
-          return NextResponse.json({ ...trends, segment, truncated: raw >= ROW_CAP }, { headers: { "Cache-Control": "no-store" } });
+          return NextResponse.json({ ...trends, segment, horsYango, truncated: raw >= ROW_CAP }, { headers: { "Cache-Control": "no-store" } });
         }
         result = { ...trendsTable(trends), truncated: raw >= ROW_CAP };
         break;
@@ -221,7 +225,8 @@ export async function GET(req: NextRequest) {
     }
 
     const title = report === "tendances" ? `Tendances par ${granularite}` : REPORTS.find((r) => r.key === report)!.label;
-    const segLabel = segment === "all" ? "" : segment === "interne" ? " · flotte interne" : " · flotte partenaire";
+    const segLabel = (segment === "all" ? "" : segment === "interne" ? " · flotte interne" : " · flotte partenaire")
+      + (horsYango || report === "declarations" ? "" : " · CA Yango seul (hors Yango exclu)");
     const payload: ReportResult = { report: report as ReportResult["report"], title, hasFleetroom, ...result! };
 
     if (format === "xlsx") {

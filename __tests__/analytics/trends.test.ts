@@ -1,5 +1,6 @@
 import { bucketOf, computeTrends, lastBuckets, statutDe } from "@/lib/analytics/trends";
 import { segmentResolver } from "@/lib/analytics/segment";
+import { sansHorsYango } from "@/lib/analytics/driverStats";
 
 describe("périodes", () => {
   it("semaine ISO, mois, trimestre, année", () => {
@@ -72,5 +73,27 @@ describe("segment d'une ligne", () => {
     expect(seg.ofReport({ driver_id: "z" })).toBe("interne");
     expect(seg.ofPlate("AA195SJ", "b")).toBe("partenaire");
     expect(seg.counts()).toEqual({ interne: 1, partenaire: 1 });
+  });
+});
+
+describe("filtre hors Yango", () => {
+  it("Yango seul : recettes et courses hors Yango exclues, déclaration d'origine intacte", () => {
+    const r = { driver_id: "a", date: "2026-08-19", yango_gross: 10_360, yango_bonus: 0, off_yango_revenue: 43_000, yango_trip_count: 6, off_yango_trip_count: 3 };
+    const avec = computeTrends({ reports: [r], drivers: [{ id: "a" }], objectif: 40_000, granularite: "mois", buckets: lastBuckets("2026-08-31", "mois", 1), today: "2026-10-02" });
+    const sans = computeTrends({ reports: [sansHorsYango(r)], drivers: [{ id: "a" }], objectif: 40_000, granularite: "mois", buckets: lastBuckets("2026-08-31", "mois", 1), today: "2026-10-02" });
+    expect(avec.buckets[0].statut).toBe("atteint");
+    expect(sans.buckets[0].caParJour).toBe(10_360);
+    expect(sans.buckets[0].statut).toBe("sous");
+    expect(sans.total.courses).toBe(6);
+    expect(r.off_yango_revenue).toBe(43_000);
+  });
+});
+
+describe("granularité jour", () => {
+  it("une période par jour, libellé court, 14 jours glissants", () => {
+    expect(bucketOf("2026-10-02", "jour")).toEqual({ key: "2026-10-02", label: "ven. 02/10", from: "2026-10-02", to: "2026-10-02" });
+    const b = lastBuckets("2026-10-02", "jour", 14);
+    expect(b).toHaveLength(14);
+    expect(b[0].key).toBe("2026-09-19");
   });
 });

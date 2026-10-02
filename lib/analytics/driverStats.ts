@@ -114,6 +114,15 @@ export const isRepos = (r: Pick<ReportLike, "comment">) => String(r.comment || "
 export const caOf = (r: ReportLike) => n(r.yango_gross) + n(r.yango_bonus) + n(r.off_yango_revenue);
 export const coursesOf = (r: ReportLike) => n(r.yango_trip_count) + n(r.off_yango_trip_count);
 
+/**
+ * Filtre « hors Yango » : exclu = recettes ET courses hors Yango mises à zéro,
+ * pour comparer à périmètre égal avec un tenant qui ne connaît que Yango
+ * (exports Fleetroom). La déclaration d'origine n'est pas modifiée.
+ */
+export function sansHorsYango<T extends ReportLike>(r: T): T {
+  return { ...r, off_yango_revenue: 0, off_yango_trip_count: 0 };
+}
+
 /** km au compteur par chauffeur et par jour (même règle que le tableau de bord). */
 export function kmCompteurParJour(reports: ReportLike[], seeds: ReportLike[] = []): Map<string, Map<string, number>> {
   const seedBy = new Map<string, ReportLike>();

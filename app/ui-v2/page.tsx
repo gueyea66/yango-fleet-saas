@@ -18,8 +18,10 @@ import { PendingV2 } from "@/components/v2/admin/PendingV2";
 import { FinanceKpisV2, HistoryV2, TeamV2 } from "@/components/v2/admin/SectionsV2";
 import { VehiclesSignalV2 } from "@/components/v2/admin/VehiclesSignalV2";
 import { TendancesV2 } from "@/components/v2/admin/TendancesV2";
+import { SaisieOperateurV2 } from "@/components/v2/admin/OperateurV2";
 import { computeTrends, lastBuckets } from "@/lib/analytics/trends";
 import type { SegmentFilter } from "@/lib/analytics/segment";
+import { FLEET_SEG_OPTS } from "@/lib/v2/fleetScope";
 
 // Profil fictif : identifiants non-UUID → toute requête Supabase échoue côté
 // base (aucune lecture ni écriture possible). Sert à relire la mise en page.
@@ -169,6 +171,7 @@ export default function UiV2Showcase() {
 function AdminShellDemo() {
   const [tab, setTab] = useState("dashboard");
   const [demoSeg, setDemoSeg] = useState<SegmentFilter>("all");
+  const [demoHors, setDemoHors] = useState(true);
   const [period, setPeriod] = useState<AdminPeriod>(() => defaultPeriod(new Date()));
   const [driverIds, setDriverIds] = useState<string[]>([]);
   const [view, setView] = useDashView();
@@ -181,6 +184,7 @@ function AdminShellDemo() {
         period, onPeriodChange: setPeriod,
         drivers: DEMO_DRIVERS.map((d): { id: string; label: string; plate: string | null; active: boolean } => ({ id: d.id, label: d.full_name, plate: d.plate, active: d.active })).concat([{ id: "demo-d4", label: "Omar Fall", plate: null, active: false }]),
         driverIds, onDriverIdsChange: setDriverIds,
+        segment: <Segmented options={FLEET_SEG_OPTS} value={demoSeg} onChange={setDemoSeg} ariaLabel="Type de véhicule" />,
       }}
     >
       {tab === "dashboard" ? (
@@ -198,8 +202,10 @@ function AdminShellDemo() {
           renderDocuments={() => <Card style={{ minHeight: 160, color: "var(--v2-muted)", fontSize: 14 }}>Documents KYC du chauffeur (composant actuel)</Card>} />
       ) : tab === "history" ? (
         <HistoryV2 reports={DEMO_HISTORY} drivers={DEMO_DRIVERS} loading={false} onRefresh={() => {}} />
+      ) : tab === "saisie" ? (
+        <SaisieOperateurV2 drivers={DEMO_DRIVERS} tenantId="demo-tenant" />
       ) : tab === "tendances" ? (
-        <TendancesV2 driverIds={[]} segment={demoSeg} onSegment={setDemoSeg} demo={DEMO_TRENDS} />
+        <TendancesV2 driverIds={[]} segment={demoSeg} horsYango={demoHors} onHorsYango={setDemoHors} demo={DEMO_TRENDS} />
       ) : tab === "payments" || tab === "avances" ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           <FinanceKpisV2 kpis={{ ...DEMO_KPIS, expenseBreakdown: [...DEMO_KPIS.expenseBreakdown, { type: "💵 Salaires", amount: 690000, percent: 0 }] }} />
