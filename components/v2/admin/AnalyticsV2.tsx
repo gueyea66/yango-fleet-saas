@@ -14,7 +14,7 @@ import { formatAmount, formatDecimal } from "@/lib/v2/format";
 import { totalRow, type Column, type ReportDef, type ReportKey, type ReportResult, type Row } from "@/lib/analytics/reports";
 import type { SegmentFilter } from "@/lib/analytics/segment";
 import { statutDe } from "@/lib/analytics/trends";
-import { HorsYangoControl, ObjectifControl, ObjectiveValue, SegmentFilterControl, StatusPill, usePerfMeta } from "./perfShared";
+import { HorsYangoControl, ObjectifControl, ObjectiveValue, StatusPill, usePerfMeta } from "./perfShared";
 
 type Range = { from: string; to: string };
 type Statut = "approved" | "all";
@@ -229,7 +229,6 @@ export function ClassementV2(c: Common) {
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <Header title="Classement des chauffeurs" sub={c.periodLabel}
         right={<>
-          <SegmentFilterControl value={c.segment} onChange={c.onSegment} meta={meta} />
           <HorsYangoControl value={c.horsYango} onChange={c.onHorsYango} />
           <Segmented options={STATUT_OPTS} value={statut} onChange={setStatut} ariaLabel="Déclarations prises en compte" />
           <ObjectifControl meta={meta} onSaved={() => { void reload(); void run(); }} />
@@ -314,7 +313,6 @@ export function KpiChauffeursV2(c: Common) {
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <Header title="KPI chauffeurs" sub={c.periodLabel}
         right={<>
-          <SegmentFilterControl value={c.segment} onChange={c.onSegment} meta={meta} />
           <HorsYangoControl value={c.horsYango} onChange={c.onHorsYango} />
           <Segmented options={STATUT_OPTS} value={statut} onChange={setStatut} ariaLabel="Déclarations prises en compte" />
           <ObjectifControl meta={meta} onSaved={() => { void reload(); void run(); }} />
@@ -388,7 +386,6 @@ export function KpiChauffeursV2(c: Common) {
 const PREVIEW_ROWS = 200;
 
 export function ExtractionV2(c: Common) {
-  const { meta: perfMeta } = usePerfMeta();
   const [catalog, setCatalog] = useState<ReportDef[] | null>(null);
   const [report, setReport] = useState<ReportKey>("declarations");
   const [statut, setStatut] = useState<Statut>("all");
@@ -403,7 +400,6 @@ export function ExtractionV2(c: Common) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <Header title="Extraction de données" sub={c.periodLabel} right={<>
-        <SegmentFilterControl value={c.segment} onChange={c.onSegment} meta={perfMeta} />
         <HorsYangoControl value={c.horsYango} onChange={c.onHorsYango} />
       </>} />
       <Card>

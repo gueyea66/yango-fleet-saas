@@ -20,7 +20,7 @@ import { Button, Card, Segmented } from "@/components/ui";
 import { formatAmount } from "@/lib/v2/format";
 import type { SegmentFilter } from "@/lib/analytics/segment";
 import type { BucketStats, Granularite, Statut, TrendsResult } from "@/lib/analytics/trends";
-import { HorsYangoControl, ObjectifControl, SegmentFilterControl, SERIES_COLOR, STATUS_COLOR, STATUS_ICON, STATUS_LABEL, StatusPill, usePerfMeta } from "./perfShared";
+import { HorsYangoControl, ObjectifControl, SERIES_COLOR, STATUS_COLOR, STATUS_ICON, STATUS_LABEL, StatusPill, usePerfMeta } from "./perfShared";
 
 type Statut2 = "approved" | "all";
 
@@ -160,10 +160,10 @@ const Row = ({ k: key, v }: { k: string; v: string }) => (
 
 /* ── Écran ─────────────────────────────────────────────────── */
 
-export function TendancesV2({ driverIds, segment, onSegment, horsYango = true, onHorsYango, anchor, demo }: {
+export function TendancesV2({ driverIds, segment, horsYango = true, onHorsYango, anchor, demo }: {
   driverIds: string[];
+  /** filtre « type de véhicule » de la barre de filtres globale */
   segment: SegmentFilter;
-  onSegment: (s: SegmentFilter) => void;
   /** CA avec ou sans recettes hors Yango (filtre partagé de Performance) */
   horsYango?: boolean;
   onHorsYango?: (v: boolean) => void;
@@ -228,7 +228,6 @@ export function TendancesV2({ driverIds, segment, onSegment, horsYango = true, o
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <Segmented options={GRAN_OPTS} value={granularite} onChange={setGranularite} ariaLabel="Granularité" />
-          <SegmentFilterControl value={segment} onChange={onSegment} meta={meta} />
           {onHorsYango && <HorsYangoControl value={horsYango} onChange={onHorsYango} />}
           <Segmented options={STATUT_OPTS} value={statut} onChange={setStatut} ariaLabel="Déclarations prises en compte" />
           <ObjectifControl meta={meta} onSaved={() => { void reload(); setTick((t) => t + 1); }} />

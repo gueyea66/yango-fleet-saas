@@ -61,6 +61,9 @@ import { CollapsedHistoryV2, MovementsV2, SalaryTableV2 } from "@/components/v2/
 import { ClassementV2, ExtractionV2, KpiChauffeursV2 } from "@/components/v2/admin/AnalyticsV2";
 import { TendancesV2 } from "@/components/v2/admin/TendancesV2";
 import type { SegmentFilter } from "@/lib/analytics/segment";
+import { driverScope, segCountsOf, FLEET_SEG_OPTS } from "@/lib/v2/fleetScope";
+import { Segmented } from "@/components/ui";
+import { segmentDe } from "@/lib/fleetSegment";
 import { useReportReview } from "@/components/admin/useReportReview";
 import { useExpenseReview } from "@/components/admin/useExpenseReview";
 import AiBriefingSection from "@/components/ai/AiBriefingSection";
@@ -117,12 +120,10 @@ export default function AdminPage() {
   // Multi-sélection chauffeurs (retour Abdou 02/09) — [] = tous.
   const [filterDriverIds, setFilterDriverIds] = useState<string[]>([]);
   // Performance : filtre « type de véhicule » commun aux onglets (interne / externe)
-  const [perfSegment, setPerfSegment] = useState<SegmentFilter>("all");
   // Performance : CA avec ou sans recettes hors Yango (commun aux onglets)
   const [perfHors, setPerfHors] = useState(true);
   // Compat : les onglets annexes (KYC, paiements, avances…) restent mono-chauffeur
   // et ne se filtrent que lorsqu'exactement un chauffeur est sélectionné.
-  const filterDriverId = filterDriverIds.length === 1 ? filterDriverIds[0] : "";
   const toggleDriverFilter = (id: string) =>
     setFilterDriverIds((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   // Barre de filtres masquable (préférence par appareil, partagée avec Pilotage)
@@ -130,6 +131,15 @@ export default function AdminPage() {
   useEffect(() => { setShowFilters(localStorage.getItem("m3a_filters_on") !== "0"); }, []);
   const toggleFilters = (v: boolean) => { setShowFilters(v); localStorage.setItem("m3a_filters_on", v ? "1" : "0"); };
   const [allDrivers, setAllDrivers] = useState<any[]>([]); // { id, full_name, driver_id, plate }
+  // Filtre « type de véhicule » (interne / externe), commun à tous les onglets v2.
+  // Hors Performance, il se traduit en liste de chauffeurs (véhicule affecté) et
+  // passe par le même circuit que le filtre chauffeurs : scopeDriverIds.
+  const [fleetSegment, setFleetSegment] = useState<SegmentFilter>("all");
+  const scopeDriverIds = React.useMemo(
+    () => driverScope(filterDriverIds, fleetSegment, allDrivers),
+    [filterDriverIds, fleetSegment, allDrivers],
+  );
+  const filterDriverId = scopeDriverIds.length === 1 ? scopeDriverIds[0] : "";
   const [adminTenantId, setAdminTenantId] = useState<string | null>(null);
   const [remunCfg, setRemunCfg] = useState<any>(null);
   // Mode simple (tenant ui_mode='simple') : bascule locale vers l'UI complète.
@@ -162,7 +172,7 @@ export default function AdminPage() {
       setAdminTenantId(tenantId);
       const [{ data: profs }, { data: vehs }, { data: rc }, { data: ts }] = await Promise.all([
         supabase.from("profiles").select("*").eq("role", "driver").eq("tenant_id", tenantId).order("full_name"),
-        supabase.from("vehicles").select("driver_id, plate").eq("tenant_id", tenantId),
+        supabase.from("vehicles").select("driver_id, plate, fleet_segment").eq("tenant_id", tenantId),
         supabase.from("remuneration_config").select("*").eq("tenant_id", tenantId).maybeSingle(),
         // select * : tolère l'absence des colonnes optionnelles (migrations 037/038 non appliquées)
         supabase.from("tenant_settings").select("*").eq("tenant_id", tenantId).maybeSingle(),
@@ -177,7 +187,10 @@ export default function AdminPage() {
         ui_v2: ts.ui_v2, // drapeau refonte UI v2 (migration 062)
       });
       const plateMap = Object.fromEntries((vehs || []).map((v: any) => [v.driver_id, v.plate]));
-      setAllDrivers((profs || []).map((p: any) => ({ ...p, plate: plateMap[p.id] || null })));
+      // segment du véhicule affecté (filtre interne / externe) ; sans véhicule → interne (segmentDe)
+      const vehRows = (vehs || []) as { driver_id: string | null; fleet_segment: string | null }[];
+      const segMap = Object.fromEntries(vehRows.filter((v) => v.driver_id).map((v) => [v.driver_id, segmentDe(v)]));
+      setAllDrivers((profs || []).map((p: any) => ({ ...p, plate: plateMap[p.id] || null, segment: segMap[p.id] || "interne" })));
       if (rc) setRemunCfg(rc);
     })();
   }, [user]);
@@ -216,7 +229,7 @@ export default function AdminPage() {
   // côté écran par mergeMonthlyKpis. Un seul mois : comportement inchangé.
   const v2Months = uiV2 ? monthRanges(v2Period, now) : null;
   const multiMonth = !!v2Months && v2Months.length > 1;
-  const kpiDriverIds = filterDriverIds.length ? filterDriverIds : undefined;
+  const kpiDriverIds = scopeDriverIds.length ? scopeDriverIds : undefined;
   const kpisFirst = useDashboardKPIs(multiMonth ? v2Months[0].from : periodFrom, multiMonth ? v2Months[0].to : periodTo, adminTenantId, kpiDriverIds, kpiTick);
   const [extraKpis, setExtraKpis] = useState<Record<string, DashboardKPIs>>({});
   const onMonthKpis = React.useCallback((from: string, k: DashboardKPIs) => setExtraKpis((s) => (s[from] === k ? s : { ...s, [from]: k })), []);
@@ -240,10 +253,10 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (user && adminTenantId && (tab === "history" || tab === "pending" || (uiV2 && tab === "payments"))) {
-      loadReports(filterDriverIds);
+      loadReports(scopeDriverIds);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, tab, adminTenantId, filterDriverIds.join(","), v2Range?.from, v2Range?.to]);
+  }, [user, tab, adminTenantId, scopeDriverIds.join(","), v2Range?.from, v2Range?.to]);
 
   // Période demandée à /api/admin/reports. Sans elle, seuls les 300 derniers
   // rapports et 500 dernières dépenses remontaient : l'historique plus ancien
@@ -694,7 +707,7 @@ export default function AdminPage() {
             loading={loadingReports}
             emptyMsg="Aucune soumission en attente"
             title="Soumissions en attente"
-            onRefresh={() => loadReports(filterDriverIds)}
+            onRefresh={() => loadReports(scopeDriverIds)}
           />
         )}
 
@@ -705,7 +718,7 @@ export default function AdminPage() {
             loading={loadingReports}
             emptyMsg="Aucun rapport"
             title="Tous les rapports"
-            onRefresh={() => loadReports(filterDriverIds)}
+            onRefresh={() => loadReports(scopeDriverIds)}
             groupByMonth
           />
         )}
@@ -821,23 +834,23 @@ export default function AdminPage() {
           </div>
         )}
 
-        {tab === "tendances" && <TendancesV2 driverIds={filterDriverIds} segment={perfSegment} onSegment={setPerfSegment} horsYango={perfHors} onHorsYango={setPerfHors} anchor={periodTo} />}
+        {tab === "tendances" && <TendancesV2 driverIds={filterDriverIds} segment={fleetSegment} horsYango={perfHors} onHorsYango={setPerfHors} anchor={periodTo} />}
         {(tab === "classement" || tab === "kpichauffeurs" || tab === "extraction") && (() => {
           // même période et mêmes chauffeurs que la barre de filtres (v2) ou les mois choisis (legacy)
           const common = {
             range: { from: periodFrom, to: periodTo },
             driverIds: filterDriverIds,
             periodLabel: uiV2 ? periodLabel(v2Period, new Date()) : `${periodFrom.split("-").reverse().join("/")} → ${periodTo.split("-").reverse().join("/")}`,
-            segment: perfSegment,
-            onSegment: setPerfSegment,
+            segment: fleetSegment,
+            onSegment: setFleetSegment,
             horsYango: perfHors,
             onHorsYango: setPerfHors,
           };
           return tab === "classement" ? <ClassementV2 {...common} /> : tab === "kpichauffeurs" ? <KpiChauffeursV2 {...common} /> : <ExtractionV2 {...common} />;
         })()}
-        {tab === "calendrier" && <CalendrierTab filterDriverId={filterDriverId} filterDriverIds={uiV2 ? filterDriverIds : undefined} allDrivers={allDrivers} />}
-        {tab === "payments" && adminTenantId && <PaymentsTab filterDriverId={filterDriverId} filterDriverIds={uiV2 ? filterDriverIds : undefined} tenantId={adminTenantId} />}
-        {tab === "avances" && adminTenantId && <AvancesTab filterDriverId={filterDriverId} filterDriverIds={uiV2 ? filterDriverIds : undefined} tenantId={adminTenantId} />}
+        {tab === "calendrier" && <CalendrierTab filterDriverId={filterDriverId} filterDriverIds={uiV2 ? scopeDriverIds : undefined} allDrivers={allDrivers} />}
+        {tab === "payments" && adminTenantId && <PaymentsTab filterDriverId={filterDriverId} filterDriverIds={uiV2 ? scopeDriverIds : undefined} tenantId={adminTenantId} />}
+        {tab === "avances" && adminTenantId && <AvancesTab filterDriverId={filterDriverId} filterDriverIds={uiV2 ? scopeDriverIds : undefined} tenantId={adminTenantId} />}
         {tab === "pilotage" && (
           <div className="text-center py-12">
             <div className="flex justify-center mb-3"><Gauge size={40} strokeWidth={1.6} style={{ color: "var(--tenant-color)" }} /></div>
@@ -919,6 +932,9 @@ export default function AdminPage() {
             drivers: allDrivers.map((d) => ({ id: d.id, label: d.full_name || d.driver_id, plate: d.plate, active: d.active })),
             driverIds: filterDriverIds,
             onDriverIdsChange: setFilterDriverIds,
+            segment: estMixte(segCountsOf(allDrivers))
+              ? <Segmented options={FLEET_SEG_OPTS} value={fleetSegment} onChange={setFleetSegment} ariaLabel="Type de véhicule" />
+              : undefined,
           }}
         >
           {tab === "dashboard" ? (
@@ -927,7 +943,7 @@ export default function AdminPage() {
               kpis={kpis}
               plat={plat}
               tenantId={adminTenantId}
-              driverIds={filterDriverIds}
+              driverIds={scopeDriverIds}
               range={v2Range ?? undefined}
               onKpisChanged={() => setKpiTick((t) => t + 1)}
               onOpenValidation={() => setTab("pending")}
@@ -938,7 +954,7 @@ export default function AdminPage() {
               reports={reports.filter((r) => r.status === "submitted" && (!v2Range || inRange(r.date, v2Range)))}
               expenses={expenses.filter((e) => (e.status || "submitted") === "submitted" && (!v2Range || inRange(e.expense_date || e.created_at, v2Range)))}
               loading={loadingReports}
-              onRefresh={() => loadReports(filterDriverIds)}
+              onRefresh={() => loadReports(scopeDriverIds)}
             />
           ) : tab === "kyc" ? (
             <TeamV2
@@ -952,9 +968,9 @@ export default function AdminPage() {
               expenses={expenses}
               uploadCounts={uploadCounts}
               range={v2Range}
-              drivers={filterDriverIds.length ? allDrivers.filter((d) => filterDriverIds.includes(d.id)) : allDrivers}
+              drivers={scopeDriverIds.length ? allDrivers.filter((d) => scopeDriverIds.includes(d.id)) : allDrivers}
               loading={loadingReports}
-              onRefresh={() => loadReports(filterDriverIds)}
+              onRefresh={() => loadReports(scopeDriverIds)}
               month={v2Range ? v2Range.to.slice(0, 7) : undefined}
             />
           ) : tab === "vehicles" ? (
@@ -981,7 +997,7 @@ export default function AdminPage() {
               {tab === "payments" && adminTenantId ? (
                 <PaymentsTab
                   filterDriverId={filterDriverId}
-                  filterDriverIds={filterDriverIds}
+                  filterDriverIds={scopeDriverIds}
                   tenantId={adminTenantId}
                   v2={v2Range ? {
                     range: v2Range,
@@ -999,7 +1015,7 @@ export default function AdminPage() {
                   } : undefined}
                 />
               ) : tab === "avances" && adminTenantId ? (
-                <AvancesTab filterDriverId={filterDriverId} filterDriverIds={filterDriverIds} tenantId={adminTenantId} range={v2Range ?? undefined} />
+                <AvancesTab filterDriverId={filterDriverId} filterDriverIds={scopeDriverIds} tenantId={adminTenantId} range={v2Range ?? undefined} />
               ) : tab === "finjournal" ? (
                 <ActionLogsTab filterDriverId={filterDriverId} />
               ) : null}
