@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
 
     // Chauffeurs du tenant (noms + rattachement Yango)
     const { data: profiles, error: pErr } = await admin.from("profiles")
-      .select("id, full_name, driver_id, yango_driver_id, active, account_type")
+      .select("id, full_name, driver_id, yango_driver_id, active, account_type, hire_date, contract_end_date")
       .eq("tenant_id", tenantId).eq("role", "driver");
     if (pErr) throw new Error(pErr.message);
     const drivers = (profiles || []).filter((p: any) => !driverIds.length || driverIds.includes(p.id));
@@ -162,7 +162,7 @@ export async function GET(req: NextRequest) {
         // affecté) ou ayant une activité dans ce segment sur la période
         const active = new Set([...reports.map((r: any) => r.driver_id), ...orders.map((o: any) => profileOfYango(o.yango_driver_id))]);
         const segDrivers = segment === "all" ? drivers : drivers.filter((d: any) => inSegDriver(d.id) || active.has(d.id));
-        const stats = driverStats({ drivers: segDrivers, reports, seeds, expenses, orders });
+        const stats = driverStats({ drivers: segDrivers, reports, seeds, expenses, orders, periode: { from: dateFrom, to: dateTo }, today: todayIso });
         hasFleetroom = stats.hasFleetroom;
         const sorted = sortStats(stats.rows, "ca");
         result = { columns: classementColumns(hasFleetroom), rows: sorted.map(classementRow), truncated: rawReports >= ROW_CAP || rawOrders >= ROW_CAP };

@@ -131,6 +131,9 @@ export async function GET() {
   }
 }
 
+/** Protocoles Traccar acceptés pour un boîtier relayé (un port Traccar par protocole). */
+const PROTOCOLES_RELAIS = ["gt06", "h02", "teltonika", "meitrack", "osmand", "watch", "gl200", "autre"];
+
 export async function POST(req: NextRequest) {
   try {
     const { tenantId } = await requireAdminAuth();
@@ -155,9 +158,16 @@ export async function POST(req: NextRequest) {
         "Vérifiez que le SMS vient bien du bon boîtier.");
     }
 
-    const vendor = "sinotrack";
+    // Origine : SinoTrack repointé par SMS (h02), ou boîtier dont la plateforme
+    // (ex. GPSwox de NMK) transfère une copie des données vers notre Traccar.
+    // Traccar identifie un boîtier par son identifiant (IMEI) : unique toutes
+    // origines confondues, sinon l'ingestion ne saurait à qui l'attribuer.
+    const vendor = body.vendor === "gpswox" ? "gpswox" : "sinotrack";
+    const protocol = vendor === "sinotrack" ? "h02"
+      : PROTOCOLES_RELAIS.includes(String(body.protocol)) ? String(body.protocol) : null;
+    if (!protocol) fail(400, "Protocole du boîtier requis (voir la fiche du fabricant ou le prestataire GPS).");
     const { data: existing } = await admin.from("telematics_devices")
-      .select("id, tenant_id").eq("vendor", vendor).eq("external_id", externalId).maybeSingle();
+      .select("id, tenant_id").eq("external_id", externalId).maybeSingle();
     if (existing) {
       // Ne jamais révéler à quelle organisation appartient un boîtier.
       fail(409, existing.tenant_id === tenantId
@@ -170,9 +180,9 @@ export async function POST(req: NextRequest) {
       tenant_id: tenantId,
       vehicle_id: vehicleId,
       vendor,
-      model: rconf?.model ?? (body.model ? String(body.model) : "ST-901"),
+      model: rconf?.model ?? (body.model ? String(body.model).slice(0, 60) : vendor === "sinotrack" ? "ST-901" : null),
       external_id: externalId,
-      protocol: "h02",
+      protocol,
       label: body.label ? String(body.label).slice(0, 80) : null,
       active: true,
       firmware: rconf?.firmware ?? null,

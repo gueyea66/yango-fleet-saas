@@ -72,6 +72,8 @@ export interface DriverLike {
   yango_driver_id?: string | null;
   active?: boolean | null;
   account_type?: string | null;
+  hire_date?: string | null;
+  contract_end_date?: string | null;
 }
 
 export interface FleetroomStats {
@@ -95,6 +97,9 @@ export interface DriverStat {
   name: string;
   active: boolean;
   jours: number;           // jours déclarés hors repos
+  repos: number;           // jours de repos déclarés ([REPOS])
+  /** jours de la période sans déclaration ni repos (contrat et aujourd'hui pris en compte) ; null sans période */
+  sansDeclaration: number | null;
   courses: number;
   ca: number;
   net: number;
@@ -200,12 +205,15 @@ export function fleetroomStats(orders: OrderLike[]): FleetroomStats {
  * commande), plus les chauffeurs actifs sans activité (à 0, en bas du tri).
  * `reports` = déclarations déjà filtrées sur la période et les statuts voulus.
  */
-export function driverStats({ drivers, reports, seeds = [], expenses = [], orders = [] }: {
+export function driverStats({ drivers, reports, seeds = [], expenses = [], orders = [], periode, today }: {
   drivers: DriverLike[];
   reports: ReportLike[];
   seeds?: ReportLike[];
   expenses?: ExpenseLike[];
   orders?: OrderLike[];
+  /** période affichée : sert au décompte des jours sans déclaration */
+  periode?: { from: string; to: string };
+  today?: string;
 }): { rows: DriverStat[]; hasFleetroom: boolean } {
   const hasFleetroom = orders.length > 0;
   const real = drivers.filter((d) => d.account_type !== "technical");
@@ -216,6 +224,7 @@ export function driverStats({ drivers, reports, seeds = [], expenses = [], order
     if (id) (ordersBy.get(id) ?? ordersBy.set(id, []).get(id)!).push(o);
   }
   const worked = reports.filter((r) => !isRepos(r));
+  const reposRows = reports.filter(isRepos);
   const kmCompteur = kmCompteurParJour(reports, seeds);
   const rows: DriverStat[] = [];
   for (const d of real) {
@@ -223,7 +232,11 @@ export function driverStats({ drivers, reports, seeds = [], expenses = [], order
     const ords = ordersBy.get(d.id) ?? [];
     if (!reps.length && !ords.length && d.active === false) continue;
     const fr = ords.length ? fleetroomStats(ords) : null;
-    const jours = new Set(reps.map((r) => r.date)).size;
+    const joursSet = new Set(reps.map((r) => r.date));
+    const jours = joursSet.size;
+    // repos : jours [REPOS] du chauffeur, hors jours où il a aussi travaillé
+    const repos = new Set(reposRows.filter((r) => r.driver_id === d.id && !joursSet.has(r.date)).map((r) => r.date)).size;
+    const sansDeclaration = periode ? joursSansDeclaration(periode, today, d, jours + repos) : null;
     const courses = reps.reduce((s, r) => s + coursesOf(r), 0);
     const ca = reps.reduce((s, r) => s + caOf(r), 0);
     const net = reps.reduce((s, r) => s + n(r.net_after_expenses), 0);
@@ -239,7 +252,7 @@ export function driverStats({ drivers, reports, seeds = [], expenses = [], order
     km = Math.round(km);
     rows.push({
       driverId: d.id, name: d.full_name || d.driver_id || "Chauffeur", active: d.active !== false,
-      jours, courses, ca, net, depenses, km,
+      jours, repos, sansDeclaration, courses, ca, net, depenses, km,
       caParJour: ratio(ca, jours), caParCourse: ratio(ca, courses),
       coursesParJour: ratio(courses, jours), caParKm: ratio(ca, km),
       fleetroom: fr,
@@ -248,8 +261,26 @@ export function driverStats({ drivers, reports, seeds = [], expenses = [], order
   return { rows, hasFleetroom };
 }
 
+/**
+ * Jours calendaires de la période où le chauffeur était sous contrat (entrée,
+ * fin de contrat, jamais après aujourd'hui), moins les jours déclarés
+ * (travaillés + repos). Jamais négatif.
+ */
+export function joursSansDeclaration(
+  periode: { from: string; to: string }, today: string | undefined,
+  d: Pick<DriverLike, "hire_date" | "contract_end_date">, declares: number,
+): number {
+  let from = periode.from, to = periode.to;
+  if (today && today < to) to = today;
+  if (d.hire_date && d.hire_date.slice(0, 10) > from) from = d.hire_date.slice(0, 10);
+  if (d.contract_end_date && d.contract_end_date.slice(0, 10) < to) to = d.contract_end_date.slice(0, 10);
+  if (from > to) return 0;
+  const jours = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
+  return Math.max(0, jours - declares);
+}
+
 export type SortKey =
-  | "name" | "jours" | "courses" | "ca" | "net" | "depenses" | "km"
+  | "name" | "jours" | "repos" | "sansDeclaration" | "courses" | "ca" | "net" | "depenses" | "km"
   | "caParJour" | "caParCourse" | "coursesParJour" | "caParKm"
   | "fr.tauxAcceptation" | "fr.refus" | "fr.heuresCourse" | "fr.amplitudeMoy" | "fr.occupation" | "fr.xofParKm";
 
@@ -259,7 +290,7 @@ export function sortValue(r: DriverStat, k: SortKey): number | string | null {
     const v = r.fleetroom?.[k.slice(3) as keyof FleetroomStats];
     return typeof v === "number" ? v : null;
   }
-  return r[k as Exclude<SortKey, "name" | `fr.${string}`>] as number | null;
+  return (r as unknown as Record<string, number | null>)[k];
 }
 
 /** Tri stable ; les valeurs absentes (null) vont toujours en bas. Pose `rang`. */
