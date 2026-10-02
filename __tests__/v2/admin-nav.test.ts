@@ -6,7 +6,7 @@ import {
 const CURRENT_TABS = [
   "dashboard", "pending", "history", "calendrier",
   "payments", "avances", "pilotage",
-  "classement", "kpichauffeurs", "extraction",
+  "tendances", "classement", "kpichauffeurs", "extraction",
   "suivi", "vehicles", "drivers", "kyc",
   "remuneration", "boitiers", "journal", "fleetroom", "import", "settings",
 ];
@@ -31,6 +31,7 @@ describe("navigation gestionnaire 13 → 8", () => {
     expect(destinationFor("journal").key).toBe("set");
     expect(destinationFor("remuneration").key).toBe("set");
     expect(destinationFor("classement").key).toBe("perf");
+    expect(entryTab(destinationFor("classement")).tab).toBe("tendances");
     expect(destinationFor("extraction").key).toBe("perf");
     expect(destinationFor("inconnu").key).toBe("dash");
   });

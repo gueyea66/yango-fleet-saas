@@ -6,6 +6,7 @@
  * commandes importées.
  */
 import { caOf, coursesOf, fleetroomStats, isRepos, type DriverStat, type OrderLike } from "./driverStats";
+import type { TrendsResult } from "./trends";
 
 export type ColType = "text" | "date" | "int" | "xof" | "pct" | "dec" | "h";
 
@@ -29,7 +30,7 @@ export interface ReportResult {
   truncated?: boolean;
 }
 
-export type ReportKey = "classement" | "declarations" | "depenses" | "paiements" | "synthese_jour" | "kpi_jour" | "courses";
+export type ReportKey = "classement" | "declarations" | "depenses" | "paiements" | "synthese_jour" | "kpi_jour" | "courses" | "tendances";
 
 export interface ReportDef {
   key: ReportKey;
@@ -266,4 +267,32 @@ export function classementRow(r: DriverStat): Row {
     "fr.heuresCourse": fr?.heuresCourse ?? null, "fr.amplitudeMoy": fr?.amplitudeMoy ?? null,
     "fr.occupation": fr?.occupation ?? null, "fr.xofParKm": round(fr?.xofParKm ?? null),
   };
+}
+
+const STATUT_TXT = { atteint: "✓ Atteint", proche: "≈ Proche", sous: "✗ Sous" } as const;
+
+/** Tendances en tableau (export Excel) : une ligne par période. */
+export function trendsTable(t: TrendsResult): { columns: Column[]; rows: Row[] } {
+  const columns: Column[] = [
+    { key: "periode", label: "Période", type: "text" },
+    { key: "du", label: "Du", type: "date" },
+    { key: "au", label: "Au", type: "date" },
+    { key: "chauffeurs", label: "Chauffeurs actifs", type: "int" },
+    { key: "journees", label: "Journées-chauffeur", type: "int", sum: true },
+    { key: "courses", label: "Courses", type: "int", sum: true },
+    { key: "ca", label: "CA", type: "xof", sum: true },
+    { key: "ca_jour", label: "CA / jour / chauffeur", type: "xof" },
+    { key: "atteinte", label: `Atteinte objectif (${new Intl.NumberFormat("fr-FR").format(t.objectif)})`, type: "pct" },
+    { key: "statut", label: "Statut", type: "text" },
+    { key: "jours_atteints", label: "Journées ≥ objectif", type: "int", sum: true },
+    { key: "jours_proches", label: "Journées 80–100 %", type: "int", sum: true },
+    { key: "jours_sous", label: "Journées < 80 %", type: "int", sum: true },
+  ];
+  const rows = t.buckets.map((b) => ({
+    periode: b.enCours ? `${b.label} (en cours)` : b.label, du: b.from, au: b.to, chauffeurs: b.chauffeurs,
+    journees: b.journees, courses: b.courses, ca: Math.round(b.ca), ca_jour: b.caParJour != null ? Math.round(b.caParJour) : null,
+    atteinte: b.atteinte, statut: b.statut ? STATUT_TXT[b.statut] : null,
+    jours_atteints: b.jours.atteint, jours_proches: b.jours.proche, jours_sous: b.jours.sous,
+  }));
+  return { columns, rows };
 }
