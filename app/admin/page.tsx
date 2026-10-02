@@ -59,6 +59,8 @@ import { mergeMonthlyKpis, mergeSalaryRows } from "@/lib/v2/multiMonth";
 import { isFullMonths, masseSalariale, paymentSalaryDate, recentMovements, salaryMonthOf, salaryRows, type SalaryAllocation, type SalaryRow } from "@/lib/v2/finance";
 import { CollapsedHistoryV2, MovementsV2, SalaryTableV2 } from "@/components/v2/admin/FinanceV2";
 import { ClassementV2, ExtractionV2, KpiChauffeursV2 } from "@/components/v2/admin/AnalyticsV2";
+import { TendancesV2 } from "@/components/v2/admin/TendancesV2";
+import type { SegmentFilter } from "@/lib/analytics/segment";
 import { useReportReview } from "@/components/admin/useReportReview";
 import { useExpenseReview } from "@/components/admin/useExpenseReview";
 import AiBriefingSection from "@/components/ai/AiBriefingSection";
@@ -114,6 +116,8 @@ export default function AdminPage() {
   // Driver / vehicle filter (global, shared across tabs)
   // Multi-sélection chauffeurs (retour Abdou 02/09) — [] = tous.
   const [filterDriverIds, setFilterDriverIds] = useState<string[]>([]);
+  // Performance : filtre « type de véhicule » commun aux onglets (interne / externe)
+  const [perfSegment, setPerfSegment] = useState<SegmentFilter>("all");
   // Compat : les onglets annexes (KYC, paiements, avances…) restent mono-chauffeur
   // et ne se filtrent que lorsqu'exactement un chauffeur est sélectionné.
   const filterDriverId = filterDriverIds.length === 1 ? filterDriverIds[0] : "";
@@ -357,6 +361,7 @@ export default function AdminPage() {
     {
       label: "Performance",
       items: [
+        ["tendances",     "📊", "Tendances"],
         ["classement",    "🏆", "Classement"],
         ["kpichauffeurs", "📈", "KPI chauffeurs"],
         ["extraction",    "📤", "Extraction"],
@@ -814,12 +819,15 @@ export default function AdminPage() {
           </div>
         )}
 
+        {tab === "tendances" && <TendancesV2 driverIds={filterDriverIds} segment={perfSegment} onSegment={setPerfSegment} anchor={periodTo} />}
         {(tab === "classement" || tab === "kpichauffeurs" || tab === "extraction") && (() => {
           // même période et mêmes chauffeurs que la barre de filtres (v2) ou les mois choisis (legacy)
           const common = {
             range: { from: periodFrom, to: periodTo },
             driverIds: filterDriverIds,
             periodLabel: uiV2 ? periodLabel(v2Period, new Date()) : `${periodFrom.split("-").reverse().join("/")} → ${periodTo.split("-").reverse().join("/")}`,
+            segment: perfSegment,
+            onSegment: setPerfSegment,
           };
           return tab === "classement" ? <ClassementV2 {...common} /> : tab === "kpichauffeurs" ? <KpiChauffeursV2 {...common} /> : <ExtractionV2 {...common} />;
         })()}

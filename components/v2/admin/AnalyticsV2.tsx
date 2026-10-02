@@ -12,6 +12,9 @@ import { ArrowDown, ArrowUp, Download, FileSpreadsheet, Play, TriangleAlert } fr
 import { Button, Card, Segmented } from "@/components/ui";
 import { formatAmount, formatDecimal } from "@/lib/v2/format";
 import { totalRow, type Column, type ReportDef, type ReportKey, type ReportResult, type Row } from "@/lib/analytics/reports";
+import type { SegmentFilter } from "@/lib/analytics/segment";
+import { statutDe } from "@/lib/analytics/trends";
+import { ObjectifControl, ObjectiveValue, SegmentFilterControl, StatusPill, usePerfMeta } from "./perfShared";
 
 type Range = { from: string; to: string };
 type Statut = "approved" | "all";
@@ -20,12 +23,15 @@ interface Common {
   range: Range;
   driverIds: string[];
   periodLabel: string;
+  /** filtre « type de véhicule » partagé par les écrans Performance */
+  segment: SegmentFilter;
+  onSegment: (s: SegmentFilter) => void;
 }
 
 /* ── Accès API ─────────────────────────────────────────────── */
 
 const qs = (report: string, c: Common, statut: Statut, extra: Record<string, string> = {}) => {
-  const p = new URLSearchParams({ report, dateFrom: c.range.from, dateTo: c.range.to, statut, ...extra });
+  const p = new URLSearchParams({ report, dateFrom: c.range.from, dateTo: c.range.to, statut, segment: c.segment, ...extra });
   if (c.driverIds.length) p.set("driverIds", c.driverIds.join(","));
   return `/api/admin/analytics?${p}`;
 };
@@ -93,9 +99,11 @@ const isNum = (t: Column["type"]) => t !== "text" && t !== "date";
 
 /* ── Tableau triable générique ─────────────────────────────── */
 
-export function DataTable({ columns, rows, sortable = true, maxRows, initialSort, stickyFirst = false }: {
+export function DataTable({ columns, rows, sortable = true, maxRows, initialSort, stickyFirst = false, renderCell }: {
   columns: Column[];
   rows: Row[];
+  /** rendu spécifique d'une cellule (ex. CA/jour coloré selon l'objectif) ; undefined = rendu standard */
+  renderCell?: (col: Column, row: Row) => React.ReactNode | undefined;
   sortable?: boolean;
   /** aperçu : n'affiche que les N premières lignes (le total porte sur tout) */
   maxRows?: number;
@@ -145,7 +153,7 @@ export function DataTable({ columns, rows, sortable = true, maxRows, initialSort
                 <td key={c.key} className={isNum(c.type) ? "v2-num" : undefined}
                   style={{ ...td, ...first(i), textAlign: isNum(c.type) ? "right" : "left", fontWeight: c.key === "name" || c.key === "chauffeur" ? 500 : undefined, maxWidth: c.type === "text" ? 280 : undefined, overflow: "hidden", textOverflow: "ellipsis" }}
                   title={typeof r[c.key] === "string" ? String(r[c.key]) : undefined}>
-                  {formatCell(c.type, r[c.key])}
+                  {renderCell?.(c, r) ?? formatCell(c.type, r[c.key])}
                 </td>
               ))}
             </tr>
@@ -209,14 +217,18 @@ const FR_KEYS = (k: string) => k.startsWith("fr.");
 export function ClassementV2(c: Common) {
   const [statut, setStatut] = useState<Statut>("approved");
   const [showYango, setShowYango] = useState(true);
-  const { data, loading, error } = useReport("classement", c, statut, true);
+  const { data, loading, error, run } = useReport("classement", c, statut, true);
+  const { meta, reload } = usePerfMeta();
+  const objectif = meta?.objectif ?? 40_000;
   const columns = (data?.columns ?? []).filter((col) => showYango || !FR_KEYS(col.key));
   const rows = data?.rows ?? [];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <Header title="Classement des chauffeurs" sub={c.periodLabel}
         right={<>
+          <SegmentFilterControl value={c.segment} onChange={c.onSegment} meta={meta} />
           <Segmented options={STATUT_OPTS} value={statut} onChange={setStatut} ariaLabel="Déclarations prises en compte" />
+          <ObjectifControl meta={meta} onSaved={() => { void reload(); void run(); }} />
           {data?.hasFleetroom && (
             <Button size="sm" variant="outline" onClick={() => setShowYango((v) => !v)}>
               {showYango ? "Masquer les KPI Yango" : "Afficher les KPI Yango"}
@@ -225,14 +237,15 @@ export function ClassementV2(c: Common) {
           <ExportButton report="classement" c={c} statut={statut} disabled={!rows.length} />
         </>} />
       <p style={{ margin: 0, fontSize: 12, color: "var(--v2-muted)" }}>
-        Cliquez sur un en-tête pour trier. CA = brut Yango + bonus + hors Yango. Km = compteur{data?.hasFleetroom ? ", sinon distance des courses Yango" : ""}. Comptes techniques exclus.
+        Cliquez sur un en-tête pour trier. Pastille du CA/jour : vert ≥ objectif, ambre 80–100 %, rouge &lt; 80 %. CA = brut Yango + bonus + hors Yango. Km = compteur{data?.hasFleetroom ? ", sinon distance des courses Yango" : ""}. Comptes techniques exclus.
       </p>
       {data?.truncated && <ErrorBox msg="Données plafonnées à 30 000 lignes : chiffres partiels, réduisez la période." />}
       {error ? <ErrorBox msg={error} /> : (
         <Card flush>
           {loading && !data ? <div className="v2-skeleton" style={{ height: 180 }} aria-hidden />
             : rows.length === 0 ? <div style={{ padding: 18, fontSize: 14, color: "var(--v2-muted)" }}>Aucune activité sur la période.</div>
-            : <DataTable columns={columns} rows={rows} initialSort={{ key: "ca", desc: true }} stickyFirst={false} />}
+            : <DataTable columns={columns} rows={rows} initialSort={{ key: "ca", desc: true }} stickyFirst={false}
+                renderCell={(col, r) => (col.key === "caParJour" ? <ObjectiveValue value={typeof r.caParJour === "number" ? r.caParJour : null} objectif={objectif} /> : undefined)} />}
         </Card>
       )}
     </div>
@@ -244,8 +257,13 @@ export function ClassementV2(c: Common) {
 interface Alert { tone: "warn" | "bad"; text: string }
 
 /** Alertes par chauffeur, relatives à la moyenne de la flotte (seuils simples, lisibles). */
-export function driverAlerts(r: Row, avg: { caParJour: number | null; coursesParJour: number | null }): Alert[] {
+export function driverAlerts(r: Row, avg: { caParJour: number | null; coursesParJour: number | null }, objectif?: number): Alert[] {
   const out: Alert[] = [];
+  if (objectif && typeof r.caParJour === "number") {
+    const st = statutDe(r.caParJour, objectif);
+    if (st === "sous") out.push({ tone: "bad", text: `CA/jour à ${Math.round((r.caParJour / objectif) * 100)} % de l'objectif` });
+    else if (st === "proche") out.push({ tone: "warn", text: `CA/jour à ${Math.round((r.caParJour / objectif) * 100)} % de l'objectif` });
+  }
   const acc = r["fr.tauxAcceptation"];
   if (typeof acc === "number" && acc < 0.8) out.push({ tone: acc < 0.65 ? "bad" : "warn", text: `Acceptation ${Math.round(acc * 100)} %` });
   const amp = r["fr.amplitudeMoy"];
@@ -272,7 +290,9 @@ function Metric({ label, value, avg }: { label: string; value: string; avg?: str
 
 export function KpiChauffeursV2(c: Common) {
   const [statut, setStatut] = useState<Statut>("approved");
-  const { data, loading, error } = useReport("classement", c, statut, true);
+  const { data, loading, error, run } = useReport("classement", c, statut, true);
+  const { meta, reload } = usePerfMeta();
+  const objectif = meta?.objectif ?? 40_000;
   const rows = data?.rows ?? [];
   const actifs = rows.filter((r) => Number(r.jours) > 0 || r["fr.tauxAcceptation"] != null);
   const mean = (k: string) => {
@@ -284,12 +304,16 @@ export function KpiChauffeursV2(c: Common) {
   const pct = (v: Row[string] | number | null) => (typeof v === "number" ? `${Math.round(v * 100)} %` : "—");
   const fmt = (v: Row[string] | number | null) => (typeof v === "number" ? formatAmount(v) : "—");
   const dec = (v: Row[string] | number | null) => (typeof v === "number" ? formatDecimal(v, 1) : "—");
-  const withAlerts = rows.map((r) => ({ r, alerts: driverAlerts(r, avg) }))
+  const withAlerts = rows.map((r) => ({ r, alerts: driverAlerts(r, avg, objectif) }))
     .sort((a, b) => b.alerts.length - a.alerts.length || Number(b.r.ca) - Number(a.r.ca));
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <Header title="KPI chauffeurs" sub={c.periodLabel}
-        right={<Segmented options={STATUT_OPTS} value={statut} onChange={setStatut} ariaLabel="Déclarations prises en compte" />} />
+        right={<>
+          <SegmentFilterControl value={c.segment} onChange={c.onSegment} meta={meta} />
+          <Segmented options={STATUT_OPTS} value={statut} onChange={setStatut} ariaLabel="Déclarations prises en compte" />
+          <ObjectifControl meta={meta} onSaved={() => { void reload(); void run(); }} />
+        </>} />
       {data?.truncated && <ErrorBox msg="Données plafonnées à 30 000 lignes : chiffres partiels, réduisez la période." />}
       {error ? <ErrorBox msg={error} /> : loading && !data ? <div className="v2-skeleton" style={{ height: 220 }} aria-hidden /> : rows.length === 0 ? (
         <Card><div style={{ fontSize: 14, color: "var(--v2-muted)" }}>Aucune activité sur la période.</div></Card>
@@ -298,7 +322,7 @@ export function KpiChauffeursV2(c: Common) {
           <Card>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 14 }}>
               <Metric label="Chauffeurs actifs" value={String(actifs.length)} />
-              <Metric label="CA / jour (moyenne)" value={fmt(avg.caParJour)} />
+              <Metric label="CA / jour (moyenne)" value={fmt(avg.caParJour)} avg={`objectif ${fmt(objectif)}`} />
               <Metric label="Courses / jour" value={dec(avg.coursesParJour)} />
               <Metric label="CA / course" value={fmt(avg.caParCourse)} />
               <Metric label="CA / km" value={fmt(avg.caParKm)} />
@@ -312,7 +336,10 @@ export function KpiChauffeursV2(c: Common) {
               <Card key={String(r.driverId ?? r.name)}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8, marginBottom: 10 }}>
                   <div style={{ fontWeight: 600, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
-                  <div style={{ fontSize: 12, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>#{r.rang} · {r.jours} j</div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>
+                    <StatusPill compact statut={typeof r.caParJour === "number" ? statutDe(r.caParJour, objectif) : null} title="CA/jour vs objectif" />
+                    #{r.rang} · {r.jours} j
+                  </div>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
                   <Metric label="CA" value={fmt(r.ca)} />
@@ -343,7 +370,7 @@ export function KpiChauffeursV2(c: Common) {
             ))}
           </div>
           <p style={{ margin: 0, fontSize: 12, color: "var(--v2-muted)" }}>
-            Alertes : CA/jour ou courses/jour à plus de 25 % sous la moyenne de la flotte{fr ? ", acceptation < 80 %, amplitude > 13 h, occupation < 35 % (données Yango Fleetroom)" : ""}.
+            Alertes : CA/jour sous l&apos;objectif de {fmt(objectif)} (ambre 80–100 %, rouge &lt; 80 %), CA/jour ou courses/jour à plus de 25 % sous la moyenne de la flotte{fr ? ", acceptation < 80 %, amplitude > 13 h, occupation < 35 % (données Yango Fleetroom)" : ""}.
           </p>
         </>
       )}
@@ -356,6 +383,7 @@ export function KpiChauffeursV2(c: Common) {
 const PREVIEW_ROWS = 200;
 
 export function ExtractionV2(c: Common) {
+  const { meta: perfMeta } = usePerfMeta();
   const [catalog, setCatalog] = useState<ReportDef[] | null>(null);
   const [report, setReport] = useState<ReportKey>("declarations");
   const [statut, setStatut] = useState<Statut>("all");
@@ -365,15 +393,15 @@ export function ExtractionV2(c: Common) {
       .then((j) => setCatalog(Array.isArray(j.reports) ? j.reports : [])).catch(() => setCatalog([]));
   }, []);
   // un autre choix (rapport, période, statut) invalide l'aperçu affiché
-  useEffect(() => { reset(); }, [reset, report, statut, c.range.from, c.range.to, c.driverIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { reset(); }, [reset, report, statut, c.segment, c.range.from, c.range.to, c.driverIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
   const def = catalog?.find((r) => r.key === report);
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <Header title="Extraction de données" sub={c.periodLabel} />
+      <Header title="Extraction de données" sub={c.periodLabel} right={<SegmentFilterControl value={c.segment} onChange={c.onSegment} meta={perfMeta} />} />
       <Card>
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>
-            1. Période et chauffeurs : barre de filtres en haut ({c.periodLabel}{c.driverIds.length ? ` · ${c.driverIds.length} chauffeur(s)` : " · tous les chauffeurs"}).
+            1. Période et chauffeurs : barre de filtres en haut ({c.periodLabel}{c.driverIds.length ? ` · ${c.driverIds.length} chauffeur(s)` : " · tous les chauffeurs"}{c.segment !== "all" ? ` · flotte ${c.segment === "interne" ? "interne" : "externe"}` : ""}).
           </div>
           <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>2. Rapport :</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 240px), 1fr))", gap: 8 }}>

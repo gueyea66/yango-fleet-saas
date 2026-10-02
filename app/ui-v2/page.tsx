@@ -17,6 +17,9 @@ import { DashboardV2, DashViewToggle, useDashView } from "@/components/v2/admin/
 import { PendingV2 } from "@/components/v2/admin/PendingV2";
 import { FinanceKpisV2, HistoryV2, TeamV2 } from "@/components/v2/admin/SectionsV2";
 import { VehiclesSignalV2 } from "@/components/v2/admin/VehiclesSignalV2";
+import { TendancesV2 } from "@/components/v2/admin/TendancesV2";
+import { computeTrends, lastBuckets } from "@/lib/analytics/trends";
+import type { SegmentFilter } from "@/lib/analytics/segment";
 
 // Profil fictif : identifiants non-UUID → toute requête Supabase échoue côté
 // base (aucune lecture ni écriture possible). Sert à relire la mise en page.
@@ -165,6 +168,7 @@ export default function UiV2Showcase() {
 /** Coque gestionnaire avec contenu fictif (tenant non-UUID : aucune donnée). */
 function AdminShellDemo() {
   const [tab, setTab] = useState("dashboard");
+  const [demoSeg, setDemoSeg] = useState<SegmentFilter>("all");
   const [period, setPeriod] = useState<AdminPeriod>(() => defaultPeriod(new Date()));
   const [driverIds, setDriverIds] = useState<string[]>([]);
   const [view, setView] = useDashView();
@@ -194,6 +198,8 @@ function AdminShellDemo() {
           renderDocuments={() => <Card style={{ minHeight: 160, color: "var(--v2-muted)", fontSize: 14 }}>Documents KYC du chauffeur (composant actuel)</Card>} />
       ) : tab === "history" ? (
         <HistoryV2 reports={DEMO_HISTORY} drivers={DEMO_DRIVERS} loading={false} onRefresh={() => {}} />
+      ) : tab === "tendances" ? (
+        <TendancesV2 driverIds={[]} segment={demoSeg} onSegment={setDemoSeg} demo={DEMO_TRENDS} />
       ) : tab === "payments" || tab === "avances" ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           <FinanceKpisV2 kpis={{ ...DEMO_KPIS, expenseBreakdown: [...DEMO_KPIS.expenseBreakdown, { type: "💵 Salaires", amount: 690000, percent: 0 }] }} />
@@ -262,3 +268,28 @@ const DEMO_FLEET = {
     { id: "g3", vehicleId: "v3", lastSeenAt: new Date(Date.now() - 5 * 3600000).toISOString(), label: null, externalId: "868122" },
   ],
 };
+
+// Tendances (vitrine) : 12 mois fictifs, 6 chauffeurs aux profils contrastés
+const DEMO_TREND_DRIVERS = [
+  { id: "t1", full_name: "Moussa Diop", base: 47_000 }, { id: "t2", full_name: "Awa Ndiaye", base: 42_000 },
+  { id: "t3", full_name: "Cheikh Fall", base: 38_500 }, { id: "t4", full_name: "Ibrahima Sarr", base: 34_000 },
+  { id: "t5", full_name: "Fatou Ba", base: 29_000 }, { id: "t6", full_name: "Omar Seck", base: 44_000 },
+];
+const DEMO_TRENDS = (() => {
+  const buckets = lastBuckets("2026-10-02", "mois", 12);
+  const reports: { driver_id: string; date: string; yango_gross: number; yango_trip_count: number; net_after_expenses: number }[] = [];
+  let seed = 7;
+  const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
+  buckets.forEach((b, bi) => {
+    const start = new Date(`${b.from}T00:00:00Z`), end = new Date(`${b.to > "2026-10-02" ? "2026-10-02" : b.to}T00:00:00Z`);
+    for (let d = new Date(start); d <= end; d.setUTCDate(d.getUTCDate() + 1)) {
+      for (const drv of DEMO_TREND_DRIVERS) {
+        if (rnd() < 0.18) continue; // repos
+        const saison = 1 + 0.08 * Math.sin((bi / 12) * Math.PI * 2);
+        const ca = Math.round(drv.base * saison * (0.7 + rnd() * 0.6));
+        reports.push({ driver_id: drv.id, date: d.toISOString().slice(0, 10), yango_gross: ca, yango_trip_count: Math.round(ca / 2300), net_after_expenses: Math.round(ca * 0.78) });
+      }
+    }
+  });
+  return computeTrends({ reports, drivers: DEMO_TREND_DRIVERS, objectif: 40_000, granularite: "mois", buckets, today: "2026-10-02" });
+})();

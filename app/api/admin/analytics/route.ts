@@ -4,7 +4,9 @@
  *
  *   ?report=catalog                         → rapports disponibles pour ce tenant
  *   ?report=<clé>&dateFrom&dateTo           → aperçu JSON (colonnes + lignes)
- *     [&driverIds=uuid,uuid] [&statut=approved|all] [&format=xlsx]
+ *     [&driverIds=uuid,uuid] [&statut=approved|all] [&segment=all|interne|partenaire] [&format=xlsx]
+ *   ?report=tendances&granularite=semaine|mois|trimestre|annee[&dateTo][&n]
+ *                                           → CA/jour vs objectif par période
  *
  * Tenant : toujours celui de la session (requireAdminAuth), jamais un paramètre.
  * Le client service-role ignore la RLS : chaque requête filtre tenant_id.
@@ -22,6 +24,9 @@ import {
   syntheseJourRows, kpiJourRows, coursesRows, type ReportResult,
 } from "@/lib/analytics/reports";
 import { buildXlsx } from "@/lib/analytics/xlsx";
+import { segmentResolver, isSegmentFilter } from "@/lib/analytics/segment";
+import { computeTrends, lastBuckets, GRANULARITES, PERIODES_PAR_DEFAUT, OBJECTIF_DEFAUT, type Granularite } from "@/lib/analytics/trends";
+import { trendsTable } from "@/lib/analytics/reports";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -50,14 +55,35 @@ export async function GET(req: NextRequest) {
     const { data: anyOrder } = await admin.from("yango_orders").select("order_id").eq("tenant_id", tenantId).limit(1);
     const tenantHasFleetroom = (anyOrder?.length ?? 0) > 0;
 
-    if (report === "catalog") {
-      return NextResponse.json({ reports: REPORTS.filter((r) => !r.fleetroom || tenantHasFleetroom), hasFleetroom: tenantHasFleetroom });
-    }
-    if (!isReportKey(report)) return bad("Rapport inconnu");
+    // Véhicules : segment interne / partenaire de chaque ligne (filtre « type de véhicule »)
+    const { data: vehicles } = await admin.from("vehicles").select("id,driver_id,plate,fleet_segment").eq("tenant_id", tenantId);
+    const seg = segmentResolver((vehicles || []) as any[]);
+    const segParam = sp.get("segment");
+    const segment = isSegmentFilter(segParam) ? segParam : "all";
+    const objectif = await readObjectif(tenantId);
 
-    const dateFrom = sp.get("dateFrom") || "", dateTo = sp.get("dateTo") || "";
+    if (report === "catalog") {
+      return NextResponse.json({
+        reports: REPORTS.filter((r) => !r.fleetroom || tenantHasFleetroom), hasFleetroom: tenantHasFleetroom,
+        segments: seg.counts(), objectif,
+      });
+    }
+    if (report !== "tendances" && !isReportKey(report)) return bad("Rapport inconnu");
+
+    // Tendances : la fenêtre se déduit de la granularité (n périodes jusqu'à dateTo)
+    const granParam = sp.get("granularite") as Granularite | null;
+    const granularite: Granularite = granParam && GRANULARITES.includes(granParam) ? granParam : "mois";
+    const nParam = parseInt(sp.get("n") || "", 10);
+    const nBuckets = Number.isFinite(nParam) ? Math.min(Math.max(nParam, 2), 36) : PERIODES_PAR_DEFAUT[granularite];
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const anchor = ISO.test(sp.get("dateTo") || "") ? sp.get("dateTo")! : todayIso;
+    const trendBuckets = report === "tendances" ? lastBuckets(anchor, granularite, nBuckets) : [];
+
+    const dateFrom = report === "tendances" ? trendBuckets[0].from : sp.get("dateFrom") || "";
+    const dateTo = report === "tendances" ? trendBuckets[trendBuckets.length - 1].to : sp.get("dateTo") || "";
     if (!ISO.test(dateFrom) || !ISO.test(dateTo) || dateFrom > dateTo) return bad("Période invalide (dateFrom ≤ dateTo, AAAA-MM-JJ)");
-    if ((Date.parse(dateTo) - Date.parse(dateFrom)) / 86_400_000 + 1 > MAX_DAYS) return bad("Période limitée à 366 jours");
+    const maxDays = report === "tendances" ? 4 * 366 : MAX_DAYS;
+    if ((Date.parse(dateTo) - Date.parse(dateFrom)) / 86_400_000 + 1 > maxDays) return bad("Période trop longue");
     const driverIds = (sp.get("driverIds") || "").split(",").map((s) => s.trim()).filter(Boolean);
     if (driverIds.some((id) => !UUID.test(id))) return bad("Identifiant chauffeur invalide");
     const statut = sp.get("statut") === "all" ? "all" : "approved";
@@ -87,18 +113,25 @@ export async function GET(req: NextRequest) {
     const expenseInPeriod = (q: any) => q.or(`and(expense_date.gte.${dateFrom},expense_date.lte.${dateTo}),and(expense_date.is.null,created_at.gte.${dateFrom},created_at.lte.${dateTo}T23:59:59)`);
     // validées (NULL = ancienne ligne, validée) ; « all » ajoute les en attente — jamais les rejetées
     const keepExpenseStatus = (st: string | null) => st == null || st === "approved" || (statut === "all" && st === "submitted");
-    const readReports = (cols = "*") => fetchAllRows(() => {
-      let q = admin.from("daily_reports").select(cols).eq("tenant_id", tenantId).gte("date", dateFrom).lte("date", dateTo);
+    // filtre « type de véhicule » : appliqué ligne à ligne après lecture
+    const inSegReport = (r: any) => segment === "all" || seg.ofReport(r) === segment;
+    const inSegDriver = (driverId: string | null) => segment === "all" || seg.ofDriver(driverId) === segment;
+    const readReports = (cols: string) => fetchAllRows(() => {
+      let q = admin.from("daily_reports").select(`${cols},vehicle_id`).eq("tenant_id", tenantId).gte("date", dateFrom).lte("date", dateTo);
       q = statut === "all" ? q.in("status", ["approved", "submitted"]) : q.eq("status", "approved");
       return scopeDrivers(q).order("date").order("id");
-    });
+    }).then((rows: any[]) => ({ rows: rows.filter(inSegReport), raw: rows.length }));
+    const profileOfYango = (yid: string | null) => (yid ? (byYango.get(yid) as any)?.id ?? null : null);
     const readOrders = (cols: string) => {
-      if (driverIds.length && !yangoIds.length) return Promise.resolve([] as any[]);
+      if (driverIds.length && !yangoIds.length) return Promise.resolve({ rows: [] as any[], raw: 0 });
       return fetchAllRows(() => {
-        let q = admin.from("yango_orders").select(cols).eq("tenant_id", tenantId).gte("jour", dateFrom).lte("jour", dateTo);
+        let q = admin.from("yango_orders").select(cols.includes("plate") ? cols : `${cols},plate`).eq("tenant_id", tenantId).gte("jour", dateFrom).lte("jour", dateTo);
         if (driverIds.length) q = q.in("yango_driver_id", yangoIds);
         return q.order("jour").order("order_id");
-      });
+      }).then((rows: any[]) => ({
+        rows: segment === "all" ? rows : rows.filter((o) => seg.ofPlate(o.plate, profileOfYango(o.yango_driver_id)) === segment),
+        raw: rows.length,
+      }));
     };
 
     let result: Omit<ReportResult, "report" | "title" | "hasFleetroom">;
@@ -106,14 +139,14 @@ export async function GET(req: NextRequest) {
 
     switch (report) {
       case "classement": {
-        const [reports, orders, expenses, seeds] = await Promise.all([
+        const [{ rows: reports, raw: rawReports }, { rows: orders, raw: rawOrders }, expenses, seeds] = await Promise.all([
           readReports("driver_id,date,status,comment,yango_gross,yango_bonus,off_yango_revenue,yango_trip_count,off_yango_trip_count,net_after_expenses,end_odometer"),
-          tenantHasFleetroom ? readOrders("yango_driver_id,jour,status,cancel_reason,started_at,ended_at,distance_m,cash,cashless") : Promise.resolve([]),
+          tenantHasFleetroom ? readOrders("yango_driver_id,jour,status,cancel_reason,started_at,ended_at,distance_m,cash,cashless") : Promise.resolve({ rows: [] as any[], raw: 0 }),
           // statut / catégorie filtrés en JS : NULL compte comme validé et hors avance,
           // comme le tableau de bord (un .in / .neq PostgREST écarterait les NULL)
           fetchAllRows(() => scopeDrivers(expenseInPeriod(admin.from("expenses").select("driver_id,amount,category,status,expense_date")
             .eq("tenant_id", tenantId))).order("id"))
-            .then((rows: any[]) => rows.filter((e) => keepExpenseStatus(e.status) && e.category !== CAT_AVANCE)),
+            .then((rows: any[]) => rows.filter((e) => keepExpenseStatus(e.status) && e.category !== CAT_AVANCE && inSegDriver(e.driver_id))),
           // amorce du km compteur : dernière déclaration validée avec compteur avant la
           // période (fenêtre de 180 jours : un chauffeur absent plus longtemps repart à 0)
           fetchAllRows(() => scopeDrivers(admin.from("daily_reports").select("driver_id,date,end_odometer")
@@ -121,20 +154,33 @@ export async function GET(req: NextRequest) {
             .lt("date", dateFrom).gte("date", new Date(Date.parse(dateFrom) - 180 * 86_400_000).toISOString().slice(0, 10)))
             .order("date").order("id")),
         ]);
-        const stats = driverStats({ drivers, reports, seeds, expenses, orders });
+        // un filtre de segment ne garde que les chauffeurs de ce segment (véhicule
+        // affecté) ou ayant une activité dans ce segment sur la période
+        const active = new Set([...reports.map((r: any) => r.driver_id), ...orders.map((o: any) => profileOfYango(o.yango_driver_id))]);
+        const segDrivers = segment === "all" ? drivers : drivers.filter((d: any) => inSegDriver(d.id) || active.has(d.id));
+        const stats = driverStats({ drivers: segDrivers, reports, seeds, expenses, orders });
         hasFleetroom = stats.hasFleetroom;
         const sorted = sortStats(stats.rows, "ca");
-        result = { columns: classementColumns(hasFleetroom), rows: sorted.map(classementRow), truncated: reports.length >= ROW_CAP || orders.length >= ROW_CAP };
+        result = { columns: classementColumns(hasFleetroom), rows: sorted.map(classementRow), truncated: rawReports >= ROW_CAP || rawOrders >= ROW_CAP };
         break;
       }
       case "declarations": {
-        const reports = await readReports("id,driver_id,date,status,source,comment,yango_gross,yango_bonus,off_yango_revenue,yango_trip_count,off_yango_trip_count,commission_amount,net_after_expenses,solde_yango,end_odometer");
-        result = { ...declarationsRows(reports, nameOf), truncated: reports.length >= ROW_CAP };
+        const { rows: reports, raw } = await readReports("id,driver_id,date,status,source,comment,yango_gross,yango_bonus,off_yango_revenue,yango_trip_count,off_yango_trip_count,commission_amount,net_after_expenses,solde_yango,end_odometer");
+        result = { ...declarationsRows(reports, nameOf), truncated: raw >= ROW_CAP };
         break;
       }
       case "synthese_jour": {
-        const reports = await readReports("driver_id,date,comment,yango_gross,yango_bonus,off_yango_revenue,yango_trip_count,off_yango_trip_count,net_after_expenses");
-        result = { ...syntheseJourRows(reports), truncated: reports.length >= ROW_CAP };
+        const { rows: reports, raw } = await readReports("driver_id,date,comment,yango_gross,yango_bonus,off_yango_revenue,yango_trip_count,off_yango_trip_count,net_after_expenses");
+        result = { ...syntheseJourRows(reports), truncated: raw >= ROW_CAP };
+        break;
+      }
+      case "tendances": {
+        const { rows: reports, raw } = await readReports("driver_id,date,status,comment,yango_gross,yango_bonus,off_yango_revenue,yango_trip_count,off_yango_trip_count,net_after_expenses");
+        const trends = computeTrends({ reports, drivers: profiles || [], objectif, granularite, buckets: trendBuckets, today: todayIso });
+        if (format === "json") {
+          return NextResponse.json({ ...trends, segment, truncated: raw >= ROW_CAP }, { headers: { "Cache-Control": "no-store" } });
+        }
+        result = { ...trendsTable(trends), truncated: raw >= ROW_CAP };
         break;
       }
       case "depenses": {
@@ -143,7 +189,7 @@ export async function GET(req: NextRequest) {
             .eq("tenant_id", tenantId);
           q = expenseInPeriod(q);
           return scopeDrivers(q).order("id");
-        }).then((rows: any[]) => rows.filter((e) => keepExpenseStatus(e.status)));
+        }).then((rows: any[]) => rows.filter((e) => keepExpenseStatus(e.status) && inSegDriver(e.driver_id)));
         // nombre de pièces jointes par dépense (uploads.ref_id), par lots
         const pieces = new Map<string, number>();
         const ids = expenses.map((e: any) => e.id);
@@ -156,7 +202,8 @@ export async function GET(req: NextRequest) {
       }
       case "paiements": {
         const payments = await fetchAllRows(() => scopeDrivers(admin.from("payments").select("id,driver_id,payment_date,salary_month,type,amount,notes")
-          .eq("tenant_id", tenantId).gte("payment_date", dateFrom).lte("payment_date", dateTo)).order("payment_date").order("id"));
+          .eq("tenant_id", tenantId).gte("payment_date", dateFrom).lte("payment_date", dateTo)).order("payment_date").order("id"))
+          .then((rows: any[]) => rows.filter((p) => inSegDriver(p.driver_id)));
         result = { ...paiementsRows(payments, nameOf), truncated: payments.length >= ROW_CAP };
         break;
       }
@@ -166,19 +213,20 @@ export async function GET(req: NextRequest) {
         const cols = report === "courses"
           ? "order_code,status,cancel_reason,yango_driver_id,driver_name,plate,started_at,ended_at,jour,address_from,address_to,service_class,distance_m,cash,cashless,commission"
           : "yango_driver_id,driver_name,jour,status,cancel_reason,started_at,ended_at,distance_m,cash,cashless";
-        const orders = await readOrders(cols);
+        const { rows: orders, raw } = await readOrders(cols);
         hasFleetroom = orders.length > 0;
-        result = { ...(report === "courses" ? coursesRows(orders, nameOfYango) : kpiJourRows(orders, nameOfYango)), truncated: orders.length >= ROW_CAP };
+        result = { ...(report === "courses" ? coursesRows(orders, nameOfYango) : kpiJourRows(orders, nameOfYango)), truncated: raw >= ROW_CAP };
         break;
       }
     }
 
-    const title = REPORTS.find((r) => r.key === report)!.label;
-    const payload: ReportResult = { report, title, hasFleetroom, ...result! };
+    const title = report === "tendances" ? `Tendances par ${granularite}` : REPORTS.find((r) => r.key === report)!.label;
+    const segLabel = segment === "all" ? "" : segment === "interne" ? " · flotte interne" : " · flotte partenaire";
+    const payload: ReportResult = { report: report as ReportResult["report"], title, hasFleetroom, ...result! };
 
     if (format === "xlsx") {
-      const buf = await buildXlsx({ ...payload, subtitle: `Du ${dateFrom.split("-").reverse().join("/")} au ${dateTo.split("-").reverse().join("/")}${statut === "all" ? " · validées + en attente" : " · validées"}` });
-      const filename = `${report}_${dateFrom}_${dateTo}.xlsx`;
+      const buf = await buildXlsx({ ...payload, subtitle: `Du ${dateFrom.split("-").reverse().join("/")} au ${dateTo.split("-").reverse().join("/")}${statut === "all" ? " · validées + en attente" : " · validées"}${segLabel}` });
+      const filename = `${report}${segment === "all" ? "" : `_${segment}`}_${dateFrom}_${dateTo}.xlsx`;
       return new NextResponse(new Uint8Array(buf), {
         headers: {
           "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -192,4 +240,12 @@ export async function GET(req: NextRequest) {
     console.error("analytics:", err);
     return NextResponse.json({ error: err?.status ? err.message : "Erreur lors de la génération" }, { status: err?.status ?? 500 });
   }
+}
+
+/** Objectif de CA par jour et par chauffeur (migration 074) ; 40 000 XOF tant que la colonne n'existe pas. */
+async function readObjectif(tenantId: string): Promise<number> {
+  const { data, error } = await admin.from("remuneration_config").select("objectif_ca_jour").eq("tenant_id", tenantId).limit(1);
+  if (error) return OBJECTIF_DEFAUT; // colonne absente avant la migration 074
+  const v = Number((data?.[0] as any)?.objectif_ca_jour);
+  return v > 0 ? v : OBJECTIF_DEFAUT;
 }

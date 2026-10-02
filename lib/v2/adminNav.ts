@@ -33,6 +33,7 @@ export const ADMIN_DESTINATIONS: DestinationDef[] = [
   {
     key: "perf", label: "Performance", filter: { period: true, driver: true },
     subTabs: [
+      { tab: "tendances", label: "Tendances" },
       { tab: "classement", label: "Classement" },
       { tab: "kpichauffeurs", label: "KPI chauffeurs" },
       { tab: "extraction", label: "Extraction" },
