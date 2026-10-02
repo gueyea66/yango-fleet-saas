@@ -232,7 +232,9 @@ export function classementColumns(hasFleetroom: boolean): Column[] {
   const base: Column[] = [
     { key: "rang", label: "Rang", type: "int" },
     { key: "name", label: "Chauffeur", type: "text" },
-    { key: "jours", label: "Jours", type: "int", sum: true },
+    { key: "jours", label: "Jours travaillés", type: "int", sum: true },
+    { key: "repos", label: "Repos", type: "int", sum: true },
+    { key: "sansDeclaration", label: "Sans déclaration", type: "int", sum: true },
     { key: "courses", label: "Courses", type: "int", sum: true },
     { key: "ca", label: "CA", type: "xof", sum: true },
     { key: "caParJour", label: "CA / jour", type: "xof" },
@@ -260,7 +262,8 @@ export function classementRow(r: DriverStat): Row {
   const fr = r.fleetroom;
   const round = (v: number | null, d = 0) => (v == null ? null : Math.round(v * 10 ** d) / 10 ** d);
   return {
-    driverId: r.driverId, rang: r.rang ?? null, name: r.name, jours: r.jours, courses: r.courses, ca: Math.round(r.ca),
+    driverId: r.driverId, rang: r.rang ?? null, name: r.name, jours: r.jours,
+    repos: r.repos, sansDeclaration: r.sansDeclaration, courses: r.courses, ca: Math.round(r.ca),
     caParJour: round(r.caParJour), caParCourse: round(r.caParCourse), coursesParJour: round(r.coursesParJour, 1),
     km: r.km, caParKm: round(r.caParKm), net: Math.round(r.net), depenses: Math.round(r.depenses),
     "fr.tauxAcceptation": fr?.tauxAcceptation ?? null, "fr.refus": fr?.refus ?? null,

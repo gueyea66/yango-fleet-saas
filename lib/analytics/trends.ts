@@ -90,6 +90,7 @@ export interface BucketStats extends Bucket {
   courses: number;
   net: number;
   journees: number;          // journées-chauffeur déclarées (hors repos)
+  repos: number;             // journées de repos déclarées ([REPOS])
   chauffeurs: number;        // chauffeurs distincts actifs
   caParJour: number | null;  // CA / journée-chauffeur
   atteinte: number | null;   // caParJour / objectif
@@ -101,10 +102,11 @@ export interface BucketStats extends Bucket {
 export interface DriverTrend {
   driverId: string;
   name: string;
-  cells: { key: string; caParJour: number | null; journees: number; ca: number; statut: Statut | null }[];
+  cells: { key: string; caParJour: number | null; journees: number; repos: number; ca: number; statut: Statut | null }[];
   caParJour: number | null;   // sur toute la fenêtre
   statut: Statut | null;
   tauxJoursAtteints: number | null;
+  repos: number;              // jours de repos sur la fenêtre
 }
 
 export interface TrendsResult {
@@ -131,6 +133,10 @@ export function computeTrends({ reports, drivers, objectif, granularite, buckets
 }): TrendsResult {
   const worked = reports.filter((r) => !isRepos(r));
   const keyOf = (date: string) => bucketOf(date, granularite).key;
+  // repos : un jour [REPOS] du chauffeur où il n'a pas aussi travaillé
+  const travaille = new Set(worked.map((r) => `${r.driver_id}|${r.date}`));
+  const reposJours = [...new Set(reports.filter(isRepos).map((r) => `${r.driver_id}|${r.date}`))]
+    .filter((k) => !travaille.has(k)).map((k) => { const [driver, date] = k.split("|"); return { driver, date }; });
   // journées-chauffeur (un chauffeur peut avoir deux lignes le même jour : on additionne)
   const day = new Map<string, { driver: string; date: string; ca: number; courses: number; net: number }>();
   for (const r of worked) {
@@ -155,27 +161,30 @@ export function computeTrends({ reports, drivers, objectif, granularite, buckets
     const caParJour = ratio(ca, ds.length);
     return {
       ...b, ca, courses: ds.reduce((s, d) => s + d.courses, 0), net: ds.reduce((s, d) => s + d.net, 0),
-      journees: ds.length, chauffeurs: new Set(ds.map((d) => d.driver)).size,
+      journees: ds.length, repos: reposJours.filter((r) => keyOf(r.date) === b.key).length,
+      chauffeurs: new Set(ds.map((d) => d.driver)).size,
       caParJour, atteinte: caParJour != null && objectif > 0 ? caParJour / objectif : null,
       statut: statutDe(caParJour, objectif), jours: repartition(ds), enCours: b.to >= today,
     };
   });
 
   const nameOf = (id: string) => { const p = drivers.find((x) => x.id === id); return p?.full_name || p?.driver_id || "Chauffeur"; };
-  const driverIds = [...new Set(days.map((d) => d.driver))];
+  const driverIds = [...new Set([...days.map((d) => d.driver), ...reposJours.map((r) => r.driver)])];
   const driverTrends: DriverTrend[] = driverIds.map((id) => {
     const mine = days.filter((d) => d.driver === id);
     const cells = buckets.map((b) => {
       const ds = mine.filter((d) => keyOf(d.date) === b.key);
       const ca = ds.reduce((s, d) => s + d.ca, 0);
       const v = ratio(ca, ds.length);
-      return { key: b.key, caParJour: v, journees: ds.length, ca, statut: statutDe(v, objectif) };
+      const repos = reposJours.filter((r) => r.driver === id && keyOf(r.date) === b.key).length;
+      return { key: b.key, caParJour: v, journees: ds.length, repos, ca, statut: statutDe(v, objectif) };
     });
     const ca = mine.reduce((s, d) => s + d.ca, 0);
     const v = ratio(ca, mine.length);
     return {
       driverId: id, name: nameOf(id), cells, caParJour: v, statut: statutDe(v, objectif),
       tauxJoursAtteints: ratio(mine.filter((d) => d.ca >= objectif).length, mine.length),
+      repos: reposJours.filter((r) => r.driver === id).length,
     };
   }).sort((a, b) => (b.caParJour ?? -1) - (a.caParJour ?? -1));
 

@@ -97,3 +97,22 @@ describe("granularité jour", () => {
     expect(b[0].key).toBe("2026-09-19");
   });
 });
+
+describe("repos dans les tendances", () => {
+  it("repos comptés par période et par chauffeur, chauffeur au repos listé", () => {
+    const r = computeTrends({
+      drivers: [{ id: "a", full_name: "A" }, { id: "b", full_name: "B" }], objectif: 40_000, granularite: "jour",
+      buckets: lastBuckets("2026-09-02", "jour", 2), today: "2026-10-02",
+      reports: [
+        { driver_id: "a", date: "2026-09-01", yango_gross: 45_000 },
+        { driver_id: "a", date: "2026-09-02", yango_gross: 0, comment: "[REPOS]" },
+        { driver_id: "b", date: "2026-09-02", yango_gross: 0, comment: "[REPOS]" },
+      ],
+    });
+    expect(r.buckets.map((b) => b.repos)).toEqual([0, 2]);
+    const a = r.drivers.find((d) => d.driverId === "a")!;
+    expect(a.cells.map((c) => c.repos)).toEqual([0, 1]);
+    expect(a.repos).toBe(1);
+    expect(r.drivers.find((d) => d.driverId === "b")!.cells[1].repos).toBe(1);
+  });
+});

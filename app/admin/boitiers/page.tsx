@@ -107,6 +107,10 @@ export default function BoitiersPage() {
 
   // Formulaire d'ajout
   const [externalId, setExternalId] = useState("");
+  // origine : SinoTrack (SMS RCONF) ou boîtier relayé par une autre plateforme (GPSwox)
+  const [origine, setOrigine] = useState<"sinotrack" | "gpswox">("sinotrack");
+  const [protocole, setProtocole] = useState("gt06");
+  const [modele, setModele] = useState("");
   const [vehicleId, setVehicleId] = useState("");
   const [label, setLabel] = useState("");
   const [rconf, setRconf] = useState("");
@@ -260,7 +264,9 @@ export default function BoitiersPage() {
               <form
                 onSubmit={async (e) => {
                   e.preventDefault();
-                  const json = await send("POST", { externalId, vehicleId: vehicleId || null, label, rconf });
+                  const json = await send("POST", origine === "sinotrack"
+                    ? { externalId, vehicleId: vehicleId || null, label, rconf }
+                    : { externalId, vehicleId: vehicleId || null, label, vendor: "gpswox", protocol: protocole, model: modele || null });
                   if (json?.device) {
                     setAdding(false); setExternalId(""); setVehicleId(""); setLabel(""); setRconf("");
                     await load();
@@ -278,6 +284,36 @@ export default function BoitiersPage() {
                 </div>
 
                 <div>
+                  <label htmlFor="origine" className="block text-sm font-medium text-gray-200 mb-1.5">Origine du boîtier</label>
+                  <select id="origine" value={origine} onChange={(e) => setOrigine(e.target.value as "sinotrack" | "gpswox")}
+                    className={`${inputCls} cursor-pointer`}>
+                    <option value="sinotrack">SinoTrack — repointé vers M3A par SMS</option>
+                    <option value="gpswox">Relayé par une plateforme GPS (ex. GPSwox) — copie des données</option>
+                  </select>
+                  {origine === "gpswox" && (
+                    <p className="text-xs text-gray-400 mt-1.5">
+                      La plateforme d&apos;origine garde le boîtier et nous transfère une copie de ses positions vers notre serveur Traccar.
+                      Identifiant = IMEI du boîtier (15 chiffres). Voir docs/TELEMATICS/03-RELAIS-GPSWOX.md.
+                    </p>
+                  )}
+                </div>
+
+                {origine === "gpswox" && (
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="protocole" className="block text-sm font-medium text-gray-200 mb-1.5">Protocole</label>
+                      <select id="protocole" value={protocole} onChange={(e) => setProtocole(e.target.value)} className={`${inputCls} cursor-pointer`}>
+                        {["gt06", "h02", "teltonika", "meitrack", "osmand", "watch", "gl200", "autre"].map((p) => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="modele" className="block text-sm font-medium text-gray-200 mb-1.5">Modèle <span className="text-gray-500 font-normal">(facultatif)</span></label>
+                      <input id="modele" value={modele} onChange={(e) => setModele(e.target.value)} placeholder="Ex. Concox GT06N" className={inputCls} />
+                    </div>
+                  </div>
+                )}
+
+                {origine === "sinotrack" && <div>
                   <label htmlFor="rconf" className="block text-sm font-medium text-gray-200 mb-1.5">
                     Réponse au SMS RCONF <span className="text-gray-500 font-normal">(recommandé)</span>
                   </label>
@@ -305,7 +341,7 @@ export default function BoitiersPage() {
                       {preview.warnings.map((w) => <p key={w} className="text-amber-300">{w}</p>)}
                     </div>
                   )}
-                </div>
+                </div>}
 
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>

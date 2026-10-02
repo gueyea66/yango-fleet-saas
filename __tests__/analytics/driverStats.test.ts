@@ -1,4 +1,4 @@
-import { driverStats, fleetroomStats, kmCompteurParJour, sortStats, REFUS_REASONS, ECHEC_REASONS, ANNUL_CLIENT_REASON } from "@/lib/analytics/driverStats";
+import { driverStats, fleetroomStats, joursSansDeclaration, kmCompteurParJour, sortStats, REFUS_REASONS, ECHEC_REASONS, ANNUL_CLIENT_REASON } from "@/lib/analytics/driverStats";
 
 const drivers = [
   { id: "a", full_name: "Moussa", yango_driver_id: "ya", active: true },
@@ -89,5 +89,24 @@ describe("classement", () => {
     const byAcc = sortStats(rows, "fr.tauxAcceptation", false);
     expect(byAcc[byAcc.length - 1].driverId).toBe("b");
     expect(sortStats(rows, "name", false)[0].name).toBe("Awa");
+  });
+});
+
+describe("jours de repos et sans déclaration", () => {
+  const reps = [
+    rep("a", "2026-09-01"), rep("a", "2026-09-02"),
+    rep("a", "2026-09-03", { comment: "[REPOS]" }),
+    rep("a", "2026-09-02", { comment: "[REPOS] erreur" }), // repos un jour travaillé : pas compté
+  ];
+  it("repos comptés à part, jours sans déclaration sur la période", () => {
+    const { rows } = driverStats({ drivers, reports: reps, periode: { from: "2026-09-01", to: "2026-09-10" }, today: "2026-09-05" });
+    const a = rows.find((r) => r.driverId === "a")!;
+    expect(a.jours).toBe(2);
+    expect(a.repos).toBe(1);
+    expect(a.sansDeclaration).toBe(2); // 01→05 = 5 jours − 2 travaillés − 1 repos
+  });
+  it("bornes du contrat respectées, sans période : null", () => {
+    expect(joursSansDeclaration({ from: "2026-09-01", to: "2026-09-30" }, "2026-10-02", { hire_date: "2026-09-21", contract_end_date: "2026-09-25" }, 1)).toBe(4);
+    expect(driverStats({ drivers, reports: reps }).rows.find((r) => r.driverId === "a")!.sansDeclaration).toBeNull();
   });
 });

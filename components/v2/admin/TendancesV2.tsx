@@ -148,6 +148,7 @@ function ChartTip({ active, payload, objectif }: { active?: boolean; payload?: {
       <Row k="Atteinte" v={b.atteinte != null ? `${Math.round(b.atteinte * 100)} % de ${formatAmount(objectif)}` : "—"} />
       <Row k="CA total" v={formatAmount(b.ca)} />
       <Row k="Journées-chauffeur" v={String(b.journees)} />
+      <Row k="Jours de repos" v={String(b.repos)} />
       <Row k="Chauffeurs actifs" v={String(b.chauffeurs)} />
       <div style={{ marginTop: 6 }}><StatusPill statut={b.statut} compact /></div>
     </div>
@@ -349,7 +350,7 @@ export function TendancesV2({ driverIds, segment, horsYango = true, onHorsYango,
               <div style={{ padding: "14px 16px 6px", display: "flex", justifyContent: "space-between", gap: 8, flexWrap: "wrap", alignItems: "baseline" }}>
                 <div>
                   <div style={{ fontSize: 15, fontWeight: 600 }}>Chauffeurs × périodes</div>
-                  <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>CA par jour travaillé. Survolez une case pour le détail.</div>
+                  <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>CA par jour travaillé (repos exclus). « R » = repos déclaré, « · » = aucune déclaration. Survolez une case pour le détail.</div>
                 </div>
                 <Legend />
               </div>
@@ -369,18 +370,19 @@ export function TendancesV2({ driverIds, segment, horsYango = true, onHorsYango,
                         {d.cells.map((c) => {
                           const b = buckets.find((x) => x.key === c.key)!;
                           return (
-                            <td key={c.key} title={c.caParJour != null ? `${d.name} · ${b.label}\n${formatAmount(c.caParJour)} / jour (${Math.round((c.caParJour / objectif) * 100)} %)\n${c.journees} journée(s) · CA ${formatAmount(c.ca)}${c.statut ? `\n${STATUS_ICON[c.statut]} ${STATUS_LABEL[c.statut]}` : ""}` : `${d.name} · ${b.label} : aucune déclaration`}
+                            <td key={c.key} title={c.caParJour != null ? `${d.name} · ${b.label}\n${formatAmount(c.caParJour)} / jour (${Math.round((c.caParJour / objectif) * 100)} %)\n${c.journees} journée(s) travaillée(s)${c.repos ? ` · ${c.repos} repos` : ""} · CA ${formatAmount(c.ca)}${c.statut ? `\n${STATUS_ICON[c.statut]} ${STATUS_LABEL[c.statut]}` : ""}` : c.repos ? `${d.name} · ${b.label} : repos (${c.repos} j)` : `${d.name} · ${b.label} : aucune déclaration`}
                               className={b.enCours && c.statut ? "perf-hatch" : undefined}
                               style={{
                                 minWidth: 46, height: 30, borderRadius: 6, textAlign: "center", fontSize: 11, fontWeight: 600,
                                 background: c.statut ? `${STATUS_COLOR[c.statut]}${b.enCours ? "55" : "cc"}` : "var(--sk-surface)",
                                 color: c.statut ? (b.enCours ? "var(--sk-t1, #fff)" : "#0b0b0b") : "var(--v2-muted)",
                               }}>
-                              {c.caParJour != null ? k(c.caParJour) : "·"}
+                              {c.caParJour != null ? k(c.caParJour) : c.repos ? "R" : "·"}
                             </td>
                           );
                         })}
                         <td style={{ padding: "4px 10px", textAlign: "right", whiteSpace: "nowrap" }}>
+                          {d.repos > 0 && <span style={{ fontSize: 11, color: "var(--v2-muted)", marginRight: 6 }} title="Jours de repos déclarés sur la fenêtre">{d.repos} R</span>}
                           <span className="v2-num" style={{ fontSize: 13, fontWeight: 600, marginRight: 6 }}>{d.caParJour != null ? formatAmount(d.caParJour) : "—"}</span>
                           <StatusPill statut={d.statut} compact />
                         </td>

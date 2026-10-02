@@ -14,7 +14,7 @@ import { formatAmount, formatDecimal } from "@/lib/v2/format";
 import { totalRow, type Column, type ReportDef, type ReportKey, type ReportResult, type Row } from "@/lib/analytics/reports";
 import type { SegmentFilter } from "@/lib/analytics/segment";
 import { statutDe } from "@/lib/analytics/trends";
-import { HorsYangoControl, ObjectifControl, ObjectiveValue, StatusPill, usePerfMeta } from "./perfShared";
+import { HorsYangoControl, ObjectifControl, ObjectiveValue, STATUS_COLOR, StatusPill, usePerfMeta } from "./perfShared";
 
 type Range = { from: string; to: string };
 type Statut = "approved" | "all";
@@ -341,8 +341,13 @@ export function KpiChauffeursV2(c: Common) {
                   <div style={{ fontWeight: 600, fontSize: 15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.name}</div>
                   <div style={{ display: "flex", gap: 6, alignItems: "center", fontSize: 12, color: "var(--v2-muted)", whiteSpace: "nowrap" }}>
                     <StatusPill compact statut={typeof r.caParJour === "number" ? statutDe(r.caParJour, objectif) : null} title="CA/jour vs objectif" />
-                    #{r.rang} · {r.jours} j
+                    #{r.rang}
                   </div>
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 12, color: "var(--v2-muted)", marginBottom: 10 }}>
+                  <span><strong style={{ color: "var(--sk-t1, inherit)" }}>{String(r.jours)}</strong> j travaillés</span>
+                  <span><strong style={{ color: "var(--sk-t1, inherit)" }}>{String(r.repos ?? 0)}</strong> repos</span>
+                  {r.sansDeclaration != null && <span>{Number(r.sansDeclaration) > 0 && <span aria-hidden style={{ color: STATUS_COLOR.proche }}>⚠ </span>}<strong style={{ color: "var(--sk-t1, inherit)" }}>{String(r.sansDeclaration)}</strong> sans déclaration</span>}
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 10 }}>
                   <Metric label="CA" value={fmt(r.ca)} />
