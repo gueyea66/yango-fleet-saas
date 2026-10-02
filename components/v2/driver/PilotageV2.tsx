@@ -99,7 +99,7 @@ export function PilotageV2({ profile, cfg }: { profile: Profile; cfg: Cfg }) {
           )}
         </Card>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
           <Tile label="Net du mois" value={formatAmount(stats.mtdNet)} />
           <Tile label={cfg.model === "location" ? "Net après loyer projeté" : "Salaire projeté"} value={projected} />
           <Tile label="Courses / jour" value={tripsPerDay != null ? formatDecimal(tripsPerDay, 1) : "—"} />
@@ -133,7 +133,7 @@ function Tile({ label, value }: { label: string; value: string }) {
   return (
     <Card padding="14px">
       <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>{label}</div>
-      <div className="v2-num" style={{ fontSize: 18, fontWeight: 600, marginTop: 6 }}>{value}</div>
+      <div className="v2-num" style={{ fontSize: 18, fontWeight: 600, marginTop: 6, overflowWrap: "anywhere" }}>{value}</div>
     </Card>
   );
 }

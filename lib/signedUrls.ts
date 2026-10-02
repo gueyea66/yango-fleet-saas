@@ -25,12 +25,25 @@ export async function obtenirUrlsSignees(paths: string[]): Promise<UrlsSignees> 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ paths: utiles }),
     });
-    if (!res.ok) return {};
     const body = await res.json().catch(() => ({}));
-    return (body?.urls as UrlsSignees) ?? {};
-  } catch {
+    if (!res.ok) {
+      // Échec tracé (il était avalé en silence : l'admin voyait « aucune
+      // photo » sans indice). L'écran affiche « Photo indisponible » + Réessayer.
+      console.error("[signedUrls] signature refusée", res.status, body?.error ?? "");
+      return {};
+    }
+    const urls = (body?.urls as UrlsSignees) ?? {};
+    const manquants = utiles.filter((p) => !urls[p]);
+    if (manquants.length) {
+      // Pièce sans ligne `uploads` du tenant (tenant_id NULL, autre tenant) ou
+      // fichier absent du bucket : signalé pour diagnostic.
+      console.error(`[signedUrls] ${manquants.length} pièce(s) non signée(s)`, manquants);
+    }
+    return urls;
+  } catch (err) {
     // Pas d'exception remontée : une vignette manquante ne doit pas faire
     // tomber l'écran de validation qui l'entoure.
+    console.error("[signedUrls] réseau indisponible", err);
     return {};
   }
 }

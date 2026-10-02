@@ -234,3 +234,9 @@ html[data-ui="v2"] body {
 .v2-details > summary::-webkit-details-marker { display: none; }
 .v2-details-chevron { transform: rotate(-90deg); transition: transform .15s; }
 .v2-details[open] .v2-details-chevron { transform: none; }
+
+/* App installée (PWA/TWA) : les liens vers la vitrine (« Retour au site »)
+   n'ont pas de sens — l'ouverture de l'app renvoie déjà vers la connexion. */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  .pwa-hide { display: none !important; }
+}

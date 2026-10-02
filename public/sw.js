@@ -3,7 +3,9 @@
 // données/API = jamais interceptées (network only) ;
 // seuls les assets statiques immuables (/_next/static, /icons) sont cache-first.
 
-const SW_VERSION = "v2"; // v2 : auto-réabonnement sur pushsubscriptionchange
+// v2 : auto-réabonnement sur pushsubscriptionchange
+// v3 : start_url → /open (ouverture de l'app = connexion ou espace, jamais la vitrine)
+const SW_VERSION = "v3";
 const SHELL_CACHE = `m3a-shell-${SW_VERSION}`;
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png"];

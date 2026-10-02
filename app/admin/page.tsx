@@ -53,10 +53,12 @@ import { PendingV2 } from "@/components/v2/admin/PendingV2";
 import { FinanceKpisV2, HistoryV2, TeamV2 } from "@/components/v2/admin/SectionsV2";
 import { VehiclesSignalV2 } from "@/components/v2/admin/VehiclesSignalV2";
 import { FleetSegmentFilter } from "@/components/v2/admin/FleetSegmentFilter";
+import { normStatus, type HistoryStatusFilter } from "@/lib/v2/history";
 import { defaultPeriod, periodRange, monthRanges, parseAdminFilter, serializeAdminFilter, inRange, periodLabel, type AdminPeriod } from "@/lib/v2/periodFilter";
 import { mergeMonthlyKpis, mergeSalaryRows } from "@/lib/v2/multiMonth";
-import { masseSalariale, paymentSalaryDate, recentMovements, salaryMonthOf, salaryRows, type SalaryAllocation, type SalaryRow } from "@/lib/v2/finance";
+import { isFullMonths, masseSalariale, paymentSalaryDate, recentMovements, salaryMonthOf, salaryRows, type SalaryAllocation, type SalaryRow } from "@/lib/v2/finance";
 import { CollapsedHistoryV2, MovementsV2, SalaryTableV2 } from "@/components/v2/admin/FinanceV2";
+import { ClassementV2, ExtractionV2, KpiChauffeursV2 } from "@/components/v2/admin/AnalyticsV2";
 import { useReportReview } from "@/components/admin/useReportReview";
 import { useExpenseReview } from "@/components/admin/useExpenseReview";
 import AiBriefingSection from "@/components/ai/AiBriefingSection";
@@ -102,6 +104,8 @@ export default function AdminPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [reports, setReports] = useState<DailyReport[]>([]);
   const [expenses, setExpenses] = useState<any[]>([]);
+  // Nombre de pièces jointes par rapport / dépense (indicateur 📷 de l'historique).
+  const [uploadCounts, setUploadCounts] = useState<Record<string, number>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<DailyReport>>({});
   const [loadingReports, setLoadingReports] = useState(false);
@@ -233,25 +237,43 @@ export default function AdminPage() {
       loadReports(filterDriverIds);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, tab, adminTenantId, filterDriverIds.join(",")]);
+  }, [user, tab, adminTenantId, filterDriverIds.join(","), v2Range?.from, v2Range?.to]);
+
+  // Période demandée à /api/admin/reports. Sans elle, seuls les 300 derniers
+  // rapports et 500 dernières dépenses remontaient : l'historique plus ancien
+  // disparaissait sans message (retour Abdou 01/10). v2 : la période de la
+  // barre de filtres ; UI actuelle : les 12 derniers mois.
+  const reportsWindow = (): { from: string; to?: string } => {
+    if (v2Range) return { from: v2Range.from, to: v2Range.to };
+    const d = new Date(now.getFullYear() - 1, now.getMonth(), 1);
+    return { from: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01` };
+  };
+  const reportsReq = useRef(0);
 
   const loadReports = async (driverIds: string[] = []) => {
     if (!adminTenantId) return;
+    const req = ++reportsReq.current;
     setLoadingReports(true);
     try {
       const params = new URLSearchParams({ tenantId: adminTenantId });
       if (driverIds.length) params.set("driverIds", driverIds.join(","));
+      const w = reportsWindow();
+      params.set("dateFrom", w.from);
+      if (w.to) params.set("dateTo", w.to);
       // Retry sur erreur transitoire (401 refresh token, cold start) — fix
       // « refresh ne charge pas, il faut refresh à nouveau » (03/09). Un 401
       // qui persiste après retries = vraie session expirée.
       const json = await fetchJsonRetry(`/api/admin/reports?${params}`);
+      // Changement de période rapide : une réponse périmée n'écrase pas la dernière.
+      if (req !== reportsReq.current) return;
       setReports(json.reports || []);
       setExpenses(json.expenses || []);
+      setUploadCounts(json.uploadCounts || {});
     } catch (err: any) {
       console.error("Error loading:", err);
       setSessionError(err.status === 401 ? "Session expirée — veuillez vous reconnecter." : (err.message || "Erreur de chargement"));
     } finally {
-      setLoadingReports(false);
+      if (req === reportsReq.current) setLoadingReports(false);
     }
   };
 
@@ -330,6 +352,14 @@ export default function AdminPage() {
         ["payments",    "💵", "Paiements"],
         ["avances",     "💰", "Avances"],
         ["pilotage",    "🎯", "Pilotage"],
+      ],
+    },
+    {
+      label: "Performance",
+      items: [
+        ["classement",    "🏆", "Classement"],
+        ["kpichauffeurs", "📈", "KPI chauffeurs"],
+        ["extraction",    "📤", "Extraction"],
       ],
     },
     {
@@ -784,6 +814,15 @@ export default function AdminPage() {
           </div>
         )}
 
+        {(tab === "classement" || tab === "kpichauffeurs" || tab === "extraction") && (() => {
+          // même période et mêmes chauffeurs que la barre de filtres (v2) ou les mois choisis (legacy)
+          const common = {
+            range: { from: periodFrom, to: periodTo },
+            driverIds: filterDriverIds,
+            periodLabel: uiV2 ? periodLabel(v2Period, new Date()) : `${periodFrom.split("-").reverse().join("/")} → ${periodTo.split("-").reverse().join("/")}`,
+          };
+          return tab === "classement" ? <ClassementV2 {...common} /> : tab === "kpichauffeurs" ? <KpiChauffeursV2 {...common} /> : <ExtractionV2 {...common} />;
+        })()}
         {tab === "calendrier" && <CalendrierTab filterDriverId={filterDriverId} filterDriverIds={uiV2 ? filterDriverIds : undefined} allDrivers={allDrivers} />}
         {tab === "payments" && adminTenantId && <PaymentsTab filterDriverId={filterDriverId} filterDriverIds={uiV2 ? filterDriverIds : undefined} tenantId={adminTenantId} />}
         {tab === "avances" && adminTenantId && <AvancesTab filterDriverId={filterDriverId} filterDriverIds={uiV2 ? filterDriverIds : undefined} tenantId={adminTenantId} />}
@@ -898,21 +937,13 @@ export default function AdminPage() {
           ) : tab === "history" ? (
             <HistoryV2
               reports={reports}
+              expenses={expenses}
+              uploadCounts={uploadCounts}
+              range={v2Range}
               drivers={filterDriverIds.length ? allDrivers.filter((d) => filterDriverIds.includes(d.id)) : allDrivers}
               loading={loadingReports}
               onRefresh={() => loadReports(filterDriverIds)}
               month={v2Range ? v2Range.to.slice(0, 7) : undefined}
-              list={
-                <ReportList
-                  reports={v2Range ? reports.filter((r) => inRange(r.date, v2Range)) : reports}
-                  expenses={v2Range ? expenses.filter((e) => inRange(e.expense_date || e.created_at, v2Range)) : expenses}
-                  loading={loadingReports}
-                  emptyMsg="Aucun rapport sur la période"
-                  title="Tous les rapports"
-                  onRefresh={() => loadReports(filterDriverIds)}
-                  groupByMonth
-                />
-              }
             />
           ) : tab === "vehicles" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
@@ -943,7 +974,10 @@ export default function AdminPage() {
                   v2={v2Range ? {
                     range: v2Range,
                     periodLabel: periodLabel(v2Period, new Date()),
-                    byMonth: kpis.loading || !v2Months ? null : v2Months.map((r, i) => ({ range: r, allocations: kpisByMonth[i].driverAllocations ?? [] })),
+                    // pendant un recalcul, on garde les dernières allocations affichées (pas de
+                    // squelette après chaque paiement) ; kpisLoading verrouille « Marquer payé »
+                    byMonth: !v2Months ? null : v2Months.map((r, i) => ({ range: r, allocations: kpisByMonth[i].driverAllocations ?? [] })),
+                    kpisLoading: kpis.loading || kpisByMonth.some((k) => k.loading),
                     cfg: remunCfg,
                     reports,
                     expenses,
@@ -2245,9 +2279,15 @@ function KycAdminTab({ tenantId, filterDriverId = "" }: { tenantId: string; filt
 }
 
 // ─── REPORT LIST ─────────────────────────────────────
-function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh, groupByMonth = false }: {
+function ReportList({ reports: allReports, expenses: allExpenses, loading, emptyMsg, title, onRefresh, groupByMonth = false }: {
   reports: any[]; expenses: any[]; loading: boolean; emptyMsg: string; title: string; onRefresh: () => void; groupByMonth?: boolean;
 }) {
+  // Filtre de statut (Tous / En attente / Validées / Rejetées) — les lignes
+  // archivées (remplacées) restent écartées seulement quand un statut est choisi.
+  const [statusFilter, setStatusFilter] = useState<HistoryStatusFilter>("all");
+  const byStatus = (s: unknown) => statusFilter === "all" || normStatus(s) === statusFilter;
+  const reports = allReports.filter((r) => byStatus(r.status));
+  const expenses = allExpenses.filter((e) => byStatus(e.status));
   const [selected, setSelected] = useState<any | null>(null);
   const [selectedExpense, setSelectedExpense] = useState<any | null>(null);
   const [activeTab, setActiveTab] = useState<"reports" | "expenses">("reports");
@@ -2289,6 +2329,13 @@ function ReportList({ reports, expenses, loading, emptyMsg, title, onRefresh, gr
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-white">{title}</h2>
         <div className="flex gap-2">
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as HistoryStatusFilter)} aria-label="Statut"
+            className="text-sm px-3 py-1.5 rounded-lg" style={{ background: "var(--sk-surface)", color: "var(--sk-t2)", border: "none" }}>
+            <option value="all">Tous</option>
+            <option value="submitted">En attente</option>
+            <option value="approved">Validées</option>
+            <option value="rejected">Rejetées</option>
+          </select>
           {(["reports", "expenses"] as const).map((t) => (
             <button key={t} onClick={() => setActiveTab(t)}
               className="text-sm px-4 py-1.5 rounded-lg font-semibold"
@@ -3241,6 +3288,8 @@ function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId, v2 }: {
     periodLabel: string;
     /** un élément par mois choisi (plusieurs mois : additionnés ligne à ligne) */
     byMonth: { range: { from: string; to: string }; allocations: SalaryAllocation[] }[] | null;
+    /** KPI en cours de recalcul : lignes possiblement périmées, paiement direct verrouillé */
+    kpisLoading?: boolean;
     cfg: Record<string, unknown> | null;
     reports: object[];
     expenses: object[];
@@ -3264,10 +3313,11 @@ function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId, v2 }: {
 
   useEffect(() => { load(); }, [tenantId, filterDriverId]);
 
-  const load = async () => {
-    setLoading(true);
+  // silent : rechargement après écriture sans repasser le tableau en squelette
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
-      const params = new URLSearchParams({ tenantId });
+      const params = new URLSearchParams({ tenantId, pageSize: "500" });
       if (filterDriverId) params.set("driverId", filterDriverId);
       const json = await fetchJsonRetry(`/api/admin/payments?${params}`);
       setPayments(json.payments || []);
@@ -3281,11 +3331,11 @@ function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId, v2 }: {
   };
 
   const save = async () => {
-    if (!form.driver_id || !form.amount) { alert("Chauffeur et montant requis"); return; }
+    if (!form.driver_id || !(parseFloat(form.amount) > 0)) { alert("Chauffeur et montant (> 0) requis"); return; }
     setSaving(true);
     try {
       const supabase = createClient() as any;
-      const { error } = await supabase.from("payments").insert({
+      const { data: newPay, error } = await supabase.from("payments").insert({
         driver_id: form.driver_id,
         tenant_id: tenantId,
         amount: parseFloat(form.amount),
@@ -3293,15 +3343,14 @@ function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId, v2 }: {
         salary_month: form.salary_month || null,
         type: form.type,
         notes: form.notes || null,
-      });
+      }).select("*").single();
       if (error) throw error;
-      // Get the newly created payment id for file uploads
-      const supabase2 = createClient() as any;
-      const { data: newPay } = await supabase2.from("payments").select("id").eq("driver_id", form.driver_id).order("created_at", { ascending: false }).limit(1).single();
+      // la ligne créée (et son id pour les pièces jointes) vient de l'insert lui-même
+      if (newPay) setPayments((ps) => [newPay, ...ps]);
       setNewPaymentId(newPay?.id || null);
       setNewPaymentDriverId(form.driver_id);
       setForm((f) => ({ ...f, amount: "", notes: "" }));
-      await load();
+      await load(true);
       v2?.onChanged();
     } catch (err: any) { alert("Erreur : " + err.message); }
     finally { setSaving(false); }
@@ -3310,19 +3359,66 @@ function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId, v2 }: {
   const deletePayment = async (id: string) => {
     if (!confirm("Supprimer ce paiement ?")) return;
     const supabase = createClient() as any;
-    await supabase.from("payments").delete().eq("id", id);
-    await load();
+    const { error } = await supabase.from("payments").delete().eq("id", id);
+    if (error) { alert("Suppression impossible : " + error.message); return; }
+    setPayments((ps) => ps.filter((p) => p.id !== id));
+    await load(true);
     v2?.onChanged();
   };
 
-  // v2 « Marquer payé » : ouvre le formulaire existant pré-rempli (même enregistrement).
-  const markPaid = (row: SalaryRow & { restByMonth?: { month: string; reste: number }[] }) => {
+  // v2 « Marquer payé » : un clic + confirmation → paiement « salaire » enregistré
+  // directement. Verrou par ligne (pas de double envoi) et ligne mise à jour tout
+  // de suite ; le formulaire complet reste disponible pour un montant différent.
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const markPaid = async (row: SalaryRow & { restByMonth?: { month: string; reste: number }[] }) => {
+    if (payingId || v2?.kpisLoading) return;
     // plusieurs mois : le mois le plus récent qui reste dû (un paiement = un mois de salaire)
     const target = row.restByMonth ? [...row.restByMonth].reverse().find((x) => x.reste > 0) : undefined;
-    setNewPaymentId(null);
-    setForm((f) => ({ ...f, driver_id: row.driverId, amount: String(Math.round(target ? target.reste : row.reste)), payment_date: today, salary_month: target ? `${target.month}-01` : v2 ? salaryMonthOf(v2.range) : f.salary_month, type: "salaire", notes: "" }));
-    setShowForm(true);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    const amount = Math.round(target ? target.reste : row.reste);
+    const month = target ? `${target.month}-01` : v2 ? salaryMonthOf(v2.range) : thisMonth;
+    if (!(amount > 0)) return;
+    // Période partielle (Jour, 7 j, Dates) : le dû n'est qu'une fraction du mois —
+    // pas de paiement direct, formulaire pré-rempli à vérifier (ancien parcours).
+    if (v2 && !isFullMonths(v2.range)) {
+      setNewPaymentId(null);
+      setForm((f) => ({ ...f, driver_id: row.driverId, amount: String(amount), payment_date: today, salary_month: month, type: "salaire", notes: "" }));
+      setShowForm(true);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    const moisLabel = new Date(`${month}T12:00:00`).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+    if (!confirm(`Enregistrer le paiement du salaire de ${row.name} ?
+
+${xof(amount)} XOF · salaire de ${moisLabel} · payé le ${today.split("-").reverse().join("/")}`)) return;
+    setPayingId(row.driverId);
+    try {
+      const supabase = createClient() as any;
+      // Garde anti-doublon juste avant l'écriture : un salaire déjà enregistré pour
+      // ce mois (autre onglet, autre admin, paiement hors de la liste chargée).
+      const { data: existing, error: exErr } = await supabase.from("payments").select("amount,payment_date")
+        .eq("tenant_id", tenantId).eq("driver_id", row.driverId).eq("type", "salaire").eq("salary_month", month);
+      if (exErr) throw exErr;
+      if (existing?.length) {
+        const deja = existing.reduce((s2: number, p: { amount: number }) => s2 + (p.amount || 0), 0);
+        if (!confirm(`Attention : ${xof(deja)} XOF de salaire sont déjà enregistrés pour ${row.name} sur ${moisLabel}.
+
+Enregistrer quand même ${xof(amount)} XOF de plus ?`)) { await load(true); return; }
+      }
+      const { data, error } = await supabase.from("payments").insert({
+        driver_id: row.driverId, tenant_id: tenantId, amount, payment_date: today,
+        salary_month: month, type: "salaire", notes: null,
+      }).select("*").single();
+      if (error) throw error;
+      if (data) setPayments((ps) => [data, ...ps]);
+      setNewPaymentId(data?.id ?? null);
+      setNewPaymentDriverId(row.driverId);
+      await load(true);
+      v2?.onChanged();
+    } catch (err) {
+      alert("Paiement non enregistré : " + (err instanceof Error ? err.message : (err as { message?: string })?.message ?? String(err)));
+    } finally {
+      setPayingId(null);
+    }
   };
 
   const typeBadge = (t: string) => {
@@ -3432,7 +3528,7 @@ function PaymentsTab({ filterDriverId = "", filterDriverIds, tenantId, v2 }: {
 
       {v2 && (
         v2.cfg ? (
-          <SalaryTableV2 rows={v2Rows} loading={loading || !v2.byMonth} periodLabel={v2.periodLabel} onMarkPaid={markPaid} />
+          <SalaryTableV2 rows={v2Rows} loading={(loading && !payments.length) || !v2.byMonth || (!!v2.kpisLoading && v2Rows.length === 0)} periodLabel={v2.periodLabel} onMarkPaid={markPaid} payingId={payingId} locked={!!v2.kpisLoading} />
         ) : (
           <div className="text-sm" style={{ color: "var(--sk-t3)" }}>Configurez la rémunération (Paramètres → Rémunération) pour voir les salaires dus.</div>
         )
@@ -3613,8 +3709,9 @@ function AvancesTab({ filterDriverId = "", filterDriverIds, tenantId, range }: {
 
   useEffect(() => { load(); }, [tenantId, filterDriverId]);
 
-  const load = async () => {
-    setLoading(true);
+  // silent : rechargement après écriture sans repasser le tableau en squelette
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams({ tenantId, type: "acompte" });
       if (filterDriverId) params.set("driverId", filterDriverId);
@@ -3846,8 +3943,9 @@ function CalendrierTab({ filterDriverId, filterDriverIds, allDrivers }: { filter
   const lastDay = new Date(viewYear, viewMonth + 1, 0).getDate();
   const monthEnd = `${monthStr}-${String(lastDay).padStart(2, "0")}`;
 
-  const load = async () => {
-    setLoading(true);
+  // silent : rechargement après écriture sans repasser le tableau en squelette
+  const load = async (silent = false) => {
+    if (!silent) setLoading(true);
     const supabase = createClient() as any;
     const { data } = await supabase.from("daily_reports")
       .select("id, driver_id, date, status, comment, gross_earnings, net_after_expenses")

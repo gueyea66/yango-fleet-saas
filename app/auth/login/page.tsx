@@ -23,7 +23,7 @@ export default function LoginPage() {
       style={{ background: "linear-gradient(135deg, var(--sk-deep) 0%, var(--sk-bg) 50%, #0a0c12 100%)" }}>
       <div className="fixed inset-0 pointer-events-none" style={{ background: `radial-gradient(ellipse 60% 40% at 50% 0%, ${brand}10 0%, transparent 70%)` }} />
       <div className="w-full max-w-[400px] relative">
-        <a href="/" className="inline-flex items-center gap-1.5 text-xs mb-6 transition-opacity hover:opacity-80" style={{ color: "var(--sk-t3)" }}>
+        <a href="/" className="pwa-hide inline-flex items-center gap-1.5 text-xs mb-6 transition-opacity hover:opacity-80" style={{ color: "var(--sk-t3)" }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <path d="M19 12H5M5 12l7-7M5 12l7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>

@@ -193,7 +193,7 @@ function AdminShellDemo() {
         <TeamV2 drivers={DEMO_DRIVERS} onOpenHistory={() => setTab("history")}
           renderDocuments={() => <Card style={{ minHeight: 160, color: "var(--v2-muted)", fontSize: 14 }}>Documents KYC du chauffeur (composant actuel)</Card>} />
       ) : tab === "history" ? (
-        <HistoryV2 reports={DEMO_HISTORY} drivers={DEMO_DRIVERS} loading={false} onRefresh={() => {}} list={<Card>Liste actuelle</Card>} />
+        <HistoryV2 reports={DEMO_HISTORY} drivers={DEMO_DRIVERS} loading={false} onRefresh={() => {}} />
       ) : tab === "payments" || tab === "avances" ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           <FinanceKpisV2 kpis={{ ...DEMO_KPIS, expenseBreakdown: [...DEMO_KPIS.expenseBreakdown, { type: "💵 Salaires", amount: 690000, percent: 0 }] }} />

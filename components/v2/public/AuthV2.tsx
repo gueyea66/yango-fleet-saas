@@ -112,7 +112,7 @@ export function LoginV2() {
           <Link href="/superadmin" className="v2-link">Espace opérateur</Link>
         </div>
         <PoweredBy />
-        <Link href="/" className="v2-link" style={{ color: "var(--sk-t3)" }}>Retour au site</Link>
+        <Link href="/" className="v2-link pwa-hide" style={{ color: "var(--sk-t3)" }}>Retour au site</Link>
       </div>
     </AuthShellV2>
   );

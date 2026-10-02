@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, CircleCheck, TriangleAlert, MessageSquare, Sparkles, Info, ChevronDown, ChevronRight, Paperclip } from "lucide-react";
+import { Check, CircleCheck, TriangleAlert, MessageSquare, Sparkles, Info, ChevronDown, ChevronRight } from "lucide-react";
 import { Badge, Button, Segmented, Toast } from "@/components/ui";
 import { useReportReview } from "@/components/admin/useReportReview";
 import { useExpenseReview } from "@/components/admin/useExpenseReview";
@@ -11,6 +11,7 @@ import { formatAmount } from "@/lib/v2/format";
 import { netCheck, shortDayFr } from "@/lib/v2/driver";
 import { daysBetween, extractionConfidence, gpsGap, isNew, kmDeclared, nextSelection } from "@/lib/v2/validation";
 import { useReviewContext } from "./useReviewContext";
+import { AttachmentTile } from "@/components/admin/AttachmentTile";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- lignes rapports / dépenses non typées (convention du projet) */
 
@@ -162,8 +163,6 @@ export function ReportPanel({ report, onRefresh, onAction }: { report: any; onRe
   const kmDecl = kmDeclared(report.end_odometer, ctx.prevOdometer);
   const gap = gpsGap({ kmDecl, kmGps: ctx.gps?.km_gps ?? null, coverage: ctx.gps?.coverage, points: ctx.gps?.points, daysCovered: ctx.prevDate ? daysBetween(ctx.prevDate, report.date) : null });
   const repos = typeof report.comment === "string" && report.comment.startsWith("[REPOS]");
-  const images = rv.uploads.filter((u: any) => u.isImg);
-  const files = rv.uploads.filter((u: any) => !u.isImg);
 
   const act = async (status: "approved" | "rejected") => {
     onAction(report.id, status === "approved" ? `Rapport validé — ${name} est notifié` : `Rapport rejeté — ${name} est notifié`);
@@ -255,18 +254,8 @@ export function ReportPanel({ report, onRefresh, onAction }: { report: any; onRe
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>Captures</div>
-          {images.length === 0 && files.length === 0 && <div style={{ fontSize: 13, color: "var(--sk-t3)" }}>Aucune pièce jointe</div>}
-          {images.map((u: any, i: number) => (
-            <a key={i} href={u.publicUrl} target="_blank" rel="noopener noreferrer" className="v2-focus" style={{ display: "block", borderRadius: 10, overflow: "hidden", border: "1px solid var(--sk-surface)" }}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- URL de stockage signée */}
-              <img src={u.publicUrl} alt={u.file_name} style={{ width: "100%", maxHeight: 220, objectFit: "cover", display: "block" }} />
-            </a>
-          ))}
-          {files.map((u: any, i: number) => (
-            <a key={i} href={u.publicUrl} target="_blank" rel="noopener noreferrer" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--sk-t2)", padding: "8px 10px", borderRadius: 8, background: "var(--sk-bg)", border: "1px solid var(--sk-surface)" }}>
-              <Paperclip size={13} aria-hidden /><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.file_name}</span>
-            </a>
-          ))}
+          {rv.uploads.length === 0 && <div style={{ fontSize: 13, color: "var(--sk-t3)" }}>Aucune pièce jointe</div>}
+          {rv.uploads.map((u: any, i: number) => <AttachmentTile key={u.id ?? i} u={u} onRetry={rv.reloadUploads} />)}
         </div>
       </div>
     </PanelShell>
@@ -310,12 +299,11 @@ function ReportEditForm({ rv, report }: { rv: ReturnType<typeof useReportReview>
   );
 }
 
-function ExpensePanel({ expense, onRefresh, onAction }: { expense: any; onRefresh: () => void; onAction: (id: string, label: string) => void }) {
+export function ExpensePanel({ expense, onRefresh, onAction }: { expense: any; onRefresh: () => void; onAction: (id: string, label: string) => void }) {
   const ev = useExpenseReview(expense, onRefresh);
   const [edit, setEdit] = useState(false);
   const name = nameOf(expense);
-  const images = ev.uploads.filter((u: any) => u.isImg);
-  const autres = ev.uploads.filter((u: any) => !u.isImg);
+  const images = ev.uploads.filter((u: any) => u.kind === "image" || u.kind === "heic");
   const pjRef = useRef<HTMLInputElement>(null);
   const act = async (status: "approved" | "rejected") => {
     onAction(expense.id, status === "approved" ? `Dépense validée — ${name} est notifié` : `Dépense rejetée — ${name} est notifié`);
@@ -384,23 +372,12 @@ function ExpensePanel({ expense, onRefresh, onAction }: { expense: any; onRefres
           <input ref={pjRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.pdf" multiple hidden
             onChange={(e) => { Array.from(e.target.files || []).forEach(ev.uploadFile); e.target.value = ""; }} />
           {ev.uploads.length === 0 && <div style={{ fontSize: 13, color: "var(--sk-t3)" }}>Aucune photo</div>}
-          {images.map((u: any, i: number) => (
-            <div key={i} style={{ position: "relative" }}>
-              <a href={u.publicUrl} target="_blank" rel="noopener noreferrer" className="v2-focus" style={{ display: "block", borderRadius: 10, overflow: "hidden", border: "1px solid var(--sk-surface)" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element -- URL de stockage signée */}
-                <img src={u.publicUrl} alt={u.file_name} style={{ width: "100%", maxHeight: 220, objectFit: "cover", display: "block" }} />
-              </a>
+          {ev.uploads.map((u: any, i: number) => (
+            <div key={u.id ?? i} style={{ position: "relative" }}>
+              <AttachmentTile u={u} onRetry={ev.reloadUploads} />
               <button type="button" onClick={() => ev.deleteUpload(u)} disabled={ev.uploading}
                 aria-label={`Supprimer ${u.file_name}`} title={`Supprimer ${u.file_name}`}
                 style={{ position: "absolute", top: 6, right: 6, width: 26, height: 26, borderRadius: 13, background: "rgba(0,0,0,.65)", color: "#fff", border: "none", cursor: "pointer", fontSize: 12, lineHeight: 1 }}>✕</button>
-            </div>
-          ))}
-          {autres.map((u: any, i: number) => (
-            <div key={`f${i}`} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 10, background: "var(--sk-surface)", fontSize: 13 }}>
-              <span aria-hidden>📄</span>
-              <a href={u.publicUrl} target="_blank" rel="noopener noreferrer" style={{ flex: 1, color: "inherit", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{u.file_name}</a>
-              <button type="button" onClick={() => ev.deleteUpload(u)} disabled={ev.uploading}
-                aria-label={`Supprimer ${u.file_name}`} style={{ background: "none", border: "none", color: "var(--v2-negative-ink)", cursor: "pointer" }}>✕</button>
             </div>
           ))}
         </div>

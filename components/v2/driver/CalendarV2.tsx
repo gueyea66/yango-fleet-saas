@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BedDouble, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, Button, Badge } from "@/components/ui";
-import { ReportHistoryCard, ExpenseCard } from "@/components/driver/DriverCards";
+import { ReportHistoryCard, ExpenseCard, UploadBlock } from "@/components/driver/DriverCards";
 import { useReposForm } from "@/components/driver/useReposForm";
 import type { Profile } from "@/components/driver/shared";
 import { displayLabel } from "@/lib/tenant/platformLabel";
@@ -128,6 +128,15 @@ export function CalendarV2({ profile, onBack, startWithRepos = false }: { profil
             <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>Rien de déclaré ce jour-là.</div>
           )}
         </Card>
+
+        {/* Photos de tout ce qui a été déclaré ce jour-là, en consultation : avant,
+            seules les lignes rejetées montraient leurs pièces jointes. */}
+        {active && st !== "repos" && (
+          <UploadBlock driverId={profile.id} refId={active.id} refType="report" label="Photos de la déclaration" readOnly />
+        )}
+        {dayExpenses.filter((e) => e.status !== "rejected").map((e) => (
+          <UploadBlock key={e.id} driverId={profile.id} refId={e.id} refType="expense" label={`Reçu · ${displayLabel(e.category || "Autre").toLowerCase()}`} readOnly />
+        ))}
 
         {/* Corrections : cartes actuelles (resoumettre / archiver / pièces jointes). */}
         {rejected.map((r) => <ReportHistoryCard key={r.id} report={r} profile={profile} onRefresh={refresh} />)}

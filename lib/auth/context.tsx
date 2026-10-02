@@ -35,13 +35,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signOut = () => {
-    // Clear everything locally — instant, no network call
+    // Nettoyage local immédiat, puis révocation du cookie serveur ci-dessous
     localStorage.removeItem("yango-auth");
     localStorage.removeItem("yango-session");
     clearClient(); // Reset singleton so next login creates fresh client
     setUser(null);
-    // Redirect to login
-    window.location.href = "/auth/login";
+    // Cookie de session serveur aussi (sinon /api/* et /open restent ouverts),
+    // puis connexion — même si l'appel échoue (hors ligne), on redirige.
+    const go = () => { window.location.href = "/auth/login"; };
+    // 3 s max : sur réseau lent, la déconnexion ne paraît jamais bloquée
+    fetch("/api/auth/signout", { method: "POST", keepalive: true, signal: AbortSignal.timeout(3000) }).then(go, go);
   };
 
   return (

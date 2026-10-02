@@ -9,7 +9,10 @@ import { monthNameFr, shortDayFr, type DayStatus } from "@/lib/v2/driver";
 import { financeKpis, kycState, teamCounts, driverDayGrid, type KycState } from "@/lib/v2/team";
 import { initials } from "@/lib/v2/format";
 import { decaissementsDetail, margeApresSalaires } from "@/lib/v2/finance";
-import { ReportPanel } from "./PendingV2";
+import { ExpensePanel, ReportPanel } from "./PendingV2";
+import { displayLabel } from "@/lib/tenant/platformLabel";
+import type { PeriodRange } from "@/lib/v2/periodFilter";
+import { buildHistoryRows, historyStatusCounts, type HistoryRow, type HistoryStatus, type HistoryStatusFilter, type HistoryTypeFilter } from "@/lib/v2/history";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- lignes non typées (convention du projet) */
 
@@ -65,16 +68,143 @@ const CELL: Record<Exclude<DayStatus, null>, { bg: string; bd: string; label: st
   repos: { bg: "var(--sk-surface)", bd: "var(--sk-border)", label: "Repos" },
 };
 
-export function HistoryV2({ reports, drivers, loading, onRefresh, list, month }: {
+const STATUS_LOOK: Record<HistoryStatus, { tone: "ok" | "wait" | "neg"; label: string }> = {
+  approved: { tone: "ok", label: "Validée" },
+  submitted: { tone: "wait", label: "En attente" },
+  rejected: { tone: "neg", label: "Rejetée" },
+};
+/** Lignes affichées d'un coup (une année entière peut en compter des milliers). */
+const PAGE_LISTE = 150;
+
+/**
+ * Historique admin. Vue par défaut : LISTE unique des déclarations et des
+ * déclarations de charge, tous statuts, avec filtre de statut et de type, et
+ * l'indicateur de photos jointes (retour Abdou 01/10). La grille chauffeurs ×
+ * jours reste disponible (« Calendrier »).
+ */
+export function HistoryV2({ reports, expenses = [], drivers, loading, onRefresh, month, range, uploadCounts }: {
   reports: any[];
+  expenses?: any[];
   /** mois de la barre de filtres (AAAA-MM) : la grille s'y place */
+  month?: string;
+  /** période de la barre de filtres : la liste s'y limite */
+  range?: PeriodRange | null;
+  drivers: { id: string; full_name?: string; driver_id?: string }[];
+  loading: boolean;
+  onRefresh: () => void;
+  /** pièces jointes par id de rapport / dépense (indicateur 📷) */
+  uploadCounts?: Record<string, number>;
+}) {
+  const [view, setView] = useState<"liste" | "grille">("liste");
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <Segmented
+        options={[{ key: "liste", label: "Liste" }, { key: "grille", label: "Calendrier" }]}
+        value={view} onChange={setView} ariaLabel="Affichage de l'historique" style={{ alignSelf: "flex-start" }}
+      />
+      {view === "liste"
+        ? <HistoryListV2 reports={reports} expenses={expenses} drivers={drivers} loading={loading} onRefresh={onRefresh} range={range} uploadCounts={uploadCounts} />
+        : <HistoryGridV2 reports={reports} drivers={drivers} loading={loading} onRefresh={onRefresh} month={month} />}
+    </div>
+  );
+}
+
+function HistoryListV2({ reports, expenses, drivers, loading, onRefresh, range, uploadCounts }: {
+  reports: any[]; expenses: any[]; drivers: { id: string; full_name?: string; driver_id?: string }[];
+  loading: boolean; onRefresh: () => void; range?: PeriodRange | null; uploadCounts?: Record<string, number>;
+}) {
+  const [type, setType] = useState<HistoryTypeFilter>("all");
+  const [status, setStatus] = useState<HistoryStatusFilter>("all");
+  const [shown, setShown] = useState(PAGE_LISTE);
+  const [selKey, setSelKey] = useState<string | null>(null);
+  // Le filtre chauffeur est appliqué côté serveur (driverIds) : la liste prend
+  // tout ce qui est chargé, bornée à la période de la barre de filtres.
+  const typed = useMemo(
+    () => buildHistoryRows(reports, expenses, { type, range, counts: uploadCounts }),
+    [reports, expenses, type, range, uploadCounts],
+  );
+  // Compteurs de statut sur le type choisi (avant filtre de statut).
+  const counts = historyStatusCounts(typed);
+  const rows = useMemo(() => (status === "all" ? typed : typed.filter((r) => r.status === status)), [typed, status]);
+  const nameById = useMemo(() => new Map(drivers.map((d) => [d.id, d.full_name || d.driver_id || ""])), [drivers]);
+  const nameOf = (r: HistoryRow) => r.raw?._profile?.full_name || nameById.get(r.driverId) || r.raw?._profile?.driver_id || "Chauffeur";
+  const keyOf = (r: HistoryRow) => `${r.kind}:${r.id}`;
+  const selected = rows.find((r) => keyOf(r) === selKey) ?? null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <Segmented
+          options={[{ key: "all", label: "Tout" }, { key: "report", label: "Déclarations" }, { key: "expense", label: "Charges" }]}
+          value={type} onChange={(k) => { setType(k); setShown(PAGE_LISTE); }} ariaLabel="Type de déclaration"
+        />
+        <Segmented
+          options={[
+            { key: "all", label: `Tous ${counts.all}` },
+            { key: "submitted", label: `En attente ${counts.submitted}` },
+            { key: "approved", label: `Validées ${counts.approved}` },
+            { key: "rejected", label: `Rejetées ${counts.rejected}` },
+          ]}
+          value={status} onChange={(k) => { setStatus(k); setShown(PAGE_LISTE); }} ariaLabel="Statut"
+        />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-[380px_1fr]" style={{ borderRadius: 14, border: "1px solid var(--sk-surface)", background: "var(--sk-deep)", overflow: "hidden", minHeight: 480 }}>
+        <div role="listbox" aria-label="Historique des déclarations" style={{ borderRight: "1px solid var(--sk-surface)", overflowY: "auto", maxHeight: 720, minWidth: 0 }}>
+          {loading && rows.length === 0 ? (
+            [0, 1, 2].map((i) => <div key={i} className="v2-skeleton" style={{ height: 58, margin: "8px 16px", borderRadius: 10 }} aria-hidden />)
+          ) : rows.length === 0 ? (
+            <div style={{ padding: "40px 20px", textAlign: "center", color: "var(--v2-muted)", fontSize: 14 }}>Aucune déclaration sur la période</div>
+          ) : rows.slice(0, shown).map((r) => {
+            const on = keyOf(r) === selKey;
+            const look = STATUS_LOOK[r.status];
+            return (
+              <button key={keyOf(r)} type="button" role="option" aria-selected={on} onClick={() => setSelKey(keyOf(r))} className="v2-row v2-focus"
+                style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%", padding: "12px 18px", textAlign: "left", cursor: "pointer", border: "none", borderBottom: "1px solid var(--sk-surface)", color: "inherit",
+                  background: on ? "var(--v2-select-bg)" : "transparent", boxShadow: on ? "inset 2px 0 0 var(--tenant-color)" : undefined }}>
+                <span style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: on ? 600 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nameOf(r)}</span>
+                  <span className="v2-num" style={{ fontSize: 14, color: r.kind === "expense" ? "var(--v2-negative-ink)" : undefined }}>
+                    {r.repos ? "—" : `${r.kind === "expense" ? "−" : ""}${formatAmount(r.amount)}`}
+                  </span>
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--v2-muted)", flexWrap: "wrap" }}>
+                  <span>{shortDayFr(r.date)} · {r.kind === "report" ? (r.repos ? "jour de repos" : "déclaration") : `charge ${displayLabel(r.raw?.category || "Autre").toLowerCase()}`}</span>
+                  <Badge tone={look.tone} square style={{ fontSize: 10 }}>{look.label}</Badge>
+                  {r.photos > 0 && <span title={`${r.photos} pièce(s) jointe(s)`}>📷 {r.photos}</span>}
+                </span>
+              </button>
+            );
+          })}
+          {rows.length > shown && (
+            <div style={{ padding: 12, display: "flex", justifyContent: "center" }}>
+              <Button variant="outline" size="sm" onClick={() => setShown((n) => n + PAGE_LISTE)}>Afficher plus ({rows.length - shown} restantes)</Button>
+            </div>
+          )}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          {!selected ? (
+            <div style={{ height: "100%", minHeight: 300, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--v2-muted)", fontSize: 14, padding: 20, textAlign: "center" }}>
+              Choisis une déclaration pour voir le détail et les photos.
+            </div>
+          ) : selected.kind === "report" ? (
+            <ReportPanel key={selected.id} report={selected.raw} onRefresh={onRefresh} onAction={() => {}} />
+          ) : (
+            <ExpensePanel key={selected.id} expense={selected.raw} onRefresh={onRefresh} onAction={() => {}} />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Grille chauffeurs × jours (ancienne vue par défaut, onglet « Calendrier »). */
+function HistoryGridV2({ reports, drivers, loading, onRefresh, month }: {
+  reports: any[];
   month?: string;
   drivers: { id: string; full_name?: string; driver_id?: string }[];
   loading: boolean;
   onRefresh: () => void;
-  list: ReactNode;
 }) {
-  const [view, setView] = useState<"grille" | "liste">("grille");
   const now = new Date();
   const [ym, setYm] = useState(() => (month ? { y: Number(month.slice(0, 4)), m: Number(month.slice(5, 7)) - 1 } : { y: now.getFullYear(), m: now.getMonth() }));
   // Suit le mois choisi dans la barre de filtres.
@@ -97,67 +227,56 @@ export function HistoryV2({ reports, drivers, loading, onRefresh, list, month }:
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <Button variant="outline" size="sm" onClick={() => setView(view === "grille" ? "liste" : "grille")}>
-          {view === "grille" ? "Voir en liste" : "Voir la grille"}
-        </Button>
-        {view === "grille" && (
-          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-            <button type="button" aria-label="Mois précédent" onClick={() => shift(-1)} className="v2-focus" style={navBtn}><ChevronLeft size={16} aria-hidden /></button>
-            <span style={{ fontSize: 14, fontWeight: 600, minWidth: 130, textAlign: "center", textTransform: "capitalize" }}>{monthNameFr(ym.m)} {ym.y}</span>
-            <button type="button" aria-label="Mois suivant" onClick={() => shift(1)} className="v2-focus" style={navBtn}><ChevronRight size={16} aria-hidden /></button>
-          </div>
-        )}
-        {view === "grille" && (
-          <div style={{ display: "flex", gap: 12, fontSize: 12, color: "var(--v2-nav-inactive)", marginLeft: "auto", flexWrap: "wrap" }}>
-            {(Object.keys(CELL) as (keyof typeof CELL)[]).map((k) => (
-              <span key={k} style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: CELL[k].bd }} />{CELL[k].label}</span>
-            ))}
-          </div>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <button type="button" aria-label="Mois précédent" onClick={() => shift(-1)} className="v2-focus" style={navBtn}><ChevronLeft size={16} aria-hidden /></button>
+          <span style={{ fontSize: 14, fontWeight: 600, minWidth: 130, textAlign: "center", textTransform: "capitalize" }}>{monthNameFr(ym.m)} {ym.y}</span>
+          <button type="button" aria-label="Mois suivant" onClick={() => shift(1)} className="v2-focus" style={navBtn}><ChevronRight size={16} aria-hidden /></button>
+        </div>
+        <div style={{ display: "flex", gap: 12, fontSize: 12, color: "var(--v2-nav-inactive)", marginLeft: "auto", flexWrap: "wrap" }}>
+          {(Object.keys(CELL) as (keyof typeof CELL)[]).map((k) => (
+            <span key={k} style={{ display: "flex", alignItems: "center", gap: 6 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: CELL[k].bd }} />{CELL[k].label}</span>
+          ))}
+        </div>
       </div>
 
-      {view === "liste" ? list : (
-        <>
-          <Card flush style={{ overflowX: "auto" }}>
-            {loading && reports.length === 0 ? <div className="v2-skeleton" style={{ height: 200, margin: 16 }} aria-hidden /> : (
-              <table style={{ borderCollapse: "separate", borderSpacing: 3, padding: 12, fontSize: 12, minWidth: "100%" }}>
-                <thead>
-                  <tr>
-                    <th scope="col" style={{ textAlign: "left", fontWeight: 500, color: "var(--v2-muted)", padding: "0 8px 4px 4px", position: "sticky", left: 0, background: "var(--sk-bg)" }}>Chauffeur</th>
-                    {grid.days.map((d) => <th key={d} scope="col" className="v2-num" style={{ fontWeight: 400, color: "var(--sk-t3)", width: 22, textAlign: "center" }}>{Number(d.slice(8))}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {shownDrivers.map((dr) => (
-                    <tr key={dr.id}>
-                      <th scope="row" style={{ textAlign: "left", fontWeight: 500, fontSize: 13, padding: "0 10px 0 4px", whiteSpace: "nowrap", position: "sticky", left: 0, background: "var(--sk-bg)" }}>{dr.full_name || dr.driver_id}</th>
-                      {grid.days.map((d) => {
-                        const st = grid.cell(dr.id, d);
-                        const on = sel?.driver === dr.id && sel.date === d;
-                        return (
-                          <td key={d} style={{ padding: 0 }}>
-                            <button type="button" disabled={!st} onClick={() => setSel({ driver: dr.id, date: d })}
-                              aria-label={`${dr.full_name || dr.driver_id} · ${shortDayFr(d)}${st ? ` · ${CELL[st].label}` : ""}`} className="v2-focus"
-                              style={{ width: 22, height: 22, borderRadius: 5, padding: 0, cursor: st ? "pointer" : "default",
-                                background: st ? CELL[st].bg : "transparent", border: `1px solid ${st ? CELL[st].bd : "var(--sk-surface)"}`,
-                                boxShadow: on ? "0 0 0 2px var(--tenant-color)" : undefined }} />
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </Card>
-          {selectedReport ? (
-            <Card flush>
-              <ReportPanel key={selectedReport.id} report={selectedReport} onRefresh={onRefresh} onAction={() => {}} />
-            </Card>
-          ) : (
-            <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>Choisis une case pour voir le détail du jour.</div>
-          )}
-        </>
+      <Card flush style={{ overflowX: "auto" }}>
+        {loading && reports.length === 0 ? <div className="v2-skeleton" style={{ height: 200, margin: 16 }} aria-hidden /> : (
+          <table style={{ borderCollapse: "separate", borderSpacing: 3, padding: 12, fontSize: 12, minWidth: "100%" }}>
+            <thead>
+              <tr>
+                <th scope="col" style={{ textAlign: "left", fontWeight: 500, color: "var(--v2-muted)", padding: "0 8px 4px 4px", position: "sticky", left: 0, background: "var(--sk-bg)" }}>Chauffeur</th>
+                {grid.days.map((d) => <th key={d} scope="col" className="v2-num" style={{ fontWeight: 400, color: "var(--sk-t3)", width: 22, textAlign: "center" }}>{Number(d.slice(8))}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {shownDrivers.map((dr) => (
+                <tr key={dr.id}>
+                  <th scope="row" style={{ textAlign: "left", fontWeight: 500, fontSize: 13, padding: "0 10px 0 4px", whiteSpace: "nowrap", position: "sticky", left: 0, background: "var(--sk-bg)" }}>{dr.full_name || dr.driver_id}</th>
+                  {grid.days.map((d) => {
+                    const st = grid.cell(dr.id, d);
+                    const on = sel?.driver === dr.id && sel.date === d;
+                    return (
+                      <td key={d} style={{ padding: 0 }}>
+                        <button type="button" disabled={!st} onClick={() => setSel({ driver: dr.id, date: d })}
+                          aria-label={`${dr.full_name || dr.driver_id} · ${shortDayFr(d)}${st ? ` · ${CELL[st].label}` : ""}`} className="v2-focus"
+                          style={{ width: 22, height: 22, borderRadius: 5, padding: 0, cursor: st ? "pointer" : "default",
+                            background: st ? CELL[st].bg : "transparent", border: `1px solid ${st ? CELL[st].bd : "var(--sk-surface)"}`,
+                            boxShadow: on ? "0 0 0 2px var(--tenant-color)" : undefined }} />
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+      {selectedReport ? (
+        <Card flush>
+          <ReportPanel key={selectedReport.id} report={selectedReport} onRefresh={onRefresh} onAction={() => {}} />
+        </Card>
+      ) : (
+        <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>Choisis une case pour voir le détail du jour.</div>
       )}
     </div>
   );

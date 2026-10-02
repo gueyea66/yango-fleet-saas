@@ -61,7 +61,8 @@ Vérification au 29/09 : pour les 6 chauffeurs actifs, l'écart est inférieur �
 
 - **Page admin « Import Fleetroom »** : glisser-déposer des 2 ou 3 fichiers, avec la date pour l'export Soldes. Elle affiche un compte rendu : nouvelles lignes, lignes déjà connues, jours recalculés, écarts, chauffeurs inconnus. Elle s'appuie sur `ingestFleetroom`.
 - **Écran de rapprochement** pour `fleetroom_conflicts`, par exemple une carte déclarée par le chauffeur mais absente chez Yango.
-- **KPI et monitoring chauffeurs** à partir des données hors modèle de déclaration, à cadrer avec Abdou :
+- ✅ **KPI et monitoring chauffeurs** (02/10/2026) : menu Performance → Classement, KPI chauffeurs, Extraction (`/api/admin/analytics`, `lib/analytics/`). Acceptation, refus, heures en course, amplitude, occupation, XOF/km ; masqués sans données Fleetroom. Reste à faire dans la liste ci-dessous : zones, répartition horaire, croisement GPS.
+- Pistes initiales :
   - heures de début et de fin, amplitude, temps en course (environ 55 % de l'amplitude) ;
   - taux d'acceptation, refus, échecs de connexion ;
   - répartition horaire, zones de départ et d'arrivée (géocodage via `geocode_cache`), XOF par km ;

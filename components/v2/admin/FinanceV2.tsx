@@ -21,11 +21,15 @@ function Title({ children, sub }: { children: ReactNode; sub?: string }) {
 }
 
 /* ─── Salaires de la période : Chauffeur | Palier | Salaire dû | Avances | Reste à payer | Statut ─── */
-export function SalaryTableV2({ rows, loading, periodLabel, onMarkPaid }: {
+export function SalaryTableV2({ rows, loading, periodLabel, onMarkPaid, payingId, locked = false }: {
   rows: SalaryRow[];
   loading: boolean;
   periodLabel: string;
   onMarkPaid: (row: SalaryRow) => void;
+  /** ligne en cours d'enregistrement : bouton verrouillé (pas de double paiement) */
+  payingId?: string | null;
+  /** recalcul en cours : montants possiblement périmés, paiement direct désactivé */
+  locked?: boolean;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -62,7 +66,9 @@ export function SalaryTableV2({ rows, loading, periodLabel, onMarkPaid }: {
                           <CircleCheck size={14} aria-hidden /> Payé le {ddmm(r.paidOn)}
                         </span>
                       ) : r.reste > 0 ? (
-                        <Button size="sm" variant="outline" onClick={() => onMarkPaid(r)}>Marquer payé</Button>
+                        <Button size="sm" variant="outline" disabled={!!payingId || locked} title={locked ? "Recalcul en cours…" : undefined} onClick={() => onMarkPaid(r)}>
+                          {payingId === r.driverId ? "Enregistrement…" : "Marquer payé"}
+                        </Button>
                       ) : (
                         <span style={{ fontSize: 13, color: "var(--v2-muted)" }}>—</span>
                       )}

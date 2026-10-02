@@ -45,7 +45,9 @@ export default function PushOnboarding({ role }: { role: "admin" | "driver" }) {
 
   if (!visible) return null;
   return (
-    <div className="fixed bottom-4 left-4 right-4 sm:left-auto sm:w-[360px] z-[1100] rounded-2xl p-4 shadow-2xl"
+    // Mobile : posée AU-DESSUS de la barre d'onglets du bas (64 px + zone
+    // sûre) au lieu de la recouvrir ; ≥ sm : carte 360 px en bas à droite.
+    <div className="fixed bottom-[calc(80px+env(safe-area-inset-bottom,0px))] sm:bottom-4 left-4 right-4 sm:left-auto sm:w-[360px] z-[1100] rounded-2xl p-4 shadow-2xl"
       style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-border)", boxShadow: "0 12px 40px rgba(0,0,0,.45)" }}>
       <div className="flex items-start gap-3">
         <div className="text-2xl leading-none">🔔</div>

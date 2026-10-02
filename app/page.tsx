@@ -118,6 +118,17 @@ export default function Home() {
 
   return (
     <div style={{ background: "var(--sk-bg)", color: "var(--sk-t1)" }}>
+      {/* App installée (PWA/TWA, y compris une icône iOS posée depuis la
+          vitrine — iOS fige l'URL d'ajout) : jamais la vitrine à l'ouverture,
+          direction /open (connexion ou espace du rôle). Inline, avant le
+          premier rendu : pas de flash. Les visiteurs web gardent la vitrine
+          (page statique, SEO inchangé). */}
+      <script
+        dangerouslySetInnerHTML={{
+          __html:
+            `try{if(navigator.standalone===true||matchMedia("(display-mode: standalone), (display-mode: fullscreen), (display-mode: minimal-ui), (display-mode: window-controls-overlay)").matches)location.replace("/open")}catch(e){}`,
+        }}
+      />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />
       {/* ── HEADER ─────────────────────────────────────────────── */}

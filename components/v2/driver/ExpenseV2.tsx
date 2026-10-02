@@ -72,7 +72,7 @@ export function ExpenseV2({ profile, onNav }: { profile: Profile; onNav: (t: Dri
       <ScreenBody padding="20px 16px" gap={18}>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>Quoi ?</div>
-          <div role="radiogroup" aria-label="Catégorie" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
+          <div role="radiogroup" aria-label="Catégorie" style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
             {expenseTypes.map((t) => {
               const on = form.type === t;
               const Icon = CAT_ICONS[t] ?? Ellipsis;
@@ -167,7 +167,9 @@ export function ExpenseV2({ profile, onNav }: { profile: Profile; onNav: (t: Dri
           style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
           onChange={(e) => { addFiles(e.target.files); e.target.value = ""; }} />
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {/* minmax(0, 1fr) : un champ date iOS (largeur intrinsèque) ne peut plus
+            élargir la grille au-delà de l'écran. */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10 }}>
           <div>
             <Label htmlFor="v2-exp-date">Date</Label>
             <input id="v2-exp-date" type="date" value={form.expense_date} max={today} onChange={(e) => set("expense_date", e.target.value)} className="v2-focus" style={{ ...fieldStyle, colorScheme: "inherit" as never }} />

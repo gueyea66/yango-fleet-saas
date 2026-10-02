@@ -11,9 +11,12 @@ import { logAction } from "@/lib/logAction";
 import { Wallet, Paperclip, Calendar, HandCoins } from "lucide-react";
 import { xof, type Profile } from "./shared";
 import { obtenirUrlsSignees } from "@/lib/signedUrls";
+import { fileKind } from "@/lib/v2/history";
 
 // ─── UPLOAD BLOCK (reusable) ─────────────────────────
-export function UploadBlock({ driverId, refId, refType, label = "Photos / Reçus" }: { driverId: string; refId: string | null; refType: string; label?: string }) {
+// `readOnly` : consultation seule (jour validé ou en attente dans l'historique
+// v2) — pas de boutons d'ajout.
+export function UploadBlock({ driverId, refId, refType, label = "Photos / Reçus", readOnly = false }: { driverId: string; refId: string | null; refType: string; label?: string; readOnly?: boolean }) {
   const [uploading, setUploading] = useState(false);
   const [files, setFiles] = useState<{ name: string; url: string; isImg: boolean }[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(false);
@@ -33,10 +36,12 @@ export function UploadBlock({ driverId, refId, refType, label = "Photos / Reçus
             // Match by ref_id (new) OR by path containing refId (legacy)
             .filter((f: any) => f.ref_id === refId || f.file_path?.includes(refId));
           const urls = await obtenirUrlsSignees(liees.map((f: any) => f.file_path));
+          // HEIC/HEIF exclus des vignettes : non affichables hors Safari,
+          // ils passent en lien « Ouvrir ».
           setFiles(liees.map((f: any) => ({
             name: f.file_name,
             url: urls[f.file_path] || "",
-            isImg: /\.(jpg|jpeg|png|gif|webp|heic|heif)$/i.test(f.file_name),
+            isImg: fileKind(f.file_name) === "image",
           })));
         }
         setLoadingFiles(false);
@@ -58,7 +63,7 @@ export function UploadBlock({ driverId, refId, refType, label = "Photos / Reçus
       if (!res.ok) throw new Error(result.error || "Upload échoué");
 
       await supabase.from("uploads").insert({ driver_id: driverId, file_name: file.name, file_path: result.path || path, file_type: refType, file_size: file.size, ...(refId ? { ref_id: refId } : {}) });
-      const isImg = /\.(jpg|jpeg|png|gif|webp|heic)$/i.test(file.name);
+      const isImg = fileKind(file.name) === "image";
       setFiles((p) => [...p, { name: file.name, url: result.signedUrl || result.publicUrl, isImg }]);
     } catch (err: any) { alert("Upload échoué : " + err.message); }
     finally { setUploading(false); }
@@ -69,7 +74,7 @@ export function UploadBlock({ driverId, refId, refType, label = "Photos / Reçus
   return (
     <div className="rounded-xl p-4" style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)" }}>
       <div className="flex items-center gap-1.5 text-xs uppercase tracking-wider font-semibold mb-3" style={{ color: "var(--sk-t4)" }}><Paperclip size={12} strokeWidth={2} />{label}</div>
-      <div className="flex gap-2 mb-3">
+      {!readOnly && <div className="flex gap-2 mb-3">
         <button onClick={() => cameraRef.current?.click()} disabled={uploading}
           className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all"
           style={{ background: uploading ? "var(--sk-surface)" : "rgba(var(--tenant-color-rgb),.08)", border: "1px solid rgba(var(--tenant-color-rgb),.25)", color: uploading ? "#374151" : "var(--tenant-color)" }}>
@@ -80,7 +85,7 @@ export function UploadBlock({ driverId, refId, refType, label = "Photos / Reçus
           style={{ background: "transparent", borderColor: uploading ? "var(--tenant-color)" : "var(--sk-border)", color: uploading ? "var(--tenant-color)" : "var(--sk-t3)" }}>
           {uploading ? "⏳" : "📁 Fichier / Galerie"}
         </button>
-      </div>
+      </div>}
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
         onChange={(e) => { Array.from(e.target.files || []).forEach(upload); e.target.value = ""; }} />
       <input ref={fileRef} type="file" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,video/*" multiple className="hidden"
@@ -91,7 +96,11 @@ export function UploadBlock({ driverId, refId, refType, label = "Photos / Reçus
           {/* Image thumbnails grid */}
           {files.filter(f => f.isImg).length > 0 && (
             <div className="grid grid-cols-3 gap-2">
-              {files.filter(f => f.isImg).map((f, i) => (
+              {files.filter(f => f.isImg).map((f, i) => !f.url ? (
+                // Signature refusée : on le dit au lieu d'une vignette cassée.
+                <div key={i} title={f.name} className="w-full h-20 rounded-lg flex items-center justify-center text-center text-[10px] p-1"
+                  style={{ border: "1px dashed var(--sk-border)", color: "var(--sk-t3)" }}>Photo indisponible</div>
+              ) : (
                 <a key={i} href={f.url} target="_blank" rel="noopener noreferrer">
                   <img src={f.url} alt={f.name} className="w-full h-20 object-cover rounded-lg"
                     style={{ border: "1px solid var(--sk-surface)" }} />

@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
-  LayoutDashboard, Inbox, Gauge, Car, Users, Wallet, History, Settings, LogOut, Moon, Sun, TriangleAlert, type LucideIcon,
+  LayoutDashboard, Trophy, Inbox, Gauge, Car, Users, Wallet, History, Settings, LogOut, Moon, Sun, TriangleAlert, type LucideIcon,
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand/BrandShell";
 import NotificationBell from "@/components/NotificationBell";
@@ -15,7 +15,7 @@ import { initials } from "@/lib/v2/format";
 import { useAdminShellData } from "./useAdminShellData";
 
 const ICONS: Record<AdminDestination, LucideIcon> = {
-  dash: LayoutDashboard, valid: Inbox, pilot: Gauge, fleet: Car, team: Users, fin: Wallet, hist: History, set: Settings,
+  dash: LayoutDashboard, valid: Inbox, pilot: Gauge, perf: Trophy, fleet: Car, team: Users, fin: Wallet, hist: History, set: Settings,
 };
 
 export interface AdminShellFilters {

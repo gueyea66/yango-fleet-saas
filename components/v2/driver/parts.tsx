@@ -116,7 +116,8 @@ export function DoneHero({ title, text }: { title: string; text: ReactNode }) {
 
 /** Style commun des champs texte / date / select v2 (48–52 px). */
 export const fieldStyle: CSSProperties = {
-  width: "100%", height: 48, padding: "0 14px", borderRadius: 12, fontSize: 15,
+  // minWidth 0 : un champ date (largeur intrinsèque iOS) rétrécit avec sa colonne
+  width: "100%", minWidth: 0, height: 48, padding: "0 14px", borderRadius: 12, fontSize: 15,
   background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", outline: "none",
 };
 

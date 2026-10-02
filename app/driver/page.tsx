@@ -209,16 +209,18 @@ export default function DriverApp() {
       <div className="flex-1 flex flex-col min-h-screen md:min-h-0">
 
         {/* Mobile header (hidden on desktop) */}
-        <div className="md:hidden px-5 py-4 flex items-center justify-between sticky top-0 z-50"
+        {/* min-w-0 + truncate : un nom long se coupe au lieu d'élargir l'en-tête
+            au-delà de l'écran (débordement → page dézoomée sur mobile). */}
+        <div className="md:hidden px-4 py-4 flex items-center justify-between gap-2 sticky top-0 z-50"
           style={{ background: "var(--sk-bg)", borderBottom: "1px solid var(--sk-surface)" }}>
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
             <BrandLogo size={28} />
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--sk-t4)" }}>{settings.app_name}</div>
-              <div className="font-semibold text-sm text-white">{profile.full_name}</div>
+            <div className="min-w-0">
+              <div className="text-[10px] font-semibold uppercase tracking-widest truncate" style={{ color: "var(--sk-t4)" }}>{settings.app_name}</div>
+              <div className="font-semibold text-sm text-white truncate">{profile.full_name}</div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {/* Accès profil & KYC : dans l'en-tête, la barre du bas compte déjà 6 onglets */}
             <button onClick={() => setTab("profil")} aria-label="Mon profil et documents"
               aria-current={tab === "profil" ? "page" : undefined}
@@ -267,7 +269,7 @@ export default function DriverApp() {
 
       {/* ── MOBILE BOTTOM NAV ── (hidden on desktop) */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 flex z-50"
-        style={{ background: "var(--sk-bg)", borderTop: "1px solid var(--sk-surface)" }}>
+        style={{ background: "var(--sk-bg)", borderTop: "1px solid var(--sk-surface)", paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
         {navItems.map(([id, Icon, label]) => (
           <button key={id} onClick={() => setTab(id)}
             className="flex-1 py-2.5 flex flex-col items-center gap-1"
