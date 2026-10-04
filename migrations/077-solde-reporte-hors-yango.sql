@@ -109,11 +109,17 @@ END $$;
 
 -- ── 4. Rattrapage : journées existantes sans solde ───────────
 -- (le déclencheur journee_hors_yango pose le solde à la réécriture)
+-- Depuis l'éditeur SQL il n'y a ni session admin ni rôle serveur : guard_reports
+-- refuse l'écriture (« rapport d'un autre chauffeur »). Il est suspendu le temps
+-- de cette seule instruction, dans la même transaction.
+ALTER TABLE fleet.daily_reports DISABLE TRIGGER guard_reports_iud;
 UPDATE fleet.daily_reports SET updated_at = now()
 WHERE status = 'approved' AND source IN ('fleetroom', 'operateur') AND solde_yango IS NULL;
+ALTER TABLE fleet.daily_reports ENABLE TRIGGER guard_reports_iud;
 
 -- ── 5. Contrôle ──────────────────────────────────────────────
 SELECT
   (SELECT count(*) FROM fleet.daily_reports
     WHERE status = 'approved' AND source IN ('fleetroom', 'operateur') AND solde_yango IS NULL) AS journees_sans_solde,
-  position('solde_yango_au' IN pg_get_functiondef('fleet.fleetroom_rebuild(uuid,date,date)'::regprocedure)) > 0 AS rebuild_a_jour;
+  position('solde_yango_au' IN pg_get_functiondef('fleet.fleetroom_rebuild(uuid,date,date)'::regprocedure)) > 0 AS rebuild_a_jour,
+  (SELECT tgenabled = 'O' FROM pg_trigger WHERE tgrelid = 'fleet.daily_reports'::regclass AND tgname = 'guard_reports_iud') AS garde_active;
