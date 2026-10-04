@@ -18,6 +18,7 @@ import type { Insight, Kpi, Section } from "@/lib/report-agent/types";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { driverStats, sortStats, type DriverStat } from "@/lib/analytics/driverStats";
 import { OBJECTIF_DEFAUT, statutDe } from "@/lib/analytics/trends";
+import { targetBars } from "@/lib/report-agent/charts";
 import { segmentResolver, type SegmentFilter } from "@/lib/analytics/segment";
 
 const fmt = (v: number) => Math.round(v).toLocaleString("fr-FR").replace(/ /g, " ");
@@ -110,8 +111,24 @@ export async function performanceBlock(
   const perduRefus = rows.reduce((s, r) => s + perduRefusOf(r), 0);
 
   const sections: Section[] = [{
-    kind: "table",
+    kind: "figure",
     title: `Performance · chaque chauffeur face à l'objectif de ${fmt(objectif)} F par jour`,
+    svg: targetBars({
+      label: "CA par jour travaillé de chaque chauffeur face à l'objectif",
+      rows: rows.map((r) => ({
+        label: r.name, value: r.caParJour ?? 0,
+        note: `${statut(r) ?? ""}${r.caParJour == null ? "" : ` ${Math.round((r.caParJour / objectif) * 100)} %`} · ${r.jours} j`,
+      })),
+      target: objectif, targetLabel: `Objectif ${fmt(objectif)}`, fmt,
+    }),
+    data: {
+      objectif_par_jour_fcfa: objectif,
+      chauffeurs: rows.map((r) => `${r.name} : ${Math.round(r.caParJour ?? 0)} F par jour, ${statut(r) ?? "non classé"}`),
+    },
+    note: "CA par jour travaillé (Yango + bonus + hors Yango), repos exclus. Le trait vertical est l'objectif ; à droite : statut, part de l'objectif atteinte et nombre de jours travaillés.",
+  }, {
+    kind: "table",
+    title: "Performance · le détail par chauffeur",
     columns: [
       { label: "#" }, { label: "Chauffeur" }, { label: "Jours", align: "right" },
       { label: fr ? "Sans activité" : "Sans décl.", align: "right" }, { label: "CA / jour", align: "right" },
@@ -124,7 +141,7 @@ export async function performanceBlock(
         const m = manqueOf(r);
         return {
           cells: [
-            String(i + 1), esc(r.name),
+            String(i + 1), `<span class="nw">${esc(r.name)}</span>`,
             `${r.jours}${r.repos ? ` <span style="color:var(--ink3)">+${r.repos}r</span>` : ""}`,
             r.sansDeclaration ? String(r.sansDeclaration) : dash,
             r.caParJour == null ? dash : `<b>${fmt(r.caParJour)}</b>`,
@@ -160,7 +177,7 @@ export async function performanceBlock(
           const faible = f.tauxAcceptation != null && f.tauxAcceptation < 0.9;
           return {
             cells: [
-              esc(r.name),
+              `<span class="nw">${esc(r.name)}</span>`,
               f.tauxAcceptation == null ? dash : `${faible ? '<span class="neg">' : ""}${Math.round(f.tauxAcceptation * 100)} %${faible ? "</span>" : ""}`,
               String(f.refus), perduRefusOf(r) > 0 ? `−${fmt(perduRefusOf(r))}` : dash,
               dec1(f.heuresCourse), f.joursActifs > 0 ? dec1(f.heuresCourse / f.joursActifs) : dash,
@@ -231,7 +248,7 @@ export async function performanceBlock(
   }
   const trous = rows.filter((r) => (r.sansDeclaration ?? 0) >= 3).sort((a, b) => (b.sansDeclaration ?? 0) - (a.sansDeclaration ?? 0));
   if (trous.length) {
-    const joursPerdus = trous.reduce((s, r) => s + (r.sansDeclaration ?? 0), 0);
+    const joursPerdus = rows.reduce((s, r) => s + (r.sansDeclaration ?? 0), 0);
     insights.push({
       severity: "warn",
       html: `<b>${joursPerdus} ${fr ? "jours sans activité ni repos déclaré" : "jours sans déclaration ni repos"}.</b> ${trous.map((r) => `${esc(r.name)} : ${r.sansDeclaration}`).join(", ")}. ${fr ? `À ${fmt(objectif)} F par jour, chaque journée de véhicule immobilisé est une recette qui ne se rattrape pas.` : "Un jour non déclaré n'entre ni dans le CA ni dans le CA par jour."}`,

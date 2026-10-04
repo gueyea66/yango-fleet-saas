@@ -56,3 +56,38 @@ describe("report-agent · rendu du tableau de bord de direction", () => {
     expect(html).not.toContain("<script>");
   });
 });
+
+describe("report-agent · graphiques", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { columnsChart, targetBars, heatmap } = require("@/lib/report-agent/charts");
+  const fmt = (v: number) => String(Math.round(v));
+  const sane = (svg: string) => {
+    expect(svg.startsWith("<svg")).toBe(true);
+    expect(svg.endsWith("</svg>")).toBe(true);
+    expect(svg).not.toMatch(/NaN|undefined|Infinity/);
+  };
+
+  it("colonnes : une marque par valeur, légende dès deux séries, repère d'objectif", () => {
+    const svg = columnsChart({
+      label: "test", categories: ["a", "b", "c"], fmt, highlight: 2, target: { value: 40, label: "Objectif 40" },
+      series: [{ name: "Recette", values: [10, 50, 30] }, { name: "Net", values: [5, 20, 0] }],
+    });
+    sane(svg);
+    expect((svg.match(/<path /g) || []).length).toBe(5); // la valeur nulle ne dessine rien
+    expect(svg).toContain("Recette");
+    expect(svg).toContain("Objectif 40");
+  });
+
+  it("colonnes : tient sans donnée et avec des zéros", () => {
+    sane(columnsChart({ label: "vide", categories: ["a"], fmt, series: [{ name: "x", values: [0] }] }));
+  });
+
+  it("barres face à une cible et carte de chaleur", () => {
+    const bars = targetBars({ label: "t", target: 40000, targetLabel: "Objectif", fmt, rows: [{ label: "Chauffeur <A>", value: 49020, note: "atteint" }, { label: "B", value: 0 }] });
+    sane(bars);
+    expect(bars).toContain("Chauffeur &lt;A&gt;");
+    const hm = heatmap({ label: "h", rows: ["Lundi", "Mardi"], cols: ["6–8h", "8–10h"], values: [[0, 10], [20, 5]], fmt, legend: "Chiffre" });
+    sane(hm);
+    expect((hm.match(/<title>/g) || []).length).toBe(4);
+  });
+});

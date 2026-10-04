@@ -4,6 +4,8 @@ import { CAT_AVANCE } from "@/lib/expenseCategories";
 import { amortissementPeriode, kmParMoisDepuisCompteur } from "@/lib/calc";
 import { performanceBlock, type PerformanceBlock } from "./performance";
 import { demandeHoraire, echeances } from "./extras";
+import { avanceBlock, type AvanceBlock } from "./avance";
+import { columnsChart } from "@/lib/report-agent/charts";
 import { segmentResolver, type SegmentFilter, type VehicleLite } from "@/lib/analytics/segment";
 import { segmentDe } from "@/lib/fleetSegment";
 
@@ -666,6 +668,38 @@ function evolutionTable(points: { label: string; agg: PeriodAgg; courant?: boole
   };
 }
 
+/** Évolution mensuelle en image : recette et net final, même échelle. */
+function evolutionFigure(points: { label: string; agg: PeriodAgg; courant?: boolean }[]): Section | null {
+  const rows = points.filter((p) => p.agg.tot.jours > 0 || p.courant);
+  if (rows.length < 2) return null;
+  const k = (v: number) => (Math.abs(v) >= 1_000_000 ? `${(v / 1_000_000).toFixed(1).replace(".", ",")} M` : `${Math.round(v / 1000)} k`);
+  return {
+    kind: "figure",
+    title: "Évolution · recette brute et net final",
+    svg: columnsChart({
+      label: "Recette brute et net final par mois",
+      categories: rows.map((p) => p.label),
+      series: [
+        { name: "Recette brute", values: rows.map((p) => recetteOf(p.agg.tot)) },
+        { name: "Net final", values: rows.map((p) => Math.max(0, netFinalOf(p.agg))) },
+      ],
+      fmt: k, highlight: rows.length - 1,
+    }),
+    data: { mois: rows.map((p) => `${p.label} : recette ${Math.round(recetteOf(p.agg.tot))} F, net final ${Math.round(netFinalOf(p.agg))} F`) },
+    note: `Montants en FCFA, même échelle pour les deux séries.${rows.some((p) => netFinalOf(p.agg) < 0) ? " Un net final négatif est représenté à zéro : voir le tableau pour le montant." : ""}`,
+  };
+}
+
+/** Analyses avancées : un échec de lecture ne doit jamais empêcher le rapport de sortir. */
+async function avanceOf(tenantId: string, dateFrom: string, dateTo: string, segment: SegmentFilter): Promise<AvanceBlock | null> {
+  try {
+    return await avanceBlock(admin, tenantId, dateFrom, dateTo, segment);
+  } catch (e) {
+    console.error("[report] analyses avancées indisponibles:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 /** Semaine type : recette moyenne d'une journée de chauffeur, par jour de la semaine. */
 function semaineType(p: PeriodAgg): Section | null {
   if (p.reportRows.length < 14) return null;
@@ -708,7 +742,10 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
     safe("demande horaire", () => demandeHoraire(admin, tenantId, dateFrom, dateTo, segment)),
     safe("échéances", () => echeances(admin, tenantId, today, segment)),
   ]);
-  const segs = segment === "all" ? await safe("ségrégation", () => segregation(tenantId, dateFrom, dateTo, cur)) : null;
+  const [segs, av] = await Promise.all([
+    segment === "all" ? safe("ségrégation", () => segregation(tenantId, dateFrom, dateTo, cur)) : Promise.resolve(null),
+    avanceOf(tenantId, dateFrom, dateTo, segment),
+  ]);
   const before = beforeOther ?? hist[hist.length - 1];
 
   const recette = recetteOf(cur.tot), recetteP = recetteOf(before.tot);
@@ -719,23 +756,29 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
   const caJourP = before.tot.jours > 0 ? recetteP / before.tot.jours : 0;
   const det = monthlyDeterministic(cur, dateFrom, dateTo);
 
-  const evolution = fullMonth
-    ? evolutionTable([
-        ...history.map((m, i) => ({ label: moisLabel(m.dateFrom), agg: hist[i] })),
-        { label: moisLabel(dateFrom), agg: cur, courant: true },
-      ])
-    : null;
-  const semaine = semaineType(cur);
+  const points = [
+    ...history.map((m, i) => ({ label: moisLabel(m.dateFrom), agg: hist[i] })),
+    { label: moisLabel(dateFrom), agg: cur, courant: true },
+  ];
+  const evolution = fullMonth ? evolutionTable(points) : null;
+  const evolutionFig = fullMonth ? evolutionFigure(points) : null;
+  // la lecture sur 3 mois remplace la semaine type du seul mois quand elle existe
+  const semaine = av && av.jours.length ? null : semaineType(cur);
   const bars = depBars(cur);
   const notable = notableExpensesTable(cur);
   const sections: Section[] = [
     compteResultat(cur, before, prevLabel),
     ...(segs ? [segs.section] : []),
+    ...(evolutionFig ? [evolutionFig] : []),
     ...(evolution ? [evolution] : []),
     ...(perf ? perf.sections : []),
-    driverTable(cur, dateFrom, dateTo),
+    ...(av?.regularite ? [av.regularite] : []),
+    ...(av?.quotidien ? [av.quotidien] : []),
+    ...(av ? av.jours : []),
     ...(semaine ? [semaine] : []),
-    ...(heures?.section ? [heures.section] : []),
+    // la carte jour × heure remplace la répartition par tranche quand elle existe
+    ...(av && av.horaires.length ? av.horaires : heures?.section ? [heures.section] : []),
+    driverTable(cur, dateFrom, dateTo),
     ...(bars ? [bars] : []),
     ...(notable ? [notable] : []),
     ...(ech?.section ? [ech.section] : []),
@@ -749,6 +792,7 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
     ...(heures?.facts ?? {}),
     ...(ech?.facts ?? {}),
     ...(segs?.facts ?? {}),
+    ...(av?.facts ?? {}),
     perimetre: SEG_LABEL[segment],
     periode_du: frFull(dateFrom), periode_au: frFull(dateTo),
     mois_precedent_du: frFull(prev.dateFrom), mois_precedent_au: frFull(prev.dateTo),
@@ -828,6 +872,7 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
       ...segContext(segment),
       ...(segs?.context ?? []),
       ...(perf?.context ?? []),
+      ...(av?.context ?? []),
       `Les faits préfixés mois_precedent_ couvrent ${prevLabel} ; les faits variation_ donnent l'évolution en pourcentage déjà calculée (ne recalcule rien). Les faits evolution_AAAA_MM donnent les mois antérieurs : dégage la tendance de fond, pas seulement l'écart d'un mois.`,
       "La table « Charges notables » donne le MOTIF saisi de chaque grosse ligne (décaissements propriétaire compris) : appuie l'analyse des dépenses dessus — un poste ne s'explique jamais par son seul total.",
       ...(heures ? ["Les faits demande_ donnent la répartition du chiffre par tranche horaire (exports Yango) : sers-t'en pour dire où placer les repos et quand les véhicules doivent rouler."] : []),
@@ -835,7 +880,7 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
         `Les « Décaissement propriétaire » sont des AVANCES remises aux chauffeurs (${fmt(cur.avances)} F sur la période) : cash sorti mais NEUTRE pour le résultat — la charge réelle est celle déclarée ensuite par le chauffeur. Ne jamais les compter comme des dépenses.`,
       ] : []),
     ],
-    deterministicInsights: [...dyn, ...(segs?.insights ?? []), ...(perf?.insights ?? []), ...(heures?.insights ?? []), ...(ech?.insights ?? []), ...det.insights],
+    deterministicInsights: [...dyn, ...(segs?.insights ?? []), ...(perf?.insights ?? []), ...(av?.insights ?? []), ...(av && av.horaires.length ? [] : heures?.insights ?? []), ...(ech?.insights ?? []), ...det.insights],
     deterministicDecisions: decisions,
     deterministicFocus: focusOf(perf),
     deterministicTldr: `<b>L'essentiel.</b> ${fmt(recette)} F de recette brute${vRec != null ? ` (${signed(vRec)} % face à ${esc(prevLabel)})` : ""} et <b>${fmt(netFinal)} F de net final</b>${recette > 0 ? `, soit ${String(marge).replace(".", ",")} % de marge nette` : ""}. La flotte a travaillé ${cur.tot.jours} jours à ${fmt(caJour)} F par jour.${perf ? ` <b>${esc(perf.kpi.value)} tiennent l'objectif journalier</b>${perf.manqueAGagner > 0 ? ` : le manque à gagner est estimé à ${fmt(perf.manqueAGagner)} F` : ""}.` : ""} Dépenses : ${fmt(cur.tot.dep)} F · rémunération versée : ${fmt(cur.tot.sal + cur.tot.aco)} F${cur.tot.aco ? ` (dont ${fmt(cur.tot.aco)} F d'acomptes)` : ""}.`,
@@ -977,7 +1022,10 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
     perfOf(tenantId, dateFrom, dateTo, segment),
     demandeHoraire(admin, tenantId, dateFrom, dateTo, segment).catch(() => null),
   ]);
-  const segs = segment === "all" ? await segregation(tenantId, dateFrom, dateTo, p).catch(() => null) : null;
+  const [segs, av] = await Promise.all([
+    segment === "all" ? segregation(tenantId, dateFrom, dateTo, p).catch(() => null) : Promise.resolve(null),
+    avanceOf(tenantId, dateFrom, dateTo, segment),
+  ]);
   // exports Yango Fleetroom présents : refus et heures en course sont mesurés
   const perfFleetroom = !!perf?.hasFleetroom;
 
@@ -1034,7 +1082,7 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
   });
 
   const facts: Record<string, string | number | null> = {
-    ...baseFacts(p), ...driverFacts(p), ...(perf?.facts ?? {}), ...(heures?.facts ?? {}), ...(segs?.facts ?? {}),
+    ...baseFacts(p), ...driverFacts(p), ...(perf?.facts ?? {}), ...(heures?.facts ?? {}), ...(segs?.facts ?? {}), ...(av?.facts ?? {}),
     perimetre: SEG_LABEL[segment],
     periode_du: frFull(dateFrom), periode_au: frFull(dateTo),
   };
@@ -1100,7 +1148,10 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
         note: "Km par delta d'odomètre entre le premier et le dernier rapport de la période. Ponction = (commissions + services) / brut Yango. Hors-app = part de la recette totale hors plateforme.",
       },
       ...(notableExpensesTable(p) ? [{ ...notableExpensesTable(p)!, title: "4. Charges commentées" } as Section] : []),
-      ...(heures?.section ? [heures.section] : []),
+      ...(av?.quotidien ? [av.quotidien] : []),
+      ...(av ? av.jours : []),
+      ...(av && av.horaires.length ? av.horaires : heures?.section ? [heures.section] : []),
+      ...(av?.regularite ? [av.regularite] : []),
       ...(segs ? [segs.section] : []),
       ...(perf ? perf.sections : []),
     ].map((sec, i) => ({ ...sec, title: `${i + 1}. ${sec.title.replace(/^\d+\.\s*/, "")}` } as Section)),
@@ -1109,7 +1160,7 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
     context: [
       ...CONTEXT_COMMON,
       "Destinataire : le dirigeant de l'entreprise. Chaque constat doit porter un chiffre et une conséquence, et déboucher sur une décision d'organisation (planning, repos, affectation des véhicules).",
-      ...segContext(segment), ...(segs?.context ?? []),
+      ...segContext(segment), ...(segs?.context ?? []), ...(av?.context ?? []),
       "Deep dive opérationnel : cherche les patterns de demande (jours forts/faibles, où placer les repos), le coût du siège vide (semaines à N chauffeurs), les écarts d'efficience carburant/km entre chauffeurs, et les anomalies de saisie (paniers aberrants).",
       ...(perf?.context ?? []),
       ...(perfFleetroom ? [] : ["Les données ne contiennent ni heures en ligne, ni annulations, ni note conducteur : la qualité de service n'est pas mesurable — ne pas l'inventer."]),
@@ -1118,7 +1169,7 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
       ] : []),
     ],
     deterministicInsights: [
-      ...(perf?.insights ?? []), ...(heures?.insights ?? []),
+      ...(av?.insights ?? []), ...(perf?.insights ?? []), ...(av && av.horaires.length ? [] : heures?.insights ?? []),
       { severity: "info", html: "<b>Lecture des tables.</b> La semaine type situe les jours forts et faibles de la demande (où placer repos et entretiens) ; le film des semaines montre l'effet direct du nombre de chauffeurs actifs sur la recette ; l'efficience par chauffeur compare rendement kilométrique et coût carburant." },
     ],
     deterministicDecisions: [],
@@ -1142,6 +1193,8 @@ function whiteLabelDataset(dataset: ReportDataset, label: string): ReportDataset
       ? { ...s, title: wl(s.title), note: s.note ? wl(s.note) : s.note,
           columns: s.columns.map((c) => ({ ...c, label: wl(c.label) })),
           rows: s.rows.map((r) => ({ ...r, cells: r.cells.map(wl) })) }
+      : s.kind === "figure"
+      ? { ...s, title: wl(s.title), note: s.note ? wl(s.note) : s.note, svg: wl(s.svg) }
       : { ...s, title: wl(s.title), note: s.note ? wl(s.note) : s.note,
           bars: s.bars.map((b) => ({ ...b, label: wl(b.label), amountLabel: wl(b.amountLabel) })) }),
     context: (dataset.context ?? []).map(wl),

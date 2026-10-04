@@ -100,7 +100,8 @@ function frenchifyNumbers(s: string): string {
 export function buildAgentPayload(dataset: ReportDataset): string {
   const stripHtml = (s: string) => s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
   const sections = dataset.sections.map((s) =>
-    s.kind === "table"
+    s.kind === "figure" ? { titre: s.title, graphique: s.data ?? {}, note: s.note }
+    : s.kind === "table"
       ? { titre: s.title, colonnes: s.columns.map((c) => c.label), lignes: s.rows.map((r) => r.cells.map(stripHtml)), note: s.note }
       : { titre: s.title, barres: s.bars.map((b) => ({ label: b.label, valeur: b.amountLabel })), note: s.note }
   );
