@@ -832,7 +832,7 @@ async function ytdDataset(tenantId: string, dateTo: string, tenantName: string):
       { label: "Marge nette", value: recette > 0 ? `${String(pct(netFinal, recette)).replace(".", ",")} %` : "—", sub: "net final ÷ recette brute" },
       { label: "Panier moyen", value: full.tot.courses > 0 ? fmt(full.tot.brut / full.tot.courses) : "—", sub: "brut Yango par course" },
     ],
-    sections: [
+    sections: ([
       {
         kind: "table",
         title: "Le film mois par mois",
@@ -856,7 +856,7 @@ async function ytdDataset(tenantId: string, dateTo: string, tenantName: string):
       ...(perf ? perf.sections : []),
       driverTable(full, `${year}-01-01`, dateTo),
       ...(ech?.section ? [ech.section] : []),
-    ].map((sec, i) => ({ ...sec, title: `${i + 1}. ${sec.title}` })),
+    ] as Section[]).map((sec, i) => ({ ...sec, title: `${i + 1}. ${sec.title}` })),
     facts,
     aliases: aliasesOf(full),
     context: [
