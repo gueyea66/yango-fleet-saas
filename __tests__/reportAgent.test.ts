@@ -29,16 +29,44 @@ describe("report-agent · rendu du tableau de bord de direction", () => {
   };
   const theme = { brandName: "TEST", footerBrand: "TEST" };
 
-  it("repli déterministe : synthèse avant le détail, alerte en tête, 8 cartes au plus", () => {
+  it("plan par défaut (sans profil) : alerte en tête, 8 cartes au plus, variation affichée", () => {
     const html = renderReport(dataset, theme, null);
     const pos = (t: string) => html.indexOf(t);
-    expect(pos("Ce qui va moins bien")).toBeGreaterThan(0);
-    expect(pos("Ce qui va moins bien")).toBeLessThan(pos("Ce qui va bien"));
+    expect(pos("Alerte.")).toBeGreaterThan(0);
     expect(pos("Alerte.")).toBeLessThan(pos("Point faible."));
-    expect(pos("Priorité de la période suivante")).toBeLessThan(pos("Le détail des chiffres"));
-    expect(pos("Le détail des chiffres")).toBeLessThan(pos("1. Compte de résultat"));
     expect((html.match(/class="hero[ "]/g) || []).length).toBe(8);
     expect(html).toContain('class="delta good"');
+  });
+
+  it("profil : les faits d'abord, le jugement ensuite, les décisions à la fin", () => {
+    const html = renderReport({
+      ...dataset,
+      sections: [{ kind: "table", title: "1. Compte de résultat", lead: "<b>À retenir.</b>", columns: [{ label: "Poste" }], rows: [{ cells: ["Recette"] }] }],
+      deterministicManques: ["Carburant non saisi"],
+      profile: {
+        roles: [{ id: "contrôle financier", system: "périmètre" }], editorSystem: "rédacteur",
+        decisionStyle: "options", caps: { forces: 3, alertes: 3, info: 0 },
+        labels: { forces: "Ce qui va bien", alertes: "Ce qui va moins bien", decisions: "Décisions à prendre ce mois-ci", focus: "Focus du mois prochain", manques: "Données manquantes" },
+        layout: ["tldr", "kpis", { sections: [0] }, "forces", "alertes", "decisions", "focus", "manques", { heading: "Pour aller plus loin", text: "Voir le deep dive." }],
+      },
+    }, theme, null);
+    const pos = (t: string) => html.indexOf(t);
+    const ordre = ["1. Compte de résultat", "À retenir.", "Ce qui va bien", "Ce qui va moins bien", "Décisions à prendre ce mois-ci", "Focus du mois prochain", "Données manquantes", "Pour aller plus loin"].map(pos);
+    expect(ordre.every((v) => v > 0)).toBe(true);
+    expect([...ordre].sort((a, b) => a - b)).toEqual(ordre);
+    expect(html).not.toContain("Info."); // rubrique « à savoir » fermée par le profil
+  });
+
+  it("profil « actions » : plan d'action en tableau (qui, quand, gain)", () => {
+    const html = renderReport({
+      ...dataset,
+      deterministicDecisions: [{ html: "<b>Déplacer le repos</b>", responsable: "Exploitation", echeance: "cette semaine", gain: "+60 000 F / mois" }],
+      profile: { roles: [], editorSystem: "", decisionStyle: "actions", labels: { decisions: "Plan d'action" }, layout: ["tldr", { sections: [0] }, "alertes", "decisions"] },
+    }, theme, null);
+    expect(html).toContain("Plan d'action");
+    expect(html).toContain("<th>Responsable</th>");
+    expect(html).toContain("<td>Exploitation</td><td>cette semaine</td><td>+60 000 F / mois</td>");
+    expect(html.indexOf("Point faible.")).toBeLessThan(html.indexOf("Plan d'action"));
   });
 
   it("narration : décisions en options avec recommandation, texte échappé", () => {
@@ -89,5 +117,61 @@ describe("report-agent · graphiques", () => {
     const hm = heatmap({ label: "h", rows: ["Lundi", "Mardi"], cols: ["6–8h", "8–10h"], values: [[0, 10], [20, 5]], fmt, legend: "Chiffre" });
     sane(hm);
     expect((hm.match(/<title>/g) || []).length).toBe(4);
+  });
+});
+
+describe("report-agent · panel par profil (LLM simulé)", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { runAgentPanel } = require("@/lib/report-agent/agents");
+  const base: ReportDataset = {
+    meta: { docTitle: "Deep dive opérationnel", periodLabel: "test", generatedLabel: "04/10/2026", shortLabel: "test" },
+    kpis: [], sections: [{ kind: "table", title: "Performance", columns: [{ label: "Chauffeur" }, { label: "CA / jour", align: "right" }], rows: [{ cells: ["Awa Diop", "38 681"] }] }],
+    facts: { objectif: 40000, chauffeur_drv_abc123_gain_mensuel_estime_fcfa: 60506 },
+    aliases: { drv_abc123: "Awa Diop" },
+    deterministicInsights: [], deterministicTldr: "",
+    profile: {
+      roles: [{ id: "demande", system: "périmètre demande" }, { id: "chauffeurs", system: "périmètre chauffeurs" }],
+      editorSystem: "Tu es le responsable d'exploitation.", decisionStyle: "actions",
+      caps: { alertes: 5, decisions: 6 }, layout: ["tldr", "alertes", "decisions"],
+    },
+  };
+
+  it("chaque rôle reste dans son périmètre, le rédacteur lit leurs constats, le plan d'action est structuré", async () => {
+    const calls: { system: string; payload: string }[] = [];
+    const narrate = async (payload: string, opts?: { system?: string }) => {
+      calls.push({ system: opts?.system ?? "", payload });
+      if (opts?.system?.startsWith("périmètre")) {
+        return JSON.stringify({ findings: [{ severity: "warn", title: "Repos mal placé", body: "drv_abc123 s'arrête un jour fort : 60506 F par mois." }] });
+      }
+      return JSON.stringify({
+        synthese: "drv_abc123 réalise 38681 F par jour pour un objectif de 40000 F.",
+        alertes: [{ severity: "alert", title: "Repos de drv_abc123", body: "60506 F par mois à récupérer." }],
+        points_forts: [{ title: "Constance", body: "Les lundis tiennent." }],
+        actions: [{ action: "Déplacer le repos de drv_abc123 au mercredi", responsable: "exploitation", echeance: "cette semaine", gain_attendu: "60506 F par mois, estimation" }],
+        donnees_manquantes: [],
+      });
+    };
+    const out = await runAgentPanel(base, { narrate });
+    expect(out).not.toBeNull();
+    // 2 rôles + 1 rédacteur ; le nom réel n'est jamais envoyé
+    expect(calls).toHaveLength(3);
+    expect(calls.every((c) => !c.payload.includes("Awa Diop"))).toBe(true);
+    expect(calls[0].system).toContain("STRICTEMENT dans ton périmètre");
+    expect(calls[2].system.startsWith("Tu es le responsable d'exploitation.")).toBe(true);
+    expect(calls[2].payload).toContain("constats_experts");
+    // noms réinjectés, montants mis en forme, plan d'action structuré
+    expect(out.tldr).toContain("Awa Diop");
+    expect(out.tldr).toMatch(/38.681/);
+    expect(out.insights.map((i: { severity: string }) => i.severity)).toEqual(["alert", "ok"]);
+    expect(out.decisions[0]).toMatchObject({ title: "Déplacer le repos de Awa Diop au mercredi", responsable: "exploitation", urgence: "cette semaine" });
+    expect(out.decisions[0].gain).toMatch(/60.506/);
+    expect(out.rolesHeard).toEqual(["demande", "chauffeurs"]);
+  });
+
+  it("un montant inventé par le rédacteur fait retomber sur le repli", async () => {
+    const narrate = async (_p: string, opts?: { system?: string }) => (opts?.system?.startsWith("périmètre")
+      ? JSON.stringify({ findings: [{ severity: "info", title: "x", body: "y" }] })
+      : JSON.stringify({ synthese: "Gain de 99999 F.", alertes: [{ severity: "warn", title: "a", body: "b" }], actions: [] }));
+    expect(await runAgentPanel(base, { narrate })).toBeNull();
   });
 });

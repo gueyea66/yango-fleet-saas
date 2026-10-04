@@ -4,7 +4,7 @@
  * RÈGLE : aucun import hors de lib/report-agent/ (voir README.md).
  */
 
-import type { BrandTheme, Insight, NarrativeResult, ReportDataset, Section } from "./types";
+import type { BrandTheme, Insight, LayoutBlock, NarrativeResult, ReportDataset, Section } from "./types";
 
 const esc = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -90,19 +90,26 @@ function css(t: BrandTheme): string {
   .detail > .lead{font-size:9pt;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-top:8px}
   .manques{font-size:9pt;color:var(--ink3);margin-top:14px}
   .manques li{margin-left:16px}
+  .lead{font-size:10pt;color:var(--navy);background:#fff;border-left:3px solid var(--gold);padding:7px 12px;margin:0 0 10px;border-radius:0 6px 6px 0}
+  .lead b{color:var(--navy-deep)}
+  .part{margin:30px 0 4px;font-size:9pt;color:var(--gold-dark);text-transform:uppercase;letter-spacing:.1em;font-weight:800;border-top:3px solid var(--navy);padding-top:10px}
+  .part + .parttext{font-size:9.5pt;color:var(--ink3);margin-bottom:4px}
+  table.plan td{vertical-align:top}
+  table.plan td:first-child{width:22px;font-weight:800;color:var(--navy)}
   footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--border);font-size:8.5pt;color:var(--ink3);display:flex;justify-content:space-between}
   .note{font-size:8.5pt;color:var(--ink3);font-style:italic;margin-top:6px}`;
 }
 
 function renderSection(s: Section): string {
+  const lead = s.lead ? `<div class="lead">${s.lead}</div>\n` : "";
   if (s.kind === "figure") {
-    return `<h2>${esc(s.title)}</h2>\n<div class="figure">${s.svg}</div>${s.note ? `\n<div class="note">${esc(s.note)}</div>` : ""}`;
+    return `<h2>${esc(s.title)}</h2>\n${lead}<div class="figure">${s.svg}</div>${s.note ? `\n<div class="note">${esc(s.note)}</div>` : ""}`;
   }
   if (s.kind === "bars") {
     const rows = s.bars.map((b) =>
       `<div class="bar-row"><div class="cat">${esc(b.label)}</div><div class="track"><div class="fill${b.accent ? " gold" : ""}" style="width:${Math.min(100, Math.max(1, b.pct))}%"></div></div><div class="amt">${esc(b.amountLabel)}</div></div>`
     ).join("\n");
-    return `<h2>${esc(s.title)}</h2>\n${rows}${s.note ? `\n<div class="note">${esc(s.note)}</div>` : ""}`;
+    return `<h2>${esc(s.title)}</h2>\n${lead}${rows}${s.note ? `\n<div class="note">${esc(s.note)}</div>` : ""}`;
   }
   const head = s.columns.map((col) => `<th${col.align === "right" ? ' class="r"' : ""}>${esc(col.label)}</th>`).join("");
   const body = s.rows.map((r) => {
@@ -111,7 +118,7 @@ function renderSection(s: Section): string {
       `<td${s.columns[index]?.align === "right" ? ' class="r"' : ""}>${cell}</td>`).join("");
     return `<tr${cls}>${cells}</tr>`;
   }).join("\n");
-  return `<h2>${esc(s.title)}</h2>\n<table><thead><tr>${head}</tr></thead>\n<tbody>\n${body}\n</tbody></table>${s.note ? `\n<div class="note">${esc(s.note)}</div>` : ""}`;
+  return `<h2>${esc(s.title)}</h2>\n${lead}<table><thead><tr>${head}</tr></thead>\n<tbody>\n${body}\n</tbody></table>${s.note ? `\n<div class="note">${esc(s.note)}</div>` : ""}`;
 }
 
 /**
@@ -126,7 +133,7 @@ export function renderReport(
 ): string {
   const m = dataset.meta;
   const tldr = narrative
-    ? `<b>L'essentiel en 30 secondes.</b> ${esc(narrative.tldr)}`
+    ? `<b>${esc(dataset.profile?.labels?.tldr ?? "L'essentiel en 30 secondes")}.</b> ${esc(narrative.tldr)}`
     : dataset.deterministicTldr;
 
   const insights: Insight[] = narrative
@@ -140,40 +147,76 @@ export function renderReport(
     `<div class="hero${k.accent ? " gold" : ""}"><div class="lbl">${esc(k.label)}</div><div class="val">${esc(k.value)}</div>${k.delta ? `<div class="delta ${k.delta.tone}">${esc(k.delta.label)}</div>` : ""}${k.sub ? `<div class="sub">${esc(k.sub)}</div>` : ""}</div>`
   ).join("\n");
 
-  // Synthèse de direction : ce qui va bien, ce qui va moins bien, puis le reste.
+  // ── blocs du document : chaque rapport les ordonne selon son plan de lecture
+  const profile = dataset.profile;
+  const caps = { forces: 3, alertes: 5, info: 5, ...(profile?.caps ?? {}) };
+  const L = {
+    forces: "Ce qui va bien", alertes: "Ce qui va moins bien", info: "À savoir",
+    decisions: opts?.decisionsTitle ?? "Décisions proposées", focus: "Priorité de la période suivante",
+    manques: "Données manquantes et limites", ...(profile?.labels ?? {}),
+  };
   const block = (list: Insight[]) => list.map((i) =>
     `<div class="insight${i.severity === "info" ? "" : ` ${i.severity}`}">${i.html}</div>`).join("\n");
-  const bien = insights.filter((i) => i.severity === "ok").slice(0, 3);
+  const bien = insights.filter((i) => i.severity === "ok").slice(0, caps.forces);
   const moinsBien = insights.filter((i) => i.severity === "warn" || i.severity === "alert")
-    .sort((x, y) => Number(y.severity === "alert") - Number(x.severity === "alert")).slice(0, 5);
-  const aSavoir = insights.filter((i) => i.severity === "info").slice(0, 5);
-  const synthese = [
-    moinsBien.length ? `<h2>Ce qui va moins bien</h2>\n${block(moinsBien)}` : "",
-    bien.length ? `<h2>Ce qui va bien</h2>\n${block(bien)}` : "",
-    aSavoir.length ? `<h2>À savoir</h2>\n${block(aSavoir)}` : "",
-  ].filter(Boolean).join("\n\n");
+    .sort((x, y) => Number(y.severity === "alert") - Number(x.severity === "alert")).slice(0, caps.alertes);
+  const aSavoir = insights.filter((i) => i.severity === "info").slice(0, caps.info);
 
-  const decisionsTitle = esc(opts?.decisionsTitle ?? "Décisions proposées");
+  const style = profile?.decisionStyle ?? "options";
   const letters = ["A", "B", "C"];
-  const decisionsBlock = narrative
-    ? (narrative.decisions.length > 0
-      ? `<h2>${decisionsTitle}</h2>\n` + narrative.decisions.map((d, n) =>
+  const fallback = dataset.deterministicDecisions ?? [];
+  let decisionsBlock = "";
+  if (style === "actions") {
+    // plan d'action : quoi, qui, quand, pour quel gain
+    const rows = narrative
+      ? narrative.decisions.map((d) => [`<b>${esc(d.title)}</b>${d.body ? `<br>${esc(d.body)}` : ""}`, esc(d.responsable ?? "—"), esc(d.urgence ?? "—"), esc(d.gain ?? "—")])
+      : fallback.map((d) => [d.html, esc(d.responsable ?? "—"), esc(d.echeance ?? "—"), d.gain ?? "—"]);
+    if (rows.length) {
+      decisionsBlock = `<h2>${esc(L.decisions)}</h2>\n<table class="plan"><thead><tr><th>#</th><th>Action</th><th>Responsable</th><th>Échéance</th><th>Gain attendu</th></tr></thead>\n<tbody>\n${rows.map((r, n) => `<tr><td>${n + 1}</td><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td><td>${r[3]}</td></tr>`).join("\n")}\n</tbody></table>`;
+    }
+  } else if (narrative) {
+    if (narrative.decisions.length > 0) {
+      decisionsBlock = `<h2>${esc(L.decisions)}</h2>\n` + narrative.decisions.map((d, n) =>
         `<div class="decision"><div class="dt">${n + 1}. ${esc(d.title)}${d.urgence ? ` <span class="tag amber">${esc(d.urgence)}</span>` : ""}</div>`
         + (d.body ? `<div>${esc(d.body)}</div>` : "")
         + (d.options ?? []).map((o, k) => `<div class="opt"><b>Option ${letters[k] ?? k + 1}.</b> ${esc(o)}</div>`).join("")
         + (d.recommandation ? `<div class="reco"><b>Recommandation.</b> ${esc(d.recommandation)}</div>` : "")
-        + `</div>`).join("\n")
-      : "")
-    : ((dataset.deterministicDecisions ?? []).length > 0
-      ? `<div class="decisions">\n  <h3>${decisionsTitle}</h3>\n  <ol>\n${(dataset.deterministicDecisions ?? []).map((d) => `    <li>${d.html}</li>`).join("\n")}\n  </ol>\n</div>`
-      : "");
+        + `</div>`).join("\n");
+    }
+  } else if (fallback.length > 0) {
+    decisionsBlock = `<h2>${esc(L.decisions)}</h2>\n` + fallback.map((d, n) => `<div class="decision"><b style="color:var(--navy)">${n + 1}.</b> ${d.html}</div>`).join("\n");
+  }
 
   const focus = narrative?.focus ? esc(narrative.focus) : dataset.deterministicFocus ?? "";
-  const focusBlock = focus ? `<div class="focus"><h3>Priorité de la période suivante</h3>${focus}</div>` : "";
-  const manques = narrative?.manques ?? [];
-  const manquesBlock = manques.length
-    ? `<div class="manques"><b>Données manquantes</b><ul>${manques.map((m) => `<li>${esc(m)}</li>`).join("")}</ul></div>`
-    : "";
+  const manques = (narrative?.manques?.length ? narrative.manques : dataset.deterministicManques) ?? [];
+
+  const layout: LayoutBlock[] = profile?.layout
+    ?? ["tldr", "kpis", "alertes", "forces", "info", "decisions", "focus", { sections: dataset.sections.map((_, i) => i) }, "manques"];
+  const renderBlock = (b: LayoutBlock): string => {
+    if (typeof b === "object") {
+      if ("sections" in b) return b.sections.map((i) => dataset.sections[i]).filter(Boolean).map(renderSection).join("\n\n");
+      return `<div class="part">${esc(b.heading)}</div>${b.text ? `<div class="parttext">${esc(b.text)}</div>` : ""}`;
+    }
+    switch (b) {
+      case "tldr": return `<div class="tldr">${tldr}</div>`;
+      case "kpis": return `<div class="heroes">
+${heroes}
+</div>`;
+      case "forces": return bien.length ? `<h2>${esc(L.forces)}</h2>
+${block(bien)}` : "";
+      case "alertes": return moinsBien.length ? `<h2>${esc(L.alertes)}</h2>
+${block(moinsBien)}` : "";
+      case "info": return aSavoir.length ? `<h2>${esc(L.info)}</h2>
+${block(aSavoir)}` : "";
+      case "decisions": return decisionsBlock;
+      case "focus": return focus ? `<div class="focus"><h3>${esc(L.focus)}</h3>${focus}</div>` : "";
+      case "manques": return manques.length ? `<div class="manques"><b>${esc(L.manques)}</b><ul>${manques.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></div>` : "";
+    }
+  };
+  const bodyHtml = layout.map(renderBlock).filter(Boolean).join(String.fromCharCode(10, 10));
+  const trace = narrative
+    ? `analyse rédigée par le panel IA (${narrative.rolesHeard.join(", ")} → rédacteur), aucun montant recalculé`
+    : "règles déterministes, aucun montant recalculé";
 
   return `<!DOCTYPE html>
 <html lang="fr"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -193,18 +236,10 @@ ${theme.logoImgTag ?? ""}
     Généré le ${esc(m.generatedLabel)}${m.sourceLabel ? ` · ${esc(m.sourceLabel)}` : ""}
   </div>
 </div>
-<div class="tldr">${tldr}</div>
-<div class="heroes">
-${heroes}
-</div>
-${synthese}
-${decisionsBlock}
-${focusBlock}
-${dataset.sections.length > 0 ? `<div class="detail"><div class="lead">Le détail des chiffres</div>\n${dataset.sections.map(renderSection).join("\n\n")}\n</div>` : ""}
-${manquesBlock}
+${bodyHtml}
 <footer>
   <div>${esc(theme.footerBrand)} — ${esc(m.docTitle)} · ${esc(m.shortLabel)}</div>
-  <div>Chiffres calculés par le moteur — ${narrative ? "analyse rédigée par le panel IA, aucun montant recalculé" : "règles déterministes, aucun montant recalculé"}.</div>
+  <div>Chiffres calculés par le moteur — ${trace}.</div>
 </footer>
 </div></body></html>`;
 }
