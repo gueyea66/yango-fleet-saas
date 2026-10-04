@@ -3,6 +3,7 @@ import { requireAdminAuth } from "@/lib/auth/server";
 import {
   buildReportHtml, getReportAddonTenants, getReportPremiumTenants, type FleetReportKind,
 } from "@/lib/reportHtml";
+import { isSegmentFilter } from "@/lib/analytics/segment";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300; // panel IA premium : plusieurs appels LLM
@@ -46,7 +47,10 @@ export async function GET(req: NextRequest) {
     const dateFrom = searchParams.get("dateFrom") || defFrom;
     const dateTo = searchParams.get("dateTo") || now.toISOString().slice(0, 10);
 
-    const { html } = await buildReportHtml(tenantId, dateFrom, dateTo, { kind, premium });
+    // ?segment=interne | partenaire : rapport limité à un périmètre (défaut : toute la flotte)
+    const segParam = searchParams.get("segment");
+    const segment = isSegmentFilter(segParam) ? segParam : "all";
+    const { html } = await buildReportHtml(tenantId, dateFrom, dateTo, { kind, premium, segment });
     return new NextResponse(html, {
       status: 200,
       headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },

@@ -465,7 +465,7 @@ export default function AdminPage() {
                 <span className="text-xs whitespace-nowrap" style={{ color: "var(--sk-t3)" }}>
                   {periodFrom} → {periodTo} · <span className="font-semibold" style={{ color: "var(--sk-t2)" }}>montants en {settings.currency || "XOF"}</span>
                 </span>
-                <ExportMenu dateFrom={periodFrom} dateTo={periodTo} />
+                <ExportMenu dateFrom={periodFrom} dateTo={periodTo} segment={fleetSegment} mixte={estMixte(segCountsOf(allDrivers))} />
               </div>
             </div>
 
@@ -947,7 +947,7 @@ export default function AdminPage() {
           advancedBack={resolvedUiMode === "simple" ? () => toggleUiAdvanced(false) : undefined}
           headerRight={tab === "dashboard" ? (
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <ExportMenu dateFrom={periodFrom} dateTo={periodTo} />
+              <ExportMenu dateFrom={periodFrom} dateTo={periodTo} segment={fleetSegment} mixte={estMixte(segCountsOf(allDrivers))} />
               <DashViewToggle view={dashView} onChange={setDashView} />
             </div>
           ) : undefined}
@@ -4802,8 +4802,12 @@ function saveBlob(blob: Blob, filename: string) {
 
 // ── Export comptable : télécharge un CSV (Excel FR, séparateur ';' + BOM) de la
 // période affichée. Auth par cookie de session (même mécanisme que /api/admin/kpis).
-function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) {
+function ExportMenu({ dateFrom, dateTo, segment = "all", mixte = false }: { dateFrom: string; dateTo: string; segment?: SegmentFilter; mixte?: boolean }) {
   const [open, setOpen] = useState(false);
+  // Périmètre des rapports (parc mixte) : toute la flotte, avec les deux segments côte à
+  // côte, ou un seul. Suit le filtre « type de véhicule » de la page tant qu'on n'y touche pas.
+  const [segChoisi, setSegChoisi] = useState<SegmentFilter | null>(null);
+  const seg: SegmentFilter = mixte ? (segChoisi ?? segment) : "all";
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   // Rapports poussés par M3A (génération auto/lot) — listés depuis le stockage.
@@ -4882,7 +4886,7 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
     if (win) win.document.write("<p style=\"font-family:sans-serif;padding:24px\">Génération du rapport…</p>");
     let ok = false;
     try {
-      const res = await fetch(`/api/admin/report-monthly?dateFrom=${from}&dateTo=${to}&type=${type}`);
+      const res = await fetch(`/api/admin/report-monthly?dateFrom=${from}&dateTo=${to}&type=${type}${seg !== "all" ? `&segment=${seg}` : ""}`);
       if (!res.ok) {
         const j = await res.json().catch(() => ({} as any));
         setErr(j.error || "Rapport indisponible.");
@@ -4892,7 +4896,7 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
       ok = true;
       // onglet refusé (bloqueur, application installée) : le rapport est téléchargé
       if (win && !win.closed) win.location.href = URL.createObjectURL(blob);
-      else saveBlob(blob, `rapport_${type}_${from}_${to}.html`);
+      else saveBlob(blob, `rapport_${type}${seg !== "all" ? `_${seg}` : ""}_${from}_${to}.html`);
       setOpen(false);
     } catch {
       setErr("Erreur réseau pendant la génération du rapport.");
@@ -4912,6 +4916,23 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
       {open && (
         <div className="absolute right-0 mt-1.5 z-50 rounded-xl overflow-hidden min-w-[300px]"
           style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-border)", boxShadow: "0 12px 32px rgba(0,0,0,.45)" }}>
+          {mixte && (
+            <div className="px-4 py-2.5" style={{ borderBottom: "1px solid var(--sk-surface)" }}>
+              <div className="text-[10px] uppercase font-bold mb-1.5" style={{ color: "var(--sk-t4)", letterSpacing: ".06em" }}>Périmètre des rapports</div>
+              <div className="flex gap-1">
+                {([["all", "Toute la flotte"], ["interne", "Interne"], ["partenaire", "Partenaires"]] as const).map(([k, label]) => (
+                  <button key={k} onClick={() => setSegChoisi(k)} disabled={!!busy}
+                    className="text-xs px-2.5 py-1 rounded-lg font-semibold flex-1"
+                    style={{ background: seg === k ? "var(--tenant-color)" : "var(--sk-surface)", color: seg === k ? "#000" : "var(--sk-t3)" }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              <div className="text-[10px] mt-1.5" style={{ color: "var(--sk-t4)" }}>
+                {seg === "all" ? "Les deux segments dans le même rapport, côte à côte." : "Rapport limité à ce périmètre."}
+              </div>
+            </div>
+          )}
           {/* Période affichée en cours : les trois rapports portent sur le dernier mois COMPLET
               (retour Abdou 04/10 : « je vois toujours octobre »). La période en cours reste
               accessible, en entrée secondaire. */}

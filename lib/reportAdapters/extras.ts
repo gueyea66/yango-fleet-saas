@@ -11,6 +11,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Insight, Section } from "@/lib/report-agent/types";
 import { fetchAllRows } from "@/lib/fetchAllRows";
+import { segmentResolver, type SegmentFilter } from "@/lib/analytics/segment";
+import { segmentDe } from "@/lib/fleetSegment";
 
 const fmt = (v: number) => Math.round(v).toLocaleString("fr-FR").replace(/ /g, " ");
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -31,11 +33,22 @@ const TRANCHES: [string, number, number][] = [
 /** Répartition horaire des courses terminées (heure de prise en charge, heure de Dakar = UTC). */
 export async function demandeHoraire(
   admin: SupabaseClient<any, any, any>, tenantId: string, dateFrom: string, dateTo: string,
+  segment: SegmentFilter = "all",
 ): Promise<ExtraBlock | null> {
-  const orders = await fetchAllRows<any>(() => admin.from("yango_orders")
-    .select("started_at,cash,cashless,status")
+  const ordersAll = await fetchAllRows<any>(() => admin.from("yango_orders")
+    .select("started_at,cash,cashless,status,plate,yango_driver_id")
     .eq("tenant_id", tenantId).eq("status", "Terminé").gte("jour", dateFrom).lte("jour", dateTo)
     .order("jour").order("order_id"));
+  let orders = ordersAll;
+  if (segment !== "all") {
+    const [{ data: vehicles }, { data: profiles }] = await Promise.all([
+      admin.from("vehicles").select("id,driver_id,plate,fleet_segment").eq("tenant_id", tenantId),
+      admin.from("profiles").select("id,yango_driver_id").eq("tenant_id", tenantId).not("yango_driver_id", "is", null),
+    ]);
+    const seg = segmentResolver((vehicles || []) as any[]);
+    const profileOf = new Map(((profiles || []) as any[]).map((p) => [p.yango_driver_id as string, p.id as string]));
+    orders = ordersAll.filter((o) => seg.ofPlate(o.plate, profileOf.get(o.yango_driver_id) ?? null) === segment);
+  }
   const rows = orders.filter((o) => o.started_at);
   if (rows.length < 30) return null; // trop peu de courses pour parler de « demande »
 
@@ -89,12 +102,17 @@ export async function demandeHoraire(
 /** Assurances, visites techniques, permis et contrats : expirés ou à échéance sous 60 jours. */
 export async function echeances(
   admin: SupabaseClient<any, any, any>, tenantId: string, today: string,
+  segment: SegmentFilter = "all",
 ): Promise<ExtraBlock | null> {
-  const [{ data: vehicles }, { data: profiles }] = await Promise.all([
-    admin.from("vehicles").select("plate,status,insurance_expiry,visite_expiry").eq("tenant_id", tenantId),
-    admin.from("profiles").select("full_name,driver_id,active,account_type,license_expiry,contract_end_date")
+  const [{ data: vehiclesAll }, { data: profilesAll }] = await Promise.all([
+    admin.from("vehicles").select("id,driver_id,plate,status,fleet_segment,insurance_expiry,visite_expiry").eq("tenant_id", tenantId),
+    admin.from("profiles").select("id,full_name,driver_id,active,account_type,license_expiry,contract_end_date")
       .eq("tenant_id", tenantId).eq("role", "driver"),
   ]);
+  // périmètre : véhicules du segment et chauffeurs qui y sont affectés
+  const seg = segmentResolver((vehiclesAll || []) as any[]);
+  const vehicles = ((vehiclesAll || []) as any[]).filter((v) => segment === "all" || segmentDe(v) === segment);
+  const profiles = ((profilesAll || []) as any[]).filter((p) => segment === "all" || seg.ofDriver(p.id) === segment);
   const horizon = new Date(Date.parse(today) + 60 * 86_400_000).toISOString().slice(0, 10);
   const items: { objet: string; nature: string; date: string }[] = [];
   let sansDate = 0;

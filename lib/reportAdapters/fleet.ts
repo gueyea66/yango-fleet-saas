@@ -4,6 +4,8 @@ import { CAT_AVANCE } from "@/lib/expenseCategories";
 import { amortissementPeriode, kmParMoisDepuisCompteur } from "@/lib/calc";
 import { performanceBlock, type PerformanceBlock } from "./performance";
 import { demandeHoraire, echeances } from "./extras";
+import { segmentResolver, type SegmentFilter, type VehicleLite } from "@/lib/analytics/segment";
+import { segmentDe } from "@/lib/fleetSegment";
 
 /**
  * Adaptateur M3A Fleet pour le noyau lib/report-agent : (Supabase fleet) →
@@ -56,14 +58,16 @@ interface PeriodAgg {
   reportRows: { date: string; driver_id: string; brut: number; bonus: number; hors: number; courses: number }[];
   /** Usure des véhicules sur la période. Sans elle le rapport annonce un net embelli. */
   amortissement: number;
+  /** Nombre de véhicules par segment (tout le parc, quel que soit le filtre). */
+  segCounts: { interne: number; partenaire: number };
 }
 
-async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: string): Promise<PeriodAgg> {
+async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: string, segment: SegmentFilter = "all"): Promise<PeriodAgg> {
   const [{ data: profiles }, repsQ, expsQ, paysQ, vehsQ, odoQ] = await Promise.all([
     admin.from("profiles").select("id, driver_id, full_name, account_type, hire_date, contract_end_date")
       .eq("tenant_id", tenantId),
     admin.from("daily_reports")
-      .select("date,driver_id,yango_gross,yango_bonus,off_yango_revenue,commission_amount,service_supplementaire,net_after_expenses,yango_trip_count,end_odometer,status,comment")
+      .select("date,driver_id,vehicle_id,yango_gross,yango_bonus,off_yango_revenue,commission_amount,service_supplementaire,net_after_expenses,yango_trip_count,end_odometer,status,comment")
       .eq("tenant_id", tenantId)
       .gte("date", dateFrom).lte("date", dateTo).order("date").limit(20000),
     admin.from("expenses").select("driver_id,category,amount,expense_date,description")
@@ -71,7 +75,7 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
     admin.from("payments").select("driver_id,amount,payment_date,salary_month,type")
       .eq("tenant_id", tenantId).limit(20000),
     admin.from("vehicles")
-      .select("id,mileage,fleet_segment,prix_acquisition,valeur_residuelle,date_acquisition,amort_plafond_km,amort_duree_max_mois,amort_porte_par")
+      .select("id,driver_id,plate,mileage,fleet_segment,prix_acquisition,valeur_residuelle,date_acquisition,amort_plafond_km,amort_duree_max_mois,amort_porte_par")
       .eq("tenant_id", tenantId),
     // Relevés de compteur sur tout l'historique : le rythme d'usure se mesure
     // sur la durée, pas sur le seul mois rapporté.
@@ -82,14 +86,20 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
   ]);
 
   const isRepos = (r: { comment?: string | null }) => String(r.comment || "").startsWith("[REPOS]");
-  const allReports = repsQ.data || [];
+  // Segment (flotte interne / véhicules partenaires) : même résolution que le menu
+  // Performance — véhicule de la déclaration, sinon véhicule affecté au chauffeur.
+  // Une ligne sans chauffeur (dépense de structure) est rattachée à la flotte interne.
+  const seg = segmentResolver((vehsQ.data || []) as VehicleLite[]);
+  const inSegReport = (r: { vehicle_id?: string | null; driver_id?: string | null }) => segment === "all" || seg.ofReport(r) === segment;
+  const inSegDriver = (driverId?: string | null) => segment === "all" || seg.ofDriver(driverId) === segment;
+  const allReports = (repsQ.data || []).filter(inSegReport);
   const reposReports = allReports.filter(isRepos);
   const reports = allReports.filter((r) => !isRepos(r));
   // « Décaissement propriétaire » = avance remise à un chauffeur : neutre pour
   // les charges du rapport (la charge réelle est déclarée ensuite par le
   // chauffeur — anti double comptage, cf. lib/expenseCategories CAT_AVANCE).
   // Les lignes restent dans expenseRows (deep dive) : le motif saisi garde sa valeur.
-  const allExpenses = expsQ.data || [];
+  const allExpenses = (expsQ.data || []).filter((e) => inSegDriver(e.driver_id));
   const expenses = allExpenses.filter((e) => e.category !== CAT_AVANCE);
   const avances = allExpenses.filter((e) => e.category === CAT_AVANCE)
     .reduce((s, e) => s + (e.amount || 0), 0);
@@ -97,7 +107,7 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
     (p.salary_month ? String(p.salary_month).slice(0, 10) : p.payment_date) || "";
   const payments = (paysQ.data || []).filter((p) => {
     const d = salaryDate(p);
-    return d >= dateFrom && d <= dateTo;
+    return d >= dateFrom && d <= dateTo && inSegDriver(p.driver_id);
   });
 
   const profOf = new Map((profiles || []).map((p) => [p.id, p]));
@@ -160,7 +170,7 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
     (relevesVeh.get(r.vehicle_id) ?? relevesVeh.set(r.vehicle_id, []).get(r.vehicle_id)!)
       .push({ date: r.date, end_odometer: r.end_odometer });
   }
-  const amortissement = Math.round(((vehsQ.data || []) as any[]).reduce((total, v) => total + amortissementPeriode({
+  const amortissement = Math.round(((vehsQ.data || []) as any[]).filter((v) => segment === "all" || segmentDe(v) === segment).reduce((total, v) => total + amortissementPeriode({
     vehicule: {
       prixAcquisition: v.prix_acquisition, valeurResiduelle: v.valeur_residuelle,
       dateAcquisition: v.date_acquisition, compteurActuel: v.mileage,
@@ -172,6 +182,7 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
   }).montant, 0));
 
   return {
+    segCounts: seg.counts(),
     drivers, tot, depCat, avances, amortissement,
     expenseRows: allExpenses.map((e) => ({
       date: e.expense_date || "", driver_id: e.driver_id,
@@ -203,9 +214,9 @@ function previousRange(dateFrom: string, dateTo: string): { dateFrom: string; da
 // ── règles déterministes du rapport mensuel (repli sans LLM) ────────────────
 
 /** Lecture « Performance » : un échec de lecture ne doit jamais empêcher le rapport de sortir. */
-async function perfOf(tenantId: string, dateFrom: string, dateTo: string): Promise<PerformanceBlock | null> {
+async function perfOf(tenantId: string, dateFrom: string, dateTo: string, segment: SegmentFilter = "all"): Promise<PerformanceBlock | null> {
   try {
-    return await performanceBlock(admin, tenantId, dateFrom, dateTo);
+    return await performanceBlock(admin, tenantId, dateFrom, dateTo, segment);
   } catch (e) {
     console.error("[report] lecture performance indisponible:", e instanceof Error ? e.message : e);
     return null;
@@ -494,6 +505,77 @@ const deltaOf = (cur: number, prev: number, label: string, hausseFavorable = tru
   return { label: `${signed(v)} % vs ${label}`, tone: v === 0 ? "flat" : (hausseFavorable ? v > 0 : v < 0) ? "good" : "bad" };
 };
 
+const SEG_LABEL: Record<SegmentFilter, string> = { all: "toute la flotte", interne: "flotte interne", partenaire: "véhicules partenaires" };
+/** Mention du périmètre dans le titre et la période (vide quand le rapport couvre toute la flotte). */
+const segSuffix = (segment: SegmentFilter) => (segment === "all" ? "" : ` · ${SEG_LABEL[segment]}`);
+const segContext = (segment: SegmentFilter): string[] => (segment === "all" ? [] : [
+  `Périmètre du rapport : ${SEG_LABEL[segment]} UNIQUEMENT (${segment === "interne" ? "les véhicules de l'entreprise" : "les véhicules confiés par des propriétaires partenaires"}). Tous les chiffres sont limités à ce périmètre : ne parle jamais de « la flotte » comme d'un tout, écris « ${SEG_LABEL[segment]} ».`,
+]);
+
+/**
+ * Flotte interne face aux véhicules partenaires : la même lecture, côte à côte.
+ * Affichée dans le rapport « toute la flotte » quand le parc est mixte.
+ */
+async function segregation(tenantId: string, dateFrom: string, dateTo: string, total: PeriodAgg): Promise<{
+  section: Section; facts: Record<string, string | number | null>; insights: Insight[]; context: string[];
+} | null> {
+  if (total.segCounts.interne === 0 || total.segCounts.partenaire === 0) return null;
+  const [int, par] = await Promise.all([
+    aggregatePeriod(tenantId, dateFrom, dateTo, "interne"),
+    aggregatePeriod(tenantId, dateFrom, dateTo, "partenaire"),
+  ]);
+  if (int.tot.jours === 0 || par.tot.jours === 0) return null;
+  const cols = [int, par, total];
+  const actifs = (p: PeriodAgg) => p.drivers.filter((a) => !a.technical && a.jours > 0).length;
+  const caJour = (p: PeriodAgg) => (p.tot.jours > 0 ? recetteOf(p.tot) / p.tot.jours : 0);
+  const marge = (p: PeriodAgg) => (recetteOf(p.tot) > 0 ? pct(netFinalOf(p), recetteOf(p.tot)) : 0);
+  const pc = (v: number) => `${String(v).replace(".", ",")} %`;
+  const row = (label: string, f: (p: PeriodAgg) => string, o: { total?: boolean } = {}) => ({ cells: [o.total ? label : `<b>${esc(label)}</b>`, ...cols.map(f)], total: o.total });
+  const recTot = recetteOf(total.tot);
+  const section: Section = {
+    kind: "table",
+    title: "Flotte interne et véhicules partenaires",
+    columns: [{ label: "Indicateur" }, { label: "Flotte interne", align: "right" }, { label: "Partenaires", align: "right" }, { label: "Total", align: "right" }],
+    rows: [
+      row("Véhicules au parc", (p) => (p === total ? String(total.segCounts.interne + total.segCounts.partenaire) : String(p === int ? total.segCounts.interne : total.segCounts.partenaire))),
+      row("Chauffeurs actifs", (p) => String(actifs(p))),
+      row("Jours travaillés", (p) => String(p.tot.jours)),
+      row("Recette brute", (p) => fmt(recetteOf(p.tot))),
+      row("Part de la recette", (p) => (recTot > 0 ? pc(pct(recetteOf(p.tot), recTot)) : "—")),
+      row("CA par jour travaillé", (p) => fmt(caJour(p))),
+      row("Courses", (p) => fmt(p.tot.courses)),
+      row("Commissions et services", (p) => `−${fmt(p.tot.comm)}`),
+      row("Net après commissions", (p) => fmt(p.tot.net)),
+      row("Dépenses", (p) => `−${fmt(p.tot.dep)}`),
+      row("Rémunération versée", (p) => (p.tot.sal + p.tot.aco > 0 ? `−${fmt(p.tot.sal + p.tot.aco)}` : "0")),
+      ...(total.amortissement ? [row("Amortissement des véhicules", (p) => (p.amortissement > 0 ? `−${fmt(p.amortissement)}` : "0"))] : []),
+      row("NET FINAL", (p) => fmt(netFinalOf(p)), { total: true }),
+      row("Marge nette", (p) => (recetteOf(p.tot) > 0 ? pc(marge(p)) : "—")),
+    ],
+    note: "Flotte interne = véhicules de l'entreprise ; partenaires = véhicules confiés par des propriétaires tiers. Une journée est rattachée au véhicule déclaré, sinon au véhicule affecté au chauffeur ; une dépense ou une rémunération suit le chauffeur. Les dépenses sans chauffeur sont rattachées à la flotte interne. Le même rapport peut être généré pour un seul des deux périmètres.",
+  };
+  const facts: Record<string, string | number | null> = {};
+  for (const [k, p] of [["flotte_interne", int], ["partenaires", par]] as const) {
+    facts[`${k}_recette_fcfa`] = Math.round(recetteOf(p.tot));
+    facts[`${k}_part_recette_pourcent`] = recTot > 0 ? pct(recetteOf(p.tot), recTot) : null;
+    facts[`${k}_jours_travailles`] = p.tot.jours;
+    facts[`${k}_chauffeurs_actifs`] = actifs(p);
+    facts[`${k}_ca_par_jour_fcfa`] = Math.round(caJour(p));
+    facts[`${k}_net_final_fcfa`] = Math.round(netFinalOf(p));
+    facts[`${k}_marge_nette_pourcent`] = marge(p);
+    facts[`${k}_depenses_fcfa`] = Math.round(p.tot.dep);
+  }
+  const ecart = caJour(int) - caJour(par);
+  return {
+    section, facts,
+    insights: [{
+      severity: "info",
+      html: `<b>Flotte interne : ${fmt(recetteOf(int.tot))} F (${pc(pct(recetteOf(int.tot), recTot))} de la recette) ; partenaires : ${fmt(recetteOf(par.tot))} F.</b> CA par jour travaillé : ${fmt(caJour(int))} F en interne contre ${fmt(caJour(par))} F chez les partenaires${Math.abs(ecart) >= 1000 ? `, soit ${fmt(Math.abs(ecart))} F d'écart en faveur ${ecart > 0 ? "de la flotte interne" : "des partenaires"}` : ""}. Net final : ${fmt(netFinalOf(int))} F et ${fmt(netFinalOf(par))} F.`,
+    }],
+    context: ["Le parc est mixte : les faits flotte_interne_ et partenaires_ donnent les deux périmètres séparément. Distingue-les dans l'analyse : la flotte interne est l'actif de l'entreprise, les véhicules partenaires appartiennent à des tiers. Une conclusion vraie pour l'un peut être fausse pour l'autre."],
+  };
+}
+
 /** Priorité de repli : le plus gros gisement chiffré de la lecture Performance. */
 function focusOf(perf: PerformanceBlock | null): string | undefined {
   if (!perf) return undefined;
@@ -608,7 +690,7 @@ function semaineType(p: PeriodAgg): Section | null {
   };
 }
 
-async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string, tenantName: string): Promise<ReportDataset> {
+async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string, tenantName: string, segment: SegmentFilter = "all"): Promise<ReportDataset> {
   const prev = comparisonRange(dateFrom, dateTo);
   const fullMonth = isFullMonth(dateFrom, dateTo);
   const prevLabel = fullMonth ? moisLabel(prev.dateFrom) : "période précédente";
@@ -619,13 +701,14 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
     try { return await run(); } catch (e) { console.error(`[report] ${what} indisponible:`, e instanceof Error ? e.message : e); return null; }
   };
   const [cur, hist, beforeOther, perf, heures, ech] = await Promise.all([
-    aggregatePeriod(tenantId, dateFrom, dateTo),
-    Promise.all(history.map((m) => aggregatePeriod(tenantId, m.dateFrom, m.dateTo))),
-    fullMonth ? Promise.resolve(null) : aggregatePeriod(tenantId, prev.dateFrom, prev.dateTo),
-    perfOf(tenantId, dateFrom, dateTo),
-    safe("demande horaire", () => demandeHoraire(admin, tenantId, dateFrom, dateTo)),
-    safe("échéances", () => echeances(admin, tenantId, today)),
+    aggregatePeriod(tenantId, dateFrom, dateTo, segment),
+    Promise.all(history.map((m) => aggregatePeriod(tenantId, m.dateFrom, m.dateTo, segment))),
+    fullMonth ? Promise.resolve(null) : aggregatePeriod(tenantId, prev.dateFrom, prev.dateTo, segment),
+    perfOf(tenantId, dateFrom, dateTo, segment),
+    safe("demande horaire", () => demandeHoraire(admin, tenantId, dateFrom, dateTo, segment)),
+    safe("échéances", () => echeances(admin, tenantId, today, segment)),
   ]);
+  const segs = segment === "all" ? await safe("ségrégation", () => segregation(tenantId, dateFrom, dateTo, cur)) : null;
   const before = beforeOther ?? hist[hist.length - 1];
 
   const recette = recetteOf(cur.tot), recetteP = recetteOf(before.tot);
@@ -647,6 +730,7 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
   const notable = notableExpensesTable(cur);
   const sections: Section[] = [
     compteResultat(cur, before, prevLabel),
+    ...(segs ? [segs.section] : []),
     ...(evolution ? [evolution] : []),
     ...(perf ? perf.sections : []),
     driverTable(cur, dateFrom, dateTo),
@@ -664,6 +748,8 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
     ...(perf?.facts ?? {}),
     ...(heures?.facts ?? {}),
     ...(ech?.facts ?? {}),
+    ...(segs?.facts ?? {}),
+    perimetre: SEG_LABEL[segment],
     periode_du: frFull(dateFrom), periode_au: frFull(dateTo),
     mois_precedent_du: frFull(prev.dateFrom), mois_precedent_au: frFull(prev.dateTo),
     ca_par_jour_flotte_fcfa: Math.round(caJour),
@@ -717,8 +803,8 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
   const panierP = before.tot.courses > 0 ? before.tot.brut / before.tot.courses : 0;
   return {
     meta: {
-      docTitle: "Rapport de direction mensuel",
-      periodLabel: `Période : ${frFull(dateFrom)} → ${frFull(dateTo)} · Montants en FCFA`,
+      docTitle: `Rapport de direction mensuel${segSuffix(segment)}`,
+      periodLabel: `Période : ${frFull(dateFrom)} → ${frFull(dateTo)}${segSuffix(segment)} · Montants en FCFA`,
       generatedLabel: new Date().toLocaleDateString("fr-FR"),
       shortLabel: `${frFull(dateFrom)} → ${frFull(dateTo)}`,
       sourceLabel: `Source : ${tenantName} · M3A Fleet SaaS`,
@@ -739,6 +825,8 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
     context: [
       ...CONTEXT_COMMON,
       "Destinataire : le dirigeant de l'entreprise. Il veut savoir en une page si le mois est bon, pourquoi, combien il laisse sur la table et quoi décider. Chaque constat doit porter un chiffre et une conséquence ; pas de généralités.",
+      ...segContext(segment),
+      ...(segs?.context ?? []),
       ...(perf?.context ?? []),
       `Les faits préfixés mois_precedent_ couvrent ${prevLabel} ; les faits variation_ donnent l'évolution en pourcentage déjà calculée (ne recalcule rien). Les faits evolution_AAAA_MM donnent les mois antérieurs : dégage la tendance de fond, pas seulement l'écart d'un mois.`,
       "La table « Charges notables » donne le MOTIF saisi de chaque grosse ligne (décaissements propriétaire compris) : appuie l'analyse des dépenses dessus — un poste ne s'explique jamais par son seul total.",
@@ -747,14 +835,14 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
         `Les « Décaissement propriétaire » sont des AVANCES remises aux chauffeurs (${fmt(cur.avances)} F sur la période) : cash sorti mais NEUTRE pour le résultat — la charge réelle est celle déclarée ensuite par le chauffeur. Ne jamais les compter comme des dépenses.`,
       ] : []),
     ],
-    deterministicInsights: [...dyn, ...(perf?.insights ?? []), ...(heures?.insights ?? []), ...(ech?.insights ?? []), ...det.insights],
+    deterministicInsights: [...dyn, ...(segs?.insights ?? []), ...(perf?.insights ?? []), ...(heures?.insights ?? []), ...(ech?.insights ?? []), ...det.insights],
     deterministicDecisions: decisions,
     deterministicFocus: focusOf(perf),
     deterministicTldr: `<b>L'essentiel.</b> ${fmt(recette)} F de recette brute${vRec != null ? ` (${signed(vRec)} % face à ${esc(prevLabel)})` : ""} et <b>${fmt(netFinal)} F de net final</b>${recette > 0 ? `, soit ${String(marge).replace(".", ",")} % de marge nette` : ""}. La flotte a travaillé ${cur.tot.jours} jours à ${fmt(caJour)} F par jour.${perf ? ` <b>${esc(perf.kpi.value)} tiennent l'objectif journalier</b>${perf.manqueAGagner > 0 ? ` : le manque à gagner est estimé à ${fmt(perf.manqueAGagner)} F` : ""}.` : ""} Dépenses : ${fmt(cur.tot.dep)} F · rémunération versée : ${fmt(cur.tot.sal + cur.tot.aco)} F${cur.tot.aco ? ` (dont ${fmt(cur.tot.aco)} F d'acomptes)` : ""}.`,
   };
 }
 
-async function ytdDataset(tenantId: string, dateTo: string, tenantName: string): Promise<ReportDataset> {
+async function ytdDataset(tenantId: string, dateTo: string, tenantName: string, segment: SegmentFilter = "all"): Promise<ReportDataset> {
   const year = dateTo.slice(0, 4);
   const lastMonth = Number(dateTo.slice(5, 7));
   const months: { label: string; agg: PeriodAgg }[] = [];
@@ -762,7 +850,7 @@ async function ytdDataset(tenantId: string, dateTo: string, tenantName: string):
     const mm = String(m).padStart(2, "0");
     const from = `${year}-${mm}-01`;
     const to = m === lastMonth ? dateTo : `${year}-${mm}-${new Date(Date.UTC(Number(year), m, 0)).getUTCDate()}`;
-    const agg = await aggregatePeriod(tenantId, from, to);
+    const agg = await aggregatePeriod(tenantId, from, to, segment);
     // n'affiche que les mois avec au moins une écriture
     if (agg.tot.jours > 0 || agg.tot.dep > 0 || agg.tot.sal + agg.tot.aco > 0) {
       months.push({
@@ -772,10 +860,11 @@ async function ytdDataset(tenantId: string, dateTo: string, tenantName: string):
     }
   }
   const [full, perf, ech] = await Promise.all([
-    aggregatePeriod(tenantId, `${year}-01-01`, dateTo),
-    perfOf(tenantId, `${year}-01-01`, dateTo),
-    echeances(admin, tenantId, new Date().toISOString().slice(0, 10)).catch(() => null),
+    aggregatePeriod(tenantId, `${year}-01-01`, dateTo, segment),
+    perfOf(tenantId, `${year}-01-01`, dateTo, segment),
+    echeances(admin, tenantId, new Date().toISOString().slice(0, 10), segment).catch(() => null),
   ]);
+  const segs = segment === "all" ? await segregation(tenantId, `${year}-01-01`, dateTo, full).catch(() => null) : null;
   const recette = recetteOf(full.tot);
   const netFinal = netFinalOf(full);
 
@@ -804,6 +893,8 @@ async function ytdDataset(tenantId: string, dateTo: string, tenantName: string):
     ...driverFacts(full),
     ...(perf?.facts ?? {}),
     ...(ech?.facts ?? {}),
+    ...(segs?.facts ?? {}),
+    perimetre: SEG_LABEL[segment],
     annee: year, periode_au: frFull(dateTo),
   };
   for (const { label, agg } of months) {
@@ -816,8 +907,8 @@ async function ytdDataset(tenantId: string, dateTo: string, tenantName: string):
   const maxRec = Math.max(...months.map(({ agg }) => recetteOf(agg.tot)), 1);
   return {
     meta: {
-      docTitle: `Bilan Year-to-Date ${year}`,
-      periodLabel: `Période : 01/01/${year} → ${frFull(dateTo)} · Montants en FCFA`,
+      docTitle: `Bilan Year-to-Date ${year}${segSuffix(segment)}`,
+      periodLabel: `Période : 01/01/${year} → ${frFull(dateTo)}${segSuffix(segment)} · Montants en FCFA`,
       generatedLabel: new Date().toLocaleDateString("fr-FR"),
       shortLabel: `Janvier → ${frFull(dateTo)}`,
       sourceLabel: `Source : ${tenantName} · M3A Fleet SaaS`,
@@ -853,6 +944,7 @@ async function ytdDataset(tenantId: string, dateTo: string, tenantName: string):
           pct: Math.max(1, Math.round((recetteOf(agg.tot) / maxRec) * 100)),
         })),
       },
+      ...(segs ? [segs.section] : []),
       ...(perf ? perf.sections : []),
       driverTable(full, `${year}-01-01`, dateTo),
       ...(ech?.section ? [ech.section] : []),
@@ -863,10 +955,11 @@ async function ytdDataset(tenantId: string, dateTo: string, tenantName: string):
       ...CONTEXT_COMMON,
       "Destinataire : le dirigeant de l'entreprise. Il veut savoir en une page si la période est bonne, pourquoi, combien il laisse sur la table et quoi décider. Chaque constat doit porter un chiffre et une conséquence ; pas de généralités.",
       ...(perf?.context ?? []),
+      ...segContext(segment), ...(segs?.context ?? []),
       "Rapport année-à-date : dégage la trajectoire (point mort, tendance de marge), les leçons structurelles et les priorités du trimestre suivant — pas le détail d'un seul mois.",
     ],
     deterministicInsights: [
-      ...(perf?.insights ?? []), ...(ech?.insights ?? []),
+      ...(segs?.insights ?? []), ...(perf?.insights ?? []), ...(ech?.insights ?? []),
       { severity: netFinal >= 0 ? "ok" : "alert", html: `<b>Net final cumulé ${year} : ${netFinal >= 0 ? "+" : "−"}${fmt(Math.abs(netFinal))} F</b> sur ${fmt(recette)} F de recette (marge ${pct(netFinal, recette)} %).` },
       { severity: "info", html: `<b>Carburant cumulé : ${fmt(full.depCat.get("Carburant") || 0)} F</b> — ${pct(full.depCat.get("Carburant") || 0, recette)} % de la recette, poste de coût n°1.` },
     ],
@@ -878,12 +971,13 @@ async function ytdDataset(tenantId: string, dateTo: string, tenantName: string):
 
 const JOURS_FR = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
 
-async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: string, tenantName: string): Promise<ReportDataset> {
+async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: string, tenantName: string, segment: SegmentFilter = "all"): Promise<ReportDataset> {
   const [p, perf, heures] = await Promise.all([
-    aggregatePeriod(tenantId, dateFrom, dateTo),
-    perfOf(tenantId, dateFrom, dateTo),
-    demandeHoraire(admin, tenantId, dateFrom, dateTo).catch(() => null),
+    aggregatePeriod(tenantId, dateFrom, dateTo, segment),
+    perfOf(tenantId, dateFrom, dateTo, segment),
+    demandeHoraire(admin, tenantId, dateFrom, dateTo, segment).catch(() => null),
   ]);
+  const segs = segment === "all" ? await segregation(tenantId, dateFrom, dateTo, p).catch(() => null) : null;
   // exports Yango Fleetroom présents : refus et heures en course sont mesurés
   const perfFleetroom = !!perf?.hasFleetroom;
 
@@ -940,7 +1034,8 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
   });
 
   const facts: Record<string, string | number | null> = {
-    ...baseFacts(p), ...driverFacts(p), ...(perf?.facts ?? {}), ...(heures?.facts ?? {}),
+    ...baseFacts(p), ...driverFacts(p), ...(perf?.facts ?? {}), ...(heures?.facts ?? {}), ...(segs?.facts ?? {}),
+    perimetre: SEG_LABEL[segment],
     periode_du: frFull(dateFrom), periode_au: frFull(dateTo),
   };
   for (const [i, jour] of JOURS_FR.entries()) {
@@ -957,7 +1052,7 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
 
   return {
     meta: {
-      docTitle: "Deep dive Opérations & Demande",
+      docTitle: `Deep dive Opérations & Demande${segSuffix(segment)}`,
       periodLabel: `Période : ${frFull(dateFrom)} → ${frFull(dateTo)} · ${p.reportRows.length} rapports · Montants en FCFA`,
       generatedLabel: new Date().toLocaleDateString("fr-FR"),
       shortLabel: `${frFull(dateFrom)} → ${frFull(dateTo)}`,
@@ -1006,6 +1101,7 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
       },
       ...(notableExpensesTable(p) ? [{ ...notableExpensesTable(p)!, title: "4. Charges commentées" } as Section] : []),
       ...(heures?.section ? [heures.section] : []),
+      ...(segs ? [segs.section] : []),
       ...(perf ? perf.sections : []),
     ].map((sec, i) => ({ ...sec, title: `${i + 1}. ${sec.title.replace(/^\d+\.\s*/, "")}` } as Section)),
     facts,
@@ -1013,6 +1109,7 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
     context: [
       ...CONTEXT_COMMON,
       "Destinataire : le dirigeant de l'entreprise. Chaque constat doit porter un chiffre et une conséquence, et déboucher sur une décision d'organisation (planning, repos, affectation des véhicules).",
+      ...segContext(segment), ...(segs?.context ?? []),
       "Deep dive opérationnel : cherche les patterns de demande (jours forts/faibles, où placer les repos), le coût du siège vide (semaines à N chauffeurs), les écarts d'efficience carburant/km entre chauffeurs, et les anomalies de saisie (paniers aberrants).",
       ...(perf?.context ?? []),
       ...(perfFleetroom ? [] : ["Les données ne contiennent ni heures en ligne, ni annulations, ni note conducteur : la qualité de service n'est pas mesurable — ne pas l'inventer."]),
@@ -1056,7 +1153,7 @@ function whiteLabelDataset(dataset: ReportDataset, label: string): ReportDataset
 
 /** Point d'entrée de l'adaptateur. */
 export async function buildFleetDataset(
-  tenantId: string, dateFrom: string, dateTo: string, kind: FleetReportKind
+  tenantId: string, dateFrom: string, dateTo: string, kind: FleetReportKind, segment: SegmentFilter = "all"
 ): Promise<{ dataset: ReportDataset; tenantName: string; platformLabel: string }> {
   const [{ data: tenant }, { data: ts }] = await Promise.all([
     admin.from("tenants").select("name").eq("id", tenantId).single(),
@@ -1065,8 +1162,8 @@ export async function buildFleetDataset(
   const tenantName = tenant?.name || "M3A Fleet";
   const platformLabel = (ts?.platform_label || "Yango").trim() || "Yango";
   const dataset =
-    kind === "ytd" ? await ytdDataset(tenantId, dateTo, tenantName)
-    : kind === "deepdive" ? await deepdiveDataset(tenantId, dateFrom, dateTo, tenantName)
-    : await monthlyDataset(tenantId, dateFrom, dateTo, tenantName);
+    kind === "ytd" ? await ytdDataset(tenantId, dateTo, tenantName, segment)
+    : kind === "deepdive" ? await deepdiveDataset(tenantId, dateFrom, dateTo, tenantName, segment)
+    : await monthlyDataset(tenantId, dateFrom, dateTo, tenantName, segment);
   return { dataset: whiteLabelDataset(dataset, platformLabel), tenantName, platformLabel };
 }

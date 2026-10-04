@@ -18,6 +18,7 @@ import type { Insight, Kpi, Section } from "@/lib/report-agent/types";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { driverStats, sortStats, type DriverStat } from "@/lib/analytics/driverStats";
 import { OBJECTIF_DEFAUT, statutDe } from "@/lib/analytics/trends";
+import { segmentResolver, type SegmentFilter } from "@/lib/analytics/segment";
 
 const fmt = (v: number) => Math.round(v).toLocaleString("fr-FR").replace(/ /g, " ");
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -53,28 +54,40 @@ async function readObjectif(admin: SupabaseClient<any, any, any>, tenantId: stri
 /** null : aucun chauffeur n'a travaillé sur la période (le rapport sort sans ce bloc). */
 export async function performanceBlock(
   admin: SupabaseClient<any, any, any>, tenantId: string, dateFrom: string, dateTo: string,
+  segment: SegmentFilter = "all",
 ): Promise<PerformanceBlock | null> {
   const todayIso = new Date().toISOString().slice(0, 10);
   const seedFrom = new Date(Date.parse(dateFrom) - 180 * 86_400_000).toISOString().slice(0, 10);
-  const [objectif, { data: profiles }, reports, orders, seeds] = await Promise.all([
+  const [objectif, { data: profiles }, reportsAll, ordersAll, seeds, { data: vehicles }] = await Promise.all([
     readObjectif(admin, tenantId),
     admin.from("profiles")
       .select("id, full_name, driver_id, yango_driver_id, active, account_type, hire_date, contract_end_date")
       .eq("tenant_id", tenantId).eq("role", "driver"),
     fetchAllRows(() => admin.from("daily_reports")
-      .select("driver_id,date,status,comment,yango_gross,yango_bonus,off_yango_revenue,yango_trip_count,off_yango_trip_count,net_after_expenses,end_odometer")
+      .select("driver_id,vehicle_id,date,status,comment,yango_gross,yango_bonus,off_yango_revenue,yango_trip_count,off_yango_trip_count,net_after_expenses,end_odometer")
       .eq("tenant_id", tenantId).eq("status", "approved").gte("date", dateFrom).lte("date", dateTo).order("date").order("id")),
     fetchAllRows(() => admin.from("yango_orders")
-      .select("yango_driver_id,jour,status,cancel_reason,started_at,ended_at,distance_m,cash,cashless")
+      .select("yango_driver_id,plate,jour,status,cancel_reason,started_at,ended_at,distance_m,cash,cashless")
       .eq("tenant_id", tenantId).gte("jour", dateFrom).lte("jour", dateTo).order("jour").order("order_id")),
     // amorce du km compteur : dernière déclaration validée avec compteur avant la période
     fetchAllRows(() => admin.from("daily_reports").select("driver_id,date,end_odometer")
       .eq("tenant_id", tenantId).eq("status", "approved").gt("end_odometer", 0)
       .lt("date", dateFrom).gte("date", seedFrom).order("date").order("id")),
+    admin.from("vehicles").select("id,driver_id,plate,fleet_segment").eq("tenant_id", tenantId),
   ]);
 
+  // Périmètre (flotte interne / véhicules partenaires) : même règle que le menu Performance.
+  const seg = segmentResolver((vehicles || []) as any[]);
+  const profileOfYango = new Map(((profiles || []) as any[]).filter((p) => p.yango_driver_id).map((p) => [p.yango_driver_id as string, p.id as string]));
+  const reports = segment === "all" ? (reportsAll as any[]) : (reportsAll as any[]).filter((r) => seg.ofReport(r) === segment);
+  const orders = segment === "all" ? (ordersAll as any[])
+    : (ordersAll as any[]).filter((o) => seg.ofPlate(o.plate, profileOfYango.get(o.yango_driver_id) ?? null) === segment);
+  const actifs = new Set<string>([...reports.map((r) => r.driver_id as string), ...orders.map((o) => profileOfYango.get(o.yango_driver_id) ?? "")]);
+  const drivers = segment === "all" ? ((profiles || []) as any[])
+    : ((profiles || []) as any[]).filter((d) => seg.ofDriver(d.id) === segment || actifs.has(d.id));
+
   const stats = driverStats({
-    drivers: (profiles || []) as any[], reports: reports as any[], seeds: seeds as any[], orders: orders as any[],
+    drivers, reports, seeds: seeds as any[], orders,
     periode: { from: dateFrom, to: dateTo }, today: todayIso,
   });
   // classés par CA par jour : c'est le critère de l'objectif
