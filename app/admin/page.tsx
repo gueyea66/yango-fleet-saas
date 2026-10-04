@@ -4856,8 +4856,25 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
   // formules que le récap) — service complémentaire activé par tenant ;
   // ytd/deepdive (+ narration IA) réservés au niveau premium (403 sinon).
   // fetch d'abord : un refus (403) s'affiche dans le menu au lieu d'un onglet JSON.
-  const openReport = async (type: "monthly" | "ytd" | "deepdive" = "monthly") => {
-    setBusy(`report-${type}`); setErr(null);
+  // Période affichée encore en cours (ex. octobre vu le 4) : le rapport d'activité
+  // attendu est celui du dernier mois COMPLET (retour Abdou 04/10). On propose
+  // les deux, chacun avec sa période écrite en clair.
+  const fr = (iso: string) => iso.slice(0, 10).split("-").reverse().join("/");
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const enCours = dateTo >= todayIso;
+  const moisComplet = (() => {
+    const n = new Date();
+    const first = new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth() - 1, 1));
+    const last = new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), 0));
+    return {
+      from: first.toISOString().slice(0, 10), to: last.toISOString().slice(0, 10),
+      label: first.toLocaleDateString("fr-FR", { month: "long", year: "numeric", timeZone: "UTC" }),
+    };
+  })();
+
+  const openReport = async (type: "monthly" | "ytd" | "deepdive" = "monthly", range?: { from: string; to: string }) => {
+    const from = range?.from ?? dateFrom, to = range?.to ?? dateTo;
+    setBusy(`report-${type}${range ? "-complet" : ""}`); setErr(null);
     // Onglet ouvert AU CLIC : la génération dure plusieurs secondes, et un
     // window.open lancé après l'attente est bloqué par le navigateur (le rapport
     // « ne s'ouvrait pas », retour Abdou 04/10).
@@ -4865,7 +4882,7 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
     if (win) win.document.write("<p style=\"font-family:sans-serif;padding:24px\">Génération du rapport…</p>");
     let ok = false;
     try {
-      const res = await fetch(`/api/admin/report-monthly?dateFrom=${dateFrom}&dateTo=${dateTo}&type=${type}`);
+      const res = await fetch(`/api/admin/report-monthly?dateFrom=${from}&dateTo=${to}&type=${type}`);
       if (!res.ok) {
         const j = await res.json().catch(() => ({} as any));
         setErr(j.error || "Rapport indisponible.");
@@ -4875,7 +4892,7 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
       ok = true;
       // onglet refusé (bloqueur, application installée) : le rapport est téléchargé
       if (win && !win.closed) win.location.href = URL.createObjectURL(blob);
-      else saveBlob(blob, `rapport_${type}_${dateFrom}_${dateTo}.html`);
+      else saveBlob(blob, `rapport_${type}_${from}_${to}.html`);
       setOpen(false);
     } catch {
       setErr("Erreur réseau pendant la génération du rapport.");
@@ -4893,12 +4910,19 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
         <Download size={15} strokeWidth={2} /> Exporter
       </button>
       {open && (
-        <div className="absolute right-0 mt-1.5 z-50 rounded-xl overflow-hidden min-w-[210px]"
+        <div className="absolute right-0 mt-1.5 z-50 rounded-xl overflow-hidden min-w-[300px]"
           style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-border)", boxShadow: "0 12px 32px rgba(0,0,0,.45)" }}>
+          {enCours && (
+            <button onClick={() => openReport("monthly", moisComplet)} disabled={!!busy}
+              className="w-full text-left text-sm px-4 py-2.5 font-semibold disabled:opacity-50"
+              style={{ color: "var(--sk-t1)", borderBottom: "1px solid var(--sk-surface)" }}>
+              {busy === "report-monthly-complet" ? "Génération…" : `📊 Rapport d'activité · ${moisComplet.label} (mois complet)`}
+            </button>
+          )}
           <button onClick={() => openReport("monthly")} disabled={!!busy}
             className="w-full text-left text-sm px-4 py-2.5 font-semibold disabled:opacity-50"
             style={{ color: "var(--sk-t1)", borderBottom: "1px solid var(--sk-surface)" }}>
-            {busy === "report-monthly" ? "Génération…" : "📊 Rapport d'activité (imprimable)"}
+            {busy === "report-monthly" ? "Génération…" : `📊 Rapport d'activité · ${fr(dateFrom)} → ${fr(dateTo)}${enCours ? " (en cours)" : ""}`}
           </button>
           <button onClick={() => openReport("ytd")} disabled={!!busy}
             className="w-full text-left text-sm px-4 py-2.5 font-semibold disabled:opacity-50"
@@ -4939,7 +4963,7 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
           ))}
           {err && <div className="text-xs px-4 py-2 border-t" style={{ color: "#f87171", borderColor: "var(--sk-surface)" }}>{err}</div>}
           <div className="text-[10px] px-4 py-2 border-t" style={{ color: "var(--sk-t4)", borderColor: "var(--sk-surface)" }}>
-            Période affichée · format Excel FR
+Exports CSV : période affichée ({fr(dateFrom)} → {fr(dateTo)}) · format Excel FR
           </div>
         </div>
       )}
