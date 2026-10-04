@@ -2,6 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import type { Decision, Insight, ReportDataset, Section, TableSection } from "@/lib/report-agent/types";
 import { CAT_AVANCE } from "@/lib/expenseCategories";
 import { amortissementPeriode, kmParMoisDepuisCompteur } from "@/lib/calc";
+import { performanceBlock, type PerformanceBlock } from "./performance";
 
 /**
  * Adaptateur M3A Fleet pour le noyau lib/report-agent : (Supabase fleet) →
@@ -199,6 +200,16 @@ function previousRange(dateFrom: string, dateTo: string): { dateFrom: string; da
 }
 
 // ── règles déterministes du rapport mensuel (repli sans LLM) ────────────────
+
+/** Lecture « Performance » : un échec de lecture ne doit jamais empêcher le rapport de sortir. */
+async function perfOf(tenantId: string, dateFrom: string, dateTo: string): Promise<PerformanceBlock | null> {
+  try {
+    return await performanceBlock(admin, tenantId, dateFrom, dateTo);
+  } catch (e) {
+    console.error("[report] lecture performance indisponible:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
 
 function monthlyDeterministic(
   p: PeriodAgg, dateFrom: string, dateTo: string
@@ -431,14 +442,16 @@ const CONTEXT_COMMON = [
 
 async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string, tenantName: string): Promise<ReportDataset> {
   const prev = previousRange(dateFrom, dateTo);
-  const [cur, before] = await Promise.all([
+  const [cur, before, perf] = await Promise.all([
     aggregatePeriod(tenantId, dateFrom, dateTo),
     aggregatePeriod(tenantId, prev.dateFrom, prev.dateTo),
+    perfOf(tenantId, dateFrom, dateTo),
   ]);
   const recette = recetteOf(cur.tot);
   const netFinal = netFinalOf(cur);
   const det = monthlyDeterministic(cur, dateFrom, dateTo);
   const sections: Section[] = [driverTable(cur, dateFrom, dateTo)];
+  if (perf) sections.push(perf.section);
   const bars = depBars(cur);
   if (bars) sections.push(bars);
   const notable = notableExpensesTable(cur);
@@ -448,6 +461,7 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
     ...baseFacts(cur),
     ...Object.fromEntries(Object.entries(baseFacts(before)).map(([k, v]) => [`mois_precedent_${k}`, v])),
     ...driverFacts(cur),
+    ...(perf?.facts ?? {}),
     periode_du: frFull(dateFrom), periode_au: frFull(dateTo),
     mois_precedent_du: frFull(prev.dateFrom), mois_precedent_au: frFull(prev.dateTo),
   };
@@ -468,19 +482,21 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
           : (recette > 0 ? `${pct(netFinal, recette)} % de la recette` : "—"), accent: true },
       { label: "Dépenses", value: fmt(cur.tot.dep), sub: recette > 0 ? `${pct(cur.tot.dep, recette)} % de la recette` : "—" },
       { label: "Activité", value: `${fmt(cur.tot.courses)} courses`, sub: `${cur.tot.jours} jours travaillés${cur.tot.repos ? ` · ${cur.tot.repos} repos` : ""} · ${activeDrivers} chauffeur${activeDrivers > 1 ? "s" : ""}` },
+      ...(perf ? [perf.kpi] : []),
     ],
     sections,
     facts,
     aliases: aliasesOf(cur),
     context: [
       ...CONTEXT_COMMON,
+      ...(perf?.context ?? []),
       "Les faits préfixés mois_precedent_ couvrent la période précédente de même durée : compare la dynamique (recette, marge, carburant, effectif).",
       "La table « Charges notables » donne le MOTIF saisi de chaque grosse ligne (décaissements propriétaire compris) : appuie l'analyse des dépenses dessus — un poste ne s'explique jamais par son seul total.",
       ...(cur.avances > 0 ? [
         `Les « Décaissement propriétaire » sont des AVANCES remises aux chauffeurs (${fmt(cur.avances)} F sur la période) : cash sorti mais NEUTRE pour le résultat — la charge réelle est celle déclarée ensuite par le chauffeur. Ne jamais les compter comme des dépenses.`,
       ] : []),
     ],
-    deterministicInsights: det.insights,
+    deterministicInsights: [...(perf?.insights ?? []), ...det.insights],
     deterministicDecisions: det.decisions,
     deterministicTldr: `<b>L'essentiel.</b> La période dégage <b>${fmt(netFinal)} F de net final</b> sur <b>${fmt(recette)} F de recette brute</b>${recette > 0 ? ` (marge nette ${pct(netFinal, recette)} %)` : ""}. ${fmt(cur.tot.courses)} courses Yango sur ${cur.tot.jours} jours travaillés${cur.tot.repos ? ` (+${cur.tot.repos} repos déclarés)` : ""}. Dépenses : ${fmt(cur.tot.dep)} F · Rémunération versée : ${fmt(cur.tot.sal + cur.tot.aco)} F${cur.tot.aco ? ` (dont ${fmt(cur.tot.aco)} F d'acomptes)` : ""}.`,
   };
@@ -595,7 +611,12 @@ async function ytdDataset(tenantId: string, dateTo: string, tenantName: string):
 const JOURS_FR = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
 
 async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: string, tenantName: string): Promise<ReportDataset> {
-  const p = await aggregatePeriod(tenantId, dateFrom, dateTo);
+  const [p, perf] = await Promise.all([
+    aggregatePeriod(tenantId, dateFrom, dateTo),
+    perfOf(tenantId, dateFrom, dateTo),
+  ]);
+  // exports Yango Fleetroom présents : refus et heures en course sont mesurés
+  const perfFleetroom = !!perf && Object.keys(perf.facts).some((k) => k.endsWith("_heures_en_course"));
 
   // semaine type
   const byWd = new Map<number, { n: number; brut: number; courses: number; hors: number }>();
@@ -650,7 +671,7 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
   });
 
   const facts: Record<string, string | number | null> = {
-    ...baseFacts(p), ...driverFacts(p),
+    ...baseFacts(p), ...driverFacts(p), ...(perf?.facts ?? {}),
     periode_du: frFull(dateFrom), periode_au: frFull(dateTo),
   };
   for (const [i, jour] of JOURS_FR.entries()) {
@@ -678,6 +699,7 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
       { label: "Courses Yango", value: fmt(p.tot.courses), sub: `${p.tot.jours} jours travaillés`, accent: true },
       { label: "Panier moyen", value: p.tot.courses > 0 ? fmt(p.tot.brut / p.tot.courses) : "—", sub: "brut Yango / course" },
       { label: "Chauffeurs actifs", value: String(p.drivers.filter((a) => !a.technical && a.jours > 0).length), sub: `${p.tot.repos} repos déclarés` },
+      ...(perf ? [perf.kpi] : []),
     ],
     sections: [
       {
@@ -714,18 +736,21 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
         note: "Km par delta d'odomètre entre le premier et le dernier rapport de la période. Ponction = (commissions + services) / brut Yango. Hors-app = part de la recette totale hors plateforme.",
       },
       ...(notableExpensesTable(p) ? [{ ...notableExpensesTable(p)!, title: "4. Charges commentées" } as Section] : []),
+      ...(perf ? [{ ...perf.section, title: `5. ${perf.section.title}` } as Section] : []),
     ],
     facts,
     aliases: aliasesOf(p),
     context: [
       ...CONTEXT_COMMON,
       "Deep dive opérationnel : cherche les patterns de demande (jours forts/faibles, où placer les repos), le coût du siège vide (semaines à N chauffeurs), les écarts d'efficience carburant/km entre chauffeurs, et les anomalies de saisie (paniers aberrants).",
-      "Les données ne contiennent ni heures en ligne, ni annulations, ni note conducteur : la qualité de service n'est pas mesurable — ne pas l'inventer.",
+      ...(perf?.context ?? []),
+      ...(perfFleetroom ? [] : ["Les données ne contiennent ni heures en ligne, ni annulations, ni note conducteur : la qualité de service n'est pas mesurable — ne pas l'inventer."]),
       ...(p.avances > 0 ? [
         `Les « Décaissement propriétaire » sont des AVANCES remises aux chauffeurs (${fmt(p.avances)} F sur la période) : cash sorti mais NEUTRE pour le résultat — la charge réelle est celle déclarée ensuite par le chauffeur. Ne jamais les compter comme des dépenses.`,
       ] : []),
     ],
     deterministicInsights: [
+      ...(perf?.insights ?? []),
       { severity: "info", html: "<b>Lecture des tables.</b> La semaine type situe les jours forts et faibles de la demande (où placer repos et entretiens) ; le film des semaines montre l'effet direct du nombre de chauffeurs actifs sur la recette ; l'efficience par chauffeur compare rendement kilométrique et coût carburant." },
     ],
     deterministicDecisions: [],
