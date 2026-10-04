@@ -52,6 +52,37 @@ export async function getReportPremiumTenants(): Promise<string[]> {
   return settingsList("report_premium_tenants");
 }
 
+/**
+ * Comptes pour lesquels un rapport automatique a un sens (demande d'Abdou, 04/10/2026 :
+ * « inutile de générer pour les inactifs »). Un compte est écarté s'il est désactivé,
+ * si son essai ou son abonnement est échu, ou s'il n'a aucune journée validée sur la
+ * période. La génération à la demande par l'admin du client n'est pas concernée.
+ */
+export async function activeReportTenants(
+  tenantIds: string[], dateFrom: string, dateTo: string,
+): Promise<{ active: string[]; skipped: { tenantId: string; name: string; reason: string }[] }> {
+  if (tenantIds.length === 0) return { active: [], skipped: [] };
+  const { data: tenants } = await admin.from("tenants")
+    .select("id, name, active, trial_ends_at, plan_expires_at").in("id", tenantIds);
+  const byId = new Map((tenants || []).map((t) => [t.id as string, t]));
+  const active: string[] = [];
+  const skipped: { tenantId: string; name: string; reason: string }[] = [];
+  for (const id of tenantIds) {
+    const t = byId.get(id);
+    const skip = (reason: string) => skipped.push({ tenantId: id, name: t?.name || id, reason });
+    if (!t) { skip("compte introuvable"); continue; }
+    if (t.active === false) { skip("compte désactivé"); continue; }
+    const echeance = t.plan_expires_at ?? t.trial_ends_at;
+    if (!echeance || new Date(echeance).getTime() <= Date.now()) { skip("essai ou abonnement échu"); continue; }
+    const { count } = await admin.from("daily_reports").select("id", { count: "exact", head: true })
+      .eq("tenant_id", id).eq("status", "approved").gte("date", dateFrom).lte("date", dateTo)
+      .not("comment", "like", "[REPOS]%");
+    if (!count) { skip("aucune journée validée sur la période"); continue; }
+    active.push(id);
+  }
+  return { active, skipped };
+}
+
 /** Mois précédent complet [du 1er, au dernier jour] — période par défaut des générations automatiques. */
 export function previousMonthRange(now: Date = new Date()): { dateFrom: string; dateTo: string } {
   const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));

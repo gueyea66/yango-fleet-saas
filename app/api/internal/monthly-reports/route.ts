@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  generateAndStoreReport, getReportAddonTenants, getReportPremiumTenants, previousMonthRange,
+  activeReportTenants, generateAndStoreReport, getReportAddonTenants, getReportPremiumTenants, previousMonthRange,
 } from "@/lib/reportHtml";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +9,7 @@ export const maxDuration = 300;
 /**
  * Génération mensuelle automatique des rapports d'activité — Vercel Cron du
  * 1er du mois (cf. vercel.json). Même auth que le batch IA : Bearer CRON_SECRET.
- * Pour chaque tenant dont l'add-on est activé : rapport du mois précédent,
+ * Pour chaque tenant ACTIF dont l'add-on est activé : rapport du mois précédent,
  * stocké + notification à l'admin du client. Les tenants premium reçoivent la
  * narration multi-agent + le deep dive opérations du même mois.
  */
@@ -20,8 +20,10 @@ async function handle(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const [targets, premiumList] = await Promise.all([getReportAddonTenants(), getReportPremiumTenants()]);
+  const [addon, premiumList] = await Promise.all([getReportAddonTenants(), getReportPremiumTenants()]);
   const { dateFrom, dateTo } = previousMonthRange();
+  // comptes désactivés, échus ou sans activité sur le mois : pas de rapport
+  const { active: targets, skipped } = await activeReportTenants(addon, dateFrom, dateTo);
   const generated: string[] = [];
   const errors: { tenantId: string; error: string }[] = [];
   for (const tid of targets) {
@@ -34,7 +36,7 @@ async function handle(req: NextRequest) {
       errors.push({ tenantId: tid, error: e instanceof Error ? e.message : "?" });
     }
   }
-  return NextResponse.json({ period: { dateFrom, dateTo }, generated: generated.length, errors });
+  return NextResponse.json({ period: { dateFrom, dateTo }, generated: generated.length, skipped, errors });
 }
 
 export async function GET(req: NextRequest) { return handle(req); }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { checkSuperadminKey, getClientIp } from "@/lib/auth/server";
 import {
-  generateAndStoreReport, getReportAddonTenants, getReportPremiumTenants,
+  activeReportTenants, generateAndStoreReport, getReportAddonTenants, getReportPremiumTenants,
   previousMonthRange, type FleetReportKind,
 } from "@/lib/reportHtml";
 
@@ -49,10 +49,12 @@ export async function POST(req: NextRequest) {
   const askedTypes: FleetReportKind[] = (Array.isArray(types) && types.length > 0 ? types : ["monthly"])
     .filter((t: string): t is FleetReportKind => ["monthly", "ytd", "deepdive"].includes(t));
   const range = dateFrom && dateTo ? { dateFrom, dateTo } : previousMonthRange();
+  // comptes désactivés, échus ou sans activité sur la période : pas de rapport (motif renvoyé)
+  const { active: actifs, skipped } = await activeReportTenants(targets, range.dateFrom, range.dateTo);
 
   const generated: { tenantId: string; kind: FleetReportKind; file: string; period: string; narrated: boolean }[] = [];
   const errors: { tenantId: string; kind: FleetReportKind; error: string }[] = [];
-  for (const tid of targets) {
+  for (const tid of actifs) {
     const premium = premiumList.includes(tid);
     const kinds = askedTypes.filter((k) => k === "monthly" || premium);
     for (const kind of kinds) {
@@ -64,5 +66,5 @@ export async function POST(req: NextRequest) {
       }
     }
   }
-  return NextResponse.json({ generated, errors, period: range });
+  return NextResponse.json({ generated, skipped, errors, period: range });
 }
