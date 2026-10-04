@@ -156,6 +156,27 @@ export async function POST(request: Request) {
       return Response.json({ success: true });
     }
 
+    if (action === "set_segment") {
+      // Segment choisi par le gestionnaire (migration 078) : interne, partenaire (externe),
+      // ou null pour revenir au segment du véhicule.
+      const { driverProfileId, segment } = body;
+      if (!driverProfileId || !(segment === null || segment === "interne" || segment === "partenaire")) {
+        return Response.json({ error: "driverProfileId et segment (interne | partenaire | null) requis" }, { status: 400 });
+      }
+      const { data: prof } = await adminClient.from("profiles").select("id, tenant_id, role").eq("id", driverProfileId).single();
+      if (!prof || prof.tenant_id !== tenantId || prof.role !== "driver") {
+        return Response.json({ error: "Chauffeur introuvable dans ce tenant" }, { status: 403 });
+      }
+      const { error: updErr } = await adminClient.from("profiles")
+        .update({ fleet_segment: segment, updated_at: new Date().toISOString() }).eq("id", driverProfileId);
+      if (updErr) {
+        const absente = updErr.code === "42703" || updErr.code === "PGRST204" || /fleet_segment/.test(updErr.message || "");
+        return Response.json({ error: absente ? "Fonction indisponible : la migration 078 (segment par chauffeur) n'est pas encore appliquée." : updErr.message }, { status: absente ? 409 : 500 });
+      }
+      audit({ tenantId, userId, action: "driver.set_segment", resourceType: "driver", resourceId: driverProfileId, ip });
+      return Response.json({ success: true });
+    }
+
     if (action === "set_active") {
       // Désactiver = plus de connexion possible ; l'historique reste intact.
       const { driverProfileId, active } = body;

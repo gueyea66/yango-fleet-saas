@@ -19,6 +19,7 @@ import type { Insight, Section } from "@/lib/report-agent/types";
 import { columnsChart, heatmap } from "@/lib/report-agent/charts";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { segmentResolver, type SegmentFilter } from "@/lib/analytics/segment";
+import { readDriverSegments } from "@/lib/analytics/driverSegments";
 import { OBJECTIF_DEFAUT } from "@/lib/analytics/trends";
 
 const fmt = (v: number) => Math.round(v).toLocaleString("fr-FR").replace(/ /g, " ");
@@ -84,7 +85,7 @@ export async function avanceBlock(
       .eq("tenant_id", tenantId).eq("status", "Terminé").gte("jour", from).lte("jour", dateTo).order("jour").order("order_id")),
   ]);
 
-  const seg = segmentResolver((vehicles || []) as any[]);
+  const seg = segmentResolver((vehicles || []) as any[], await readDriverSegments(admin, tenantId));
   const profs = ((profiles || []) as any[]).filter((p) => p.account_type !== "technical");
   const nameOf = new Map(profs.map((p) => [p.id as string, (p.full_name || p.driver_id || "Chauffeur") as string]));
   const profileOfYango = new Map(profs.filter((p) => p.yango_driver_id).map((p) => [p.yango_driver_id as string, p.id as string]));

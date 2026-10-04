@@ -12,6 +12,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Insight, Section } from "@/lib/report-agent/types";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { segmentResolver, type SegmentFilter } from "@/lib/analytics/segment";
+import { readDriverSegments } from "@/lib/analytics/driverSegments";
 import { segmentDe } from "@/lib/fleetSegment";
 
 const fmt = (v: number) => Math.round(v).toLocaleString("fr-FR").replace(/ /g, " ");
@@ -45,7 +46,7 @@ export async function demandeHoraire(
       admin.from("vehicles").select("id,driver_id,plate,fleet_segment").eq("tenant_id", tenantId),
       admin.from("profiles").select("id,yango_driver_id").eq("tenant_id", tenantId).not("yango_driver_id", "is", null),
     ]);
-    const seg = segmentResolver((vehicles || []) as any[]);
+    const seg = segmentResolver((vehicles || []) as any[], await readDriverSegments(admin, tenantId));
     const profileOf = new Map(((profiles || []) as any[]).map((p) => [p.yango_driver_id as string, p.id as string]));
     orders = ordersAll.filter((o) => seg.ofPlate(o.plate, profileOf.get(o.yango_driver_id) ?? null) === segment);
   }
@@ -110,7 +111,7 @@ export async function echeances(
       .eq("tenant_id", tenantId).eq("role", "driver"),
   ]);
   // périmètre : véhicules du segment et chauffeurs qui y sont affectés
-  const seg = segmentResolver((vehiclesAll || []) as any[]);
+  const seg = segmentResolver((vehiclesAll || []) as any[], await readDriverSegments(admin, tenantId));
   const vehicles = ((vehiclesAll || []) as any[]).filter((v) => segment === "all" || segmentDe(v) === segment);
   const profiles = ((profilesAll || []) as any[]).filter((p) => segment === "all" || seg.ofDriver(p.id) === segment);
   const horizon = new Date(Date.parse(today) + 60 * 86_400_000).toISOString().slice(0, 10);
