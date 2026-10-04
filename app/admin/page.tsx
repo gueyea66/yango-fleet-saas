@@ -4912,28 +4912,28 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
       {open && (
         <div className="absolute right-0 mt-1.5 z-50 rounded-xl overflow-hidden min-w-[300px]"
           style={{ background: "var(--sk-bg)", border: "1px solid var(--sk-border)", boxShadow: "0 12px 32px rgba(0,0,0,.45)" }}>
-          {enCours && (
-            <button onClick={() => openReport("monthly", moisComplet)} disabled={!!busy}
+          {/* Période affichée en cours : les trois rapports portent sur le dernier mois COMPLET
+              (retour Abdou 04/10 : « je vois toujours octobre »). La période en cours reste
+              accessible, en entrée secondaire. */}
+          {([["monthly", "📊 Rapport d'activité"], ["ytd", "📈 Bilan année-à-date (premium)"], ["deepdive", "🔬 Deep dive opérations (premium)"]] as const).map(([type, label]) => (
+            <button key={type} onClick={() => openReport(type, enCours ? moisComplet : undefined)} disabled={!!busy}
               className="w-full text-left text-sm px-4 py-2.5 font-semibold disabled:opacity-50"
               style={{ color: "var(--sk-t1)", borderBottom: "1px solid var(--sk-surface)" }}>
-              {busy === "report-monthly-complet" ? "Génération…" : `📊 Rapport d'activité · ${moisComplet.label} (mois complet)`}
+              {busy === `report-${type}${enCours ? "-complet" : ""}` ? "Génération…" : label}
+              <span className="block text-xs font-normal" style={{ color: "var(--sk-t3)" }}>
+                {type === "ytd"
+                  ? `jusqu'au ${fr(enCours ? moisComplet.to : dateTo)}`
+                  : enCours ? `${moisComplet.label} · mois complet` : `${fr(dateFrom)} → ${fr(dateTo)}`}
+              </span>
+            </button>
+          ))}
+          {enCours && (
+            <button onClick={() => openReport("monthly")} disabled={!!busy}
+              className="w-full text-left text-xs px-4 py-2 disabled:opacity-50"
+              style={{ color: "var(--sk-t3)", borderBottom: "1px solid var(--sk-surface)" }}>
+              {busy === "report-monthly" ? "Génération…" : `Rapport de la période en cours (${fr(dateFrom)} → ${fr(dateTo)})`}
             </button>
           )}
-          <button onClick={() => openReport("monthly")} disabled={!!busy}
-            className="w-full text-left text-sm px-4 py-2.5 font-semibold disabled:opacity-50"
-            style={{ color: "var(--sk-t1)", borderBottom: "1px solid var(--sk-surface)" }}>
-            {busy === "report-monthly" ? "Génération…" : `📊 Rapport d'activité · ${fr(dateFrom)} → ${fr(dateTo)}${enCours ? " (en cours)" : ""}`}
-          </button>
-          <button onClick={() => openReport("ytd")} disabled={!!busy}
-            className="w-full text-left text-sm px-4 py-2.5 font-semibold disabled:opacity-50"
-            style={{ color: "var(--sk-t1)", borderBottom: "1px solid var(--sk-surface)" }}>
-            {busy === "report-ytd" ? "Génération…" : "📈 Bilan année-à-date (premium)"}
-          </button>
-          <button onClick={() => openReport("deepdive")} disabled={!!busy}
-            className="w-full text-left text-sm px-4 py-2.5 font-semibold disabled:opacity-50"
-            style={{ color: "var(--sk-t1)", borderBottom: "1px solid var(--sk-surface)" }}>
-            {busy === "report-deepdive" ? "Génération…" : "🔬 Deep dive opérations (premium)"}
-          </button>
           <button onClick={loadReceived}
             className="w-full text-left text-sm px-4 py-2.5 font-semibold"
             style={{ color: "var(--sk-t1)", borderBottom: "1px solid var(--sk-surface)" }}>
