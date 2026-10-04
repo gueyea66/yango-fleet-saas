@@ -43,6 +43,12 @@ export interface PerformanceBlock {
   /** Estimation : ce que la flotte aurait encaissé en plus si chaque chauffeur avait tenu l'objectif. */
   manqueAGagner: number;
   hasFleetroom: boolean;
+  objectif: number;
+  /** Une ligne par chauffeur actif, classée par CA par jour : matière du plan d'action. */
+  chauffeurs: {
+    id: string; nom: string; jours: number; caParJour: number | null; statut: string | null;
+    manque: number; sansActivite: number; refus: number; acceptation: number | null; caNonRealise: number;
+  }[];
 }
 
 async function readObjectif(admin: SupabaseClient<any, any, any>, tenantId: string): Promise<number> {
@@ -271,5 +277,11 @@ export async function performanceBlock(
     ],
     manqueAGagner: manque,
     hasFleetroom: fr,
+    objectif,
+    chauffeurs: rows.map((r) => ({
+      id: r.driverId, nom: r.name, jours: r.jours, caParJour: r.caParJour, statut: statut(r), manque: manqueOf(r),
+      sansActivite: r.sansDeclaration ?? 0, refus: r.fleetroom?.refus ?? 0,
+      acceptation: r.fleetroom?.tauxAcceptation ?? null, caNonRealise: perduRefusOf(r),
+    })),
   };
 }

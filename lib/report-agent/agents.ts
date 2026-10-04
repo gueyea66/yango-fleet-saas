@@ -55,6 +55,11 @@ Sortie EXACTE :
 - focus : une seule priorité, celle qui rapporte le plus.
 - donnees_manquantes : liste vide si rien ne manque ; ne jamais inventer une donnée absente.${COMMON_RULES}`;
 
+/** Format de sortie commun aux rôles d'un profil : des constats, rien d'autre. */
+const ROLE_OUTPUT = `
+Reste STRICTEMENT dans ton périmètre : ce qui relève d'un autre rôle n'est pas ton sujet.
+Sortie : {"findings":[{"severity":"info|ok|warn|alert","title":"…","body":"…"}]} — 3 à 5 constats, les plus importants d'abord, chacun avec un chiffre des données et sa conséquence.`;
+
 const OK_SEVERITIES = new Set<Severity>(["info", "ok", "warn", "alert"]);
 
 interface Finding { severity: Severity; title: string; body: string }
@@ -126,7 +131,10 @@ export async function runAgentPanel(
   dataset: ReportDataset,
   opts: AgentPanelOptions
 ): Promise<NarrativeResult | null> {
-  const roles = opts.roles ?? DEFAULT_ROLES;
+  // Le rapport apporte ses propres rôles (chacun dans son périmètre) ; à défaut, le panel générique.
+  const roles = (dataset.profile?.roles ?? opts.roles ?? DEFAULT_ROLES)
+    .map((r) => (dataset.profile ? { ...r, system: `${r.system}${ROLE_OUTPUT}${COMMON_RULES}` } : r));
+  const caps = dataset.profile?.caps ?? {};
   const payload = buildAgentPayload(dataset);
   const timeoutMs = opts.timeoutMs ?? 90_000;
 
@@ -168,7 +176,9 @@ export async function runAgentPanel(
     constats_experts: Object.fromEntries(heard.map((r) => [r.id, r.findings])),
   });
   const editorOut = await opts.narrate(editorUser, {
-    system: EDITOR_SYSTEM(opts.decisionsTitle ?? "décisions proposées pour la période suivante"),
+    system: dataset.profile
+      ? `${dataset.profile.editorSystem}${COMMON_RULES}`
+      : EDITOR_SYSTEM(opts.decisionsTitle ?? "décisions proposées pour la période suivante"),
     model: opts.editorModel ?? null,
     maxTokens: 8000,
     timeoutMs,
@@ -189,24 +199,28 @@ export async function runAgentPanel(
     for (const [pseudo, real] of Object.entries(dataset.aliases ?? {})) out = out.split(pseudo).join(real);
     return frenchifyNumbers(out);
   };
-  const tldr = unalias(String(parsed.tldr ?? "").trim());
+  const tldr = unalias(String(parsed.tldr ?? parsed.synthese ?? "").trim());
   const txt = (v: unknown, max: number) => unalias(clip(String(v ?? "").trim(), max));
   // « ce qui va moins bien » d'abord (le plus coûteux en tête), puis « ce qui va bien »
-  const faiblesses = cleanFindings(parsed.va_moins_bien, 3)
+  const faiblesses = cleanFindings(parsed.va_moins_bien ?? parsed.alertes, caps.alertes ?? 3)
     .map((i) => ({ ...i, severity: i.severity === "alert" ? "alert" as const : "warn" as const }));
-  const forces = cleanFindings(parsed.va_bien, 3).map((i) => ({ ...i, severity: "ok" as const }));
+  const forces = cleanFindings(parsed.va_bien ?? parsed.points_forts, caps.forces ?? 3).map((i) => ({ ...i, severity: "ok" as const }));
   // ancien format (insights à plat) : toujours accepté
   const legacy = cleanFindings(parsed.insights, 7);
   const insights = (faiblesses.length + forces.length > 0 ? [...faiblesses, ...forces] : legacy)
     .map((i) => ({ ...i, title: unalias(i.title), body: unalias(i.body) }));
-  const decisions = (Array.isArray(parsed.decisions) ? parsed.decisions : []).slice(0, 3).flatMap((d) => {
+  // décisions (options), actions (plan d'action) ou recommandations : même liste, champs propres au style
+  const rawDecisions = parsed.decisions ?? parsed.actions ?? parsed.recommandations;
+  const decisions = (Array.isArray(rawDecisions) ? rawDecisions : []).slice(0, caps.decisions ?? 3).flatMap((d) => {
     const o = d as Record<string, unknown>;
-    const title = txt(o?.title, 200);
+    const title = txt(o?.title ?? o?.action, 240);
     if (!title) return [];
     const options = [o?.option_a, o?.option_b].map((x) => txt(x, 500)).filter(Boolean);
     return [{
       title, body: txt(o?.body, 500),
-      urgence: txt(o?.urgence, 40) || undefined,
+      urgence: txt(o?.urgence ?? o?.echeance, 60) || undefined,
+      responsable: txt(o?.responsable, 80) || undefined,
+      gain: txt(o?.gain ?? o?.gain_attendu, 200) || undefined,
       options: options.length ? options : undefined,
       recommandation: txt(o?.recommandation, 400) || undefined,
     }];

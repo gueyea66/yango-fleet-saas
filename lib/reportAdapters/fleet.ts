@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- lignes Supabase non typées (convention du projet) */
 import { createClient } from "@supabase/supabase-js";
 import type { Decision, Insight, Kpi, ReportDataset, Section, TableSection } from "@/lib/report-agent/types";
 import { CAT_AVANCE } from "@/lib/expenseCategories";
 import { amortissementPeriode, kmParMoisDepuisCompteur } from "@/lib/calc";
 import { performanceBlock, type PerformanceBlock } from "./performance";
 import { demandeHoraire, echeances } from "./extras";
+import { fetchAllRows } from "@/lib/fetchAllRows";
 import { avanceBlock, type AvanceBlock } from "./avance";
 import { columnsChart } from "@/lib/report-agent/charts";
 import { segmentResolver, type SegmentFilter, type VehicleLite } from "@/lib/analytics/segment";
@@ -65,26 +67,30 @@ interface PeriodAgg {
 }
 
 async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: string, segment: SegmentFilter = "all"): Promise<PeriodAgg> {
+  // Lecture COMPLÈTE (fetchAllRows) : PostgREST coupe chaque réponse à 1000 lignes sans
+  // erreur. Sur une année, une flotte dépasse 1000 journées : le bilan année-à-date
+  // sortait donc avec une recette et un net final tronqués (constaté sur NMK le 04/10/2026).
+  const all = <T,>(build: () => unknown) => fetchAllRows<T>(build).then((data) => ({ data }));
   const [{ data: profiles }, repsQ, expsQ, paysQ, vehsQ, odoQ] = await Promise.all([
     admin.from("profiles").select("id, driver_id, full_name, account_type, hire_date, contract_end_date")
       .eq("tenant_id", tenantId),
-    admin.from("daily_reports")
+    all<any>(() => admin.from("daily_reports")
       .select("date,driver_id,vehicle_id,yango_gross,yango_bonus,off_yango_revenue,commission_amount,service_supplementaire,net_after_expenses,yango_trip_count,end_odometer,status,comment")
       .eq("tenant_id", tenantId)
-      .gte("date", dateFrom).lte("date", dateTo).order("date").limit(20000),
-    admin.from("expenses").select("driver_id,category,amount,expense_date,description")
-      .eq("tenant_id", tenantId).gte("expense_date", dateFrom).lte("expense_date", dateTo).limit(20000),
-    admin.from("payments").select("driver_id,amount,payment_date,salary_month,type")
-      .eq("tenant_id", tenantId).limit(20000),
+      .gte("date", dateFrom).lte("date", dateTo).order("date").order("id")),
+    all<any>(() => admin.from("expenses").select("driver_id,category,amount,expense_date,description")
+      .eq("tenant_id", tenantId).gte("expense_date", dateFrom).lte("expense_date", dateTo).order("expense_date").order("id")),
+    all<any>(() => admin.from("payments").select("driver_id,amount,payment_date,salary_month,type")
+      .eq("tenant_id", tenantId).order("payment_date").order("id")),
     admin.from("vehicles")
       .select("id,driver_id,plate,mileage,fleet_segment,prix_acquisition,valeur_residuelle,date_acquisition,amort_plafond_km,amort_duree_max_mois,amort_porte_par")
       .eq("tenant_id", tenantId),
     // Relevés de compteur sur tout l'historique : le rythme d'usure se mesure
     // sur la durée, pas sur le seul mois rapporté.
-    admin.from("daily_reports").select("vehicle_id,date,end_odometer")
+    all<any>(() => admin.from("daily_reports").select("vehicle_id,date,end_odometer")
       .eq("tenant_id", tenantId).not("vehicle_id", "is", null)
       .not("end_odometer", "is", null).gt("end_odometer", 0)
-      .in("status", ["approved", "submitted"]).order("date").limit(20000),
+      .in("status", ["approved", "submitted"]).order("date").order("id")),
   ]);
 
   const isRepos = (r: { comment?: string | null }) => String(r.comment || "").startsWith("[REPOS]");
@@ -637,37 +643,6 @@ function compteResultat(cur: PeriodAgg, prev: PeriodAgg, prevLabel: string): Sec
   };
 }
 
-/** Évolution mensuelle : les mois précédents puis la période du rapport. */
-function evolutionTable(points: { label: string; agg: PeriodAgg; courant?: boolean }[]): Section | null {
-  const rows = points.filter((p) => p.agg.tot.jours > 0 || p.courant);
-  if (rows.length < 2) return null;
-  const max = Math.max(...rows.map((p) => recetteOf(p.agg.tot)), 1);
-  return {
-    kind: "table",
-    title: `Évolution sur ${rows.length} mois`,
-    columns: [
-      { label: "Mois" }, { label: "Recette brute", align: "right" }, { label: "" }, { label: "Net final", align: "right" },
-      { label: "Marge", align: "right" }, { label: "Jours", align: "right" }, { label: "CA / jour", align: "right" },
-      { label: "Courses", align: "right" }, { label: "Chauffeurs", align: "right" },
-    ],
-    rows: rows.map((p) => {
-      const rec = recetteOf(p.agg.tot), net = netFinalOf(p.agg);
-      const actifs = p.agg.drivers.filter((a) => !a.technical && a.jours > 0).length;
-      return {
-        cells: [
-          p.courant ? `<b>${esc(p.label)}</b>` : esc(p.label), fmt(rec),
-          `<span class="mini" style="width:${Math.max(3, Math.round((rec / max) * 90))}px"></span>`,
-          fmt(net), rec > 0 ? `${String(pct(net, rec)).replace(".", ",")} %` : "—",
-          String(p.agg.tot.jours), p.agg.tot.jours > 0 ? fmt(rec / p.agg.tot.jours) : "—",
-          fmt(p.agg.tot.courses), String(actifs),
-        ],
-        total: p.courant,
-      };
-    }),
-    note: "Mois civils entiers, mêmes règles de calcul chaque mois. CA / jour = recette brute ÷ jours travaillés de la flotte.",
-  };
-}
-
 /** Évolution mensuelle en image : recette et net final, même échelle. */
 function evolutionFigure(points: { label: string; agg: PeriodAgg; courant?: boolean }[]): Section | null {
   const rows = points.filter((p) => p.agg.tot.jours > 0 || p.courant);
@@ -724,22 +699,115 @@ function semaineType(p: PeriodAgg): Section | null {
   };
 }
 
+// ════════════════════════════════════════════════════════════════════════════
+// TROIS RAPPORTS, TROIS RÔLES (Decision Engine : un rôle = un périmètre = un livrable)
+//
+//  • Rapport de direction mensuel  — rôle « Reporting Manager », pour le dirigeant.
+//    Lisible en cinq minutes : l'essentiel, les indicateurs face au mois précédent et
+//    à l'objectif, les preuves, ce qui va bien, ce qui va moins bien, les décisions à
+//    arbitrer (options), la priorité. Aucune redite du détail opérationnel.
+//  • Deep dive opérationnel        — rôle « Responsable d'exploitation ».
+//    Le terrain : activité, chauffeurs, demande, organisation du travail, qualité de
+//    service, véhicules ; puis les alertes et un plan d'action (qui, quand, gain).
+//    Pas de compte de résultat.
+//  • Bilan financier année-à-date  — rôle « FP&A ».
+//    Résultat cumulé, indicateurs clés et point mort, projection de fin d'année en
+//    trois scénarios, tests de sensibilité ; puis les recommandations.
+//
+// Ordre de lecture commun : la synthèse, les faits, le jugement, puis seulement les
+// décisions — on ne demande pas d'arbitrer avant d'avoir montré.
+// ════════════════════════════════════════════════════════════════════════════
+
+/** Section avec sa phrase « à retenir » (rien si la phrase est vide). */
+const withLead = (s: Section | null | undefined, lead?: string | null): Section | null => (!s ? null : lead ? { ...s, lead } : s);
+const pick = (list: Section[] | undefined, re: RegExp): Section | null => (list ?? []).find((s) => re.test(s.title)) ?? null;
+const numbered = (list: (Section | null | undefined)[]): Section[] =>
+  list.filter((s): s is Section => !!s).map((s, i) => ({ ...s, title: `${i + 1}. ${s.title.replace(/^\d+\.\s*/, "")}` }));
+const pc = (v: number) => `${String(v).replace(".", ",")} %`;
+const DESTINATAIRE = "Chaque constat porte un chiffre des données et sa conséquence ; pas de généralités, pas de redite d'une rubrique à l'autre.";
+
+const ROLES_DIRECTION = [
+  { id: "contrôle financier", system: "Tu es le contrôleur financier de la flotte. Ton périmètre : le compte de résultat de la période (recette, commissions, dépenses par poste, rémunération, amortissement, net final, marge) et ses écarts face à la période précédente et aux mois antérieurs. Explique d'où vient chaque écart significatif et signale toute anomalie de charge. Tu ne commentes ni les chauffeurs un par un ni l'organisation du travail." },
+  { id: "performance", system: "Tu es le responsable de la performance commerciale. Ton périmètre : la tenue de l'objectif de CA par jour, le manque à gagner, la contribution de chaque chauffeur et de chaque périmètre (flotte interne, véhicules partenaires), les courses refusées. Tu ne commentes pas les charges." },
+  { id: "risques", system: "Tu es le responsable risques et conformité. Ton périmètre : la dépendance à un chauffeur ou à un périmètre, les documents expirés et les échéances, les repos non pris, les véhicules immobilisés, les données manquantes ou en attente qui faussent les chiffres. Tu ne proposes pas d'action commerciale." },
+];
+const EDITOR_DIRECTION = `Tu es le Reporting Manager : tu rédiges le tableau de bord de direction, lu par le dirigeant en cinq minutes. On te fournit les données JSON et les constats de trois rôles (contrôle financier, performance, risques). Tu les synthétises sans les recopier : aucune redite, le détail opérationnel vit dans un autre rapport. ${DESTINATAIRE}
+Sortie EXACTE :
+{"tldr":"3 phrases maximum : le verdict du mois, le chiffre qui l'explique, le point de vigilance",
+"va_bien":[{"title":"titre court","body":"le fait chiffré, puis ce qu'il faut en conserver"}],
+"va_moins_bien":[{"severity":"warn|alert","title":"titre court","body":"le fait chiffré, puis ce qu'il coûte"}],
+"decisions":[{"title":"la décision à prendre","urgence":"7 jours | ce mois-ci | structure","option_a":"action concrète, impact attendu chiffré, coût ou risque","option_b":"alternative, impact, risque","recommandation":"l'option retenue et la raison, en une phrase"}],
+"focus":"la priorité unique du mois prochain, en 2 phrases",
+"donnees_manquantes":["donnée absente qui limite l'analyse"]}
+- va_bien : 3 points maximum. va_moins_bien : 3 points maximum, factuels, du plus coûteux au moins coûteux.
+- decisions : 3 maximum, classées par urgence ; toujours deux options comparées et une recommandation tranchée.
+- L'impact d'une option se chiffre UNIQUEMENT avec un montant présent dans les données (faits « levier_ », « manque_a_gagner », « estime ») ; écris « estimation » quand c'en est une. Sans montant disponible, décris l'impact sans chiffre.
+- focus : une seule priorité, celle qui rapporte le plus.
+- donnees_manquantes : liste vide si rien ne manque ; ne jamais inventer.`;
+
+const ROLES_OPERATIONS = [
+  { id: "demande", system: "Tu es l'analyste de la demande. Ton périmètre : quand la flotte gagne son chiffre — recette jour par jour, meilleurs jours de la semaine, créneaux horaires forts et creux, semaines fortes et faibles. Tu dis quand les véhicules doivent rouler et quand placer ce qui les immobilise. Tu ne commentes pas les chauffeurs individuellement." },
+  { id: "chauffeurs", system: "Tu es le responsable des chauffeurs. Ton périmètre : la performance de chaque chauffeur face à l'objectif journalier, sa régularité (journées à l'objectif, meilleure et plus faible journée), sa qualité de service (acceptation, refus) et son rendement à l'heure. Tu distingues un problème de capacité d'un problème de constance ou d'assiduité." },
+  { id: "organisation", system: "Tu es le responsable de l'organisation du travail. Ton périmètre : les jours de repos (conseillé, réellement pris), les horaires de travail et l'amplitude, les jours sans activité, l'utilisation et l'efficience des véhicules, les échéances de documents. Tu proposes des changements de planning concrets." },
+];
+const EDITOR_OPERATIONS = `Tu es le responsable d'exploitation : tu rédiges le rapport opérationnel de la période, celui que l'exploitation utilise pour organiser le travail des semaines suivantes. On te fournit les données JSON et les constats de trois rôles (demande, chauffeurs, organisation). C'est un rapport de terrain : tu ne parles ni de marge ni de résultat net. ${DESTINATAIRE}
+Sortie EXACTE :
+{"synthese":"5 phrases maximum : ce que la période dit de l'exploitation, les deux ou trois faits qui commandent le planning des semaines suivantes",
+"alertes":[{"severity":"warn|alert","title":"titre court","body":"le fait chiffré et le chauffeur, le véhicule ou le créneau concerné"}],
+"points_forts":[{"title":"titre court","body":"ce qui fonctionne et doit être généralisé"}],
+"actions":[{"action":"ce qui doit être fait, concrètement","responsable":"exploitation | le chauffeur concerné (sa référence) | direction","echeance":"cette semaine | sous 15 jours | ce mois-ci","gain_attendu":"montant présent dans les données, suivi de « estimation », ou « non chiffré »"}],
+"donnees_manquantes":["donnée absente qui limite l'analyse"]}
+- alertes : 5 maximum, des plus coûteuses aux moins coûteuses. points_forts : 3 maximum.
+- actions : 6 maximum, la plus rentable d'abord. Une action désigne un chauffeur, un jour, un créneau ou un véhicule précis : « déplacer le repos de tel chauffeur au mercredi », jamais « améliorer la performance ».
+- gain_attendu : uniquement un montant présent dans les données (faits « gain_mensuel_estime », « manque_a_gagner », « levier_ », « ca_non_realise ») ; sinon « non chiffré ».
+- donnees_manquantes : liste vide si rien ne manque ; ne jamais inventer.`;
+
+const ROLES_FINANCE = [
+  { id: "contrôle financier", system: "Tu es le contrôleur financier. Ton périmètre : le résultat cumulé depuis janvier et le film mois par mois (recette, dépenses, rémunération, amortissement, net final), les mois bénéficiaires et déficitaires, les postes de charge qui dérivent. Tu ne fais pas de projection." },
+  { id: "FP&A", system: "Tu es le responsable FP&A. Ton périmètre : la trajectoire — point mort, marge de sécurité, projection de fin d'année selon les trois scénarios fournis, tests de sensibilité. Tu t'appuies sur les scénarios déjà calculés dans les données, tu n'en inventes pas, et tu rappelles qu'il s'agit de projections." },
+  { id: "risques de structure", system: "Tu es le responsable des risques de structure. Ton périmètre : la concentration de la recette sur un chauffeur ou un périmètre, la dépendance à la plateforme, le poids des charges fixes, la fragilité du modèle si l'effectif ou la demande baisse. Tu ne commentes pas un mois isolé." },
+];
+const EDITOR_FINANCE = `Tu es le FP&A Manager : tu rédiges le bilan financier année-à-date, lu par le dirigeant et les associés pour juger la trajectoire et décider de la suite de l'année. On te fournit les données JSON et les constats de trois rôles (contrôle financier, FP&A, risques de structure). Tu juges la trajectoire, pas un mois isolé. ${DESTINATAIRE}
+Sortie EXACTE :
+{"synthese":"5 phrases maximum : où en est l'année, la tendance, ce que donne la projection, le principal risque",
+"points_forts":[{"title":"titre court","body":"le fait chiffré"}],
+"alertes":[{"severity":"warn|alert","title":"titre court","body":"le fait chiffré et ce qu'il coûte à l'année"}],
+"recommandations":[{"title":"la recommandation, formulée comme une action","body":"ce qu'il faut faire, avec quel effet chiffré attendu"}],
+"donnees_manquantes":["donnée absente ou limite de l'analyse"]}
+- points_forts et alertes : 3 maximum chacun.
+- recommandations : 4 maximum, actionnables (« porter tel chauffeur à l'objectif », jamais « augmenter la recette »), la plus rentable d'abord.
+- Toute projection ou tout effet de sensibilité cité doit être un montant présent dans les données (faits « projection_ », « sensibilite_ », « point_mort_ ») et présenté comme une projection.
+- donnees_manquantes : liste vide si rien ne manque ; ne jamais inventer.`;
+
+/** Limites de l'analyse constatées dans les données : ce que le rapport ne peut pas dire. */
+function manquesOf(p: PeriodAgg, extra: { datesNonRenseignees?: number; fleetroom?: boolean } = {}): string[] {
+  const out: string[] = [];
+  const recette = recetteOf(p.tot);
+  if (recette > 0 && p.tot.sal + p.tot.aco === 0) out.push("Aucune rémunération versée n'est enregistrée sur la période : si les salaires n'ont pas été saisis, le net final est surestimé d'autant.");
+  if (recette > 0 && !(p.depCat.get("Carburant") || 0)) out.push("Aucune dépense de carburant n'est saisie : le coût au kilomètre et la marge réelle par véhicule ne sont pas mesurables.");
+  if (recette > 0 && p.amortissement === 0) out.push("Le prix d'acquisition des véhicules n'est pas renseigné : l'usure des véhicules n'entre pas dans le net final.");
+  if (p.pending > 0) out.push(`${p.pending} rapport(s) en attente de validation ne sont pas comptés.`);
+  if (extra.datesNonRenseignees) out.push(`${extra.datesNonRenseignees} date(s) d'assurance ou de visite technique ne sont pas renseignées : aucune alerte d'échéance ne peut partir.`);
+  if (extra.fleetroom === false) out.push("Pas d'export Yango (Fleetroom) : refus, taux d'acceptation, heures de travail et créneaux horaires ne sont pas mesurés.");
+  return out;
+}
+
+// ── 1. RAPPORT DE DIRECTION MENSUEL ─────────────────────────────────────────
+
 async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string, tenantName: string, segment: SegmentFilter = "all"): Promise<ReportDataset> {
   const prev = comparisonRange(dateFrom, dateTo);
   const fullMonth = isFullMonth(dateFrom, dateTo);
   const prevLabel = fullMonth ? moisLabel(prev.dateFrom) : "période précédente";
-  // évolution : les 5 mois civils précédents (le plus récent sert aussi de comparaison pour un mois entier)
   const history = monthsBefore(dateFrom, 5);
   const today = new Date().toISOString().slice(0, 10);
   const safe = async <T,>(what: string, run: () => Promise<T | null>): Promise<T | null> => {
     try { return await run(); } catch (e) { console.error(`[report] ${what} indisponible:`, e instanceof Error ? e.message : e); return null; }
   };
-  const [cur, hist, beforeOther, perf, heures, ech] = await Promise.all([
+  const [cur, hist, beforeOther, perf, ech] = await Promise.all([
     aggregatePeriod(tenantId, dateFrom, dateTo, segment),
     Promise.all(history.map((m) => aggregatePeriod(tenantId, m.dateFrom, m.dateTo, segment))),
     fullMonth ? Promise.resolve(null) : aggregatePeriod(tenantId, prev.dateFrom, prev.dateTo, segment),
     perfOf(tenantId, dateFrom, dateTo, segment),
-    safe("demande horaire", () => demandeHoraire(admin, tenantId, dateFrom, dateTo, segment)),
     safe("échéances", () => echeances(admin, tenantId, today, segment)),
   ]);
   const [segs, av] = await Promise.all([
@@ -754,97 +822,99 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
   const margeP = recetteP > 0 ? pct(netFinalP, recetteP) : 0;
   const caJour = cur.tot.jours > 0 ? recette / cur.tot.jours : 0;
   const caJourP = before.tot.jours > 0 ? recetteP / before.tot.jours : 0;
+  const vRec = varPct(recette, recetteP), vNet = varPct(netFinal, netFinalP);
   const det = monthlyDeterministic(cur, dateFrom, dateTo);
+  const objectif = perf?.objectif ?? 0;
+  const atteints = perf ? perf.chauffeurs.filter((c) => c.statut === "atteint").length : 0;
+  const refus = Number(perf?.facts.performance_courses_refusees ?? 0);
+  const okJ = Number(av?.facts.regularite_journees_a_l_objectif ?? 0), totJ = Number(av?.facts.regularite_journees_travaillees ?? 0);
+
+  // tableau de bord : valeur, face au mois précédent, face à l'objectif
+  const ecartPts = Math.round((marge - margeP) * 10) / 10;
+  const tagObj = (ok: boolean, proche: boolean, txt: string) => `<span class="tag ${ok ? "green" : proche ? "amber" : "red"}">${txt}</span>`;
+  const kpiRows: { cells: string[]; total?: boolean }[] = [
+    { cells: ["<b>Recette brute</b>", fmt(recette), varCell(recette, recetteP), "—"] },
+    { cells: ["<b>Net final</b>", fmt(netFinal), varCell(netFinal, netFinalP), "—"] },
+    { cells: ["<b>Marge nette</b>", recette > 0 ? pc(marge) : "—", recetteP > 0 ? `<span class="${ecartPts >= 0 ? "pos" : "neg"}">${signed(ecartPts)} pt</span>` : "—", "—"] },
+    { cells: ["<b>CA par jour travaillé</b>", fmt(caJour), varCell(caJour, caJourP),
+      objectif > 0 ? `${tagObj(caJour >= objectif, caJour >= objectif * 0.8, `${Math.round((caJour / objectif) * 100)} %`)} de ${fmt(objectif)}` : "—"] },
+    ...(perf ? [{ cells: ["<b>Chauffeurs à l'objectif</b>", `${atteints} sur ${perf.chauffeurs.length}`, "—",
+      tagObj(atteints === perf.chauffeurs.length, atteints * 2 >= perf.chauffeurs.length, atteints === perf.chauffeurs.length ? "tenu par tous" : `${perf.chauffeurs.length - atteints} en dessous`)] }] : []),
+    ...(totJ > 0 ? [{ cells: ["<b>Journées à l'objectif</b>", `${okJ} sur ${totJ}`, "—", tagObj(okJ / totJ >= 0.8, okJ / totJ >= 0.5, `${Math.round((okJ / totJ) * 100)} %`)] }] : []),
+    { cells: ["<b>Jours travaillés</b>", String(cur.tot.jours), varCell(cur.tot.jours, before.tot.jours), "—"] },
+    { cells: ["<b>Courses</b>", fmt(cur.tot.courses), varCell(cur.tot.courses, before.tot.courses), "—"] },
+    { cells: ["<b>Dépenses</b>", `${fmt(cur.tot.dep)}${recette > 0 ? ` · ${pc(pct(cur.tot.dep, recette))} de la recette` : ""}`, varCell(cur.tot.dep, before.tot.dep, false), "—"] },
+    ...(refus > 0 ? [{ cells: ["<b>Courses refusées</b>", fmt(refus), "—", "—"] }] : []),
+  ];
+  const tableauDeBord: Section = {
+    kind: "table",
+    title: "Indicateurs du mois",
+    columns: [{ label: "Indicateur" }, { label: "Valeur", align: "right" }, { label: `vs ${prevLabel}`, align: "right" }, { label: "vs objectif" }],
+    rows: kpiRows,
+    note: "Variation en vert quand elle est favorable (recette en hausse, charge en baisse). « pt » = point de marge. Les indicateurs sans objectif fixé portent un tiret.",
+  };
 
   const points = [
     ...history.map((m, i) => ({ label: moisLabel(m.dateFrom), agg: hist[i] })),
     { label: moisLabel(dateFrom), agg: cur, courant: true },
   ];
-  const evolution = fullMonth ? evolutionTable(points) : null;
   const evolutionFig = fullMonth ? evolutionFigure(points) : null;
-  // la lecture sur 3 mois remplace la semaine type du seul mois quand elle existe
-  const semaine = av && av.jours.length ? null : semaineType(cur);
-  const bars = depBars(cur);
-  const notable = notableExpensesTable(cur);
-  const sections: Section[] = [
-    compteResultat(cur, before, prevLabel),
-    ...(segs ? [segs.section] : []),
-    ...(evolutionFig ? [evolutionFig] : []),
-    ...(evolution ? [evolution] : []),
-    ...(perf ? perf.sections : []),
-    ...(av?.regularite ? [av.regularite] : []),
-    ...(av?.quotidien ? [av.quotidien] : []),
-    ...(av ? av.jours : []),
-    ...(semaine ? [semaine] : []),
-    // la carte jour × heure remplace la répartition par tranche quand elle existe
-    ...(av && av.horaires.length ? av.horaires : heures?.section ? [heures.section] : []),
-    driverTable(cur, dateFrom, dateTo),
-    ...(bars ? [bars] : []),
-    ...(notable ? [notable] : []),
-    ...(ech?.section ? [ech.section] : []),
-  ].map((s, i) => ({ ...s, title: `${i + 1}. ${s.title}` }));
+  const vivants = points.filter((x) => x.agg.tot.jours > 0);
+  const meilleur = vivants.length ? vivants.reduce((a, b) => (recetteOf(b.agg.tot) > recetteOf(a.agg.tot) ? b : a)) : null;
+  const perfFig = pick(perf?.sections, /face à l'objectif/);
+
+  const sections = numbered([
+    tableauDeBord,
+    withLead(compteResultat(cur, before, prevLabel),
+      vRec != null ? `Recette <b>${signed(vRec)} %</b> et net final <b>${vNet == null ? "non comparable" : `${signed(vNet)} %`}</b> face à ${esc(prevLabel)} ; marge nette ${pc(margeP)} → <b>${pc(marge)}</b>.` : null),
+    withLead(evolutionFig as Section, meilleur ? `${vivants.length} mois d'historique ; le meilleur est ${esc(meilleur.label)} (${fmt(recetteOf(meilleur.agg.tot))} F de recette).` : null),
+    segs ? withLead(segs.section, `La flotte interne fait <b>${pc(Number(segs.facts.flotte_interne_part_recette_pourcent ?? 0))}</b> de la recette, à ${fmt(Number(segs.facts.flotte_interne_ca_par_jour_fcfa ?? 0))} F par jour contre ${fmt(Number(segs.facts.partenaires_ca_par_jour_fcfa ?? 0))} F chez les partenaires.`) : null,
+    perfFig && perf ? withLead(perfFig, `<b>${atteints} chauffeur${atteints > 1 ? "s" : ""} sur ${perf.chauffeurs.length}</b> tien${atteints > 1 ? "nent" : "t"} l'objectif de ${fmt(objectif)} F par jour${perf.manqueAGagner > 0 ? ` ; manque à gagner estimé : <b>${fmt(perf.manqueAGagner)} F</b>` : ""}.`) : null,
+  ]);
 
   const facts: Record<string, string | number | null> = {
     ...baseFacts(cur),
     ...Object.fromEntries(Object.entries(baseFacts(before)).map(([k, v]) => [`mois_precedent_${k}`, v])),
     ...driverFacts(cur),
-    ...(perf?.facts ?? {}),
-    ...(heures?.facts ?? {}),
-    ...(ech?.facts ?? {}),
-    ...(segs?.facts ?? {}),
-    ...(av?.facts ?? {}),
+    ...(perf?.facts ?? {}), ...(ech?.facts ?? {}), ...(segs?.facts ?? {}), ...(av?.facts ?? {}),
     perimetre: SEG_LABEL[segment],
     periode_du: frFull(dateFrom), periode_au: frFull(dateTo),
     mois_precedent_du: frFull(prev.dateFrom), mois_precedent_au: frFull(prev.dateTo),
     ca_par_jour_flotte_fcfa: Math.round(caJour),
     mois_precedent_ca_par_jour_flotte_fcfa: Math.round(caJourP),
-    marge_nette_pourcent: marge,
-    mois_precedent_marge_nette_pourcent: margeP,
-    variation_recette_pourcent: varPct(recette, recetteP),
-    variation_net_final_pourcent: varPct(netFinal, netFinalP),
+    marge_nette_pourcent: marge, mois_precedent_marge_nette_pourcent: margeP,
+    variation_recette_pourcent: vRec, variation_net_final_pourcent: vNet,
     variation_ca_par_jour_pourcent: varPct(caJour, caJourP),
     variation_depenses_pourcent: varPct(cur.tot.dep, before.tot.dep),
     variation_courses_pourcent: varPct(cur.tot.courses, before.tot.courses),
     variation_jours_travailles_pourcent: varPct(cur.tot.jours, before.tot.jours),
   };
-  if (evolution) {
-    history.forEach((m, i) => {
-      if (hist[i].tot.jours === 0) return;
-      const k = `evolution_${m.dateFrom.slice(0, 7).replace("-", "_")}`;
-      facts[`${k}_recette_fcfa`] = Math.round(recetteOf(hist[i].tot));
-      facts[`${k}_net_final_fcfa`] = Math.round(netFinalOf(hist[i]));
-      facts[`${k}_jours_travailles`] = hist[i].tot.jours;
-    });
-  }
+  history.forEach((m, i) => {
+    if (hist[i].tot.jours === 0) return;
+    const k = `evolution_${m.dateFrom.slice(0, 7).replace("-", "_")}`;
+    facts[`${k}_recette_fcfa`] = Math.round(recetteOf(hist[i].tot));
+    facts[`${k}_net_final_fcfa`] = Math.round(netFinalOf(hist[i]));
+    facts[`${k}_jours_travailles`] = hist[i].tot.jours;
+  });
 
-  // constats de repli : la dynamique d'abord, puis la performance, puis le reste
+  // repli déterministe : la dynamique, puis la performance, puis les risques
   const dyn: Insight[] = [];
-  const vRec = varPct(recette, recetteP), vNet = varPct(netFinal, netFinalP);
   if (vRec != null) {
     const memeSens = vNet == null || (vRec >= 0) === (vNet >= 0);
     dyn.push({
-      severity: vNet != null && vNet < 0 ? "warn" : "ok",
-      html: `<b>Recette ${signed(vRec)} % et net final ${vNet == null ? "non comparable" : `${signed(vNet)} %`} face à ${esc(prevLabel)}.</b> Recette ${fmt(recetteP)} → ${fmt(recette)} F, net final ${fmt(netFinalP)} → ${fmt(netFinal)} F, marge nette ${String(margeP).replace(".", ",")} % → ${String(marge).replace(".", ",")} %.`
+      severity: (vNet != null && vNet < 0) || vRec < 0 ? "warn" : "ok",
+      html: `<b>Recette ${signed(vRec)} % et net final ${vNet == null ? "non comparable" : `${signed(vNet)} %`} face à ${esc(prevLabel)}.</b> Recette ${fmt(recetteP)} → ${fmt(recette)} F, net final ${fmt(netFinalP)} → ${fmt(netFinal)} F, marge nette ${pc(margeP)} → ${pc(marge)}.`
         + (memeSens ? "" : ` La recette et le résultat ne vont pas dans le même sens : l'écart vient des charges (${fmt(before.tot.dep)} → ${fmt(cur.tot.dep)} F de dépenses).`)
         + ` La flotte a travaillé ${cur.tot.jours} jours contre ${before.tot.jours}, à ${fmt(caJour)} F par jour contre ${fmt(caJourP)} F.`,
     });
   }
   const decisions: Decision[] = [];
-  if (perf && perf.manqueAGagner > 0) {
-    decisions.push({ html: `<b>Ramener chaque chauffeur à l'objectif journalier.</b> Le manque à gagner estimé de la période est de ${fmt(perf.manqueAGagner)} F : un point hebdomadaire avec les chauffeurs sous l'objectif, chiffres du tableau Performance en main.` });
-  }
-  const refus = Number(perf?.facts.performance_courses_refusees ?? 0);
-  if (refus > 0) {
-    decisions.push({ html: `<b>Fixer une règle sur les refus de course.</b> ${fmt(refus)} courses refusées sur la période, environ ${fmt(Number(perf?.facts.performance_ca_non_realise_sur_refus_estime_fcfa ?? 0))} F non réalisés : suivre le taux d'acceptation chaque semaine.` });
-  }
-  if (Number(ech?.facts.echeances_documents_expires ?? 0) > 0) {
-    decisions.push({ html: "<b>Régulariser les documents expirés avant toute remise en circulation</b> (tableau des échéances)." });
-  }
+  if (perf && perf.manqueAGagner > 0) decisions.push({ html: `<b>Ramener chaque chauffeur à l'objectif journalier.</b> Manque à gagner estimé : ${fmt(perf.manqueAGagner)} F. Option A : un point hebdomadaire chiffré avec chaque chauffeur sous l'objectif. Option B : remplacer les chauffeurs durablement sous 80 % de l'objectif.` });
+  if (av && av.repos.length) decisions.push({ html: `<b>Fixer les jours de repos sur les jours faibles.</b> Environ ${fmt(Number(av.facts.repos_gain_mensuel_estime_si_repos_bien_places_fcfa ?? 0))} F par mois (estimation) sans un jour de travail en plus. Détail par chauffeur dans le deep dive opérationnel.` });
+  if (refus > 0) decisions.push({ html: `<b>Fixer une règle sur les refus de course.</b> ${fmt(refus)} courses refusées, environ ${fmt(Number(perf?.facts.performance_ca_non_realise_sur_refus_estime_fcfa ?? 0))} F non réalisés (estimation).` });
   decisions.push(...det.decisions);
 
   const activeDrivers = cur.drivers.filter((a) => !a.technical && a.jours > 0).length;
-  const panier = cur.tot.courses > 0 ? cur.tot.brut / cur.tot.courses : 0;
-  const panierP = before.tot.courses > 0 ? before.tot.brut / before.tot.courses : 0;
   return {
     meta: {
       docTitle: `Rapport de direction mensuel${segSuffix(segment)}`,
@@ -855,326 +925,426 @@ async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string
     },
     kpis: [
       { label: "Recette brute", value: fmt(recette), sub: `Yango ${fmt(cur.tot.brut)} · bonus ${fmt(cur.tot.bonus)} · hors ${fmt(cur.tot.hors)}`, accent: true, delta: deltaOf(recette, recetteP, prevLabel) },
-      { label: "Net final", value: fmt(netFinal), sub: cur.amortissement > 0 ? `après amortissement −${fmt(cur.amortissement)}` : "après charges et rémunération", accent: true, delta: deltaOf(netFinal, netFinalP, prevLabel) },
-      { label: "Marge nette", value: recette > 0 ? `${String(marge).replace(".", ",")} %` : "—", sub: `${String(margeP).replace(".", ",")} % sur ${prevLabel}` },
+      { label: "Net final", value: fmt(netFinal), sub: recette > 0 ? `${pc(marge)} de marge nette` : "—", accent: true, delta: deltaOf(netFinal, netFinalP, prevLabel) },
       { label: "CA par jour travaillé", value: fmt(caJour), sub: `${cur.tot.jours} jours · ${activeDrivers} chauffeur${activeDrivers > 1 ? "s" : ""}`, delta: deltaOf(caJour, caJourP, prevLabel) },
-      ...(perf ? [perf.kpi] : []),
-      { label: "Courses", value: fmt(cur.tot.courses), sub: cur.tot.repos ? `${cur.tot.repos} repos déclarés` : "aucun repos déclaré", delta: deltaOf(cur.tot.courses, before.tot.courses, prevLabel) },
-      { label: "Panier moyen", value: panier > 0 ? fmt(panier) : "—", sub: "brut Yango par course", delta: deltaOf(panier, panierP, prevLabel) },
-      { label: "Dépenses", value: fmt(cur.tot.dep), sub: recette > 0 ? `${String(pct(cur.tot.dep, recette)).replace(".", ",")} % de la recette` : "—", delta: deltaOf(cur.tot.dep, before.tot.dep, prevLabel, false) },
+      ...(perf ? [perf.kpi] : [{ label: "Courses", value: fmt(cur.tot.courses), delta: deltaOf(cur.tot.courses, before.tot.courses, prevLabel) }]),
     ],
     sections,
     facts,
     aliases: aliasesOf(cur),
     context: [
       ...CONTEXT_COMMON,
-      "Destinataire : le dirigeant de l'entreprise. Il veut savoir en une page si le mois est bon, pourquoi, combien il laisse sur la table et quoi décider. Chaque constat doit porter un chiffre et une conséquence ; pas de généralités.",
-      ...segContext(segment),
-      ...(segs?.context ?? []),
-      ...(perf?.context ?? []),
-      ...(av?.context ?? []),
+      ...segContext(segment), ...(segs?.context ?? []), ...(perf?.context ?? []), ...(av?.context ?? []),
       `Les faits préfixés mois_precedent_ couvrent ${prevLabel} ; les faits variation_ donnent l'évolution en pourcentage déjà calculée (ne recalcule rien). Les faits evolution_AAAA_MM donnent les mois antérieurs : dégage la tendance de fond, pas seulement l'écart d'un mois.`,
-      "La table « Charges notables » donne le MOTIF saisi de chaque grosse ligne (décaissements propriétaire compris) : appuie l'analyse des dépenses dessus — un poste ne s'explique jamais par son seul total.",
-      ...(heures ? ["Les faits demande_ donnent la répartition du chiffre par tranche horaire (exports Yango) : sers-t'en pour dire où placer les repos et quand les véhicules doivent rouler."] : []),
-      ...(cur.avances > 0 ? [
-        `Les « Décaissement propriétaire » sont des AVANCES remises aux chauffeurs (${fmt(cur.avances)} F sur la période) : cash sorti mais NEUTRE pour le résultat — la charge réelle est celle déclarée ensuite par le chauffeur. Ne jamais les compter comme des dépenses.`,
-      ] : []),
+      ...(cur.avances > 0 ? [`Les « Décaissement propriétaire » sont des AVANCES remises aux chauffeurs (${fmt(cur.avances)} F sur la période) : cash sorti mais NEUTRE pour le résultat. Ne jamais les compter comme des dépenses.`] : []),
     ],
-    deterministicInsights: [...dyn, ...(segs?.insights ?? []), ...(perf?.insights ?? []), ...(av?.insights ?? []), ...(av && av.horaires.length ? [] : heures?.insights ?? []), ...(ech?.insights ?? []), ...det.insights],
-    deterministicDecisions: decisions,
+    deterministicInsights: [...dyn, ...(perf?.insights ?? []).slice(0, 2), ...(av?.insights ?? []).filter((i) => i.severity !== "info").slice(0, 1), ...(ech?.insights ?? []), ...det.insights],
+    deterministicDecisions: decisions.slice(0, 3),
     deterministicFocus: focusOf(perf),
-    deterministicTldr: `<b>L'essentiel.</b> ${fmt(recette)} F de recette brute${vRec != null ? ` (${signed(vRec)} % face à ${esc(prevLabel)})` : ""} et <b>${fmt(netFinal)} F de net final</b>${recette > 0 ? `, soit ${String(marge).replace(".", ",")} % de marge nette` : ""}. La flotte a travaillé ${cur.tot.jours} jours à ${fmt(caJour)} F par jour.${perf ? ` <b>${esc(perf.kpi.value)} tiennent l'objectif journalier</b>${perf.manqueAGagner > 0 ? ` : le manque à gagner est estimé à ${fmt(perf.manqueAGagner)} F` : ""}.` : ""} Dépenses : ${fmt(cur.tot.dep)} F · rémunération versée : ${fmt(cur.tot.sal + cur.tot.aco)} F${cur.tot.aco ? ` (dont ${fmt(cur.tot.aco)} F d'acomptes)` : ""}.`,
+    deterministicManques: manquesOf(cur, { datesNonRenseignees: Number(ech?.facts.echeances_dates_non_renseignees ?? 0), fleetroom: perf ? perf.hasFleetroom : undefined }),
+    deterministicTldr: `<b>L'essentiel.</b> ${fmt(recette)} F de recette brute${vRec != null ? ` (${signed(vRec)} % face à ${esc(prevLabel)})` : ""} et <b>${fmt(netFinal)} F de net final</b>${recette > 0 ? `, soit ${pc(marge)} de marge nette` : ""}. La flotte a travaillé ${cur.tot.jours} jours à ${fmt(caJour)} F par jour.${perf ? ` <b>${atteints} chauffeur${atteints > 1 ? "s" : ""} sur ${perf.chauffeurs.length} tien${atteints > 1 ? "nent" : "t"} l'objectif journalier</b>${perf.manqueAGagner > 0 ? ` : le manque à gagner est estimé à ${fmt(perf.manqueAGagner)} F` : ""}.` : ""}`,
+    profile: {
+      roles: ROLES_DIRECTION,
+      editorSystem: EDITOR_DIRECTION,
+      decisionStyle: "options",
+      caps: { forces: 3, alertes: 3, info: 0, decisions: 3 },
+      labels: { tldr: "L'essentiel en 30 secondes", forces: "Ce qui va bien", alertes: "Ce qui va moins bien", decisions: "Décisions à prendre ce mois-ci", focus: "Focus du mois prochain", manques: "Données manquantes" },
+      layout: [
+        "tldr", "kpis", { sections: sections.map((_, i) => i) },
+        "forces", "alertes", "decisions", "focus", "manques",
+        { heading: "Pour aller plus loin", text: "Le détail du terrain (chauffeurs, demande, repos, horaires, qualité de service) est dans le deep dive opérationnel. La trajectoire de l'année et les scénarios sont dans le bilan financier année-à-date." },
+      ],
+    },
   };
 }
+
+// ── 2. BILAN FINANCIER ANNÉE-À-DATE ─────────────────────────────────────────
 
 async function ytdDataset(tenantId: string, dateTo: string, tenantName: string, segment: SegmentFilter = "all"): Promise<ReportDataset> {
   const year = dateTo.slice(0, 4);
   const lastMonth = Number(dateTo.slice(5, 7));
-  const months: { label: string; agg: PeriodAgg }[] = [];
-  for (let m = 1; m <= lastMonth; m++) {
-    const mm = String(m).padStart(2, "0");
+  const yearStart = `${year}-01-01`;
+  const ranges = Array.from({ length: lastMonth }, (_, i) => {
+    const mm = String(i + 1).padStart(2, "0");
     const from = `${year}-${mm}-01`;
-    const to = m === lastMonth ? dateTo : `${year}-${mm}-${new Date(Date.UTC(Number(year), m, 0)).getUTCDate()}`;
-    const agg = await aggregatePeriod(tenantId, from, to, segment);
-    // n'affiche que les mois avec au moins une écriture
-    if (agg.tot.jours > 0 || agg.tot.dep > 0 || agg.tot.sal + agg.tot.aco > 0) {
-      months.push({
-        label: new Date(`${from}T00:00:00Z`).toLocaleDateString("fr-FR", { month: "long", timeZone: "UTC" }),
-        agg,
-      });
-    }
-  }
-  const [full, perf, ech] = await Promise.all([
-    aggregatePeriod(tenantId, `${year}-01-01`, dateTo, segment),
-    perfOf(tenantId, `${year}-01-01`, dateTo, segment),
+    const end = `${year}-${mm}-${new Date(Date.UTC(Number(year), i + 1, 0)).getUTCDate()}`;
+    return { from, to: i + 1 === lastMonth ? dateTo : end, complet: i + 1 < lastMonth || dateTo === end };
+  });
+  const [aggs, full, perf, ech] = await Promise.all([
+    Promise.all(ranges.map((r) => aggregatePeriod(tenantId, r.from, r.to, segment))),
+    aggregatePeriod(tenantId, yearStart, dateTo, segment),
+    perfOf(tenantId, yearStart, dateTo, segment),
     echeances(admin, tenantId, new Date().toISOString().slice(0, 10), segment).catch(() => null),
   ]);
-  const segs = segment === "all" ? await segregation(tenantId, `${year}-01-01`, dateTo, full).catch(() => null) : null;
-  const recette = recetteOf(full.tot);
-  const netFinal = netFinalOf(full);
+  const segs = segment === "all" ? await segregation(tenantId, yearStart, dateTo, full).catch(() => null) : null;
+  // n'affiche que les mois avec au moins une écriture
+  const months = ranges.map((r, i) => ({ ...r, agg: aggs[i], label: moisLabel(r.from) }))
+    .filter(({ agg }) => agg.tot.jours > 0 || agg.tot.dep > 0 || agg.tot.sal + agg.tot.aco > 0);
+  const recette = recetteOf(full.tot), netFinal = netFinalOf(full);
+  const marge = recette > 0 ? pct(netFinal, recette) : 0;
+  const sgn = (v: number) => (v >= 0 ? `+${fmt(v)}` : `−${fmt(Math.abs(v))}`);
 
+  // film mois par mois
   let cumul = 0;
   const monthRows: TableSection["rows"] = months.map(({ label, agg }) => {
-    const net = netFinalOf(agg);
+    const net = netFinalOf(agg), rec = recetteOf(agg.tot);
     cumul += net;
-    const sign = (v: number) => (v >= 0 ? `+${fmt(v)}` : `−${fmt(Math.abs(v))}`);
     return {
-      cells: [
-        `<b>${esc(label.charAt(0).toUpperCase() + label.slice(1))}</b>`,
-        fmt(recetteOf(agg.tot)), fmt(agg.tot.dep), fmt(agg.tot.sal + agg.tot.aco),
-        sign(net), sign(cumul), String(agg.tot.jours), fmt(agg.tot.courses),
-      ],
+      cells: [`<b>${esc(label)}</b>`, fmt(rec), fmt(agg.tot.dep), fmt(agg.tot.sal + agg.tot.aco), sgn(net), rec > 0 ? pc(pct(net, rec)) : "—", sgn(cumul), String(agg.tot.jours)],
       highlight: net > 0 ? ("ok" as const) : net < 0 ? ("alert" as const) : undefined,
     };
   });
-  monthRows.push({
-    cells: ["TOTAL YTD", fmt(recette), fmt(full.tot.dep), fmt(full.tot.sal + full.tot.aco),
-      netFinal >= 0 ? `+${fmt(netFinal)}` : `−${fmt(Math.abs(netFinal))}`, "", String(full.tot.jours), fmt(full.tot.courses)],
-    total: true,
-  });
+  monthRows.push({ cells: ["CUMUL", fmt(recette), fmt(full.tot.dep), fmt(full.tot.sal + full.tot.aco), sgn(netFinal), recette > 0 ? pc(marge) : "—", "", String(full.tot.jours)], total: true });
+  const film: Section = {
+    kind: "table", title: "Résultat mois par mois",
+    columns: [{ label: "Mois" }, { label: "Recette brute", align: "right" }, { label: "Dépenses", align: "right" }, { label: "Rému. versée", align: "right" },
+      { label: "Net final", align: "right" }, { label: "Marge", align: "right" }, { label: "Cumul", align: "right" }, { label: "Jours", align: "right" }],
+    rows: monthRows,
+    note: "Montants en FCFA. Seuls les mois avec au moins une écriture sont affichés. Net final = net après commissions − dépenses − rémunération versée − amortissement. Vert : mois bénéficiaire ; rouge : mois déficitaire.",
+  };
+  const filmFig = evolutionFigure(months.map(({ label, agg }, i) => ({ label, agg, courant: i === months.length - 1 })));
+
+  // ── trajectoire : rythme récent, point mort, scénarios (mois complets seulement)
+  const complets = months.filter((m) => m.complet && m.agg.tot.jours > 0);
+  const recents = complets.slice(-6);
+  const moy = (list: typeof complets, f: (p: PeriodAgg) => number) => (list.length ? list.reduce((s, m) => s + f(m.agg), 0) / list.length : 0);
+  const parRecette = [...recents].sort((a, b) => recetteOf(a.agg.tot) - recetteOf(b.agg.tot));
+  const scenarios = recents.length >= 3 ? [
+    { nom: "Pessimiste", hyp: `moyenne des 2 mois les plus faibles (${parRecette.slice(0, 2).map((m) => m.label).join(", ")})`, mois: parRecette.slice(0, 2) },
+    { nom: "Réaliste", hyp: `moyenne des 3 derniers mois (${recents.slice(-3).map((m) => m.label).join(", ")})`, mois: recents.slice(-3) },
+    { nom: "Optimiste", hyp: `moyenne des 2 meilleurs mois (${parRecette.slice(-2).map((m) => m.label).join(", ")})`, mois: parRecette.slice(-2) },
+  ].map((s) => ({ ...s, rec: moy(s.mois, (p) => recetteOf(p.tot)), net: moy(s.mois, netFinalOf) })) : [];
+  const dernierComplet = complets.length ? Number(complets[complets.length - 1].from.slice(5, 7)) : lastMonth;
+  const restants = 12 - dernierComplet;
+  const baseRec = complets.reduce((s, m) => s + recetteOf(m.agg.tot), 0), baseNet = complets.reduce((s, m) => s + netFinalOf(m.agg), 0);
+  const realiste = scenarios[1];
 
   const facts: Record<string, string | number | null> = {
-    ...baseFacts(full, "ytd_"),
-    ...driverFacts(full),
-    ...(perf?.facts ?? {}),
-    ...(ech?.facts ?? {}),
-    ...(segs?.facts ?? {}),
-    perimetre: SEG_LABEL[segment],
-    annee: year, periode_au: frFull(dateTo),
+    ...baseFacts(full, "ytd_"), ...driverFacts(full), ...(perf?.facts ?? {}), ...(ech?.facts ?? {}), ...(segs?.facts ?? {}),
+    perimetre: SEG_LABEL[segment], annee: year, periode_au: frFull(dateTo),
+    ytd_marge_nette_pourcent: marge,
+    mois_beneficiaires: months.filter((m) => netFinalOf(m.agg) > 0).length, mois_avec_activite: months.length,
   };
-  for (const { label, agg } of months) {
-    const key = label.toLowerCase().replace(/[^a-z]/g, "");
-    facts[`mois_${key}_recette_fcfa`] = Math.round(recetteOf(agg.tot));
-    facts[`mois_${key}_net_final_fcfa`] = Math.round(netFinalOf(agg));
-    facts[`mois_${key}_jours`] = agg.tot.jours;
+  for (const { from, agg } of months) {
+    const k = `mois_${from.slice(0, 7).replace("-", "_")}`;
+    facts[`${k}_recette_fcfa`] = Math.round(recetteOf(agg.tot));
+    facts[`${k}_net_final_fcfa`] = Math.round(netFinalOf(agg));
+    facts[`${k}_jours`] = agg.tot.jours;
   }
 
-  const maxRec = Math.max(...months.map(({ agg }) => recetteOf(agg.tot)), 1);
+  // indicateurs clés et point mort
+  const base3 = recents.slice(-3);
+  const charges = moy(base3, (p) => p.tot.dep + p.tot.sal + p.tot.aco + p.amortissement);
+  const tauxApresComm = moy(base3, (p) => recetteOf(p.tot)) > 0 ? moy(base3, (p) => p.tot.net) / moy(base3, (p) => recetteOf(p.tot)) : 0;
+  const pointMort = tauxApresComm > 0 ? charges / tauxApresComm : 0;
+  const caJour = full.tot.jours > 0 ? recette / full.tot.jours : 0;
+  const securite = realiste && realiste.rec > 0 && pointMort > 0 ? Math.round(((realiste.rec - pointMort) / realiste.rec) * 1000) / 10 : null;
+  const best = months.length ? months.reduce((a, b) => (netFinalOf(b.agg) > netFinalOf(a.agg) ? b : a)) : null;
+  const worst = months.length ? months.reduce((a, b) => (netFinalOf(b.agg) < netFinalOf(a.agg) ? b : a)) : null;
+  const indicateurs: Section | null = base3.length ? {
+    kind: "table", title: "Indicateurs clés et point mort",
+    columns: [{ label: "Indicateur" }, { label: "Valeur", align: "right" }, { label: "Lecture" }],
+    rows: [
+      { cells: ["<b>Marge nette cumulée</b>", recette > 0 ? pc(marge) : "—", "net final ÷ recette brute, depuis janvier"] },
+      { cells: ["<b>Mois bénéficiaires</b>", `${months.filter((m) => netFinalOf(m.agg) > 0).length} sur ${months.length}`, best && worst ? `meilleur : ${esc(best.label)} (${sgn(netFinalOf(best.agg))}) ; plus faible : ${esc(worst.label)} (${sgn(netFinalOf(worst.agg))})` : ""] },
+      { cells: ["<b>Charges mensuelles moyennes</b>", fmt(charges), "dépenses + rémunération + amortissement, moyenne des 3 derniers mois complets"] },
+      { cells: ["<b>Point mort mensuel</b>", pointMort > 0 ? fmt(pointMort) : "—", "recette brute à réaliser dans le mois pour couvrir ces charges, après commissions"] },
+      ...(pointMort > 0 && caJour > 0 ? [{ cells: ["<b>Point mort en journées</b>", fmt(pointMort / caJour), `journées de chauffeur à ${fmt(caJour)} F (CA par jour moyen de l'année)`] }] : []),
+      ...(securite != null ? [{ cells: ["<b>Marge de sécurité</b>", `<span class="${securite >= 0 ? "pos" : "neg"}">${pc(securite)}</span>`, "baisse de recette que le rythme actuel peut absorber avant de passer en perte"] }] : []),
+    ],
+    note: "Point mort (estimation) = charges mensuelles moyennes ÷ part de la recette qui reste après commissions. Il suppose des charges stables : une embauche ou un véhicule de plus le déplace.",
+  } : null;
+  facts.point_mort_recette_mensuelle_estime_fcfa = pointMort > 0 ? Math.round(pointMort) : null;
+  facts.point_mort_charges_mensuelles_moyennes_fcfa = Math.round(charges);
+  facts.point_mort_marge_de_securite_pourcent = securite;
+
+  // projection de fin d'année
+  const projection: Section | null = scenarios.length && restants > 0 ? {
+    kind: "table", title: `Projection de fin d'année ${year} — 3 scénarios`,
+    columns: [{ label: "Scénario" }, { label: "Recette / mois", align: "right" }, { label: "Net final / mois", align: "right" },
+      { label: `Recette ${year}`, align: "right" }, { label: `Net final ${year}`, align: "right" }],
+    rows: scenarios.map((s) => ({
+      cells: [`<b>${s.nom}</b>`, fmt(s.rec), sgn(s.net), fmt(baseRec + s.rec * restants), `<b>${sgn(baseNet + s.net * restants)}</b>`],
+      total: s.nom === "Réaliste",
+    })),
+    note: `Hypothèses : ${scenarios.map((s) => `${s.nom.toLowerCase()} = ${s.hyp}`).join(" ; ")}. Projection = réalisé sur les mois complets (${fmt(baseRec)} F de recette, ${sgn(baseNet)} F de net final) + rythme du scénario × ${restants} mois restants. Ce sont des ordres de grandeur, pas des prévisions : ${recents.length} mois d'historique seulement.`,
+  } : null;
+  for (const s of scenarios) {
+    const k = `projection_${s.nom.toLowerCase().replace("é", "e")}`;
+    facts[`${k}_recette_mensuelle_fcfa`] = Math.round(s.rec);
+    facts[`${k}_net_final_mensuel_fcfa`] = Math.round(s.net);
+    if (restants > 0) {
+      facts[`${k}_recette_fin_d_annee_fcfa`] = Math.round(baseRec + s.rec * restants);
+      facts[`${k}_net_final_fin_d_annee_fcfa`] = Math.round(baseNet + s.net * restants);
+    }
+  }
+  facts.projection_mois_restants = restants;
+
+  // sensibilité : trois chocs sur le rythme réaliste
+  let sensibilite: Section | null = null;
+  if (realiste) {
+    const actifs = full.drivers.filter((a) => !a.technical && a.jours > 0).sort((a, b) => recetteOf(b) - recetteOf(a));
+    const top = actifs[0];
+    const partTop = top && recette > 0 ? recetteOf(top) / recette : 0;
+    const nMois = Math.max(complets.length, 1);
+    const tests = [
+      top ? { nom: `Départ de ${top.name}, non remplacé`, hyp: `premier contributeur : ${pc(pct(recetteOf(top), recette))} de la recette de l'année`, effet: -realiste.rec * partTop * tauxApresComm } : null,
+      perf && perf.manqueAGagner > 0 ? { nom: "Tous les chauffeurs à l'objectif journalier", hyp: `manque à gagner de l'année : ${fmt(perf.manqueAGagner)} F, soit ${fmt(perf.manqueAGagner / nMois)} F par mois`, effet: (perf.manqueAGagner / nMois) * tauxApresComm } : null,
+      { nom: "Dépenses en hausse de 20 %", hyp: `dépenses moyennes : ${fmt(moy(base3, (p) => p.tot.dep))} F par mois`, effet: -0.2 * moy(base3, (p) => p.tot.dep) },
+    ].filter((t): t is { nom: string; hyp: string; effet: number } => !!t);
+    sensibilite = {
+      kind: "table", title: "Sensibilité — trois chocs sur le rythme réaliste",
+      columns: [{ label: "Test" }, { label: "Hypothèse" }, { label: "Effet sur le net mensuel", align: "right" }, { label: restants > 0 ? `Net final ${year}` : "Net mensuel après choc", align: "right" }],
+      rows: tests.map((t) => ({
+        cells: [`<b>${esc(t.nom)}</b>`, esc(t.hyp), `<span class="${t.effet >= 0 ? "pos" : "neg"}">${sgn(t.effet)}</span>`,
+          restants > 0 ? sgn(baseNet + (realiste.net + t.effet) * restants) : sgn(realiste.net + t.effet)],
+      })),
+      note: `Estimations. Point de départ : scénario réaliste (${sgn(realiste.net)} F de net final par mois${restants > 0 ? `, ${sgn(baseNet + realiste.net * restants)} F sur l'année` : ""}). L'effet d'une variation de recette est compté après commissions ; les charges sont supposées inchangées.`,
+    };
+    tests.forEach((t, i) => {
+      facts[`sensibilite_${i + 1}_test`] = t.nom;
+      facts[`sensibilite_${i + 1}_effet_net_mensuel_estime_fcfa`] = Math.round(t.effet);
+      if (restants > 0) facts[`sensibilite_${i + 1}_net_final_fin_d_annee_estime_fcfa`] = Math.round(baseNet + (realiste.net + t.effet) * restants);
+    });
+  }
+
+  const pl = months.length >= 2 ? compteResultat(full, months[months.length - 1].agg, months[months.length - 1].label) : null;
+  const plCumul: Section | null = pl && pl.kind === "table" ? {
+    ...pl, title: "Compte de résultat cumulé",
+    columns: [{ label: "Poste" }, { label: `Cumul ${year}`, align: "right" }, { label: "% recette", align: "right" }],
+    rows: pl.rows.map((r) => ({ ...r, cells: r.cells.slice(0, 3) })),
+    note: "Montants en FCFA, du 1er janvier à la date du bilan. Net final = net après commissions − dépenses − rémunération versée − amortissement.",
+  } : null;
+
+  const sections = numbered([
+    withLead(plCumul as Section, `<b>${sgn(netFinal)} F de net final</b> sur ${fmt(recette)} F de recette, soit ${pc(marge)} de marge nette depuis janvier.`),
+    withLead(filmFig as Section, best && worst ? `Meilleur mois : ${esc(best.label)} (${sgn(netFinalOf(best.agg))} F) ; mois le plus faible : ${esc(worst.label)} (${sgn(netFinalOf(worst.agg))} F).` : null),
+    film,
+    withLead(indicateurs as Section, pointMort > 0 ? `Il faut <b>${fmt(pointMort)} F de recette par mois</b> pour couvrir les charges${securite != null ? ` ; le rythme actuel laisse ${pc(securite)} de marge de sécurité` : ""}.` : null),
+    withLead(projection as Section, realiste && restants > 0 ? `Au rythme des 3 derniers mois, l'année se termine à <b>${sgn(baseNet + realiste.net * restants)} F de net final</b> (entre ${sgn(baseNet + scenarios[0].net * restants)} et ${sgn(baseNet + scenarios[2].net * restants)} F selon le scénario).` : null),
+    sensibilite,
+    segs ? withLead(segs.section, `Depuis janvier, la flotte interne fait <b>${pc(Number(segs.facts.flotte_interne_part_recette_pourcent ?? 0))}</b> de la recette et ${fmt(Number(segs.facts.flotte_interne_net_final_fcfa ?? 0))} F de net final ; les partenaires ${fmt(Number(segs.facts.partenaires_net_final_fcfa ?? 0))} F.`) : null,
+    depBars(full),
+    notableExpensesTable(full),
+    driverTable(full, yearStart, dateTo),
+  ]);
+
+  const carb = full.depCat.get("Carburant") || 0;
+  const recos: Decision[] = [];
+  if (perf && perf.manqueAGagner > 0) recos.push({ html: `<b>Porter les chauffeurs sous l'objectif à ${fmt(perf.objectif)} F par jour.</b> Le manque à gagner de l'année est estimé à ${fmt(perf.manqueAGagner)} F : c'est le premier levier, il ne demande ni véhicule ni embauche.` });
+  if (securite != null && securite < 15) recos.push({ html: `<b>Reconstituer une marge de sécurité.</b> Le rythme actuel n'est qu'à ${pc(securite)} au-dessus du point mort (${fmt(pointMort)} F par mois) : geler toute charge fixe nouvelle tant qu'elle n'est pas couverte par une recette identifiée.` });
+  if (recette > 0 && carb > 0 && pct(carb, recette) > 24) recos.push({ html: `<b>Suivre le carburant par chauffeur et par véhicule.</b> ${fmt(carb)} F depuis janvier, soit ${pc(pct(carb, recette))} de la recette.` });
+  const actifsAn = full.drivers.filter((a) => !a.technical && a.jours > 0).sort((a, b) => recetteOf(b) - recetteOf(a));
+  if (actifsAn[0] && recette > 0 && pct(recetteOf(actifsAn[0]), recette) > 30) recos.push({ html: `<b>Réduire la dépendance à ${esc(actifsAn[0].name)}.</b> Il porte ${pc(pct(recetteOf(actifsAn[0]), recette))} de la recette de l'année : sécuriser un second chauffeur du même niveau avant toute extension du parc.` });
+
   return {
     meta: {
-      docTitle: `Bilan Year-to-Date ${year}${segSuffix(segment)}`,
+      docTitle: `Bilan financier année-à-date ${year}${segSuffix(segment)}`,
       periodLabel: `Période : 01/01/${year} → ${frFull(dateTo)}${segSuffix(segment)} · Montants en FCFA`,
       generatedLabel: new Date().toLocaleDateString("fr-FR"),
       shortLabel: `Janvier → ${frFull(dateTo)}`,
       sourceLabel: `Source : ${tenantName} · M3A Fleet SaaS`,
     },
     kpis: [
-      { label: "Recette brute YTD", value: fmt(recette), sub: `dont hors-app ${fmt(full.tot.hors)} F`, accent: true },
-      { label: "Net final cumulé", value: `${netFinal >= 0 ? "+" : "−"}${fmt(Math.abs(netFinal))}`, sub: recette > 0 ? `${pct(netFinal, recette)} % de la recette` : "—", accent: true },
-      { label: "Dépenses YTD", value: fmt(full.tot.dep), sub: `dont carburant ${fmt(full.depCat.get("Carburant") || 0)} F` },
-      { label: "Activité YTD", value: `${fmt(full.tot.courses)} courses`, sub: `${full.tot.jours} jours travaillés` },
-      { label: "CA par jour travaillé", value: full.tot.jours > 0 ? fmt(recette / full.tot.jours) : "—", sub: "moyenne de la flotte depuis janvier" },
-      ...(perf ? [perf.kpi] : []),
-      { label: "Marge nette", value: recette > 0 ? `${String(pct(netFinal, recette)).replace(".", ",")} %` : "—", sub: "net final ÷ recette brute" },
-      { label: "Panier moyen", value: full.tot.courses > 0 ? fmt(full.tot.brut / full.tot.courses) : "—", sub: "brut Yango par course" },
+      { label: `Recette brute ${year}`, value: fmt(recette), sub: `${months.length} mois d'activité`, accent: true },
+      { label: "Net final cumulé", value: sgn(netFinal), sub: recette > 0 ? `${pc(marge)} de marge nette` : "—", accent: true },
+      ...(realiste && restants > 0 ? [{ label: `Projection ${year} (réaliste)`, value: sgn(baseNet + realiste.net * restants), sub: `net final · ${restants} mois restants` }] : [{ label: "Dépenses cumulées", value: fmt(full.tot.dep), sub: recette > 0 ? `${pc(pct(full.tot.dep, recette))} de la recette` : "—" }]),
+      { label: "Point mort mensuel", value: pointMort > 0 ? fmt(pointMort) : "—", sub: securite != null ? `marge de sécurité ${pc(securite)}` : "recette à réaliser par mois" },
     ],
-    sections: ([
-      {
-        kind: "table",
-        title: "Le film mois par mois",
-        columns: [
-          { label: "Mois" }, { label: "Recette brute", align: "right" }, { label: "Dépenses", align: "right" },
-          { label: "Rému. versée", align: "right" }, { label: "Net final", align: "right" },
-          { label: "Cumul", align: "right" }, { label: "Jours", align: "right" }, { label: "Courses", align: "right" },
-        ],
-        rows: monthRows,
-        note: "Montants en FCFA. Seuls les mois avec au moins une écriture sont affichés. Net final = net après commissions − dépenses − rémunération versée (salaires + acomptes rattachés au mois).",
-      },
-      {
-        kind: "bars",
-        title: "Recette mensuelle",
-        bars: months.map(({ label, agg }) => ({
-          label: label.charAt(0).toUpperCase() + label.slice(1),
-          amountLabel: fmt(recetteOf(agg.tot)),
-          pct: Math.max(1, Math.round((recetteOf(agg.tot) / maxRec) * 100)),
-        })),
-      },
-      ...(segs ? [segs.section] : []),
-      ...(perf ? perf.sections : []),
-      driverTable(full, `${year}-01-01`, dateTo),
-      ...(ech?.section ? [ech.section] : []),
-    ] as Section[]).map((sec, i) => ({ ...sec, title: `${i + 1}. ${sec.title}` })),
+    sections,
     facts,
     aliases: aliasesOf(full),
     context: [
-      ...CONTEXT_COMMON,
-      "Destinataire : le dirigeant de l'entreprise. Il veut savoir en une page si la période est bonne, pourquoi, combien il laisse sur la table et quoi décider. Chaque constat doit porter un chiffre et une conséquence ; pas de généralités.",
-      ...(perf?.context ?? []),
-      ...segContext(segment), ...(segs?.context ?? []),
-      "Rapport année-à-date : dégage la trajectoire (point mort, tendance de marge), les leçons structurelles et les priorités du trimestre suivant — pas le détail d'un seul mois.",
+      ...CONTEXT_COMMON, ...segContext(segment), ...(segs?.context ?? []),
+      "Bilan financier année-à-date : juge la trajectoire (tendance de marge, point mort, projection), pas le détail d'un mois. Les faits projection_, point_mort_ et sensibilite_ sont des estimations déjà calculées : cite-les comme telles, n'en calcule aucune autre.",
+      ...(recents.length < 6 ? [`Historique court (${recents.length} mois complets) : la marge d'erreur des projections est élevée, dis-le.`] : []),
     ],
     deterministicInsights: [
-      ...(segs?.insights ?? []), ...(perf?.insights ?? []), ...(ech?.insights ?? []),
-      { severity: netFinal >= 0 ? "ok" : "alert", html: `<b>Net final cumulé ${year} : ${netFinal >= 0 ? "+" : "−"}${fmt(Math.abs(netFinal))} F</b> sur ${fmt(recette)} F de recette (marge ${pct(netFinal, recette)} %).` },
-      { severity: "info", html: `<b>Carburant cumulé : ${fmt(full.depCat.get("Carburant") || 0)} F</b> — ${pct(full.depCat.get("Carburant") || 0, recette)} % de la recette, poste de coût n°1.` },
+      { severity: netFinal >= 0 ? "ok" : "alert", html: `<b>Net final cumulé ${year} : ${sgn(netFinal)} F</b> sur ${fmt(recette)} F de recette (marge nette ${pc(marge)}), ${months.filter((m) => netFinalOf(m.agg) > 0).length} mois bénéficiaires sur ${months.length}.` },
+      ...(realiste && restants > 0 ? [{ severity: (baseNet + realiste.net * restants >= 0 ? "ok" : "alert") as Insight["severity"], html: `<b>Projection de fin d'année : ${sgn(baseNet + realiste.net * restants)} F de net final</b> au rythme des 3 derniers mois (${sgn(realiste.net)} F par mois), entre ${sgn(baseNet + scenarios[0].net * restants)} et ${sgn(baseNet + scenarios[2].net * restants)} F selon le scénario.` }] : []),
+      ...(securite != null ? [{ severity: (securite < 0 ? "alert" : securite < 15 ? "warn" : "ok") as Insight["severity"], html: `<b>Point mort : ${fmt(pointMort)} F de recette par mois.</b> Le rythme réaliste (${fmt(realiste!.rec)} F) est ${securite >= 0 ? `${pc(securite)} au-dessus` : `${pc(Math.abs(securite))} en dessous`} : ${securite < 15 ? "la moindre baisse d'activité ou hausse de charge fait basculer le mois en perte" : "la flotte absorbe une baisse d'activité de cet ordre sans passer en perte"}.` }] : []),
+      ...(carb > 0 ? [{ severity: (pct(carb, recette) > 24 ? "warn" : "info") as Insight["severity"], html: `<b>Carburant cumulé : ${fmt(carb)} F</b>, soit ${pc(pct(carb, recette))} de la recette.` }] : []),
+      ...(perf?.insights ?? []).slice(0, 1),
     ],
-    deterministicDecisions: [],
-    deterministicFocus: focusOf(perf),
-    deterministicTldr: `<b>L'essentiel.</b> Depuis janvier ${year}, la flotte cumule <b>${netFinal >= 0 ? "+" : "−"}${fmt(Math.abs(netFinal))} F de net final</b> sur <b>${fmt(recette)} F de recette brute</b> (marge ${pct(netFinal, recette)} %). ${fmt(full.tot.courses)} courses sur ${full.tot.jours} jours travaillés.`,
+    deterministicDecisions: recos.slice(0, 4),
+    deterministicManques: [
+      ...(recents.length < 6 ? [`Historique de ${recents.length} mois complets seulement : les projections sont des ordres de grandeur.`] : []),
+      "Aucune provision pour impôts, taxes ou renouvellement des véhicules n'est comprise dans le net final.",
+      ...manquesOf(full, { datesNonRenseignees: Number(ech?.facts.echeances_dates_non_renseignees ?? 0) }),
+    ],
+    deterministicTldr: `<b>Synthèse.</b> Depuis janvier ${year}, la flotte cumule <b>${sgn(netFinal)} F de net final</b> sur ${fmt(recette)} F de recette brute (marge nette ${pc(marge)}).${realiste && restants > 0 ? ` Au rythme des 3 derniers mois, l'année se termine à <b>${sgn(baseNet + realiste.net * restants)} F</b>.` : ""}${pointMort > 0 ? ` Le point mort est à ${fmt(pointMort)} F de recette par mois.` : ""}`,
+    profile: {
+      roles: ROLES_FINANCE,
+      editorSystem: EDITOR_FINANCE,
+      decisionStyle: "liste",
+      caps: { forces: 3, alertes: 3, info: 2, decisions: 4 },
+      labels: { tldr: "Synthèse exécutive", forces: "Points forts de la trajectoire", alertes: "Points de vigilance", info: "À savoir", decisions: "Recommandations", manques: "Données manquantes et limites de l'analyse" },
+      layout: ["tldr", "kpis", { sections: sections.map((_, i) => i) }, "forces", "alertes", "info", "decisions", "manques"],
+    },
   };
 }
 
-const JOURS_FR = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
+// ── 3. DEEP DIVE OPÉRATIONNEL ───────────────────────────────────────────────
 
 async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: string, tenantName: string, segment: SegmentFilter = "all"): Promise<ReportDataset> {
-  const [p, perf, heures] = await Promise.all([
+  const today = new Date().toISOString().slice(0, 10);
+  const [p, perf, heures, av, ech] = await Promise.all([
     aggregatePeriod(tenantId, dateFrom, dateTo, segment),
     perfOf(tenantId, dateFrom, dateTo, segment),
     demandeHoraire(admin, tenantId, dateFrom, dateTo, segment).catch(() => null),
-  ]);
-  const [segs, av] = await Promise.all([
-    segment === "all" ? segregation(tenantId, dateFrom, dateTo, p).catch(() => null) : Promise.resolve(null),
     avanceOf(tenantId, dateFrom, dateTo, segment),
+    echeances(admin, tenantId, today, segment).catch(() => null),
   ]);
-  // exports Yango Fleetroom présents : refus et heures en course sont mesurés
-  const perfFleetroom = !!perf?.hasFleetroom;
+  const recette = recetteOf(p.tot);
+  const caJour = p.tot.jours > 0 ? recette / p.tot.jours : 0;
 
-  // semaine type
-  const byWd = new Map<number, { n: number; brut: number; courses: number; hors: number }>();
-  const byWeek = new Map<string, { brut: number; bonus: number; hors: number; courses: number; drivers: Set<string> }>();
+  // film des semaines
+  const byWeek = new Map<string, { ca: number; courses: number; jours: number; drivers: Set<string> }>();
   for (const r of p.reportRows) {
     const d = new Date(`${r.date}T00:00:00Z`);
-    const wd = (d.getUTCDay() + 6) % 7;
-    const w = byWd.get(wd) ?? { n: 0, brut: 0, courses: 0, hors: 0 };
-    w.n += 1; w.brut += r.brut; w.courses += r.courses; w.hors += r.hors;
-    byWd.set(wd, w);
     const jan4 = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
     const week1Monday = new Date(jan4.getTime() - ((jan4.getUTCDay() + 6) % 7) * 86400000);
-    const weekNo = Math.floor((d.getTime() - week1Monday.getTime()) / (7 * 86400000)) + 1;
-    const wk = `S${String(weekNo).padStart(2, "0")}`;
-    const wv = byWeek.get(wk) ?? { brut: 0, bonus: 0, hors: 0, courses: 0, drivers: new Set<string>() };
-    wv.brut += r.brut; wv.bonus += r.bonus; wv.hors += r.hors; wv.courses += r.courses; wv.drivers.add(r.driver_id);
-    byWeek.set(wk, wv);
+    const wk = `S${String(Math.floor((d.getTime() - week1Monday.getTime()) / (7 * 86400000)) + 1).padStart(2, "0")}`;
+    const w = byWeek.get(wk) ?? { ca: 0, courses: 0, jours: 0, drivers: new Set<string>() };
+    w.ca += r.brut + r.bonus + r.hors; w.courses += r.courses; w.jours += 1; w.drivers.add(r.driver_id);
+    byWeek.set(wk, w);
   }
+  const weeks = Array.from(byWeek.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  const maxWeek = Math.max(...weeks.map(([, v]) => v.ca), 1);
+  const semaines: Section | null = weeks.length >= 2 ? {
+    kind: "bars", title: "Le film des semaines",
+    bars: weeks.map(([wk, v]) => ({
+      label: `${wk} · ${v.drivers.size} chauffeur${v.drivers.size > 1 ? "s" : ""} · ${v.jours} j`,
+      amountLabel: `${fmt(v.ca)} F · ${fmt(v.ca / v.jours)} F/j`,
+      pct: Math.max(1, Math.round((v.ca / maxWeek) * 100)), accent: v.ca === maxWeek,
+    })),
+    note: "Recette par semaine ISO (Yango + bonus + hors Yango), avec le nombre de chauffeurs et de journées travaillées, puis la recette par journée. Les semaines en bord de période sont tronquées.",
+  } : null;
 
-  const wdRows = JOURS_FR.map((jour, i) => {
-    const w = byWd.get(i);
-    if (!w) return null;
-    return {
-      cells: [
-        jour.charAt(0).toUpperCase() + jour.slice(1), String(w.n),
-        fmt(w.brut / w.n), (w.courses / w.n).toFixed(1),
-        w.courses > 0 ? fmt(w.brut / w.courses) : "—", fmt(w.hors / w.n),
-      ],
-    };
-  }).filter((r): r is NonNullable<typeof r> => r !== null);
-
-  const weekEntries = Array.from(byWeek.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  const maxWeek = Math.max(...weekEntries.map(([, v]) => v.brut + v.bonus + v.hors), 1);
-
-  // efficience chauffeurs
+  // efficience par chauffeur : kilomètres, carburant
   const effRows = p.drivers.filter((a) => !a.technical && a.jours > 0).map((a) => {
-    const rec = recetteOf(a);
-    const km = kmOf(a);
-    const num = (v: number | null, dec = 0) => (v == null ? "—" : dec ? v.toFixed(dec) : fmt(v));
+    const rec = recetteOf(a), km = kmOf(a);
+    const num = (v: number | null, dec = 0) => (v == null ? "—" : dec ? v.toFixed(dec).replace(".", ",") : fmt(v));
     return {
+      km,
       cells: [
-        `<b>${esc(a.name)}</b>`, String(a.jours),
-        fmt(rec / a.jours), (a.courses / a.jours).toFixed(1),
-        num(km != null ? Math.round(km / a.jours) : null),
+        `<span class="nw">${esc(a.name)}</span>`, String(a.jours),
+        num(km != null ? Math.round(km) : null), num(km != null ? Math.round(km / a.jours) : null),
         num(km != null ? Math.round((rec / km) * 10) / 10 : null, 1),
         num(km != null && a.carb > 0 ? Math.round((a.carb / km) * 10) / 10 : null, 1),
-        a.carb > 0 && rec > 0 ? `${pct(a.carb, rec)} %` : "—",
-        a.brut > 0 ? `${pct(a.comm + a.svc, a.brut)} %` : "—",
-        rec > 0 ? `${pct(a.hors, rec)} %` : "—",
+        a.carb > 0 && rec > 0 ? pc(pct(a.carb, rec)) : "—",
+        rec > 0 ? pc(pct(a.hors, rec)) : "—",
       ],
     };
   });
+  const efficience: Section | null = effRows.some((r) => r.km != null) ? {
+    kind: "table", title: "Véhicules · kilomètres et carburant par chauffeur",
+    columns: [{ label: "Chauffeur" }, { label: "Jours", align: "right" }, { label: "Km", align: "right" }, { label: "Km / jour", align: "right" },
+      { label: "Recette / km", align: "right" }, { label: "Carburant / km", align: "right" }, { label: "Carburant % recette", align: "right" }, { label: "Hors Yango", align: "right" }],
+    rows: effRows.map((r) => ({ cells: r.cells })),
+    note: "Kilomètres = écart de compteur entre le premier et le dernier rapport de la période ; sans relevé de compteur, la ligne porte des tirets. Hors Yango = part de la recette réalisée hors plateforme.",
+  } : null;
+
+  const objectif = perf?.objectif ?? 0;
+  const atteints = perf ? perf.chauffeurs.filter((c) => c.statut === "atteint").length : 0;
+  const refus = Number(perf?.facts.performance_courses_refusees ?? 0);
+  const perdu = Number(perf?.facts.performance_ca_non_realise_sur_refus_estime_fcfa ?? 0);
+  const joursVides = Number(perf?.facts.levier_jours_sans_activite_total ?? 0);
+  const okJ = Number(av?.facts.regularite_journees_a_l_objectif ?? 0), totJ = Number(av?.facts.regularite_journees_travaillees ?? 0);
+  const gainRepos = Number(av?.facts.repos_gain_mensuel_estime_si_repos_bien_places_fcfa ?? 0);
+  const F = (k: string) => av?.facts[k];
+
+  const sections = numbered([
+    av?.quotidien ? withLead(av.quotidien, `La recette moyenne par chauffeur atteint l'objectif <b>${F("quotidien_jours_ou_la_moyenne_atteint_l_objectif")} jours sur ${F("quotidien_jours_avec_activite")}</b> ; meilleure journée le ${F("quotidien_meilleure_journee_date")}.`) : null,
+    semaines,
+    perf ? withLead(pick(perf.sections, /face à l'objectif/) as Section, `<b>${atteints} chauffeur${atteints > 1 ? "s" : ""} sur ${perf.chauffeurs.length}</b> à l'objectif de ${fmt(objectif)} F par jour${perf.manqueAGagner > 0 ? ` ; manque à gagner estimé : <b>${fmt(perf.manqueAGagner)} F</b>` : ""}.`) : null,
+    pick(perf?.sections, /le détail par chauffeur/),
+    av?.regularite ? withLead(av.regularite, totJ > 0 ? `<b>${okJ} journées sur ${totJ}</b> atteignent l'objectif (${Math.round((okJ / totJ) * 100)} %) : la moyenne cache des journées très inégales.` : null) : null,
+    pick(av?.jours, /meilleurs jours/) ? withLead(pick(av?.jours, /meilleurs jours/) as Section, F("jours_semaine_le_plus_fort") ? `Le <b>${F("jours_semaine_le_plus_fort")}</b> rapporte ${fmt(Number(F("jours_semaine_ecart_fort_faible_fcfa") ?? 0))} F de plus par journée que le <b>${F("jours_semaine_le_plus_faible")}</b>.` : null) : semaineType(p),
+    pick(av?.horaires, /jour × heure/) ? withLead(pick(av?.horaires, /jour × heure/) as Section, F("creneau_fort_1") ? `Créneaux à ne pas manquer : <b>${[1, 2, 3].map((i) => F(`creneau_fort_${i}`)).filter(Boolean).join(", ")}</b>.` : null) : heures?.section ?? null,
+    pick(av?.jours, /repos conseillé/) ? withLead(pick(av?.jours, /repos conseillé/) as Section, gainRepos > 0 ? `Environ <b>${fmt(gainRepos)} F par mois</b> à récupérer en déplaçant les repos sur le jour faible de chaque chauffeur (estimation).` : "Les repos observés tombent déjà sur les jours faibles.") : null,
+    pick(av?.horaires, /Horaires de travail/),
+    pick(perf?.sections, /Qualité de service/) ? withLead(pick(perf?.sections, /Qualité de service/) as Section, refus > 0 ? `<b>${fmt(refus)} courses refusées</b>, environ ${fmt(perdu)} F non réalisés (estimation).` : null) : null,
+    efficience,
+    ech?.section ?? null,
+  ]);
+
+  // plan d'action de repli : une ligne = un chauffeur, un jour ou une règle, avec son gain
+  const actions: Decision[] = [];
+  for (const r of (av?.repos ?? []).slice(0, 2)) {
+    actions.push({ html: `<b>Déplacer le repos de ${esc(r.nom)} du ${r.jourPris} au ${r.jourConseille}</b>`, responsable: "Exploitation", echeance: "dès la semaine prochaine", gain: `+${fmt(r.gain)} F / mois (estimation)` });
+  }
+  for (const c of (perf?.chauffeurs ?? []).filter((x) => x.statut === "sous").sort((a, b) => b.manque - a.manque).slice(0, 2)) {
+    actions.push({ html: `<b>Point hebdomadaire avec ${esc(c.nom)}</b> : ${fmt(c.caParJour ?? 0)} F par jour pour un objectif de ${fmt(objectif)} F`, responsable: "Exploitation", echeance: "chaque lundi", gain: `${fmt(c.manque)} F de manque à gagner sur la période (estimation)` });
+  }
+  const pireRefus = (perf?.chauffeurs ?? []).filter((x) => x.refus > 0).sort((a, b) => b.caNonRealise - a.caNonRealise)[0];
+  if (pireRefus && refus > 0) {
+    actions.push({ html: `<b>Fixer un taux d'acceptation minimum et le suivre chaque semaine</b>, en commençant par ${esc(pireRefus.nom)} (${pireRefus.refus} refus${pireRefus.acceptation != null ? `, acceptation ${Math.round(pireRefus.acceptation * 100)} %` : ""})`, responsable: "Exploitation", echeance: "sous 15 jours", gain: `${fmt(Number(perf?.facts.levier_refus_gain_si_refus_divises_par_deux_fcfa ?? 0))} F si les refus sont divisés par deux (estimation)` });
+  }
+  if (joursVides >= 5) {
+    actions.push({ html: `<b>Organiser un remplaçant pour les jours sans activité</b> (${joursVides} jours sans course ni repos déclaré)`, responsable: "Exploitation", echeance: "ce mois-ci", gain: `${fmt(Number(perf?.facts.levier_jours_sans_activite_valeur_si_moitie_recuperee_fcfa ?? 0))} F si la moitié est récupérée (estimation)` });
+  }
+  if (Number(ech?.facts.echeances_documents_expires ?? 0) > 0) {
+    actions.push({ html: "<b>Régulariser les documents expirés avant toute remise en circulation</b> (tableau des échéances)", responsable: "Direction", echeance: "cette semaine", gain: "non chiffré" });
+  }
 
   const facts: Record<string, string | number | null> = {
-    ...baseFacts(p), ...driverFacts(p), ...(perf?.facts ?? {}), ...(heures?.facts ?? {}), ...(segs?.facts ?? {}), ...(av?.facts ?? {}),
-    perimetre: SEG_LABEL[segment],
-    periode_du: frFull(dateFrom), periode_au: frFull(dateTo),
+    ...driverFacts(p), ...(perf?.facts ?? {}), ...(av?.facts ?? {}), ...(av && av.horaires.length ? {} : heures?.facts ?? {}), ...(ech?.facts ?? {}),
+    perimetre: SEG_LABEL[segment], periode_du: frFull(dateFrom), periode_au: frFull(dateTo),
+    jours_travailles: p.tot.jours, repos_declares: p.tot.repos, courses: p.tot.courses,
+    recette_brute_fcfa: Math.round(recette), ca_par_jour_flotte_fcfa: Math.round(caJour),
   };
-  for (const [i, jour] of JOURS_FR.entries()) {
-    const w = byWd.get(i);
-    if (!w) continue;
-    facts[`jour_${jour}_ca_yango_moyen_fcfa`] = Math.round(w.brut / w.n);
-    facts[`jour_${jour}_courses_par_rapport`] = Math.round((w.courses / w.n) * 10) / 10;
-    facts[`jour_${jour}_hors_app_moyen_fcfa`] = Math.round(w.hors / w.n);
-  }
-  for (const [wk, v] of weekEntries) {
-    facts[`semaine_${wk}_recette_totale_fcfa`] = Math.round(v.brut + v.bonus + v.hors);
+  weeks.forEach(([wk, v]) => {
+    facts[`semaine_${wk}_recette_fcfa`] = Math.round(v.ca);
+    facts[`semaine_${wk}_journees_travaillees`] = v.jours;
     facts[`semaine_${wk}_chauffeurs`] = v.drivers.size;
-  }
+  });
 
+  const actifs = p.drivers.filter((a) => !a.technical && a.jours > 0).length;
   return {
     meta: {
-      docTitle: `Deep dive Opérations & Demande${segSuffix(segment)}`,
-      periodLabel: `Période : ${frFull(dateFrom)} → ${frFull(dateTo)} · ${p.reportRows.length} rapports · Montants en FCFA`,
+      docTitle: `Deep dive opérationnel${segSuffix(segment)}`,
+      periodLabel: `Période : ${frFull(dateFrom)} → ${frFull(dateTo)}${segSuffix(segment)} · Montants en FCFA`,
       generatedLabel: new Date().toLocaleDateString("fr-FR"),
       shortLabel: `${frFull(dateFrom)} → ${frFull(dateTo)}`,
       sourceLabel: `Source : ${tenantName} · M3A Fleet SaaS`,
     },
     kpis: [
-      { label: "Recette brute", value: fmt(recetteOf(p.tot)), sub: `dont hors-app ${fmt(p.tot.hors)} F`, accent: true },
-      { label: "Courses Yango", value: fmt(p.tot.courses), sub: `${p.tot.jours} jours travaillés`, accent: true },
-      { label: "Panier moyen", value: p.tot.courses > 0 ? fmt(p.tot.brut / p.tot.courses) : "—", sub: "brut Yango / course" },
-      { label: "Chauffeurs actifs", value: String(p.drivers.filter((a) => !a.technical && a.jours > 0).length), sub: `${p.tot.repos} repos déclarés` },
-      ...(perf ? [perf.kpi] : []),
+      { label: "CA par jour travaillé", value: fmt(caJour), sub: objectif > 0 ? `objectif ${fmt(objectif)} F` : "moyenne de la flotte", accent: true },
+      ...(perf ? [{ ...perf.kpi, accent: true }] : []),
+      { label: "Jours travaillés", value: String(p.tot.jours), sub: `${actifs} chauffeur${actifs > 1 ? "s" : ""}${p.tot.repos ? ` · ${p.tot.repos} repos déclarés` : ""}` },
+      ...(totJ > 0 ? [{ label: "Journées à l'objectif", value: `${Math.round((okJ / totJ) * 100)} %`, sub: `${okJ} sur ${totJ}` }] : []),
+      { label: "Courses par jour", value: p.tot.jours > 0 ? (p.tot.courses / p.tot.jours).toFixed(1).replace(".", ",") : "—", sub: `${fmt(p.tot.courses)} courses` },
+      ...(joursVides > 0 ? [{ label: "Jours sans activité", value: String(joursVides), sub: "ni course ni repos déclaré" }] : []),
+      ...(refus > 0 ? [{ label: "Courses refusées", value: fmt(refus), sub: `≈ ${fmt(perdu)} F non réalisés` }] : []),
+      ...(gainRepos > 0 ? [{ label: "Repos à déplacer", value: `+${fmt(gainRepos)}`, sub: "F par mois, estimation" }] : []),
     ],
-    sections: [
-      {
-        kind: "table",
-        title: "1. La semaine type — où est la demande",
-        columns: [
-          { label: "Jour" }, { label: "Rapports", align: "right" }, { label: "CA Yango moyen", align: "right" },
-          { label: "Courses / jour", align: "right" }, { label: "Panier moyen", align: "right" }, { label: "Hors-app moyen", align: "right" },
-        ],
-        rows: wdRows,
-        note: "Moyennes par rapport chauffeur, hors repos. Avec peu d'observations par jour de semaine, un pattern peut n'être que du bruit : valider sur 2-3 mois avant d'en faire une règle.",
-      },
-      {
-        kind: "bars",
-        title: "2. Le film des semaines",
-        bars: weekEntries.map(([wk, v]) => ({
-          label: `${wk} · ${v.drivers.size} chauffeur${v.drivers.size > 1 ? "s" : ""}`,
-          amountLabel: fmt(v.brut + v.bonus + v.hors),
-          pct: Math.max(1, Math.round(((v.brut + v.bonus + v.hors) / maxWeek) * 100)),
-          accent: v.drivers.size > 1,
-        })),
-        note: "Recette totale (Yango + bonus + hors-app) par semaine ISO. Les semaines en bord de période peuvent être tronquées.",
-      },
-      {
-        kind: "table",
-        title: "3. Efficience par chauffeur",
-        columns: [
-          { label: "Chauffeur" }, { label: "Jours", align: "right" }, { label: "CA / jour", align: "right" },
-          { label: "Courses / j", align: "right" }, { label: "Km / jour", align: "right" }, { label: "CA / km", align: "right" },
-          { label: "Carb. / km", align: "right" }, { label: "Carb. % CA", align: "right" },
-          { label: "Ponction", align: "right" }, { label: "Hors-app", align: "right" },
-        ],
-        rows: effRows,
-        note: "Km par delta d'odomètre entre le premier et le dernier rapport de la période. Ponction = (commissions + services) / brut Yango. Hors-app = part de la recette totale hors plateforme.",
-      },
-      ...(notableExpensesTable(p) ? [{ ...notableExpensesTable(p)!, title: "4. Charges commentées" } as Section] : []),
-      ...(av?.quotidien ? [av.quotidien] : []),
-      ...(av ? av.jours : []),
-      ...(av && av.horaires.length ? av.horaires : heures?.section ? [heures.section] : []),
-      ...(av?.regularite ? [av.regularite] : []),
-      ...(segs ? [segs.section] : []),
-      ...(perf ? perf.sections : []),
-    ].map((sec, i) => ({ ...sec, title: `${i + 1}. ${sec.title.replace(/^\d+\.\s*/, "")}` } as Section)),
+    sections,
     facts,
     aliases: aliasesOf(p),
     context: [
-      ...CONTEXT_COMMON,
-      "Destinataire : le dirigeant de l'entreprise. Chaque constat doit porter un chiffre et une conséquence, et déboucher sur une décision d'organisation (planning, repos, affectation des véhicules).",
-      ...segContext(segment), ...(segs?.context ?? []), ...(av?.context ?? []),
-      "Deep dive opérationnel : cherche les patterns de demande (jours forts/faibles, où placer les repos), le coût du siège vide (semaines à N chauffeurs), les écarts d'efficience carburant/km entre chauffeurs, et les anomalies de saisie (paniers aberrants).",
-      ...(perf?.context ?? []),
-      ...(perfFleetroom ? [] : ["Les données ne contiennent ni heures en ligne, ni annulations, ni note conducteur : la qualité de service n'est pas mesurable — ne pas l'inventer."]),
-      ...(p.avances > 0 ? [
-        `Les « Décaissement propriétaire » sont des AVANCES remises aux chauffeurs (${fmt(p.avances)} F sur la période) : cash sorti mais NEUTRE pour le résultat — la charge réelle est celle déclarée ensuite par le chauffeur. Ne jamais les compter comme des dépenses.`,
-      ] : []),
+      ...CONTEXT_COMMON.filter((c) => !/ponction/i.test(c)),
+      ...segContext(segment), ...(perf?.context ?? []), ...(av?.context ?? []),
+      "Rapport opérationnel : il sert à organiser le travail des semaines suivantes (planning, repos, affectation des véhicules, suivi des chauffeurs). Ni marge ni résultat net ici.",
+      ...(perf && !perf.hasFleetroom ? ["Pas d'export Yango pour ce compte : ni heures de travail, ni refus, ni créneaux horaires — ne pas les inventer."] : []),
     ],
-    deterministicInsights: [
-      ...(av?.insights ?? []), ...(perf?.insights ?? []), ...(av && av.horaires.length ? [] : heures?.insights ?? []),
-      { severity: "info", html: "<b>Lecture des tables.</b> La semaine type situe les jours forts et faibles de la demande (où placer repos et entretiens) ; le film des semaines montre l'effet direct du nombre de chauffeurs actifs sur la recette ; l'efficience par chauffeur compare rendement kilométrique et coût carburant." },
+    deterministicInsights: [...(perf?.insights ?? []), ...(av?.insights ?? []), ...(av && av.horaires.length ? [] : heures?.insights ?? []), ...(ech?.insights ?? [])],
+    deterministicDecisions: actions.slice(0, 6),
+    deterministicManques: [
+      ...(perf && !perf.hasFleetroom ? ["Pas d'export Yango (Fleetroom) : refus, taux d'acceptation, heures de travail et créneaux horaires ne sont pas mesurés."] : []),
+      ...(!efficience ? ["Aucun relevé de compteur exploitable : kilomètres, recette au kilomètre et carburant au kilomètre ne sont pas mesurés."] : []),
+      ...(p.tot.repos === 0 ? ["Aucun repos n'est déclaré dans l'application : les jours d'arrêt sont déduits des jours sans activité."] : []),
+      ...(p.pending > 0 ? [`${p.pending} rapport(s) en attente de validation ne sont pas comptés.`] : []),
     ],
-    deterministicDecisions: [],
-    deterministicFocus: focusOf(perf),
-    deterministicTldr: `<b>L'essentiel.</b> ${p.reportRows.length} rapports analysés du ${frFull(dateFrom)} au ${frFull(dateTo)} : ${fmt(recetteOf(p.tot))} F de recette totale, ${fmt(p.tot.courses)} courses Yango.`,
+    deterministicTldr: `<b>Synthèse opérationnelle.</b> ${p.tot.jours} journées travaillées par ${actifs} chauffeur${actifs > 1 ? "s" : ""}, à <b>${fmt(caJour)} F par jour</b>${objectif > 0 ? ` pour un objectif de ${fmt(objectif)} F` : ""}.${perf ? ` ${atteints} chauffeur${atteints > 1 ? "s" : ""} sur ${perf.chauffeurs.length} à l'objectif${perf.manqueAGagner > 0 ? `, ${fmt(perf.manqueAGagner)} F de manque à gagner` : ""}.` : ""}${totJ > 0 ? ` ${okJ} journées sur ${totJ} atteignent l'objectif.` : ""}${gainRepos > 0 ? ` Les repos mal placés coûtent environ ${fmt(gainRepos)} F par mois.` : ""}${refus > 0 ? ` ${fmt(refus)} courses refusées.` : ""}`,
+    profile: {
+      roles: ROLES_OPERATIONS,
+      editorSystem: EDITOR_OPERATIONS,
+      decisionStyle: "actions",
+      caps: { forces: 3, alertes: 5, info: 0, decisions: 6 },
+      labels: { tldr: "Synthèse opérationnelle", alertes: "Alertes", forces: "Ce qui fonctionne", decisions: "Plan d'action", manques: "Données manquantes" },
+      layout: ["tldr", "kpis", { sections: sections.map((_, i) => i) }, "alertes", "forces", "decisions", "manques"],
+    },
   };
 }
 

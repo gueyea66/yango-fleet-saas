@@ -27,6 +27,33 @@ déterministes → panel d'agents LLM (analyste / risques / stratège / rédacte
    `(payloadJson, opts) => Promise<string | null>`).
 4. Fournir votre `BrandTheme`. C'est tout.
 
+## Un rapport = un rôle = un livrable (Decision Engine)
+
+Le noyau suit le Decision Engine de M3A : des rôles spécialisés, chacun cantonné à
+son périmètre, puis un rédacteur qui lit leurs constats et produit LE livrable de
+son rôle. Deux rapports différents ne sont pas deux versions du même document.
+
+Chaque dataset porte donc un `profile` (voir `types.ts`) :
+
+- `roles` : les rôles du panel et leur périmètre (« tu ne commentes pas… ») ;
+- `editorSystem` : la mission du rédacteur final et son format de sortie ;
+- `layout` : le plan de lecture — synthèse, indicateurs, sections, constats, décisions ;
+- `decisionStyle` : `options` (décisions à arbitrer, A / B / recommandation),
+  `actions` (plan d'action : qui, quand, gain attendu) ou `liste` (recommandations) ;
+- `labels`, `caps` : intitulés et nombre maximum de points par rubrique.
+
+Règle de lecture : la synthèse, les faits, le jugement, puis les décisions. On ne
+demande pas d'arbitrer avant d'avoir montré. Chaque section peut porter un `lead`
+(ce qu'il faut en retenir, en une phrase).
+
+Exemple M3A Fleet (`lib/reportAdapters/fleet.ts`) :
+
+| Rapport | Rôle rédacteur | Rôles du panel | Décisions |
+|---|---|---|---|
+| Rapport de direction mensuel | Reporting Manager | contrôle financier, performance, risques | options |
+| Deep dive opérationnel | Responsable d'exploitation | demande, chauffeurs, organisation | plan d'action |
+| Bilan financier année-à-date | FP&A Manager | contrôle financier, FP&A, risques de structure | recommandations |
+
 ## Fichiers
 
 - `types.ts` — contrats (dataset, thème, narration, rôles d'agents)

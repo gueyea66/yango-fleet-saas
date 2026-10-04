@@ -41,6 +41,8 @@ export interface Kpi {
 export interface TableSection {
   kind: "table";
   title: string;
+  /** Ce qu'il faut retenir de la section, en une phrase (HTML de confiance), affiché sous le titre. */
+  lead?: string;
   columns: { label: string; align?: "left" | "right" }[];
   /** Cellules déjà formatées (HTML inline autorisé : <b>, <span class="tag …">). */
   rows: { cells: string[]; total?: boolean; highlight?: "ok" | "alert" }[];
@@ -50,6 +52,8 @@ export interface TableSection {
 export interface BarsSection {
   kind: "bars";
   title: string;
+  /** Ce qu'il faut retenir de la section, en une phrase (HTML de confiance), affiché sous le titre. */
+  lead?: string;
   bars: { label: string; amountLabel: string; pct: number; accent?: boolean }[];
   note?: string;
 }
@@ -58,6 +62,8 @@ export interface BarsSection {
 export interface FigureSection {
   kind: "figure";
   title: string;
+  /** Ce qu'il faut retenir de la section, en une phrase (HTML de confiance), affiché sous le titre. */
+  lead?: string;
   /** SVG de confiance, produit par lib/report-agent/charts. */
   svg: string;
   /** Ce que le graphique montre, en clair : c'est ce que reçoit le LLM (jamais le SVG). */
@@ -67,6 +73,39 @@ export interface FigureSection {
 
 export type Section = TableSection | BarsSection | FigureSection;
 
+/**
+ * Plan de lecture d'un rapport. Chaque rapport déclare le sien : un tableau de bord
+ * de direction, un rapport opérationnel et un bilan financier ne se lisent pas dans
+ * le même ordre.
+ *  - "tldr" / "kpis" : synthèse et indicateurs ;
+ *  - { sections: [i, …] } : sections du dataset, par indice ;
+ *  - "forces" / "alertes" / "info" : constats (ok / warn + alert / info) ;
+ *  - "decisions" : décisions, plan d'action ou recommandations (voir decisionStyle) ;
+ *  - "focus" / "manques" : priorité suivante, données manquantes ;
+ *  - { heading, text } : intertitre libre.
+ */
+export type LayoutBlock =
+  | "tldr" | "kpis" | "forces" | "alertes" | "info" | "decisions" | "focus" | "manques"
+  | { sections: number[] }
+  | { heading: string; text?: string };
+
+/**
+ * Profil d'un rapport : QUI l'écrit (les rôles spécialisés, chacun dans son périmètre,
+ * puis le rédacteur qui lit leurs constats) et COMMENT il se lit (le plan).
+ */
+export interface ReportProfile {
+  /** Rôles du panel, chacun cantonné à son périmètre. */
+  roles: AgentRole[];
+  /** Mission et format de sortie du rédacteur final (les règles communes sont ajoutées par le moteur). */
+  editorSystem: string;
+  layout: LayoutBlock[];
+  labels?: Partial<Record<"tldr" | "forces" | "alertes" | "info" | "decisions" | "focus" | "manques", string>>;
+  /** options : décisions à arbitrer (A / B / recommandation) ; actions : plan d'action (qui, quand, gain) ; liste : recommandations. */
+  decisionStyle?: "options" | "actions" | "liste";
+  /** Nombre maximum de points par rubrique. */
+  caps?: Partial<Record<"forces" | "alertes" | "info" | "decisions", number>>;
+}
+
 export interface Insight {
   severity: Severity;
   /** Texte HTML inline (le <b>titre.</b> en tête est conseillé). */
@@ -74,8 +113,12 @@ export interface Insight {
 }
 
 export interface Decision {
-  /** Texte HTML inline d'un item de la liste "Décisions proposées". */
+  /** Texte HTML inline d'un item (décision, action ou recommandation). */
   html: string;
+  /** Plan d'action (style « actions ») : qui, quand, gain attendu. */
+  responsable?: string;
+  echeance?: string;
+  gain?: string;
 }
 
 /**
@@ -120,6 +163,10 @@ export interface ReportDataset {
   deterministicTldr: string;
   /** Priorité de la période suivante, en repli (HTML de confiance). */
   deterministicFocus?: string;
+  /** Données manquantes ou limites de l'analyse, constatées par l'adaptateur (texte brut). */
+  deterministicManques?: string[];
+  /** Rôles, rédacteur et plan de lecture propres à ce rapport (défaut : panel et plan génériques). */
+  profile?: ReportProfile;
 }
 
 /** Un rôle du panel multi-agent. */
@@ -142,6 +189,9 @@ export interface NarrativeResult {
     /** Options comparées : action, impact chiffré, coût ou risque. */
     options?: string[];
     recommandation?: string;
+    /** Plan d'action : qui porte l'action, et le gain attendu. */
+    responsable?: string;
+    gain?: string;
   }[];
   /** La priorité unique de la période suivante. */
   focus?: string;

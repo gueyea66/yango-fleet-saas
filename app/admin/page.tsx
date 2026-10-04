@@ -4936,15 +4936,20 @@ function ExportMenu({ dateFrom, dateTo, segment = "all", mixte = false }: { date
           {/* Période affichée en cours : les trois rapports portent sur le dernier mois COMPLET
               (retour Abdou 04/10 : « je vois toujours octobre »). La période en cours reste
               accessible, en entrée secondaire. */}
-          {([["monthly", "📊 Rapport d'activité"], ["ytd", "📈 Bilan année-à-date (premium)"], ["deepdive", "🔬 Deep dive opérations (premium)"]] as const).map(([type, label]) => (
+          {([["monthly", "📊 Rapport de direction (mensuel)"], ["deepdive", "🔬 Deep dive opérationnel (premium)"], ["ytd", "📈 Bilan financier année-à-date (premium)"]] as const).map(([type, label]) => (
             <button key={type} onClick={() => openReport(type, enCours ? moisComplet : undefined)} disabled={!!busy}
               className="w-full text-left text-sm px-4 py-2.5 font-semibold disabled:opacity-50"
               style={{ color: "var(--sk-t1)", borderBottom: "1px solid var(--sk-surface)" }}>
               {busy === `report-${type}${enCours ? "-complet" : ""}` ? "Génération…" : label}
               <span className="block text-xs font-normal" style={{ color: "var(--sk-t3)" }}>
+                {/* à qui s'adresse chaque rapport : ce ne sont pas trois versions du même document */}
+                {type === "monthly" ? "Pour le dirigeant : indicateurs, résultat, décisions"
+                  : type === "deepdive" ? "Pour l'exploitation : chauffeurs, demande, repos, plan d'action"
+                  : "Trajectoire de l'année : point mort, scénarios, sensibilité"}
+                {" · "}
                 {type === "ytd"
                   ? `jusqu'au ${fr(enCours ? moisComplet.to : dateTo)}`
-                  : enCours ? `${moisComplet.label} · mois complet` : `${fr(dateFrom)} → ${fr(dateTo)}`}
+                  : enCours ? `${moisComplet.label}, mois complet` : `${fr(dateFrom)} → ${fr(dateTo)}`}
               </span>
             </button>
           ))}

@@ -53,6 +53,8 @@ export interface AvanceBlock {
   facts: Record<string, string | number | null>;
   insights: Insight[];
   context: string[];
+  /** Repos à déplacer : chauffeurs dont l'arrêt tombe sur un jour plus rémunérateur que leur jour faible. */
+  repos: { nom: string; jourConseille: string; jourPris: string; gain: number }[];
 }
 
 async function readObjectif(admin: SupabaseClient<any, any, any>, tenantId: string): Promise<number> {
@@ -96,6 +98,7 @@ export async function avanceBlock(
   const facts: Record<string, string | number | null> = {};
   const insights: Insight[] = [];
   const context: string[] = [];
+  const reposADeplacer: AvanceBlock["repos"] = [];
 
   // ── 1. recette jour par jour : moyenne par chauffeur au travail, face à l'objectif
   const byDay = new Map<string, { ca: number; n: number }>();
@@ -180,6 +183,7 @@ export async function avanceBlock(
       const gain = jourPris >= 0 && jourPris !== dFaible.i && moyPris != null && moyPris > dFaible.v ? Math.round((moyPris - dFaible.v) * 4) : 0;
       gainTotal += gain;
       const nom = nameOf.get(id)!;
+      if (gain > 0 && jourPris >= 0) reposADeplacer.push({ nom, jourConseille: JOURS_MIN[dFaible.i], jourPris: JOURS_MIN[jourPris], gain });
       if (gain > 0 && jourPris >= 0) malPlaces.push(`${esc(nom)} s'arrête surtout le ${JOURS_MIN[jourPris]} (${fmt(moyPris!)} F en moyenne quand il roule ce jour-là) alors que son jour le plus faible est le ${JOURS_MIN[dFaible.i]} (${fmt(dFaible.v)} F)`);
       reposRows.push({
         cells: [
@@ -371,5 +375,5 @@ export async function avanceBlock(
     context.push("Les faits creneau_fort_, creneau_creux_, heure_de_debut, amplitude et recette_par_heure viennent des exports Yango : sers-t'en pour dire à quelle heure les véhicules doivent rouler et quel chauffeur est présent sans être productif.");
   }
 
-  return { quotidien, jours, regularite, horaires, facts, insights, context };
+  return { quotidien, jours, regularite, horaires, facts, insights, context, repos: reposADeplacer.sort((a, b) => b.gain - a.gain) };
 }
