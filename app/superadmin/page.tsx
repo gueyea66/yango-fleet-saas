@@ -149,7 +149,9 @@ export default function SuperAdminPage() {
       if (d.error) return notify(d.error, false);
       const nOk = (d.generated || []).length;
       const nKo = (d.errors || []).length;
-      notify(`✓ ${nOk} rapport(s) généré(s) et poussé(s) (${d.period?.dateFrom} → ${d.period?.dateTo})${nKo ? ` · ${nKo} échec(s)` : ""}`, nKo === 0);
+      // comptes inactifs écartés par la route (désactivé, échu, sans activité) : motif affiché
+      const ecartes = ((d.skipped || []) as { name: string; reason: string }[]).map((s) => `${s.name} (${s.reason})`).join(", ");
+      notify(`✓ ${nOk} rapport(s) généré(s) et poussé(s) (${d.period?.dateFrom} → ${d.period?.dateTo})${nKo ? ` · ${nKo} échec(s)` : ""}${ecartes ? ` · non générés : ${ecartes}` : ""}`, nKo === 0);
     } finally { setGenerating(false); }
   }
 

@@ -1,8 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
-import type { Decision, Insight, ReportDataset, Section, TableSection } from "@/lib/report-agent/types";
+import type { Decision, Insight, Kpi, ReportDataset, Section, TableSection } from "@/lib/report-agent/types";
 import { CAT_AVANCE } from "@/lib/expenseCategories";
 import { amortissementPeriode, kmParMoisDepuisCompteur } from "@/lib/calc";
 import { performanceBlock, type PerformanceBlock } from "./performance";
+import { demandeHoraire, echeances } from "./extras";
 
 /**
  * Adaptateur M3A Fleet pour le noyau lib/report-agent : (Supabase fleet) →
@@ -440,65 +441,316 @@ const CONTEXT_COMMON = [
   "Un siège (véhicule) sans chauffeur ne produit rien : l'effectif est historiquement le premier facteur limitant de la recette.",
 ];
 
+// ── rapport de direction : comparaison, compte de résultat, évolution ───────
+
+const MOIS_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+const JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+const moisLabel = (d: string) => `${MOIS_FR[Number(d.slice(5, 7)) - 1]} ${d.slice(0, 4)}`;
+
+/** La période couvre-t-elle exactement un mois civil ? */
+function isFullMonth(dateFrom: string, dateTo: string): boolean {
+  const f = new Date(`${dateFrom}T00:00:00Z`), t = new Date(`${dateTo}T00:00:00Z`);
+  const lastDay = new Date(Date.UTC(f.getUTCFullYear(), f.getUTCMonth() + 1, 0)).getUTCDate();
+  return f.getUTCDate() === 1 && f.getUTCMonth() === t.getUTCMonth() && f.getUTCFullYear() === t.getUTCFullYear() && t.getUTCDate() === lastDay;
+}
+
+/** Période de comparaison : le mois civil précédent pour un mois entier, sinon la même durée juste avant. */
+function comparisonRange(dateFrom: string, dateTo: string): { dateFrom: string; dateTo: string } {
+  if (!isFullMonth(dateFrom, dateTo)) return previousRange(dateFrom, dateTo);
+  const f = new Date(`${dateFrom}T00:00:00Z`);
+  return {
+    dateFrom: iso(new Date(Date.UTC(f.getUTCFullYear(), f.getUTCMonth() - 1, 1))),
+    dateTo: iso(new Date(Date.UTC(f.getUTCFullYear(), f.getUTCMonth(), 0))),
+  };
+}
+
+/** Les n mois civils qui précèdent le mois de `dateFrom`, du plus ancien au plus récent. */
+function monthsBefore(dateFrom: string, n: number): { dateFrom: string; dateTo: string }[] {
+  const f = new Date(`${dateFrom}T00:00:00Z`);
+  return Array.from({ length: n }, (_, i) => {
+    const k = n - i;
+    return {
+      dateFrom: iso(new Date(Date.UTC(f.getUTCFullYear(), f.getUTCMonth() - k, 1))),
+      dateTo: iso(new Date(Date.UTC(f.getUTCFullYear(), f.getUTCMonth() - k + 1, 0))),
+    };
+  });
+}
+
+/** Variation en % (null si la base est nulle). */
+const varPct = (cur: number, prev: number): number | null => (prev > 0 ? Math.round(((cur - prev) / prev) * 1000) / 10 : null);
+const signed = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${String(Math.abs(v)).replace(".", ",")}`;
+/** Cellule de variation : verte si le sens est favorable (recette en hausse, charge en baisse). */
+function varCell(cur: number, prev: number, hausseFavorable = true): string {
+  const v = varPct(cur, prev);
+  if (v == null) return "—";
+  if (v === 0) return "0 %";
+  const bon = hausseFavorable ? v > 0 : v < 0;
+  return `<span class="${bon ? "pos" : "neg"}">${signed(v)} %</span>`;
+}
+const deltaOf = (cur: number, prev: number, label: string, hausseFavorable = true): Kpi["delta"] => {
+  const v = varPct(cur, prev);
+  if (v == null) return undefined;
+  return { label: `${signed(v)} % vs ${label}`, tone: v === 0 ? "flat" : (hausseFavorable ? v > 0 : v < 0) ? "good" : "bad" };
+};
+
+/** Priorité de repli : le plus gros gisement chiffré de la lecture Performance. */
+function focusOf(perf: PerformanceBlock | null): string | undefined {
+  if (!perf) return undefined;
+  const refus = Number(perf.facts.performance_ca_non_realise_sur_refus_estime_fcfa ?? 0);
+  const jours = Number(perf.facts.levier_jours_sans_activite_valeur_a_l_objectif_fcfa ?? 0);
+  const objectif = Number(perf.facts.performance_objectif_ca_par_jour_fcfa ?? 0);
+  const leviers: [number, string][] = [
+    [perf.manqueAGagner, `<b>Tenir l'objectif de ${fmt(objectif)} F par jour.</b> Le manque à gagner estimé est de ${fmt(perf.manqueAGagner)} F : suivre le CA par jour de chaque chauffeur chaque semaine, pas en fin de mois.`],
+    [refus, `<b>Faire baisser les refus de course.</b> Environ ${fmt(refus)} F non réalisés (estimation) : fixer un taux d'acceptation minimum et le suivre chaque semaine.`],
+    [jours, `<b>Faire rouler les véhicules tous les jours ouvrés.</b> ${fmt(Number(perf.facts.levier_jours_sans_activite_total ?? 0))} jours sans activité ni repos déclaré, soit ${fmt(jours)} F à l'objectif : organiser les remplacements.`],
+  ];
+  const best = leviers.sort((a, b) => b[0] - a[0])[0];
+  // un levier marginal ne fait pas une priorité de direction
+  return best[0] >= 100_000 ? best[1] : undefined;
+}
+
+/** Compte de résultat de la flotte, face à la période de comparaison. */
+function compteResultat(cur: PeriodAgg, prev: PeriodAgg, prevLabel: string): Section {
+  const rec = recetteOf(cur.tot), recP = recetteOf(prev.tot);
+  const remu = cur.tot.sal + cur.tot.aco, remuP = prev.tot.sal + prev.tot.aco;
+  const net = netFinalOf(cur), netP = netFinalOf(prev);
+  const part = (v: number) => (rec > 0 ? `${String(pct(v, rec)).replace(".", ",")} %` : "—");
+  const line = (label: string, c: number, p: number, o: { sub?: boolean; moins?: boolean; total?: boolean; favorable?: boolean } = {}) => ({
+    cells: [
+      o.sub ? `<span style="padding-left:16px;color:var(--ink2)">${esc(label)}</span>` : o.total ? esc(label) : `<b>${esc(label)}</b>`,
+      `${o.moins && c > 0 ? "−" : ""}${fmt(c)}`, part(c),
+      `${o.moins && p > 0 ? "−" : ""}${fmt(p)}`, varCell(c, p, o.favorable ?? !o.moins),
+    ],
+    total: o.total,
+  });
+  const cats = Array.from(cur.depCat.entries()).sort((a, b) => b[1] - a[1]);
+  const top = cats.slice(0, 5);
+  const autres = cats.slice(5).reduce((s, [, v]) => s + v, 0);
+  const autresP = Array.from(prev.depCat.entries()).filter(([c]) => !top.some(([t]) => t === c)).reduce((s, [, v]) => s + v, 0);
+  return {
+    kind: "table",
+    title: "Compte de résultat de la flotte",
+    columns: [
+      { label: "Poste" }, { label: "Période", align: "right" }, { label: "% recette", align: "right" },
+      { label: prevLabel, align: "right" }, { label: "Variation", align: "right" },
+    ],
+    rows: [
+      line("Recette brute", rec, recP),
+      line("dont Yango", cur.tot.brut, prev.tot.brut, { sub: true }),
+      ...(cur.tot.bonus || prev.tot.bonus ? [line("dont bonus Yango", cur.tot.bonus, prev.tot.bonus, { sub: true })] : []),
+      ...(cur.tot.hors || prev.tot.hors ? [line("dont hors Yango (sans commission)", cur.tot.hors, prev.tot.hors, { sub: true })] : []),
+      line("Commissions et services plateforme", cur.tot.comm, prev.tot.comm, { moins: true }),
+      line("Net après commissions", cur.tot.net, prev.tot.net),
+      line("Dépenses d'exploitation", cur.tot.dep, prev.tot.dep, { moins: true }),
+      ...top.map(([c, v]) => line(c, v, prev.depCat.get(c) || 0, { sub: true, moins: true })),
+      ...(autres > 0 ? [line("Autres postes", autres, autresP, { sub: true, moins: true })] : []),
+      line("Rémunération versée", remu, remuP, { moins: true }),
+      ...(cur.amortissement || prev.amortissement ? [line("Amortissement des véhicules", cur.amortissement, prev.amortissement, { moins: true })] : []),
+      line("NET FINAL", net, netP, { total: true, favorable: true }),
+    ],
+    note: `Montants en FCFA. Net final = net après commissions − dépenses − rémunération versée − amortissement. Variation en vert quand elle est favorable (recette en hausse, charge en baisse).${cur.avances > 0 ? ` Les avances remises aux chauffeurs (${fmt(cur.avances)} F) ne sont pas des charges : elles ne figurent pas ici.` : ""}`,
+  };
+}
+
+/** Évolution mensuelle : les mois précédents puis la période du rapport. */
+function evolutionTable(points: { label: string; agg: PeriodAgg; courant?: boolean }[]): Section | null {
+  const rows = points.filter((p) => p.agg.tot.jours > 0 || p.courant);
+  if (rows.length < 2) return null;
+  const max = Math.max(...rows.map((p) => recetteOf(p.agg.tot)), 1);
+  return {
+    kind: "table",
+    title: `Évolution sur ${rows.length} mois`,
+    columns: [
+      { label: "Mois" }, { label: "Recette brute", align: "right" }, { label: "" }, { label: "Net final", align: "right" },
+      { label: "Marge", align: "right" }, { label: "Jours", align: "right" }, { label: "CA / jour", align: "right" },
+      { label: "Courses", align: "right" }, { label: "Chauffeurs", align: "right" },
+    ],
+    rows: rows.map((p) => {
+      const rec = recetteOf(p.agg.tot), net = netFinalOf(p.agg);
+      const actifs = p.agg.drivers.filter((a) => !a.technical && a.jours > 0).length;
+      return {
+        cells: [
+          p.courant ? `<b>${esc(p.label)}</b>` : esc(p.label), fmt(rec),
+          `<span class="mini" style="width:${Math.max(3, Math.round((rec / max) * 90))}px"></span>`,
+          fmt(net), rec > 0 ? `${String(pct(net, rec)).replace(".", ",")} %` : "—",
+          String(p.agg.tot.jours), p.agg.tot.jours > 0 ? fmt(rec / p.agg.tot.jours) : "—",
+          fmt(p.agg.tot.courses), String(actifs),
+        ],
+        total: p.courant,
+      };
+    }),
+    note: "Mois civils entiers, mêmes règles de calcul chaque mois. CA / jour = recette brute ÷ jours travaillés de la flotte.",
+  };
+}
+
+/** Semaine type : recette moyenne d'une journée de chauffeur, par jour de la semaine. */
+function semaineType(p: PeriodAgg): Section | null {
+  if (p.reportRows.length < 14) return null;
+  const acc = JOURS_SEMAINE.map((label) => ({ label, n: 0, ca: 0, courses: 0 }));
+  for (const r of p.reportRows) {
+    const wd = (new Date(`${r.date}T00:00:00Z`).getUTCDay() + 6) % 7;
+    acc[wd].n += 1; acc[wd].ca += r.brut + r.bonus + r.hors; acc[wd].courses += r.courses;
+  }
+  const moy = acc.map((a) => (a.n > 0 ? a.ca / a.n : 0));
+  const max = Math.max(...moy, 1);
+  const best = moy.indexOf(Math.max(...moy));
+  return {
+    kind: "bars",
+    title: "Demande · la semaine type",
+    bars: acc.map((a, i) => ({
+      label: a.label,
+      amountLabel: a.n > 0 ? `${fmt(moy[i])} F · ${a.n} journées` : "—",
+      pct: Math.max(1, Math.round((moy[i] / max) * 100)),
+      accent: i === best,
+    })),
+    note: "Recette moyenne d'une journée de chauffeur (Yango + bonus + hors Yango), par jour de la semaine, hors repos. Le jour le plus fort est en doré : c'est celui où un véhicule à l'arrêt coûte le plus.",
+  };
+}
+
 async function monthlyDataset(tenantId: string, dateFrom: string, dateTo: string, tenantName: string): Promise<ReportDataset> {
-  const prev = previousRange(dateFrom, dateTo);
-  const [cur, before, perf] = await Promise.all([
+  const prev = comparisonRange(dateFrom, dateTo);
+  const fullMonth = isFullMonth(dateFrom, dateTo);
+  const prevLabel = fullMonth ? moisLabel(prev.dateFrom) : "période précédente";
+  // évolution : les 5 mois civils précédents (le plus récent sert aussi de comparaison pour un mois entier)
+  const history = monthsBefore(dateFrom, 5);
+  const today = new Date().toISOString().slice(0, 10);
+  const safe = async <T,>(what: string, run: () => Promise<T | null>): Promise<T | null> => {
+    try { return await run(); } catch (e) { console.error(`[report] ${what} indisponible:`, e instanceof Error ? e.message : e); return null; }
+  };
+  const [cur, hist, beforeOther, perf, heures, ech] = await Promise.all([
     aggregatePeriod(tenantId, dateFrom, dateTo),
-    aggregatePeriod(tenantId, prev.dateFrom, prev.dateTo),
+    Promise.all(history.map((m) => aggregatePeriod(tenantId, m.dateFrom, m.dateTo))),
+    fullMonth ? Promise.resolve(null) : aggregatePeriod(tenantId, prev.dateFrom, prev.dateTo),
     perfOf(tenantId, dateFrom, dateTo),
+    safe("demande horaire", () => demandeHoraire(admin, tenantId, dateFrom, dateTo)),
+    safe("échéances", () => echeances(admin, tenantId, today)),
   ]);
-  const recette = recetteOf(cur.tot);
-  const netFinal = netFinalOf(cur);
+  const before = beforeOther ?? hist[hist.length - 1];
+
+  const recette = recetteOf(cur.tot), recetteP = recetteOf(before.tot);
+  const netFinal = netFinalOf(cur), netFinalP = netFinalOf(before);
+  const marge = recette > 0 ? pct(netFinal, recette) : 0;
+  const margeP = recetteP > 0 ? pct(netFinalP, recetteP) : 0;
+  const caJour = cur.tot.jours > 0 ? recette / cur.tot.jours : 0;
+  const caJourP = before.tot.jours > 0 ? recetteP / before.tot.jours : 0;
   const det = monthlyDeterministic(cur, dateFrom, dateTo);
-  const sections: Section[] = [driverTable(cur, dateFrom, dateTo)];
-  if (perf) sections.push(perf.section);
+
+  const evolution = fullMonth
+    ? evolutionTable([
+        ...history.map((m, i) => ({ label: moisLabel(m.dateFrom), agg: hist[i] })),
+        { label: moisLabel(dateFrom), agg: cur, courant: true },
+      ])
+    : null;
+  const semaine = semaineType(cur);
   const bars = depBars(cur);
-  if (bars) sections.push(bars);
   const notable = notableExpensesTable(cur);
-  if (notable) sections.push(notable);
+  const sections: Section[] = [
+    compteResultat(cur, before, prevLabel),
+    ...(evolution ? [evolution] : []),
+    ...(perf ? perf.sections : []),
+    driverTable(cur, dateFrom, dateTo),
+    ...(semaine ? [semaine] : []),
+    ...(heures?.section ? [heures.section] : []),
+    ...(bars ? [bars] : []),
+    ...(notable ? [notable] : []),
+    ...(ech?.section ? [ech.section] : []),
+  ].map((s, i) => ({ ...s, title: `${i + 1}. ${s.title}` }));
 
   const facts: Record<string, string | number | null> = {
     ...baseFacts(cur),
     ...Object.fromEntries(Object.entries(baseFacts(before)).map(([k, v]) => [`mois_precedent_${k}`, v])),
     ...driverFacts(cur),
     ...(perf?.facts ?? {}),
+    ...(heures?.facts ?? {}),
+    ...(ech?.facts ?? {}),
     periode_du: frFull(dateFrom), periode_au: frFull(dateTo),
     mois_precedent_du: frFull(prev.dateFrom), mois_precedent_au: frFull(prev.dateTo),
+    ca_par_jour_flotte_fcfa: Math.round(caJour),
+    mois_precedent_ca_par_jour_flotte_fcfa: Math.round(caJourP),
+    marge_nette_pourcent: marge,
+    mois_precedent_marge_nette_pourcent: margeP,
+    variation_recette_pourcent: varPct(recette, recetteP),
+    variation_net_final_pourcent: varPct(netFinal, netFinalP),
+    variation_ca_par_jour_pourcent: varPct(caJour, caJourP),
+    variation_depenses_pourcent: varPct(cur.tot.dep, before.tot.dep),
+    variation_courses_pourcent: varPct(cur.tot.courses, before.tot.courses),
+    variation_jours_travailles_pourcent: varPct(cur.tot.jours, before.tot.jours),
   };
+  if (evolution) {
+    history.forEach((m, i) => {
+      if (hist[i].tot.jours === 0) return;
+      const k = `evolution_${m.dateFrom.slice(0, 7).replace("-", "_")}`;
+      facts[`${k}_recette_fcfa`] = Math.round(recetteOf(hist[i].tot));
+      facts[`${k}_net_final_fcfa`] = Math.round(netFinalOf(hist[i]));
+      facts[`${k}_jours_travailles`] = hist[i].tot.jours;
+    });
+  }
+
+  // constats de repli : la dynamique d'abord, puis la performance, puis le reste
+  const dyn: Insight[] = [];
+  const vRec = varPct(recette, recetteP), vNet = varPct(netFinal, netFinalP);
+  if (vRec != null) {
+    const memeSens = vNet == null || (vRec >= 0) === (vNet >= 0);
+    dyn.push({
+      severity: vNet != null && vNet < 0 ? "warn" : "ok",
+      html: `<b>Recette ${signed(vRec)} % et net final ${vNet == null ? "non comparable" : `${signed(vNet)} %`} face à ${esc(prevLabel)}.</b> Recette ${fmt(recetteP)} → ${fmt(recette)} F, net final ${fmt(netFinalP)} → ${fmt(netFinal)} F, marge nette ${String(margeP).replace(".", ",")} % → ${String(marge).replace(".", ",")} %.`
+        + (memeSens ? "" : ` La recette et le résultat ne vont pas dans le même sens : l'écart vient des charges (${fmt(before.tot.dep)} → ${fmt(cur.tot.dep)} F de dépenses).`)
+        + ` La flotte a travaillé ${cur.tot.jours} jours contre ${before.tot.jours}, à ${fmt(caJour)} F par jour contre ${fmt(caJourP)} F.`,
+    });
+  }
+  const decisions: Decision[] = [];
+  if (perf && perf.manqueAGagner > 0) {
+    decisions.push({ html: `<b>Ramener chaque chauffeur à l'objectif journalier.</b> Le manque à gagner estimé de la période est de ${fmt(perf.manqueAGagner)} F : un point hebdomadaire avec les chauffeurs sous l'objectif, chiffres du tableau Performance en main.` });
+  }
+  const refus = Number(perf?.facts.performance_courses_refusees ?? 0);
+  if (refus > 0) {
+    decisions.push({ html: `<b>Fixer une règle sur les refus de course.</b> ${fmt(refus)} courses refusées sur la période, environ ${fmt(Number(perf?.facts.performance_ca_non_realise_sur_refus_estime_fcfa ?? 0))} F non réalisés : suivre le taux d'acceptation chaque semaine.` });
+  }
+  if (Number(ech?.facts.echeances_documents_expires ?? 0) > 0) {
+    decisions.push({ html: "<b>Régulariser les documents expirés avant toute remise en circulation</b> (tableau des échéances)." });
+  }
+  decisions.push(...det.decisions);
 
   const activeDrivers = cur.drivers.filter((a) => !a.technical && a.jours > 0).length;
+  const panier = cur.tot.courses > 0 ? cur.tot.brut / cur.tot.courses : 0;
+  const panierP = before.tot.courses > 0 ? before.tot.brut / before.tot.courses : 0;
   return {
     meta: {
-      docTitle: "Rapport d'activité mensuel",
+      docTitle: "Rapport de direction mensuel",
       periodLabel: `Période : ${frFull(dateFrom)} → ${frFull(dateTo)} · Montants en FCFA`,
       generatedLabel: new Date().toLocaleDateString("fr-FR"),
       shortLabel: `${frFull(dateFrom)} → ${frFull(dateTo)}`,
       sourceLabel: `Source : ${tenantName} · M3A Fleet SaaS`,
     },
     kpis: [
-      { label: "Recette brute", value: fmt(recette), sub: `Yango ${fmt(cur.tot.brut)} + bonus ${fmt(cur.tot.bonus)} + hors ${fmt(cur.tot.hors)}`, accent: true },
-      { label: "Net final", value: fmt(netFinal), sub: cur.amortissement > 0
-          ? `après amortissement −${fmt(cur.amortissement)}${recette > 0 ? ` · ${pct(netFinal, recette)} % de la recette` : ""}`
-          : (recette > 0 ? `${pct(netFinal, recette)} % de la recette` : "—"), accent: true },
-      { label: "Dépenses", value: fmt(cur.tot.dep), sub: recette > 0 ? `${pct(cur.tot.dep, recette)} % de la recette` : "—" },
-      { label: "Activité", value: `${fmt(cur.tot.courses)} courses`, sub: `${cur.tot.jours} jours travaillés${cur.tot.repos ? ` · ${cur.tot.repos} repos` : ""} · ${activeDrivers} chauffeur${activeDrivers > 1 ? "s" : ""}` },
+      { label: "Recette brute", value: fmt(recette), sub: `Yango ${fmt(cur.tot.brut)} · bonus ${fmt(cur.tot.bonus)} · hors ${fmt(cur.tot.hors)}`, accent: true, delta: deltaOf(recette, recetteP, prevLabel) },
+      { label: "Net final", value: fmt(netFinal), sub: cur.amortissement > 0 ? `après amortissement −${fmt(cur.amortissement)}` : "après charges et rémunération", accent: true, delta: deltaOf(netFinal, netFinalP, prevLabel) },
+      { label: "Marge nette", value: recette > 0 ? `${String(marge).replace(".", ",")} %` : "—", sub: `${String(margeP).replace(".", ",")} % sur ${prevLabel}` },
+      { label: "CA par jour travaillé", value: fmt(caJour), sub: `${cur.tot.jours} jours · ${activeDrivers} chauffeur${activeDrivers > 1 ? "s" : ""}`, delta: deltaOf(caJour, caJourP, prevLabel) },
       ...(perf ? [perf.kpi] : []),
+      { label: "Courses", value: fmt(cur.tot.courses), sub: cur.tot.repos ? `${cur.tot.repos} repos déclarés` : "aucun repos déclaré", delta: deltaOf(cur.tot.courses, before.tot.courses, prevLabel) },
+      { label: "Panier moyen", value: panier > 0 ? fmt(panier) : "—", sub: "brut Yango par course", delta: deltaOf(panier, panierP, prevLabel) },
+      { label: "Dépenses", value: fmt(cur.tot.dep), sub: recette > 0 ? `${String(pct(cur.tot.dep, recette)).replace(".", ",")} % de la recette` : "—", delta: deltaOf(cur.tot.dep, before.tot.dep, prevLabel, false) },
     ],
     sections,
     facts,
     aliases: aliasesOf(cur),
     context: [
       ...CONTEXT_COMMON,
+      "Destinataire : le dirigeant de l'entreprise. Il veut savoir en une page si le mois est bon, pourquoi, combien il laisse sur la table et quoi décider. Chaque constat doit porter un chiffre et une conséquence ; pas de généralités.",
       ...(perf?.context ?? []),
-      "Les faits préfixés mois_precedent_ couvrent la période précédente de même durée : compare la dynamique (recette, marge, carburant, effectif).",
+      `Les faits préfixés mois_precedent_ couvrent ${prevLabel} ; les faits variation_ donnent l'évolution en pourcentage déjà calculée (ne recalcule rien). Les faits evolution_AAAA_MM donnent les mois antérieurs : dégage la tendance de fond, pas seulement l'écart d'un mois.`,
       "La table « Charges notables » donne le MOTIF saisi de chaque grosse ligne (décaissements propriétaire compris) : appuie l'analyse des dépenses dessus — un poste ne s'explique jamais par son seul total.",
+      ...(heures ? ["Les faits demande_ donnent la répartition du chiffre par tranche horaire (exports Yango) : sers-t'en pour dire où placer les repos et quand les véhicules doivent rouler."] : []),
       ...(cur.avances > 0 ? [
         `Les « Décaissement propriétaire » sont des AVANCES remises aux chauffeurs (${fmt(cur.avances)} F sur la période) : cash sorti mais NEUTRE pour le résultat — la charge réelle est celle déclarée ensuite par le chauffeur. Ne jamais les compter comme des dépenses.`,
       ] : []),
     ],
-    deterministicInsights: [...(perf?.insights ?? []), ...det.insights],
-    deterministicDecisions: det.decisions,
-    deterministicTldr: `<b>L'essentiel.</b> La période dégage <b>${fmt(netFinal)} F de net final</b> sur <b>${fmt(recette)} F de recette brute</b>${recette > 0 ? ` (marge nette ${pct(netFinal, recette)} %)` : ""}. ${fmt(cur.tot.courses)} courses Yango sur ${cur.tot.jours} jours travaillés${cur.tot.repos ? ` (+${cur.tot.repos} repos déclarés)` : ""}. Dépenses : ${fmt(cur.tot.dep)} F · Rémunération versée : ${fmt(cur.tot.sal + cur.tot.aco)} F${cur.tot.aco ? ` (dont ${fmt(cur.tot.aco)} F d'acomptes)` : ""}.`,
+    deterministicInsights: [...dyn, ...(perf?.insights ?? []), ...(heures?.insights ?? []), ...(ech?.insights ?? []), ...det.insights],
+    deterministicDecisions: decisions,
+    deterministicFocus: focusOf(perf),
+    deterministicTldr: `<b>L'essentiel.</b> ${fmt(recette)} F de recette brute${vRec != null ? ` (${signed(vRec)} % face à ${esc(prevLabel)})` : ""} et <b>${fmt(netFinal)} F de net final</b>${recette > 0 ? `, soit ${String(marge).replace(".", ",")} % de marge nette` : ""}. La flotte a travaillé ${cur.tot.jours} jours à ${fmt(caJour)} F par jour.${perf ? ` <b>${esc(perf.kpi.value)} tiennent l'objectif journalier</b>${perf.manqueAGagner > 0 ? ` : le manque à gagner est estimé à ${fmt(perf.manqueAGagner)} F` : ""}.` : ""} Dépenses : ${fmt(cur.tot.dep)} F · rémunération versée : ${fmt(cur.tot.sal + cur.tot.aco)} F${cur.tot.aco ? ` (dont ${fmt(cur.tot.aco)} F d'acomptes)` : ""}.`,
   };
 }
 
@@ -519,7 +771,11 @@ async function ytdDataset(tenantId: string, dateTo: string, tenantName: string):
       });
     }
   }
-  const full = await aggregatePeriod(tenantId, `${year}-01-01`, dateTo);
+  const [full, perf, ech] = await Promise.all([
+    aggregatePeriod(tenantId, `${year}-01-01`, dateTo),
+    perfOf(tenantId, `${year}-01-01`, dateTo),
+    echeances(admin, tenantId, new Date().toISOString().slice(0, 10)).catch(() => null),
+  ]);
   const recette = recetteOf(full.tot);
   const netFinal = netFinalOf(full);
 
@@ -546,6 +802,8 @@ async function ytdDataset(tenantId: string, dateTo: string, tenantName: string):
   const facts: Record<string, string | number | null> = {
     ...baseFacts(full, "ytd_"),
     ...driverFacts(full),
+    ...(perf?.facts ?? {}),
+    ...(ech?.facts ?? {}),
     annee: year, periode_au: frFull(dateTo),
   };
   for (const { label, agg } of months) {
@@ -569,8 +827,12 @@ async function ytdDataset(tenantId: string, dateTo: string, tenantName: string):
       { label: "Net final cumulé", value: `${netFinal >= 0 ? "+" : "−"}${fmt(Math.abs(netFinal))}`, sub: recette > 0 ? `${pct(netFinal, recette)} % de la recette` : "—", accent: true },
       { label: "Dépenses YTD", value: fmt(full.tot.dep), sub: `dont carburant ${fmt(full.depCat.get("Carburant") || 0)} F` },
       { label: "Activité YTD", value: `${fmt(full.tot.courses)} courses`, sub: `${full.tot.jours} jours travaillés` },
+      { label: "CA par jour travaillé", value: full.tot.jours > 0 ? fmt(recette / full.tot.jours) : "—", sub: "moyenne de la flotte depuis janvier" },
+      ...(perf ? [perf.kpi] : []),
+      { label: "Marge nette", value: recette > 0 ? `${String(pct(netFinal, recette)).replace(".", ",")} %` : "—", sub: "net final ÷ recette brute" },
+      { label: "Panier moyen", value: full.tot.courses > 0 ? fmt(full.tot.brut / full.tot.courses) : "—", sub: "brut Yango par course" },
     ],
-    sections: [
+    sections: ([
       {
         kind: "table",
         title: "Le film mois par mois",
@@ -591,19 +853,25 @@ async function ytdDataset(tenantId: string, dateTo: string, tenantName: string):
           pct: Math.max(1, Math.round((recetteOf(agg.tot) / maxRec) * 100)),
         })),
       },
+      ...(perf ? perf.sections : []),
       driverTable(full, `${year}-01-01`, dateTo),
-    ],
+      ...(ech?.section ? [ech.section] : []),
+    ] as Section[]).map((sec, i) => ({ ...sec, title: `${i + 1}. ${sec.title}` })),
     facts,
     aliases: aliasesOf(full),
     context: [
       ...CONTEXT_COMMON,
+      "Destinataire : le dirigeant de l'entreprise. Il veut savoir en une page si la période est bonne, pourquoi, combien il laisse sur la table et quoi décider. Chaque constat doit porter un chiffre et une conséquence ; pas de généralités.",
+      ...(perf?.context ?? []),
       "Rapport année-à-date : dégage la trajectoire (point mort, tendance de marge), les leçons structurelles et les priorités du trimestre suivant — pas le détail d'un seul mois.",
     ],
     deterministicInsights: [
+      ...(perf?.insights ?? []), ...(ech?.insights ?? []),
       { severity: netFinal >= 0 ? "ok" : "alert", html: `<b>Net final cumulé ${year} : ${netFinal >= 0 ? "+" : "−"}${fmt(Math.abs(netFinal))} F</b> sur ${fmt(recette)} F de recette (marge ${pct(netFinal, recette)} %).` },
       { severity: "info", html: `<b>Carburant cumulé : ${fmt(full.depCat.get("Carburant") || 0)} F</b> — ${pct(full.depCat.get("Carburant") || 0, recette)} % de la recette, poste de coût n°1.` },
     ],
     deterministicDecisions: [],
+    deterministicFocus: focusOf(perf),
     deterministicTldr: `<b>L'essentiel.</b> Depuis janvier ${year}, la flotte cumule <b>${netFinal >= 0 ? "+" : "−"}${fmt(Math.abs(netFinal))} F de net final</b> sur <b>${fmt(recette)} F de recette brute</b> (marge ${pct(netFinal, recette)} %). ${fmt(full.tot.courses)} courses sur ${full.tot.jours} jours travaillés.`,
   };
 }
@@ -611,12 +879,13 @@ async function ytdDataset(tenantId: string, dateTo: string, tenantName: string):
 const JOURS_FR = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
 
 async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: string, tenantName: string): Promise<ReportDataset> {
-  const [p, perf] = await Promise.all([
+  const [p, perf, heures] = await Promise.all([
     aggregatePeriod(tenantId, dateFrom, dateTo),
     perfOf(tenantId, dateFrom, dateTo),
+    demandeHoraire(admin, tenantId, dateFrom, dateTo).catch(() => null),
   ]);
   // exports Yango Fleetroom présents : refus et heures en course sont mesurés
-  const perfFleetroom = !!perf && Object.keys(perf.facts).some((k) => k.endsWith("_heures_en_course"));
+  const perfFleetroom = !!perf?.hasFleetroom;
 
   // semaine type
   const byWd = new Map<number, { n: number; brut: number; courses: number; hors: number }>();
@@ -671,7 +940,7 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
   });
 
   const facts: Record<string, string | number | null> = {
-    ...baseFacts(p), ...driverFacts(p), ...(perf?.facts ?? {}),
+    ...baseFacts(p), ...driverFacts(p), ...(perf?.facts ?? {}), ...(heures?.facts ?? {}),
     periode_du: frFull(dateFrom), periode_au: frFull(dateTo),
   };
   for (const [i, jour] of JOURS_FR.entries()) {
@@ -736,12 +1005,14 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
         note: "Km par delta d'odomètre entre le premier et le dernier rapport de la période. Ponction = (commissions + services) / brut Yango. Hors-app = part de la recette totale hors plateforme.",
       },
       ...(notableExpensesTable(p) ? [{ ...notableExpensesTable(p)!, title: "4. Charges commentées" } as Section] : []),
-      ...(perf ? [{ ...perf.section, title: `5. ${perf.section.title}` } as Section] : []),
-    ],
+      ...(heures?.section ? [heures.section] : []),
+      ...(perf ? perf.sections : []),
+    ].map((sec, i) => ({ ...sec, title: `${i + 1}. ${sec.title.replace(/^\d+\.\s*/, "")}` } as Section)),
     facts,
     aliases: aliasesOf(p),
     context: [
       ...CONTEXT_COMMON,
+      "Destinataire : le dirigeant de l'entreprise. Chaque constat doit porter un chiffre et une conséquence, et déboucher sur une décision d'organisation (planning, repos, affectation des véhicules).",
       "Deep dive opérationnel : cherche les patterns de demande (jours forts/faibles, où placer les repos), le coût du siège vide (semaines à N chauffeurs), les écarts d'efficience carburant/km entre chauffeurs, et les anomalies de saisie (paniers aberrants).",
       ...(perf?.context ?? []),
       ...(perfFleetroom ? [] : ["Les données ne contiennent ni heures en ligne, ni annulations, ni note conducteur : la qualité de service n'est pas mesurable — ne pas l'inventer."]),
@@ -750,10 +1021,11 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
       ] : []),
     ],
     deterministicInsights: [
-      ...(perf?.insights ?? []),
+      ...(perf?.insights ?? []), ...(heures?.insights ?? []),
       { severity: "info", html: "<b>Lecture des tables.</b> La semaine type situe les jours forts et faibles de la demande (où placer repos et entretiens) ; le film des semaines montre l'effet direct du nombre de chauffeurs actifs sur la recette ; l'efficience par chauffeur compare rendement kilométrique et coût carburant." },
     ],
     deterministicDecisions: [],
+    deterministicFocus: focusOf(perf),
     deterministicTldr: `<b>L'essentiel.</b> ${p.reportRows.length} rapports analysés du ${frFull(dateFrom)} au ${frFull(dateTo)} : ${fmt(recetteOf(p.tot))} F de recette totale, ${fmt(p.tot.courses)} courses Yango.`,
   };
 }
