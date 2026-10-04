@@ -291,16 +291,25 @@ const KYC_LOOK: Record<KycState, { tone: "ok" | "wait" | "neg" | "neutral"; labe
   incomplete: { tone: "neutral", label: "KYC incomplet", Icon: CircleDashed },
 };
 
-export function TeamV2({ drivers, renderDocuments, onOpenHistory }: {
+export function TeamV2({ drivers, renderDocuments, onOpenHistory, onSegment }: {
   drivers: any[];
   renderDocuments: (driverId: string) => ReactNode;
   onOpenHistory: (driverId: string) => void;
+  /** Enregistre le segment choisi (null = selon le véhicule). Renvoie un message d'erreur, ou null. */
+  onSegment?: (driverId: string, segment: "interne" | "partenaire" | null) => Promise<string | null>;
 }) {
   const router = useRouter();
   const [selId, setSelId] = useState<string | null>(drivers[0]?.id ?? null);
   const [tab, setTab] = useState<"profil" | "documents" | "remuneration" | "activite">("documents");
   const sel = drivers.find((d) => d.id === selId) ?? drivers[0] ?? null;
   const c = teamCounts(drivers);
+  const [segBusy, setSegBusy] = useState(false);
+  const [segErr, setSegErr] = useState<string | null>(null);
+  const choisirSegment = async (k: "auto" | "interne" | "partenaire") => {
+    if (!sel || !onSegment) return;
+    setSegBusy(true); setSegErr(null);
+    try { setSegErr(await onSegment(sel.id, k === "auto" ? null : k)); } finally { setSegBusy(false); }
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -323,7 +332,7 @@ export function TeamV2({ drivers, renderDocuments, onOpenHistory }: {
                 <span style={{ width: 32, height: 32, borderRadius: "50%", background: "var(--sk-surface)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 600, color: "var(--sk-t2)", flex: "none" }}>{initials(d.full_name || d.driver_id)}</span>
                 <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: "block", fontSize: 14, fontWeight: on ? 600 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.full_name || d.driver_id}</span>
-                  <span className="v2-num" style={{ display: "block", fontSize: 12, color: "var(--v2-muted)" }}>{[d.driver_id, d.plate].filter(Boolean).join(" · ") || "—"}</span>
+                  <span className="v2-num" style={{ display: "block", fontSize: 12, color: "var(--v2-muted)" }}>{[d.driver_id, d.plate, d.segment === "partenaire" ? "externe" : null].filter(Boolean).join(" · ") || "—"}</span>
                 </span>
                 <k.Icon size={16} aria-label={k.label} style={{ color: k.tone === "ok" ? "var(--fleet-positive)" : k.tone === "wait" ? "var(--fleet-warning)" : k.tone === "neg" ? "var(--v2-negative-ink)" : "var(--sk-t3)", flex: "none" }} />
               </button>
@@ -339,9 +348,30 @@ export function TeamV2({ drivers, renderDocuments, onOpenHistory }: {
                   <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600 }}>{sel.full_name || sel.driver_id}</h2>
                   <div className="v2-num" style={{ fontSize: 13, color: "var(--v2-muted)", marginTop: 2 }}>{[sel.driver_id, sel.plate].filter(Boolean).join(" · ")}</div>
                 </div>
+                <Badge tone="neutral">{sel.segment === "partenaire" ? "Externe" : "Interne"}</Badge>
                 <Badge tone={KYC_LOOK[kycState(sel.onboarding_status)].tone}>{KYC_LOOK[kycState(sel.onboarding_status)].label}</Badge>
                 {sel.active === false && <Badge tone="neutral">Inactif</Badge>}
               </div>
+              {onSegment && (
+                <Card style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600 }}>Flotte interne ou externe</div>
+                    <div style={{ fontSize: 12, color: "var(--v2-muted)", marginTop: 2 }}>
+                      {sel.fleet_segment === "interne" || sel.fleet_segment === "partenaire"
+                        ? "Choisi ici : s'applique aux filtres, à Performance et aux rapports, quel que soit le véhicule."
+                        : `Selon le véhicule : ${sel.vehSegment === "partenaire" ? "externe" : "interne"}${sel.plate ? ` (${sel.plate})` : " (aucun véhicule affecté)"}.`}
+                    </div>
+                    {segErr && <div style={{ fontSize: 12, color: "#dc2626", marginTop: 4 }}>{segErr}</div>}
+                  </div>
+                  <div style={{ opacity: segBusy ? 0.6 : 1, pointerEvents: segBusy ? "none" : undefined }}>
+                    <Segmented
+                      options={[{ key: "auto", label: "Selon le véhicule" }, { key: "interne", label: "Interne" }, { key: "partenaire", label: "Externe" }]}
+                      value={sel.fleet_segment === "interne" || sel.fleet_segment === "partenaire" ? sel.fleet_segment : "auto"}
+                      onChange={(k) => void choisirSegment(k as "auto" | "interne" | "partenaire")} ariaLabel="Flotte interne ou externe"
+                    />
+                  </div>
+                </Card>
+              )}
               <Segmented
                 options={[{ key: "profil", label: "Profil" }, { key: "documents", label: "Documents" }, { key: "remuneration", label: "Rémunération" }, { key: "activite", label: "Activité" }]}
                 value={tab} onChange={setTab} ariaLabel="Fiche chauffeur" style={{ alignSelf: "flex-start" }}

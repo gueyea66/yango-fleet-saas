@@ -9,6 +9,7 @@ import { fetchAllRows } from "@/lib/fetchAllRows";
 import { avanceBlock, type AvanceBlock } from "./avance";
 import { columnsChart } from "@/lib/report-agent/charts";
 import { segmentResolver, type SegmentFilter, type VehicleLite } from "@/lib/analytics/segment";
+import { readDriverSegments } from "@/lib/analytics/driverSegments";
 import { segmentDe } from "@/lib/fleetSegment";
 
 /**
@@ -97,7 +98,7 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
   // Segment (flotte interne / véhicules partenaires) : même résolution que le menu
   // Performance — véhicule de la déclaration, sinon véhicule affecté au chauffeur.
   // Une ligne sans chauffeur (dépense de structure) est rattachée à la flotte interne.
-  const seg = segmentResolver((vehsQ.data || []) as VehicleLite[]);
+  const seg = segmentResolver((vehsQ.data || []) as VehicleLite[], await readDriverSegments(admin, tenantId));
   const inSegReport = (r: { vehicle_id?: string | null; driver_id?: string | null }) => segment === "all" || seg.ofReport(r) === segment;
   const inSegDriver = (driverId?: string | null) => segment === "all" || seg.ofDriver(driverId) === segment;
   const allReports = (repsQ.data || []).filter(inSegReport);

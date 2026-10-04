@@ -20,6 +20,7 @@ import { driverStats, sortStats, type DriverStat } from "@/lib/analytics/driverS
 import { OBJECTIF_DEFAUT, statutDe } from "@/lib/analytics/trends";
 import { targetBars } from "@/lib/report-agent/charts";
 import { segmentResolver, type SegmentFilter } from "@/lib/analytics/segment";
+import { readDriverSegments } from "@/lib/analytics/driverSegments";
 
 const fmt = (v: number) => Math.round(v).toLocaleString("fr-FR").replace(/ /g, " ");
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -84,7 +85,7 @@ export async function performanceBlock(
   ]);
 
   // Périmètre (flotte interne / véhicules partenaires) : même règle que le menu Performance.
-  const seg = segmentResolver((vehicles || []) as any[]);
+  const seg = segmentResolver((vehicles || []) as any[], await readDriverSegments(admin, tenantId));
   const profileOfYango = new Map(((profiles || []) as any[]).filter((p) => p.yango_driver_id).map((p) => [p.yango_driver_id as string, p.id as string]));
   const reports = segment === "all" ? (reportsAll as any[]) : (reportsAll as any[]).filter((r) => seg.ofReport(r) === segment);
   const orders = segment === "all" ? (ordersAll as any[])

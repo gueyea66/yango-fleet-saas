@@ -192,7 +192,9 @@ export default function AdminPage() {
       // segment du véhicule affecté (filtre interne / externe) ; sans véhicule → interne (segmentDe)
       const vehRows = (vehs || []) as { driver_id: string | null; fleet_segment: string | null }[];
       const segMap = Object.fromEntries(vehRows.filter((v) => v.driver_id).map((v) => [v.driver_id, segmentDe(v)]));
-      setAllDrivers((profs || []).map((p: any) => ({ ...p, plate: plateMap[p.id] || null, segment: segMap[p.id] || "interne" })));
+      // segment choisi par le gestionnaire (migration 078), sinon celui du véhicule affecté
+      const choisi = (v: unknown) => (v === "interne" || v === "partenaire" ? v : null);
+      setAllDrivers((profs || []).map((p: any) => ({ ...p, plate: plateMap[p.id] || null, vehSegment: segMap[p.id] || "interne", segment: choisi(p.fleet_segment) ?? segMap[p.id] ?? "interne" })));
       if (rc) setRemunCfg(rc);
     })();
   }, [user]);
@@ -995,6 +997,16 @@ export default function AdminPage() {
               drivers={allDrivers}
               renderDocuments={(id) => adminTenantId ? <KycAdminTab tenantId={adminTenantId} filterDriverId={id} /> : null}
               onOpenHistory={(id) => { setFilterDriverIds([id]); setTab("history"); }}
+              onSegment={async (id, segment) => {
+                const res = await fetch("/api/admin/drivers", {
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ action: "set_segment", driverProfileId: id, segment }),
+                });
+                if (!res.ok) return (await res.json().catch(() => ({}))).error || "Enregistrement impossible";
+                setAllDrivers((ds) => ds.map((d) => (d.id === id ? { ...d, fleet_segment: segment, segment: segment ?? d.vehSegment ?? "interne" } : d)));
+                notifyDataChanged();
+                return null;
+              }}
             />
           ) : tab === "history" ? (
             <HistoryV2

@@ -25,6 +25,7 @@ import {
 } from "@/lib/analytics/reports";
 import { buildXlsx } from "@/lib/analytics/xlsx";
 import { segmentResolver, isSegmentFilter } from "@/lib/analytics/segment";
+import { readDriverSegments } from "@/lib/analytics/driverSegments";
 import { computeTrends, lastBuckets, GRANULARITES, PERIODES_PAR_DEFAUT, OBJECTIF_DEFAUT, type Granularite } from "@/lib/analytics/trends";
 import { trendsTable } from "@/lib/analytics/reports";
 
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
 
     // Véhicules : segment interne / partenaire de chaque ligne (filtre « type de véhicule »)
     const { data: vehicles } = await admin.from("vehicles").select("id,driver_id,plate,fleet_segment").eq("tenant_id", tenantId);
-    const seg = segmentResolver((vehicles || []) as any[]);
+    const seg = segmentResolver((vehicles || []) as any[], await readDriverSegments(admin, tenantId));
     const segParam = sp.get("segment");
     const segment = isSegmentFilter(segParam) ? segParam : "all";
     const objectif = await readObjectif(tenantId);
