@@ -54,7 +54,18 @@ export interface BarsSection {
   note?: string;
 }
 
-export type Section = TableSection | BarsSection;
+/** Graphique SVG déjà rendu par l'adaptateur (voir charts.ts). */
+export interface FigureSection {
+  kind: "figure";
+  title: string;
+  /** SVG de confiance, produit par lib/report-agent/charts. */
+  svg: string;
+  /** Ce que le graphique montre, en clair : c'est ce que reçoit le LLM (jamais le SVG). */
+  data?: Record<string, string | number | string[] | null>;
+  note?: string;
+}
+
+export type Section = TableSection | BarsSection | FigureSection;
 
 export interface Insight {
   severity: Severity;

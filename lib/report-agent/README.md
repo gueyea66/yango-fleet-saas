@@ -33,6 +33,7 @@ déterministes → panel d'agents LLM (analyste / risques / stratège / rédacte
 - `agents.ts` — orchestration du panel (rôles en parallèle → rédacteur)
 - `guard.ts` — garde anti-hallucination (autonome, copie assumée du gateway)
 - `render.ts` — rendu HTML brandé (imprimable, bouton PDF)
+- `charts.ts` — graphiques SVG sans script (colonnes, barres face à une cible, carte de chaleur), fournis au rendu par une section `figure`
 
 ## Coûts / latence
 

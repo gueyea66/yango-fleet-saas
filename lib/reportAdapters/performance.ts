@@ -18,6 +18,8 @@ import type { Insight, Kpi, Section } from "@/lib/report-agent/types";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { driverStats, sortStats, type DriverStat } from "@/lib/analytics/driverStats";
 import { OBJECTIF_DEFAUT, statutDe } from "@/lib/analytics/trends";
+import { targetBars } from "@/lib/report-agent/charts";
+import { segmentResolver, type SegmentFilter } from "@/lib/analytics/segment";
 
 const fmt = (v: number) => Math.round(v).toLocaleString("fr-FR").replace(/ /g, " ");
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -53,28 +55,40 @@ async function readObjectif(admin: SupabaseClient<any, any, any>, tenantId: stri
 /** null : aucun chauffeur n'a travaillé sur la période (le rapport sort sans ce bloc). */
 export async function performanceBlock(
   admin: SupabaseClient<any, any, any>, tenantId: string, dateFrom: string, dateTo: string,
+  segment: SegmentFilter = "all",
 ): Promise<PerformanceBlock | null> {
   const todayIso = new Date().toISOString().slice(0, 10);
   const seedFrom = new Date(Date.parse(dateFrom) - 180 * 86_400_000).toISOString().slice(0, 10);
-  const [objectif, { data: profiles }, reports, orders, seeds] = await Promise.all([
+  const [objectif, { data: profiles }, reportsAll, ordersAll, seeds, { data: vehicles }] = await Promise.all([
     readObjectif(admin, tenantId),
     admin.from("profiles")
       .select("id, full_name, driver_id, yango_driver_id, active, account_type, hire_date, contract_end_date")
       .eq("tenant_id", tenantId).eq("role", "driver"),
     fetchAllRows(() => admin.from("daily_reports")
-      .select("driver_id,date,status,comment,yango_gross,yango_bonus,off_yango_revenue,yango_trip_count,off_yango_trip_count,net_after_expenses,end_odometer")
+      .select("driver_id,vehicle_id,date,status,comment,yango_gross,yango_bonus,off_yango_revenue,yango_trip_count,off_yango_trip_count,net_after_expenses,end_odometer")
       .eq("tenant_id", tenantId).eq("status", "approved").gte("date", dateFrom).lte("date", dateTo).order("date").order("id")),
     fetchAllRows(() => admin.from("yango_orders")
-      .select("yango_driver_id,jour,status,cancel_reason,started_at,ended_at,distance_m,cash,cashless")
+      .select("yango_driver_id,plate,jour,status,cancel_reason,started_at,ended_at,distance_m,cash,cashless")
       .eq("tenant_id", tenantId).gte("jour", dateFrom).lte("jour", dateTo).order("jour").order("order_id")),
     // amorce du km compteur : dernière déclaration validée avec compteur avant la période
     fetchAllRows(() => admin.from("daily_reports").select("driver_id,date,end_odometer")
       .eq("tenant_id", tenantId).eq("status", "approved").gt("end_odometer", 0)
       .lt("date", dateFrom).gte("date", seedFrom).order("date").order("id")),
+    admin.from("vehicles").select("id,driver_id,plate,fleet_segment").eq("tenant_id", tenantId),
   ]);
 
+  // Périmètre (flotte interne / véhicules partenaires) : même règle que le menu Performance.
+  const seg = segmentResolver((vehicles || []) as any[]);
+  const profileOfYango = new Map(((profiles || []) as any[]).filter((p) => p.yango_driver_id).map((p) => [p.yango_driver_id as string, p.id as string]));
+  const reports = segment === "all" ? (reportsAll as any[]) : (reportsAll as any[]).filter((r) => seg.ofReport(r) === segment);
+  const orders = segment === "all" ? (ordersAll as any[])
+    : (ordersAll as any[]).filter((o) => seg.ofPlate(o.plate, profileOfYango.get(o.yango_driver_id) ?? null) === segment);
+  const actifs = new Set<string>([...reports.map((r) => r.driver_id as string), ...orders.map((o) => profileOfYango.get(o.yango_driver_id) ?? "")]);
+  const drivers = segment === "all" ? ((profiles || []) as any[])
+    : ((profiles || []) as any[]).filter((d) => seg.ofDriver(d.id) === segment || actifs.has(d.id));
+
   const stats = driverStats({
-    drivers: (profiles || []) as any[], reports: reports as any[], seeds: seeds as any[], orders: orders as any[],
+    drivers, reports, seeds: seeds as any[], orders,
     periode: { from: dateFrom, to: dateTo }, today: todayIso,
   });
   // classés par CA par jour : c'est le critère de l'objectif
@@ -97,8 +111,24 @@ export async function performanceBlock(
   const perduRefus = rows.reduce((s, r) => s + perduRefusOf(r), 0);
 
   const sections: Section[] = [{
-    kind: "table",
+    kind: "figure",
     title: `Performance · chaque chauffeur face à l'objectif de ${fmt(objectif)} F par jour`,
+    svg: targetBars({
+      label: "CA par jour travaillé de chaque chauffeur face à l'objectif",
+      rows: rows.map((r) => ({
+        label: r.name, value: r.caParJour ?? 0,
+        note: `${statut(r) ?? ""}${r.caParJour == null ? "" : ` ${Math.round((r.caParJour / objectif) * 100)} %`} · ${r.jours} j`,
+      })),
+      target: objectif, targetLabel: `Objectif ${fmt(objectif)}`, fmt,
+    }),
+    data: {
+      objectif_par_jour_fcfa: objectif,
+      chauffeurs: rows.map((r) => `${r.name} : ${Math.round(r.caParJour ?? 0)} F par jour, ${statut(r) ?? "non classé"}`),
+    },
+    note: "CA par jour travaillé (Yango + bonus + hors Yango), repos exclus. Le trait vertical est l'objectif ; à droite : statut, part de l'objectif atteinte et nombre de jours travaillés.",
+  }, {
+    kind: "table",
+    title: "Performance · le détail par chauffeur",
     columns: [
       { label: "#" }, { label: "Chauffeur" }, { label: "Jours", align: "right" },
       { label: fr ? "Sans activité" : "Sans décl.", align: "right" }, { label: "CA / jour", align: "right" },
@@ -111,7 +141,7 @@ export async function performanceBlock(
         const m = manqueOf(r);
         return {
           cells: [
-            String(i + 1), esc(r.name),
+            String(i + 1), `<span class="nw">${esc(r.name)}</span>`,
             `${r.jours}${r.repos ? ` <span style="color:var(--ink3)">+${r.repos}r</span>` : ""}`,
             r.sansDeclaration ? String(r.sansDeclaration) : dash,
             r.caParJour == null ? dash : `<b>${fmt(r.caParJour)}</b>`,
@@ -147,7 +177,7 @@ export async function performanceBlock(
           const faible = f.tauxAcceptation != null && f.tauxAcceptation < 0.9;
           return {
             cells: [
-              esc(r.name),
+              `<span class="nw">${esc(r.name)}</span>`,
               f.tauxAcceptation == null ? dash : `${faible ? '<span class="neg">' : ""}${Math.round(f.tauxAcceptation * 100)} %${faible ? "</span>" : ""}`,
               String(f.refus), perduRefusOf(r) > 0 ? `−${fmt(perduRefusOf(r))}` : dash,
               dec1(f.heuresCourse), f.joursActifs > 0 ? dec1(f.heuresCourse / f.joursActifs) : dash,
@@ -218,7 +248,7 @@ export async function performanceBlock(
   }
   const trous = rows.filter((r) => (r.sansDeclaration ?? 0) >= 3).sort((a, b) => (b.sansDeclaration ?? 0) - (a.sansDeclaration ?? 0));
   if (trous.length) {
-    const joursPerdus = trous.reduce((s, r) => s + (r.sansDeclaration ?? 0), 0);
+    const joursPerdus = rows.reduce((s, r) => s + (r.sansDeclaration ?? 0), 0);
     insights.push({
       severity: "warn",
       html: `<b>${joursPerdus} ${fr ? "jours sans activité ni repos déclaré" : "jours sans déclaration ni repos"}.</b> ${trous.map((r) => `${esc(r.name)} : ${r.sansDeclaration}`).join(", ")}. ${fr ? `À ${fmt(objectif)} F par jour, chaque journée de véhicule immobilisé est une recette qui ne se rattrape pas.` : "Un jour non déclaré n'entre ni dans le CA ni dans le CA par jour."}`,

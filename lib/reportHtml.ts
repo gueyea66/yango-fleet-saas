@@ -4,6 +4,7 @@ import { runAgentPanel } from "@/lib/report-agent/agents";
 import { renderReport } from "@/lib/report-agent/render";
 import type { BrandTheme, NarrativeResult } from "@/lib/report-agent/types";
 import { buildFleetDataset, type FleetReportKind } from "@/lib/reportAdapters/fleet";
+import type { SegmentFilter } from "@/lib/analytics/segment";
 
 /**
  * Génération du rapport d'activité (HTML brandé, imprimable).
@@ -101,6 +102,8 @@ function fleetTheme(tenantName: string, platformLabel: string): BrandTheme {
 export interface BuildReportOptions {
   kind?: FleetReportKind;   // défaut : monthly
   premium?: boolean;        // narration multi-agent (l'appelant a déjà vérifié l'éligibilité)
+  /** Périmètre : toute la flotte (défaut), flotte interne seule ou véhicules partenaires seuls. */
+  segment?: SegmentFilter;
 }
 
 export async function buildReportHtml(
@@ -110,7 +113,7 @@ export async function buildReportHtml(
   opts: BuildReportOptions = {}
 ): Promise<{ html: string; period: string; tenantName: string; narrated: boolean }> {
   const kind = opts.kind ?? "monthly";
-  const { dataset, tenantName, platformLabel } = await buildFleetDataset(tenantId, dateFrom, dateTo, kind);
+  const { dataset, tenantName, platformLabel } = await buildFleetDataset(tenantId, dateFrom, dateTo, kind, opts.segment ?? "all");
 
   let narrative: NarrativeResult | null = null;
   const agentOn = (process.env.REPORT_AGENT ?? "on") !== "off";

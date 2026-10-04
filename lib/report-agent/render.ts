@@ -46,11 +46,14 @@ function css(t: BrandTheme): string {
   .hero .delta.good{color:var(--green)}.hero .delta.bad{color:var(--red)}.hero .delta.flat{color:var(--ink3)}
   .mini{display:inline-block;height:8px;border-radius:99px;background:linear-gradient(90deg,var(--gold-dark),var(--gold));vertical-align:middle}
   td.sub{padding-left:22px;color:var(--ink2);font-size:9pt}
+  .nw{white-space:nowrap;display:inline-block;max-width:150px;overflow:hidden;text-overflow:ellipsis;vertical-align:bottom}
   .pos{color:var(--green);font-weight:700}.neg{color:var(--red);font-weight:700}
   h2{break-after:avoid}table,.insight,.decisions,.bar-row{break-inside:avoid}
   table{border-collapse:collapse;width:100%;font-size:9.5pt;background:#fff}
   th{background:var(--navy);color:#fff;padding:7px 8px;text-align:left;font-weight:600;font-size:8.5pt;text-transform:uppercase;letter-spacing:.04em}
-  th.r,td.r{text-align:right;white-space:nowrap}
+  th.r,td.r{text-align:right}
+  td.r{white-space:nowrap}
+  th{line-height:1.25}
   td{padding:7px 8px;border-bottom:1px solid var(--border)}
   tr.total td{font-weight:800;background:var(--gold-light);color:var(--navy-deep);border-top:2px solid var(--gold)}
   tr.hl-ok td{background:var(--green-bg)}
@@ -60,6 +63,7 @@ function css(t: BrandTheme): string {
   .tag.green{background:var(--green-bg);color:var(--green)}
   .tag.navy{background:#E8EEF6;color:var(--navy)}
   .tag.red{background:var(--red-bg);color:var(--red)}
+  .figure{background:#fff;border:1px solid var(--border);border-radius:10px;padding:14px 14px 8px;break-inside:avoid}
   .bar-row{display:flex;align-items:center;gap:10px;margin:4px 0;font-size:9.5pt}
   .bar-row .cat{width:150px;color:var(--ink2)}
   .bar-row .track{flex:1;background:#EDE9E0;border-radius:99px;height:14px;overflow:hidden}
@@ -91,6 +95,9 @@ function css(t: BrandTheme): string {
 }
 
 function renderSection(s: Section): string {
+  if (s.kind === "figure") {
+    return `<h2>${esc(s.title)}</h2>\n<div class="figure">${s.svg}</div>${s.note ? `\n<div class="note">${esc(s.note)}</div>` : ""}`;
+  }
   if (s.kind === "bars") {
     const rows = s.bars.map((b) =>
       `<div class="bar-row"><div class="cat">${esc(b.label)}</div><div class="track"><div class="fill${b.accent ? " gold" : ""}" style="width:${Math.min(100, Math.max(1, b.pct))}%"></div></div><div class="amt">${esc(b.amountLabel)}</div></div>`
@@ -136,10 +143,10 @@ export function renderReport(
   // Synthèse de direction : ce qui va bien, ce qui va moins bien, puis le reste.
   const block = (list: Insight[]) => list.map((i) =>
     `<div class="insight${i.severity === "info" ? "" : ` ${i.severity}`}">${i.html}</div>`).join("\n");
-  const bien = insights.filter((i) => i.severity === "ok");
+  const bien = insights.filter((i) => i.severity === "ok").slice(0, 3);
   const moinsBien = insights.filter((i) => i.severity === "warn" || i.severity === "alert")
-    .sort((x, y) => Number(y.severity === "alert") - Number(x.severity === "alert"));
-  const aSavoir = insights.filter((i) => i.severity === "info");
+    .sort((x, y) => Number(y.severity === "alert") - Number(x.severity === "alert")).slice(0, 5);
+  const aSavoir = insights.filter((i) => i.severity === "info").slice(0, 5);
   const synthese = [
     moinsBien.length ? `<h2>Ce qui va moins bien</h2>\n${block(moinsBien)}` : "",
     bien.length ? `<h2>Ce qui va bien</h2>\n${block(bien)}` : "",
