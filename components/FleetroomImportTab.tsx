@@ -7,6 +7,7 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Upload } from "lucide-react";
+import { notifyDataChanged } from "@/lib/dataRefresh";
 import {
   detectKind, parseOrders, parseTransactions, periodOf, splitCsv, type FleetroomKind,
 } from "@/lib/fleetroom/parse";
@@ -122,6 +123,7 @@ export default function FleetroomImportTab() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? `Erreur ${res.status}`);
       setResult(json);
+      notifyDataChanged(); // tableau de bord et listes à jour sans recharger la page
       setPicked([]);
       if (inputRef.current) inputRef.current.value = "";
       refresh();
@@ -138,7 +140,7 @@ export default function FleetroomImportTab() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ driver_id: c.driver_id, jour: c.jour, action }),
     });
-    if (res.ok) setConflicts((cs) => cs.filter((x) => !(x.driver_id === c.driver_id && x.jour === c.jour)));
+    if (res.ok) { setConflicts((cs) => cs.filter((x) => !(x.driver_id === c.driver_id && x.jour === c.jour))); notifyDataChanged(); }
     else setError((await res.json()).error ?? "Échec");
   }
 

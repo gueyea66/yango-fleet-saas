@@ -18,6 +18,7 @@ import { obtenirUrlsSignees } from "@/lib/signedUrls";
 import { enrichUpload } from "@/lib/v2/history";
 import { AttachmentTile } from "@/components/admin/AttachmentTile";
 import { statutDe } from "@/lib/analytics/trends";
+import { notifyDataChanged, useDataRefresh } from "@/lib/dataRefresh";
 import type { SegmentFilter } from "@/lib/analytics/segment";
 import { ObjectifControl, STATUS_COLOR, StatusPill, usePerfMeta } from "./perfShared";
 
@@ -60,7 +61,8 @@ function useSaisies(statut: "submitted" | "all", tick: number) {
       setError(null);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   }, [statut]);
-  useEffect(() => { void Promise.resolve().then(load); }, [load, tick]);
+  const { tick: auto } = useDataRefresh(); // saisies d'un autre administrateur visibles sans recharger
+  useEffect(() => { void Promise.resolve().then(load); }, [load, tick, auto]);
   return { data, error, reload: load };
 }
 
@@ -100,7 +102,7 @@ export function SaisieOperateurV2({ drivers, tenantId }: { drivers: Driver[]; te
         if (m) { setMsg({ ok: false, t: `Charge enregistrée mais preuve incomplète :\n${m}` }); setTick((t) => t + 1); return; }
       }
       setMsg({ ok: true, t: type === "charge" ? "Charge envoyée en validation." : "Hors Yango envoyé en validation." });
-      reset(); setTick((t) => t + 1);
+      reset(); setTick((t) => t + 1); notifyDataChanged();
     } catch (e) {
       setMsg({ ok: false, t: e instanceof Error ? e.message : String(e) });
     } finally { setBusy(false); }
@@ -314,6 +316,7 @@ export function ObjectifFlotteV2({ range, driverIds, segment, periodLabel }: { r
   const { meta, reload } = usePerfMeta();
   const [rows, setRows] = useState<{ id: string; name: string; caParJour: number | null; jours: number }[] | null>(null);
   const [tick, setTick] = useState(0);
+  const { tick: auto } = useDataRefresh();
   useEffect(() => {
     const p = new URLSearchParams({ report: "classement", dateFrom: range.from, dateTo: range.to, statut: "approved", segment, hors: "1" });
     if (driverIds.length) p.set("driverIds", driverIds.join(","));
@@ -323,7 +326,7 @@ export function ObjectifFlotteV2({ range, driverIds, segment, periodLabel }: { r
       setRows(j.rows.filter((r: { jours: number }) => r.jours > 0).map((r: { driverId: string; name: string; caParJour: number | null; jours: number }) => ({ id: r.driverId, name: r.name, caParJour: r.caParJour, jours: r.jours })));
     }).catch(() => undefined);
     return () => { stop = true; };
-  }, [range.from, range.to, driverIds.join(","), segment, tick]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [range.from, range.to, driverIds.join(","), segment, tick, auto]); // eslint-disable-line react-hooks/exhaustive-deps
   const objectif = meta?.objectif ?? 40_000;
   if (!rows || rows.length === 0) return null;
   const sorted = [...rows].sort((a, b) => (b.caParJour ?? 0) - (a.caParJour ?? 0));

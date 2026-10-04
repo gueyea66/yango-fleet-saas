@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getTrialStatus, type TrialStatus } from "@/lib/plans";
+import { useDataRefresh } from "@/lib/dataRefresh";
 
 /**
  * Lectures de la coque admin v2 (aucune écriture) :
@@ -10,6 +11,7 @@ import { getTrialStatus, type TrialStatus } from "@/lib/plans";
 export function useAdminShellData(tenantId: string | null, refreshKey: unknown) {
   const [trial, setTrial] = useState<{ status: TrialStatus; expiresAt: string | null } | null>(null);
   const [pending, setPending] = useState<number | null>(null);
+  const { tick } = useDataRefresh(); // badge « À valider » à jour sans recharger la page
 
   useEffect(() => {
     if (!tenantId) return;
@@ -38,7 +40,7 @@ export function useAdminShellData(tenantId: string | null, refreshKey: unknown) 
       if (alive) setPending((r?.count ?? 0) + (e?.count ?? 0));
     })();
     return () => { alive = false; };
-  }, [tenantId, refreshKey]);
+  }, [tenantId, refreshKey, tick]);
 
   return { trial, pending };
 }
