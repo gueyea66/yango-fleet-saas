@@ -134,7 +134,9 @@ export async function PATCH(req: NextRequest) {
     if (me.error) return migrationManquante(me.error) ? bad(MIGRATION_MSG, 409) : bad("Profil introuvable", 403);
 
     const table = b.type === "hors_yango" ? "saisies_hors_yango" : "expenses";
-    const { data: s, error } = await admin.from(table).select("id, status, entered_by, source").eq("id", b.id).eq("tenant_id", tenantId).maybeSingle();
+    // « source » n'existe que sur expenses : la demander sur saisies_hors_yango faisait échouer la lecture
+    const cols = table === "expenses" ? "id, status, entered_by, source" : "id, status, entered_by";
+    const { data: s, error } = await admin.from(table).select(cols).eq("id", b.id).eq("tenant_id", tenantId).maybeSingle();
     if (error) return migrationManquante(error) ? bad(MIGRATION_MSG, 409) : bad("Lecture impossible", 500);
     if (!s || (table === "expenses" && (s as any).source !== "operateur")) return bad("Saisie introuvable", 404);
 
