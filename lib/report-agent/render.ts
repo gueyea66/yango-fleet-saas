@@ -42,6 +42,12 @@ function css(t: BrandTheme): string {
   .hero .sub{font-size:8.5pt;color:var(--ink3)}
   .hero.gold{border-color:var(--gold);background:var(--gold-light)}
   .hero.gold .val{color:var(--navy-deep)}
+  .hero .delta{font-size:8.5pt;font-weight:700;margin-top:2px}
+  .hero .delta.good{color:var(--green)}.hero .delta.bad{color:var(--red)}.hero .delta.flat{color:var(--ink3)}
+  .mini{display:inline-block;height:8px;border-radius:99px;background:linear-gradient(90deg,var(--gold-dark),var(--gold));vertical-align:middle}
+  td.sub{padding-left:22px;color:var(--ink2);font-size:9pt}
+  .pos{color:var(--green);font-weight:700}.neg{color:var(--red);font-weight:700}
+  h2{break-after:avoid}table,.insight,.decisions,.bar-row{break-inside:avoid}
   table{border-collapse:collapse;width:100%;font-size:9.5pt;background:#fff}
   th{background:var(--navy);color:#fff;padding:7px 8px;text-align:left;font-weight:600;font-size:8.5pt;text-transform:uppercase;letter-spacing:.04em}
   th.r,td.r{text-align:right;white-space:nowrap}
@@ -53,6 +59,7 @@ function css(t: BrandTheme): string {
   .tag.amber{background:var(--amber-bg);color:var(--amber)}
   .tag.green{background:var(--green-bg);color:var(--green)}
   .tag.navy{background:#E8EEF6;color:var(--navy)}
+  .tag.red{background:var(--red-bg);color:var(--red)}
   .bar-row{display:flex;align-items:center;gap:10px;margin:4px 0;font-size:9.5pt}
   .bar-row .cat{width:150px;color:var(--ink2)}
   .bar-row .track{flex:1;background:#EDE9E0;border-radius:99px;height:14px;overflow:hidden}
@@ -68,6 +75,17 @@ function css(t: BrandTheme): string {
   .decisions h3{color:var(--gold-light);margin-top:0}
   .decisions ol{margin-left:18px}
   .decisions li{margin:7px 0;font-size:10pt}
+  .decision{background:#fff;border:1px solid var(--border);border-top:3px solid var(--navy);border-radius:8px;padding:12px 16px;margin:10px 0;font-size:10pt;break-inside:avoid}
+  .decision .dt{font-weight:800;color:var(--navy);font-size:10.5pt}
+  .decision .opt{margin:6px 0 0 0;padding-left:12px;border-left:2px solid var(--border)}
+  .decision .opt b{color:var(--ink2)}
+  .decision .reco{margin-top:8px;background:var(--gold-light);border-radius:6px;padding:7px 10px;color:var(--navy-deep)}
+  .focus{background:linear-gradient(135deg,var(--navy) 0%,var(--navy-soft) 100%);color:#fff;border-radius:10px;padding:14px 20px;margin:16px 0;font-size:10.5pt}
+  .focus h3{color:var(--gold-light);margin:0 0 4px}
+  .detail{margin-top:34px;padding-top:6px;border-top:3px solid var(--navy)}
+  .detail > .lead{font-size:9pt;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-top:8px}
+  .manques{font-size:9pt;color:var(--ink3);margin-top:14px}
+  .manques li{margin-left:16px}
   footer{margin-top:28px;padding-top:12px;border-top:1px solid var(--border);font-size:8.5pt;color:var(--ink3);display:flex;justify-content:space-between}
   .note{font-size:8.5pt;color:var(--ink3);font-style:italic;margin-top:6px}`;
 }
@@ -111,20 +129,43 @@ export function renderReport(
       }))
     : dataset.deterministicInsights;
 
-  const decisions = narrative
-    ? narrative.decisions.map((d) => `<b>${esc(d.title)}</b>${d.body ? ` — ${esc(d.body)}` : ""}`)
-    : (dataset.deterministicDecisions ?? []).map((d) => d.html);
-
-  const heroes = dataset.kpis.slice(0, 4).map((k) =>
-    `<div class="hero${k.accent ? " gold" : ""}"><div class="lbl">${esc(k.label)}</div><div class="val">${esc(k.value)}</div>${k.sub ? `<div class="sub">${esc(k.sub)}</div>` : ""}</div>`
+  const heroes = dataset.kpis.slice(0, 8).map((k) =>
+    `<div class="hero${k.accent ? " gold" : ""}"><div class="lbl">${esc(k.label)}</div><div class="val">${esc(k.value)}</div>${k.delta ? `<div class="delta ${k.delta.tone}">${esc(k.delta.label)}</div>` : ""}${k.sub ? `<div class="sub">${esc(k.sub)}</div>` : ""}</div>`
   ).join("\n");
 
-  const insightBlocks = insights.map((i, n) =>
-    `<div class="insight${i.severity === "info" ? "" : ` ${i.severity}`}"><b>${n + 1}.</b> ${i.html}</div>`
-  ).join("\n\n");
+  // Synthèse de direction : ce qui va bien, ce qui va moins bien, puis le reste.
+  const block = (list: Insight[]) => list.map((i) =>
+    `<div class="insight${i.severity === "info" ? "" : ` ${i.severity}`}">${i.html}</div>`).join("\n");
+  const bien = insights.filter((i) => i.severity === "ok");
+  const moinsBien = insights.filter((i) => i.severity === "warn" || i.severity === "alert")
+    .sort((x, y) => Number(y.severity === "alert") - Number(x.severity === "alert"));
+  const aSavoir = insights.filter((i) => i.severity === "info");
+  const synthese = [
+    moinsBien.length ? `<h2>Ce qui va moins bien</h2>\n${block(moinsBien)}` : "",
+    bien.length ? `<h2>Ce qui va bien</h2>\n${block(bien)}` : "",
+    aSavoir.length ? `<h2>À savoir</h2>\n${block(aSavoir)}` : "",
+  ].filter(Boolean).join("\n\n");
 
-  const decisionsBlock = decisions.length > 0
-    ? `<div class="decisions">\n  <h3>${esc(opts?.decisionsTitle ?? "Décisions proposées")}</h3>\n  <ol>\n${decisions.map((d) => `    <li>${d}</li>`).join("\n")}\n  </ol>\n</div>`
+  const decisionsTitle = esc(opts?.decisionsTitle ?? "Décisions proposées");
+  const letters = ["A", "B", "C"];
+  const decisionsBlock = narrative
+    ? (narrative.decisions.length > 0
+      ? `<h2>${decisionsTitle}</h2>\n` + narrative.decisions.map((d, n) =>
+        `<div class="decision"><div class="dt">${n + 1}. ${esc(d.title)}${d.urgence ? ` <span class="tag amber">${esc(d.urgence)}</span>` : ""}</div>`
+        + (d.body ? `<div>${esc(d.body)}</div>` : "")
+        + (d.options ?? []).map((o, k) => `<div class="opt"><b>Option ${letters[k] ?? k + 1}.</b> ${esc(o)}</div>`).join("")
+        + (d.recommandation ? `<div class="reco"><b>Recommandation.</b> ${esc(d.recommandation)}</div>` : "")
+        + `</div>`).join("\n")
+      : "")
+    : ((dataset.deterministicDecisions ?? []).length > 0
+      ? `<div class="decisions">\n  <h3>${decisionsTitle}</h3>\n  <ol>\n${(dataset.deterministicDecisions ?? []).map((d) => `    <li>${d.html}</li>`).join("\n")}\n  </ol>\n</div>`
+      : "");
+
+  const focus = narrative?.focus ? esc(narrative.focus) : dataset.deterministicFocus ?? "";
+  const focusBlock = focus ? `<div class="focus"><h3>Priorité de la période suivante</h3>${focus}</div>` : "";
+  const manques = narrative?.manques ?? [];
+  const manquesBlock = manques.length
+    ? `<div class="manques"><b>Données manquantes</b><ul>${manques.map((m) => `<li>${esc(m)}</li>`).join("")}</ul></div>`
     : "";
 
   return `<!DOCTYPE html>
@@ -149,9 +190,11 @@ ${theme.logoImgTag ?? ""}
 <div class="heroes">
 ${heroes}
 </div>
-${dataset.sections.map(renderSection).join("\n\n")}
-${insights.length > 0 ? `<h2>Ce qu'il faut retenir</h2>\n\n${insightBlocks}` : ""}
+${synthese}
 ${decisionsBlock}
+${focusBlock}
+${dataset.sections.length > 0 ? `<div class="detail"><div class="lead">Le détail des chiffres</div>\n${dataset.sections.map(renderSection).join("\n\n")}\n</div>` : ""}
+${manquesBlock}
 <footer>
   <div>${esc(theme.footerBrand)} — ${esc(m.docTitle)} · ${esc(m.shortLabel)}</div>
   <div>Chiffres calculés par le moteur — ${narrative ? "analyse rédigée par le panel IA, aucun montant recalculé" : "règles déterministes, aucun montant recalculé"}.</div>

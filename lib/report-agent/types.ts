@@ -34,6 +34,8 @@ export interface Kpi {
   sub?: string;
   /** true → carte dorée (métrique phare). */
   accent?: boolean;
+  /** Variation face à la période précédente (ex: « +9,1 % vs août »). */
+  delta?: { label: string; tone: "good" | "bad" | "flat" };
 }
 
 export interface TableSection {
@@ -105,6 +107,8 @@ export interface ReportDataset {
   deterministicDecisions?: Decision[];
   /** TLDR de repli (déterministe). */
   deterministicTldr: string;
+  /** Priorité de la période suivante, en repli (HTML de confiance). */
+  deterministicFocus?: string;
 }
 
 /** Un rôle du panel multi-agent. */
@@ -120,7 +124,18 @@ export interface AgentRole {
 export interface NarrativeResult {
   tldr: string;
   insights: { severity: Severity; title: string; body: string }[];
-  decisions: { title: string; body: string }[];
+  decisions: {
+    title: string; body: string;
+    /** Échéance de la décision (ex: « 7 jours », « ce mois-ci », « structure »). */
+    urgence?: string;
+    /** Options comparées : action, impact chiffré, coût ou risque. */
+    options?: string[];
+    recommandation?: string;
+  }[];
+  /** La priorité unique de la période suivante. */
+  focus?: string;
+  /** Données absentes qui limitent l'analyse. */
+  manques?: string[];
   /** Rôles ayant effectivement répondu (diagnostic). */
   rolesHeard: string[];
 }

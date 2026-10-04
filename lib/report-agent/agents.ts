@@ -41,14 +41,19 @@ Sortie : {"findings":[{"severity":"info|ok|warn|alert","title":"…","body":"…
   },
 ];
 
-const EDITOR_SYSTEM = (decisionsTitle: string) => `Tu es le rédacteur final d'un rapport d'activité de direction. On te fournit les données JSON et les constats de trois experts (analyste, risques, stratège). Fusionne-les en un rapport cohérent, sans doublon, hiérarchisé.
+const EDITOR_SYSTEM = (decisionsTitle: string) => `Tu es le rédacteur final d'un tableau de bord de direction, lu par le dirigeant de l'entreprise en cinq minutes. On te fournit les données JSON et les constats de trois experts (analyste, risques, stratège). Tu en tires un document de décision : pas un inventaire, pas de redite entre rubriques, pas de généralités. Chaque point porte un chiffre des données et sa conséquence pour l'entreprise.
 Sortie EXACTE :
-{"tldr":"l'essentiel en 3 à 5 phrases, les 2-3 chiffres qui comptent, le point stratégique en dernier",
-"insights":[{"severity":"info|ok|warn|alert","title":"titre court","body":"2 à 3 phrases"}],
-"decisions":[{"title":"décision actionnable","body":"1 à 2 phrases : pourquoi + comment"}]}
-- 5 à 7 insights, ordonnés du plus important au moins important.
-- 3 à 5 decisions concrètes ("${decisionsTitle}").
-- Reprends les severity des experts sauf incohérence manifeste.${COMMON_RULES}`;
+{"tldr":"3 phrases maximum : le verdict de la période, le chiffre qui l'explique, le point de vigilance",
+"va_bien":[{"title":"titre court","body":"2 phrases : le fait chiffré, puis ce qu'il faut en conserver"}],
+"va_moins_bien":[{"severity":"warn|alert","title":"titre court","body":"2 phrases : le fait chiffré, puis ce qu'il coûte"}],
+"decisions":[{"title":"la décision à prendre","urgence":"7 jours | ce mois-ci | structure","option_a":"action concrète, impact attendu chiffré, coût ou risque","option_b":"alternative, impact, risque","recommandation":"l'option retenue et la raison, en une phrase"}],
+"focus":"la priorité unique de la période suivante, en 2 phrases",
+"donnees_manquantes":["donnée absente qui limite l'analyse"]}
+- va_bien : 3 points maximum. va_moins_bien : 3 points maximum, factuels, du plus coûteux au moins coûteux.
+- decisions ("${decisionsTitle}") : 3 maximum, classées par urgence. Toujours deux options comparées et une recommandation tranchée.
+- L'impact d'une option se chiffre UNIQUEMENT avec un montant présent dans les données (les faits « levier_ », « manque_a_gagner » et « estime » sont faits pour cela) ; dis « estimation » quand le fait est une estimation. Sans montant disponible, décris l'impact sans chiffre.
+- focus : une seule priorité, celle qui rapporte le plus.
+- donnees_manquantes : liste vide si rien ne manque ; ne jamais inventer une donnée absente.${COMMON_RULES}`;
 
 const OK_SEVERITIES = new Set<Severity>(["info", "ok", "warn", "alert"]);
 
@@ -164,7 +169,7 @@ export async function runAgentPanel(
   const editorOut = await opts.narrate(editorUser, {
     system: EDITOR_SYSTEM(opts.decisionsTitle ?? "décisions proposées pour la période suivante"),
     model: opts.editorModel ?? null,
-    maxTokens: 4096,
+    maxTokens: 8000,
     timeoutMs,
   }).catch((e) => { warn(`rédacteur en erreur: ${e instanceof Error ? e.message : e}`); return null; });
   if (!editorOut) { warn("rédacteur sans réponse → repli déterministe"); return null; }
@@ -184,11 +189,31 @@ export async function runAgentPanel(
     return frenchifyNumbers(out);
   };
   const tldr = unalias(String(parsed.tldr ?? "").trim());
-  const insights = cleanFindings(parsed.insights, 7)
+  const txt = (v: unknown, max: number) => unalias(clip(String(v ?? "").trim(), max));
+  // « ce qui va moins bien » d'abord (le plus coûteux en tête), puis « ce qui va bien »
+  const faiblesses = cleanFindings(parsed.va_moins_bien, 3)
+    .map((i) => ({ ...i, severity: i.severity === "alert" ? "alert" as const : "warn" as const }));
+  const forces = cleanFindings(parsed.va_bien, 3).map((i) => ({ ...i, severity: "ok" as const }));
+  // ancien format (insights à plat) : toujours accepté
+  const legacy = cleanFindings(parsed.insights, 7);
+  const insights = (faiblesses.length + forces.length > 0 ? [...faiblesses, ...forces] : legacy)
     .map((i) => ({ ...i, title: unalias(i.title), body: unalias(i.body) }));
-  const decisions = cleanFindings(parsed.decisions, 5)
-    .map(({ title, body }) => ({ title: unalias(title), body: unalias(body) }));
+  const decisions = (Array.isArray(parsed.decisions) ? parsed.decisions : []).slice(0, 3).flatMap((d) => {
+    const o = d as Record<string, unknown>;
+    const title = txt(o?.title, 200);
+    if (!title) return [];
+    const options = [o?.option_a, o?.option_b].map((x) => txt(x, 500)).filter(Boolean);
+    return [{
+      title, body: txt(o?.body, 500),
+      urgence: txt(o?.urgence, 40) || undefined,
+      options: options.length ? options : undefined,
+      recommandation: txt(o?.recommandation, 400) || undefined,
+    }];
+  });
+  const focus = txt(parsed.focus, 600) || undefined;
+  const manques = (Array.isArray(parsed.donnees_manquantes) ? parsed.donnees_manquantes : [])
+    .slice(0, 5).map((m) => txt(m, 240)).filter(Boolean);
   if (!tldr || insights.length === 0) { warn("rédacteur sans tldr/insights exploitables → repli déterministe"); return null; }
 
-  return { tldr: tldr.slice(0, 1500), insights, decisions, rolesHeard: heard.map((r) => r.id) };
+  return { tldr: tldr.slice(0, 1500), insights, decisions, focus, manques, rolesHeard: heard.map((r) => r.id) };
 }

@@ -12,6 +12,9 @@ export function foreignNumbers(narrative: string, payloadJson: string): string[]
       return [clean, clean.replace(/^-/, "")];
     })
   );
+  // Montants écrits avec séparateur de milliers dans les tableaux (« 38 681 ») : la
+  // narration les cite sans séparateur, ils doivent être reconnus comme connus.
+  for (const g of payloadJson.match(/\d{1,3}(?:[\u00a0\u202f\u2009 ]\d{3})+/g) ?? []) known.add(g.replace(/\D/g, ""));
   const cited = narrative.replace(/[  \s]/g, "").match(/\d{4,}/g) ?? [];
   return cited.filter((c) => !known.has(c) && !known.has(String(Number(c))));
 }
