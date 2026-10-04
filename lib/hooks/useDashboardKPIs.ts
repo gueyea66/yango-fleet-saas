@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { getTenantId } from "@/lib/supabase/tenanted";
 import {
@@ -158,7 +158,7 @@ const ZERO: DashboardKPIs = {
   loading: true, error: null,
 };
 
-export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTenantId?: string | null, filterDriverIds?: string[], refreshKey?: number) {
+export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTenantId?: string | null, filterDriverIds?: string[], refreshKey?: number, silentKey?: number) {
   // Multi-sélection chauffeurs (retour Abdou 02/09) — vide/absent = tous.
   const fSet = filterDriverIds && filterDriverIds.length ? new Set(filterDriverIds) : null;
   const [kpis, setKPIs] = useState<DashboardKPIs>(ZERO);
@@ -587,14 +587,22 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateFrom, dateTo, explicitTenantId, (filterDriverIds || []).join(","), refreshKey]);
+  }, [dateFrom, dateTo, explicitTenantId, (filterDriverIds || []).join(","), refreshKey, silentKey]);
 
+  // silentKey seul a changé (rafraîchissement automatique, lib/dataRefresh) : on
+  // recharge sans squelette, les chiffres se mettent à jour en place.
+  const hardKey = [dateFrom, dateTo, explicitTenantId, (filterDriverIds || []).join(","), refreshKey].join("|");
+  const lastHardKey = useRef<string | null>(null);
   useEffect(() => {
+    const silent = lastHardKey.current === hardKey;
+    lastHardKey.current = hardKey;
+    if (silent) { void loadKPIs(); return; }
     setKPIs((prev) => ({ ...prev, loading: true }));
     // 15 s : laisse le temps aux retries de fetchJsonRetry (2×~700 ms + requêtes)
     // avant de couper le spinner — à 6 s on montrait des zéros pendant un retry.
     const timeout = setTimeout(() => setKPIs((prev) => ({ ...prev, loading: false })), 15000);
     loadKPIs().finally(() => clearTimeout(timeout));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hardKey est dérivé des dépendances de loadKPIs
   }, [loadKPIs]);
 
   return kpis;

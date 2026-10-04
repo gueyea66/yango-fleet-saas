@@ -8,6 +8,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
+import { useDataRefresh } from "@/lib/dataRefresh";
 
 export function useValidationQueue(tenantId: string, onChanged?: () => void) {
   const [pending, setPending] = useState<any[]>([]);
@@ -31,7 +32,8 @@ export function useValidationQueue(tenantId: string, onChanged?: () => void) {
     } catch { /* silencieux — le bloc s'affiche vide */ }
   }, [tenantId]);
 
-  useEffect(() => { loadPending(); }, [loadPending]);
+  const { tick } = useDataRefresh();
+  useEffect(() => { loadPending(); }, [loadPending, tick]);
 
   const afterAction = async () => {
     await loadPending();

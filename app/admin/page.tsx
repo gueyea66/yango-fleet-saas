@@ -70,6 +70,7 @@ import { useExpenseReview } from "@/components/admin/useExpenseReview";
 import AiBriefingSection from "@/components/ai/AiBriefingSection";
 import { DEFAULT_COMMISSION_RATE, DEFAULT_PARTNER_RATE } from "@/lib/reportNet";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
+import { notifyDataChanged, useDataRefresh } from "@/lib/dataRefresh";
 import {
   BarChart, Bar, Cell as RCell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
@@ -225,13 +226,16 @@ export default function AdminPage() {
   }, [uiV2, v2FiltersReady, v2Period, filterDriverIds]);
   // kpiTick : rafraîchit les KPIs après une validation depuis la file v2 (reste à 0 drapeau éteint)
   const [kpiTick, setKpiTick] = useState(0);
+  // Rafraîchissement automatique : après une action (ici ou dans un autre onglet du
+  // menu), au retour sur la fenêtre, et chaque minute. Sans squelette.
+  const dataRefresh = useDataRefresh();
   // Plusieurs mois (v2) : useDashboardKPIs ne prend qu'une plage continue → un
   // appel par mois (le 1er ici, les suivants dans <KpiMonthProbe>), additionnés
   // côté écran par mergeMonthlyKpis. Un seul mois : comportement inchangé.
   const v2Months = uiV2 ? monthRanges(v2Period, now) : null;
   const multiMonth = !!v2Months && v2Months.length > 1;
   const kpiDriverIds = scopeDriverIds.length ? scopeDriverIds : undefined;
-  const kpisFirst = useDashboardKPIs(multiMonth ? v2Months[0].from : periodFrom, multiMonth ? v2Months[0].to : periodTo, adminTenantId, kpiDriverIds, kpiTick);
+  const kpisFirst = useDashboardKPIs(multiMonth ? v2Months[0].from : periodFrom, multiMonth ? v2Months[0].to : periodTo, adminTenantId, kpiDriverIds, kpiTick, dataRefresh.tick);
   const [extraKpis, setExtraKpis] = useState<Record<string, DashboardKPIs>>({});
   const onMonthKpis = React.useCallback((from: string, k: DashboardKPIs) => setExtraKpis((s) => (s[from] === k ? s : { ...s, [from]: k })), []);
   const kpisByMonth: DashboardKPIs[] = multiMonth
@@ -270,10 +274,10 @@ export default function AdminPage() {
   };
   const reportsReq = useRef(0);
 
-  const loadReports = async (driverIds: string[] = []) => {
+  const loadReports = async (driverIds: string[] = [], silent = false) => {
     if (!adminTenantId) return;
     const req = ++reportsReq.current;
-    setLoadingReports(true);
+    if (!silent) setLoadingReports(true);
     try {
       const params = new URLSearchParams({ tenantId: adminTenantId });
       if (driverIds.length) params.set("driverIds", driverIds.join(","));
@@ -296,6 +300,17 @@ export default function AdminPage() {
       if (req === reportsReq.current) setLoadingReports(false);
     }
   };
+
+  // Listes (À valider, Historique, Finance) : rechargées en place après une action.
+  // Le simple passage du temps ne les recharge pas : un formulaire de correction
+  // peut être ouvert.
+  useEffect(() => {
+    if (!dataRefresh.tick || dataRefresh.reason !== "action") return;
+    if (user && adminTenantId && (tab === "history" || tab === "pending" || (uiV2 && tab === "payments"))) {
+      loadReports(scopeDriverIds, true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataRefresh.tick]);
 
   const handleSaveEdit = async (reportId: string) => {
     try {
@@ -917,7 +932,7 @@ export default function AdminPage() {
       <>
         <PushOnboarding role="admin" />
         {multiMonth && v2Months.slice(1).map((r) => (
-          <KpiMonthProbe key={r.from} from={r.from} to={r.to} tenantId={adminTenantId} driverIds={kpiDriverIds} refreshKey={kpiTick} onResult={onMonthKpis} />
+          <KpiMonthProbe key={r.from} from={r.from} to={r.to} tenantId={adminTenantId} driverIds={kpiDriverIds} refreshKey={kpiTick} silentKey={dataRefresh.tick} onResult={onMonthKpis} />
         ))}
         <AdminShellV2
           tab={tab}
@@ -930,7 +945,12 @@ export default function AdminPage() {
           onSignOut={() => signOut()}
           onReconnect={() => signOut()}
           advancedBack={resolvedUiMode === "simple" ? () => toggleUiAdvanced(false) : undefined}
-          headerRight={tab === "dashboard" ? <DashViewToggle view={dashView} onChange={setDashView} /> : undefined}
+          headerRight={tab === "dashboard" ? (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <ExportMenu dateFrom={periodFrom} dateTo={periodTo} />
+              <DashViewToggle view={dashView} onChange={setDashView} />
+            </div>
+          ) : undefined}
           filters={{
             period: v2Period,
             onPeriodChange: setV2Period,
@@ -954,20 +974,20 @@ export default function AdminPage() {
               tenantId={adminTenantId}
               driverIds={scopeDriverIds}
               range={v2Range ?? undefined}
-              onKpisChanged={() => setKpiTick((t) => t + 1)}
+              onKpisChanged={notifyDataChanged}
               onOpenValidation={() => setTab("pending")}
               advanced={dashboardContent}
             />
             </div>
           ) : tab === "pending" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            <SaisiesAValiderV2 onChanged={() => { setKpiTick((t) => t + 1); loadReports(scopeDriverIds); }} />
+            <SaisiesAValiderV2 onChanged={notifyDataChanged} />
             <PendingV2
               reports={reports.filter((r) => r.status === "submitted" && (!v2Range || inRange(r.date, v2Range)))}
               // charges saisies par un opérateur : validées dans « Saisies opérateur » (preuve obligatoire)
               expenses={expenses.filter((e) => (e.status || "submitted") === "submitted" && e.source !== "operateur" && (!v2Range || inRange(e.expense_date || e.created_at, v2Range)))}
               loading={loadingReports}
-              onRefresh={() => loadReports(scopeDriverIds)}
+              onRefresh={notifyDataChanged}
             />
             </div>
           ) : tab === "kyc" ? (
@@ -984,7 +1004,7 @@ export default function AdminPage() {
               range={v2Range}
               drivers={scopeDriverIds.length ? allDrivers.filter((d) => scopeDriverIds.includes(d.id)) : allDrivers}
               loading={loadingReports}
-              onRefresh={() => loadReports(scopeDriverIds)}
+              onRefresh={notifyDataChanged}
               month={v2Range ? v2Range.to.slice(0, 7) : undefined}
             />
           ) : tab === "vehicles" ? (
@@ -3311,11 +3331,11 @@ function MonthAccordion({
 
 // ─── PAYMENTS TAB ─────────────────────────────────────
 /** Plusieurs mois (v2) : charge les KPIs d'un mois de plus et les remonte à la page. */
-function KpiMonthProbe({ from, to, tenantId, driverIds, refreshKey, onResult }: {
-  from: string; to: string; tenantId: string | null; driverIds?: string[]; refreshKey: number;
+function KpiMonthProbe({ from, to, tenantId, driverIds, refreshKey, silentKey, onResult }: {
+  from: string; to: string; tenantId: string | null; driverIds?: string[]; refreshKey: number; silentKey?: number;
   onResult: (from: string, k: DashboardKPIs) => void;
 }) {
-  const k = useDashboardKPIs(from, to, tenantId, driverIds, refreshKey);
+  const k = useDashboardKPIs(from, to, tenantId, driverIds, refreshKey, silentKey);
   useEffect(() => { onResult(from, k); }, [from, k, onResult]);
   return null;
 }
@@ -4770,6 +4790,16 @@ function RemindBanner() {
   );
 }
 
+/** Téléchargement d'un fichier généré : lien posé dans la page (exigé par Firefox),
+ *  adresse libérée plus tard (la libérer tout de suite annule le téléchargement sur Safari). */
+function saveBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
 // ── Export comptable : télécharge un CSV (Excel FR, séparateur ';' + BOM) de la
 // période affichée. Auth par cookie de session (même mécanisme que /api/admin/kpis).
 function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) {
@@ -4808,10 +4838,7 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
       const blob = await res.blob();
       const cd = res.headers.get("Content-Disposition") || "";
       const m = cd.match(/filename="(.+?)"/);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = m ? m[1] : `${resource}.csv`; a.click();
-      URL.revokeObjectURL(url);
+      saveBlob(blob, m ? m[1] : `${resource}.csv`);
       setOpen(false);
     } catch {
       setErr("Erreur réseau pendant l'export.");
@@ -4831,6 +4858,12 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
   // fetch d'abord : un refus (403) s'affiche dans le menu au lieu d'un onglet JSON.
   const openReport = async (type: "monthly" | "ytd" | "deepdive" = "monthly") => {
     setBusy(`report-${type}`); setErr(null);
+    // Onglet ouvert AU CLIC : la génération dure plusieurs secondes, et un
+    // window.open lancé après l'attente est bloqué par le navigateur (le rapport
+    // « ne s'ouvrait pas », retour Abdou 04/10).
+    const win = window.open("", "_blank");
+    if (win) win.document.write("<p style=\"font-family:sans-serif;padding:24px\">Génération du rapport…</p>");
+    let ok = false;
     try {
       const res = await fetch(`/api/admin/report-monthly?dateFrom=${dateFrom}&dateTo=${dateTo}&type=${type}`);
       if (!res.ok) {
@@ -4839,11 +4872,17 @@ function ExportMenu({ dateFrom, dateTo }: { dateFrom: string; dateTo: string }) 
         return;
       }
       const blob = await res.blob();
-      window.open(URL.createObjectURL(blob), "_blank");
+      ok = true;
+      // onglet refusé (bloqueur, application installée) : le rapport est téléchargé
+      if (win && !win.closed) win.location.href = URL.createObjectURL(blob);
+      else saveBlob(blob, `rapport_${type}_${dateFrom}_${dateTo}.html`);
       setOpen(false);
     } catch {
       setErr("Erreur réseau pendant la génération du rapport.");
-    } finally { setBusy(null); }
+    } finally {
+      if (!ok && win && !win.closed) win.close();
+      setBusy(null);
+    }
   };
 
   return (

@@ -36,6 +36,7 @@ Pièges connus de ces exports :
 | Bonus | `bonus` (à la course et d'objectif) |
 | **Solde fin J** | solde fin J-1 + Σ transactions du jour **hors espèces** |
 | Ancre du solde | dernier export « Soldes », sinon `profiles.solde_initial`, sinon 0 |
+| Journée sans activité Yango | (hors Yango seul, saisie opérateur validée) le solde de la veille est reporté, plus les mouvements hors espèces du jour : `fleet.solde_yango_au`, migration 077 |
 | Nouveau chauffeur | démarre à 0, puis reçoit une recharge de départ (Emile, Abdon, Badiane…) |
 
 **Import de plusieurs jours avec un seul export « Soldes »** (ex. transactions du 2 et du 3, soldes du 3) : le solde de fin du 2 est reconstitué en remontant depuis l'ancre, `solde fin 2 = solde fin 3 − mouvements hors espèces du 3`. Vérifié sur NMK : le 30/09 et le 29/09 reconstitués depuis le seul solde du 01/10 collent aux exports « Soldes » réels à 0,01 XOF près. Une nouvelle ancre recalcule tout l'historique, jours postérieurs compris.
