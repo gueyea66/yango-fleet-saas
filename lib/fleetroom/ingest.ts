@@ -153,13 +153,14 @@ export async function ingestFleetroom(
   const { linked, unknown } = await linkDrivers(sb, tenantId, drivers);
 
   const p = periodOf(jours);
-  // Une nouvelle ancre de solde décale le solde de TOUS les jours du chauffeur :
-  // dans ce cas on recalcule depuis le début de l'historique.
+  // Une nouvelle ancre de solde décale le solde de TOUS les jours du chauffeur,
+  // antérieurs (solde du 2 reconstitué depuis celui du 3) comme postérieurs déjà
+  // importés : dans ce cas on recalcule tout l'historique.
   const newAnchor = results.some((r) => r.kind === "soldes" && r.status === "imported");
   let rebuild: Record<string, unknown> | null = null;
   if (p.from && p.to) {
     const { data, error } = await sb.schema("fleet").rpc("fleetroom_rebuild", {
-      p_tenant: tenantId, p_from: newAnchor ? "2000-01-01" : p.from, p_to: p.to,
+      p_tenant: tenantId, p_from: newAnchor ? "2000-01-01" : p.from, p_to: newAnchor ? "2099-12-31" : p.to,
     });
     if (error) throw new Error(`recalcul des déclarations : ${error.message}`);
     rebuild = data as Record<string, unknown>;

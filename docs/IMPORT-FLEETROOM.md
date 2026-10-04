@@ -38,6 +38,10 @@ Pièges connus de ces exports :
 | Ancre du solde | dernier export « Soldes », sinon `profiles.solde_initial`, sinon 0 |
 | Nouveau chauffeur | démarre à 0, puis reçoit une recharge de départ (Emile, Abdon, Badiane…) |
 
+**Import de plusieurs jours avec un seul export « Soldes »** (ex. transactions du 2 et du 3, soldes du 3) : le solde de fin du 2 est reconstitué en remontant depuis l'ancre, `solde fin 2 = solde fin 3 − mouvements hors espèces du 3`. Vérifié sur NMK : le 30/09 et le 29/09 reconstitués depuis le seul solde du 01/10 collent aux exports « Soldes » réels à 0,01 XOF près. Une nouvelle ancre recalcule tout l'historique, jours postérieurs compris.
+
+La reconstitution n'est juste que si les transactions sont complètes. Depuis la migration 076, le recalcul renvoie `ecarts_solde`, affiché dans le compte rendu d'import : solde de début + mouvements du jour ≠ solde de fin (transactions du jour incomplètes), ou solde précédent + mouvements depuis ≠ solde de fin (transactions manquantes entre deux exports « Soldes »).
+
 Vérification au 29/09 : pour les 6 chauffeurs actifs, l'écart est inférieur à 1 XOF sur le solde de début, le mouvement du jour et le solde de fin.
 
 ## Garde-fous contre la double déclaration
@@ -51,7 +55,7 @@ Vérification au 29/09 : pour les 6 chauffeurs actifs, l'écart est inférieur �
 
 ## Code
 
-- `migrations/072-import-fleetroom.sql` : tables brutes, journal des imports, écarts, fonction `fleetroom_rebuild`.
+- `migrations/072-import-fleetroom.sql` : tables brutes, journal des imports, écarts, fonction `fleetroom_rebuild` (version courante : `076-fleetroom-solde-multi-jours.sql`).
 - `lib/fleetroom/parse.ts` : parseurs, testés dans `__tests__/fleetroomParse.test.ts`.
 - `lib/fleetroom/ingest.ts` : enchaîne le dépôt, le dédoublonnage, le rattachement des chauffeurs et le recalcul.
 - `scripts/fleetroom-import.ts` : la même chose en ligne de commande, pour reconstituer l'historique.

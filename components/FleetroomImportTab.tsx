@@ -29,7 +29,12 @@ interface Picked {
 
 interface IngestResult {
   files: { name: string; kind: FleetroomKind | null; status: string; message?: string; rows_total?: number; rows_new?: number }[];
-  rebuild: { inserted: number; updated: number; conflicts: number; recharges: number; unmapped_drivers: string[] } | null;
+  rebuild: {
+    inserted: number; updated: number; conflicts: number; recharges: number; unmapped_drivers: string[];
+    /** Absent tant que la migration 076 n'est pas appliquée. */
+    ecarts_solde?: { chauffeur: string; jour: string; type: "jour" | "intervalle"; depuis: string | null;
+      attendu: number; constate: number; ecart: number }[];
+  } | null;
   linkedDrivers: string[];
   unknownDrivers: string[];
 }
@@ -143,7 +148,8 @@ export default function FleetroomImportTab() {
         <h2 className="text-xl font-bold text-white mb-2">Import Fleetroom</h2>
         <p className="text-sm" style={{ color: "var(--sk-t3)" }}>
           Déposez les exports Yango Fleetroom tels quels : <b>transactions</b> et <b>commandes</b> de la période,
-          et si possible les <b>soldes</b> du dernier jour. Les déclarations de chaque chauffeur sont calculées
+          et si possible les <b>soldes</b> du dernier jour (ceux des jours précédents sont reconstitués
+          à partir de celui-ci). Les déclarations de chaque chauffeur sont calculées
           automatiquement. Redéposer un fichier ou une période qui chevauche ne crée aucun doublon.
           {history?.lastDay && <> Dernier jour reçu : <b>{history.lastDay}</b>.</>}
         </p>
@@ -205,6 +211,20 @@ export default function FleetroomImportTab() {
             <div style={{ color: "var(--sk-t1)" }}>
               Déclarations : {fmt(result.rebuild.inserted)} créées, {fmt(result.rebuild.updated)} mises à jour ·
               recharges : {fmt(result.rebuild.recharges)} · écarts avec les chauffeurs : {fmt(result.rebuild.conflicts)}
+            </div>
+          )}
+          {(result.rebuild?.ecarts_solde?.length ?? 0) > 0 && (
+            <div style={{ color: "#b45309" }}>
+              Soldes à vérifier : les transactions ne collent pas à l&apos;export Soldes, les soldes
+              reconstitués autour de ces jours sont faux d&apos;autant. Redéposez les transactions complètes.
+              <ul className="mt-1 list-disc pl-5">
+                {result.rebuild!.ecarts_solde!.map((e) => (
+                  <li key={`${e.chauffeur}-${e.jour}-${e.type}`}>
+                    {e.chauffeur}, {e.jour} : attendu {fmt(e.attendu)}, Yango {fmt(e.constate)} (écart {fmt(e.ecart)}) —{" "}
+                    {e.type === "jour" ? "transactions du jour incomplètes" : `transactions manquantes depuis le ${e.depuis}`}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
           {result.unknownDrivers.length > 0 && (
