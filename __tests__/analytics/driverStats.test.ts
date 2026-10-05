@@ -81,6 +81,8 @@ describe("classement", () => {
     expect(a.km).toBe(5);
     expect(a.fleetroom?.courses).toBe(1);
     expect(rows.find((r) => r.driverId === "b")!.fleetroom).toBeNull();
+    // CA / km : seul le CA du 10 (jour dont on connaît les km) compte, pas celui du 11
+    expect(a.caParKm).toBeCloseTo(21_000 / 5);
   });
   it("tri décroissant, valeurs absentes en bas, rang posé", () => {
     const { rows } = driverStats({ drivers, reports, orders: [order({})] });

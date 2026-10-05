@@ -334,7 +334,8 @@ export async function avanceBlock(
       const moyenne = (f: (a: { debut: number; fin: number; n: number; duree: number }) => number) => v.reduce((s, a) => s + f(a), 0) / v.length;
       const debut = moyenne((a) => a.debut), fin = moyenne((a) => a.fin), amp = moyenne((a) => a.fin - a.debut);
       const enCourse = moyenne((a) => a.duree), courses = moyenne((a) => a.n);
-      const ca = cur.filter((r) => r.driver_id === id);
+      // mêmes jours que les horaires : un jour sans commandes importées n'a pas d'amplitude
+      const ca = cur.filter((r) => r.driver_id === id && m.has(r.date));
       const caJour = ca.length ? ca.reduce((s, r) => s + caOf(r), 0) / ca.length : 0;
       return { id, nom: nameOf.get(id) ?? id, debut, fin, amp, enCourse, courses, caJour, caHeure: amp > 0 ? caJour / amp : 0 };
     }).sort((a, b) => b.caHeure - a.caHeure);
