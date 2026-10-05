@@ -159,11 +159,56 @@ export async function ingestFleetroom(
   const newAnchor = results.some((r) => r.kind === "soldes" && r.status === "imported");
   let rebuild: Record<string, unknown> | null = null;
   if (p.from && p.to) {
-    const { data, error } = await sb.schema("fleet").rpc("fleetroom_rebuild", {
-      p_tenant: tenantId, p_from: newAnchor ? "2000-01-01" : p.from, p_to: newAnchor ? "2099-12-31" : p.to,
-    });
-    if (error) throw new Error(`recalcul des déclarations : ${error.message}`);
-    rebuild = data as Record<string, unknown>;
+    rebuild = newAnchor
+      ? await rebuildFleetroom(sb, tenantId)
+      : await rebuildFleetroom(sb, tenantId, p.from, p.to);
   }
   return { files: results, rebuild, linkedDrivers: linked, unknownDrivers: unknown };
+}
+
+/**
+ * Recalcul des déclarations, mois par mois.
+ *
+ * Un seul appel sur tout l'historique dépasse le délai de 8 s d'une requête
+ * (constaté sur NMK avec 2025 + 2026 : 167 000 transactions). Le recalcul est
+ * idempotent et chaque jour ne dépend que du brut : le découper ne change rien
+ * au résultat. Sans bornes, toute la période connue du tenant est recalculée.
+ */
+export async function rebuildFleetroom(
+  sb: SupabaseClient, tenantId: string, from?: string, to?: string,
+): Promise<Record<string, unknown>> {
+  const db = sb.schema("fleet");
+  if (!from || !to) {
+    const edge = async (table: string, col: string, ascending: boolean) => {
+      const { data, error } = await db.from(table).select(col).eq("tenant_id", tenantId)
+        .order(col, { ascending }).limit(1).maybeSingle();
+      if (error) throw new Error(`période connue : ${error.message}`);
+      return (data as Record<string, string> | null)?.[col] ?? null;
+    };
+    // les journées « hors Yango seul » peuvent dépasser la dernière transaction
+    const bornes = (await Promise.all([
+      edge("yango_transactions", "jour", true), edge("yango_transactions", "jour", false),
+      edge("daily_reports", "date", false),
+    ])).filter((j): j is string => !!j).sort();
+    if (bornes.length === 0) return { inserted: 0, updated: 0, conflicts: 0, recharges: 0, unmapped_drivers: [], ecarts_solde: [] };
+    from = from ?? bornes[0];
+    to = to ?? bornes[bornes.length - 1];
+  }
+
+  const total = { inserted: 0, updated: 0, conflicts: 0, recharges: 0 };
+  const unmapped = new Set<string>();
+  const ecarts: unknown[] = [];
+  for (let a = from; a <= to;) {
+    const [y, m] = a.split("-").map(Number);
+    const finMois = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+    const b = finMois < to ? finMois : to;
+    const { data, error } = await db.rpc("fleetroom_rebuild", { p_tenant: tenantId, p_from: a, p_to: b });
+    if (error) throw new Error(`recalcul des déclarations (${a} → ${b}) : ${error.message}`);
+    const r = data as Record<string, unknown>;
+    for (const k of Object.keys(total) as (keyof typeof total)[]) total[k] += Number(r[k] ?? 0);
+    ((r.unmapped_drivers as string[] | null) ?? []).forEach((n) => unmapped.add(n));
+    ecarts.push(...((r.ecarts_solde as unknown[] | null) ?? []));
+    a = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10);
+  }
+  return { ...total, unmapped_drivers: [...unmapped], ecarts_solde: ecarts };
 }

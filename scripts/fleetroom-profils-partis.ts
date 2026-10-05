@@ -9,7 +9,8 @@
 import { readFileSync } from "fs";
 import { randomUUID } from "crypto";
 import { createClient } from "@supabase/supabase-js";
-import { getVirtualEmailForDriver } from "../lib/auth/utils"; // même convention que l'app, sans compte auth
+import { getVirtualEmailForDriver } from "../lib/auth/utils";
+import { rebuildFleetroom } from "../lib/fleetroom/ingest"; // même convention que l'app, sans compte auth
 
 for (const line of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
   const m = /^([A-Z0-9_]+)=(.*)$/.exec(line);
@@ -46,7 +47,5 @@ const PARTIS = [
   }
   console.log(`profils créés : ${toCreate.map((p) => p.full_name).join(", ") || "aucun (déjà présents)"}`);
 
-  const { data, error } = await db.rpc("fleetroom_rebuild", { p_tenant: t.id, p_from: "2000-01-01", p_to: "2099-12-31" });
-  if (error) throw new Error(`recalcul : ${error.message}`);
-  console.log(JSON.stringify(data, null, 2));
+  console.log(JSON.stringify(await rebuildFleetroom(sb, t.id), null, 2));
 })().catch((e) => { console.error(e); process.exit(1); });
