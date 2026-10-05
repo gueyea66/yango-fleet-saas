@@ -202,13 +202,33 @@ export async function rebuildFleetroom(
     const [y, m] = a.split("-").map(Number);
     const finMois = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
     const b = finMois < to ? finMois : to;
-    const { data, error } = await db.rpc("fleetroom_rebuild", { p_tenant: tenantId, p_from: a, p_to: b });
-    if (error) throw new Error(`recalcul des déclarations (${a} → ${b}) : ${error.message}`);
-    const r = data as Record<string, unknown>;
-    for (const k of Object.keys(total) as (keyof typeof total)[]) total[k] += Number(r[k] ?? 0);
-    ((r.unmapped_drivers as string[] | null) ?? []).forEach((n) => unmapped.add(n));
-    ecarts.push(...((r.ecarts_solde as unknown[] | null) ?? []));
+    for (const r of await rebuildRange(sb, tenantId, a, b)) {
+      for (const k of Object.keys(total) as (keyof typeof total)[]) total[k] += Number(r[k] ?? 0);
+      ((r.unmapped_drivers as string[] | null) ?? []).forEach((n) => unmapped.add(n));
+      ecarts.push(...((r.ecarts_solde as unknown[] | null) ?? []));
+    }
     a = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10);
   }
   return { ...total, unmapped_drivers: [...unmapped], ecarts_solde: ecarts };
+}
+
+/**
+ * Un mois peut dépasser le délai à son premier passage (constaté deux fois sur
+ * NMK juste après un changement, puis 2 s à la relance) : la plage est alors
+ * coupée en deux et rejouée. Le recalcul est idempotent, rien n'est compté deux fois.
+ */
+async function rebuildRange(
+  sb: SupabaseClient, tenantId: string, a: string, b: string,
+): Promise<Record<string, unknown>[]> {
+  const { data, error } = await sb.schema("fleet").rpc("fleetroom_rebuild", { p_tenant: tenantId, p_from: a, p_to: b });
+  if (!error) return [data as Record<string, unknown>];
+  if (a >= b || !/timeout/i.test(error.message)) {
+    throw new Error(`recalcul des déclarations (${a} → ${b}) : ${error.message}`);
+  }
+  const jour = (t: number) => new Date(t).toISOString().slice(0, 10);
+  const ta = Date.parse(a), milieu = ta + Math.floor((Date.parse(b) - ta) / 86_400_000 / 2) * 86_400_000;
+  return [
+    ...await rebuildRange(sb, tenantId, a, jour(milieu)),
+    ...await rebuildRange(sb, tenantId, jour(milieu + 86_400_000), b),
+  ];
 }
