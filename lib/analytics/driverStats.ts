@@ -244,17 +244,21 @@ export function driverStats({ drivers, reports, seeds = [], expenses = [], order
     // km : compteur ; à défaut (jours importés de Fleetroom, compteur à 0), km des courses
     const kmDays = kmCompteur.get(d.id) ?? new Map<string, number>();
     let km = [...kmDays.values()].reduce((s, k) => s + k, 0);
+    const joursKm = new Set(kmDays.keys());
     if (ords.length) {
       const frByDay = new Map<string, number>();
       for (const o of ords) if (o.status === TERMINE && o.jour) frByDay.set(o.jour, (frByDay.get(o.jour) ?? 0) + n(o.distance_m) / 1000);
-      for (const [day, k] of frByDay) if (!kmDays.has(day)) km += k;
+      for (const [day, k] of frByDay) if (!kmDays.has(day)) { km += k; joursKm.add(day); }
     }
     km = Math.round(km);
+    // CA / km : seulement le CA des jours dont on connaît les km. Sans cela, une période
+    // à cheval sur des jours sans compteur ni commandes (historique 2025) gonfle le ratio.
+    const caKm = reps.filter((r) => joursKm.has(r.date)).reduce((s, r) => s + caOf(r), 0);
     rows.push({
       driverId: d.id, name: d.full_name || d.driver_id || "Chauffeur", active: d.active !== false,
       jours, repos, sansDeclaration, courses, ca, net, depenses, km,
       caParJour: ratio(ca, jours), caParCourse: ratio(ca, courses),
-      coursesParJour: ratio(courses, jours), caParKm: ratio(ca, km),
+      coursesParJour: ratio(courses, jours), caParKm: ratio(caKm, km),
       fleetroom: fr,
     });
   }
