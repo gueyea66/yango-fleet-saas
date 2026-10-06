@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { requireAdminAuth, requireValideurAuth } from "@/lib/auth/server";
 import { ingestFleetroom, type FleetroomFile } from "@/lib/fleetroom/ingest";
+import { analyserDepot } from "@/lib/fleetroom/apercu";
 
 // Un export journalier pèse ~100 Ko ; un mois ~2 Mo. La limite Vercel du corps
 // de requête (4,5 Mo) borne un dépôt à ~2 mois : l'historique long passe par
@@ -39,7 +40,9 @@ export async function GET() {
   }
 }
 
-/* ── POST — dépôt des exports (multipart : files[], soldesJour?) ── */
+/* ── POST — dépôt des exports (multipart : files[], soldesJour?, mode?, confirme?) ──
+ *   mode=analyse : aperçu jour par jour et alertes, RIEN n'est écrit ;
+ *   sinon        : intégration, refusée sans confirme=1 (le gestionnaire a vu l'aperçu). */
 export async function POST(req: NextRequest) {
   try {
     // import = déclarations directement validées : admin valideur uniquement
@@ -53,6 +56,12 @@ export async function POST(req: NextRequest) {
     }
     if (files.length === 0) {
       return NextResponse.json({ error: "Aucun fichier reçu" }, { status: 400 });
+    }
+    if (form.get("mode") === "analyse") {
+      return NextResponse.json(await analyserDepot(serviceClient, tenantId, files, new Date().toISOString().slice(0, 10)));
+    }
+    if (form.get("confirme") !== "1") {
+      return NextResponse.json({ error: "Confirmation requise : vérifiez l'aperçu avant d'intégrer." }, { status: 400 });
     }
     const result = await ingestFleetroom(serviceClient, tenantId, files, userId);
     return NextResponse.json(result);
