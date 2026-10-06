@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any -- lignes Supabase non typées (convention du projet) */
 import { createClient } from "@supabase/supabase-js";
 import type { Decision, Insight, Kpi, ReportDataset, Section, TableSection } from "@/lib/report-agent/types";
-import { CAT_AVANCE } from "@/lib/expenseCategories";
+import { CAT_AVANCE, CAT_SOLDE, estChargeDeResultat } from "@/lib/expenseCategories";
 import { amortissementPeriode, kmParMoisDepuisCompteur } from "@/lib/calc";
 import { performanceBlock, type PerformanceBlock } from "./performance";
 import { demandeHoraire, echeances } from "./extras";
@@ -57,6 +57,8 @@ interface PeriodAgg {
   depCat: Map<string, number>;
   /** Avances propriétaire remises (Décaissement propriétaire) — hors charges, cash sorti. */
   avances: number;
+  /** achats de solde Yango (provision, hors dépenses) */
+  provisionsSolde: number;
   /** Lignes de charge brutes (motifs saisis) — matière du deep dive dépenses. */
   expenseRows: { date: string; driver_id: string | null; category: string; amount: number; description: string }[];
   pending: number;
@@ -109,7 +111,11 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
   // chauffeur — anti double comptage, cf. lib/expenseCategories CAT_AVANCE).
   // Les lignes restent dans expenseRows (deep dive) : le motif saisi garde sa valeur.
   const allExpenses = (expsQ.data || []).filter((e) => inSegDriver(e.driver_id));
-  const expenses = allExpenses.filter((e) => e.category !== CAT_AVANCE);
+  // Achats de solde Yango : provision et non charge (les commissions qu'ils
+  // paient sont déjà retirées du net) — hors dépenses, suivis à part.
+  const expenses = allExpenses.filter((e) => estChargeDeResultat(e.category));
+  const provisionsSolde = Math.round(allExpenses.filter((e) => e.category === CAT_SOLDE)
+    .reduce((s, e) => s + (e.amount || 0), 0));
   const avances = allExpenses.filter((e) => e.category === CAT_AVANCE)
     .reduce((s, e) => s + (e.amount || 0), 0);
   const salaryDate = (p: { salary_month?: string | null; payment_date?: string | null }) =>
@@ -192,7 +198,7 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
 
   return {
     segCounts: seg.counts(),
-    drivers, tot, depCat, avances, amortissement,
+    drivers, tot, depCat, avances, provisionsSolde, amortissement,
     expenseRows: allExpenses.map((e) => ({
       date: e.expense_date || "", driver_id: e.driver_id,
       category: e.category || "Autre", amount: Math.round(e.amount || 0),
@@ -640,7 +646,7 @@ function compteResultat(cur: PeriodAgg, prev: PeriodAgg, prevLabel: string): Sec
       ...(cur.amortissement || prev.amortissement ? [line("Amortissement des véhicules", cur.amortissement, prev.amortissement, { moins: true })] : []),
       line("NET FINAL", net, netP, { total: true, favorable: true }),
     ],
-    note: `Montants en FCFA. Net final = net après commissions − dépenses − rémunération versée − amortissement. Variation en vert quand elle est favorable (recette en hausse, charge en baisse).${cur.avances > 0 ? ` Les avances remises aux chauffeurs (${fmt(cur.avances)} F) ne sont pas des charges : elles ne figurent pas ici.` : ""}`,
+    note: `Montants en FCFA. Net final = net après commissions − dépenses − rémunération versée − amortissement. Variation en vert quand elle est favorable (recette en hausse, charge en baisse).${cur.avances > 0 ? ` Les avances remises aux chauffeurs (${fmt(cur.avances)} F) ne sont pas des charges : elles ne figurent pas ici.` : ""}${cur.provisionsSolde > 0 ? ` Les achats de solde Yango (${fmt(cur.provisionsSolde)} F) sont une provision : la ponction réelle est la ligne des commissions, ils ne sont pas comptés une seconde fois en dépenses.` : ""}`,
   };
 }
 
