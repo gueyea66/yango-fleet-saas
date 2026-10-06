@@ -55,6 +55,21 @@ Vérification au 29/09 : pour les 6 chauffeurs actifs, l'écart est inférieur �
 5. **Recharges** : une transaction donne une seule dépense, grâce à `expenses.external_ref = 'yango_tx:<id>'`.
 6. **Chauffeur inconnu** : il est signalé (`unknownDrivers`, `unmapped_drivers`). Aucune déclaration n'est créée pour lui.
 
+## Confirmation avant intégration
+
+Depuis le 06/10/2026, rien n'entre en base sans confirmation. Le dépôt se fait en deux temps :
+
+1. **Vérifier** : le serveur lit les fichiers sans rien écrire et affiche, jour par jour, le nombre de chauffeurs, de transactions, de commandes et de soldes, le brut (espèces + carte), l'heure de la dernière transaction et ce qui est déjà en base.
+2. **Confirmer** : case à cocher puis « Confirmer l'intégration ». L'API refuse une intégration sans `confirme=1`.
+
+Alertes de l'aperçu (`lib/fleetroom/apercu.ts`) :
+- **bloquant** : journée en cours ou future (un export pris en cours de journée donne des déclarations et des soldes faux), fichier non reconnu, soldes sans date ;
+- **attention** : dernière transaction du dernier jour avant 20h, jour sans transaction au milieu de la période, pas de commandes, pas de soldes, date des soldes différente du dernier jour, fichier déjà déposé, jours déjà en base, chauffeurs absents de l'app.
+
+En ligne de commande, `scripts/fleetroom-import.ts` affiche le même aperçu et n'écrit rien sans `--confirmer`.
+
+Origine : le 05/10/2026, un export NMK pris à 17h40 (244 transactions) a été intégré pour une journée qui en comptait 312. Les données des 04 et 05/10 ont été retirées le 06/10 à la demande d'Abdou.
+
 ## Code
 
 - `migrations/072-import-fleetroom.sql` : tables brutes, journal des imports, écarts, fonction `fleetroom_rebuild` (version courante : `076-fleetroom-solde-multi-jours.sql`).

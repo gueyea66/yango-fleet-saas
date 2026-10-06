@@ -40,6 +40,11 @@ interface IngestResult {
   unknownDrivers: string[];
 }
 
+interface Apercu {
+  jours: { jour: string; transactions: number; commandes: number; chauffeurs: number; soldes: number; brut: number; derniereTransaction: string | null; dejaEnBase?: number }[];
+  alertes: { niveau: "bloquant" | "attention"; texte: string }[];
+}
+
 interface ImportRow {
   id: string;
   kind: FleetroomKind;
@@ -70,6 +75,9 @@ export default function FleetroomImportTab() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<IngestResult | null>(null);
+  // aperçu avant intégration : rien ne part en base tant qu'il n'est pas confirmé
+  const [apercu, setApercu] = useState<Apercu | null>(null);
+  const [verifie, setVerifie] = useState(false);
   const [history, setHistory] = useState<{ imports: ImportRow[]; openConflicts: number; lastDay: string | null } | null>(null);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -89,6 +97,7 @@ export default function FleetroomImportTab() {
     if (!list) return;
     setResult(null);
     setError(null);
+    setApercu(null); setVerifie(false);
     const out: Picked[] = [];
     for (const file of Array.from(list)) {
       const rows = splitCsv(await file.text());
@@ -112,19 +121,44 @@ export default function FleetroomImportTab() {
   const canSend = picked.length > 0 && unknown.length === 0 && totalBytes <= MAX_BYTES
     && (!hasSoldes || /^\d{4}-\d{2}-\d{2}$/.test(soldesJour)) && !busy;
 
+  const formData = () => {
+    const fd = new FormData();
+    picked.forEach((p) => fd.append("files", p.file));
+    if (hasSoldes) fd.append("soldesJour", soldesJour);
+    return fd;
+  };
+
+  /** Étape 1 : le serveur lit les fichiers et dit ce qu'ils contiennent, sans rien écrire. */
+  async function analyser() {
+    setBusy(true);
+    setError(null);
+    try {
+      const fd = formData();
+      fd.append("mode", "analyse");
+      const res = await fetch("/api/admin/fleetroom", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? `Erreur ${res.status}`);
+      setApercu(json); setVerifie(false);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Étape 2 : intégration, après lecture de l'aperçu. */
   async function send() {
     setBusy(true);
     setError(null);
     try {
-      const fd = new FormData();
-      picked.forEach((p) => fd.append("files", p.file));
-      if (hasSoldes) fd.append("soldesJour", soldesJour);
+      const fd = formData();
+      fd.append("confirme", "1");
       const res = await fetch("/api/admin/fleetroom", { method: "POST", body: fd });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? `Erreur ${res.status}`);
       setResult(json);
       notifyDataChanged(); // tableau de bord et listes à jour sans recharger la page
-      setPicked([]);
+      setPicked([]); setApercu(null); setVerifie(false);
       if (inputRef.current) inputRef.current.value = "";
       refresh();
     } catch (e) {
@@ -180,7 +214,7 @@ export default function FleetroomImportTab() {
             {hasSoldes && (
               <label className="flex items-center gap-3 pt-2" style={{ color: "var(--sk-t2)" }}>
                 Date des soldes (le fichier ne la contient pas)
-                <input type="date" value={soldesJour} onChange={(e) => setSoldesJour(e.target.value)}
+                <input type="date" value={soldesJour} onChange={(e) => { setSoldesJour(e.target.value); setApercu(null); setVerifie(false); }}
                   className="bg-gray-800 border border-gray-600 text-white text-sm rounded-lg px-3 py-1" />
               </label>
             )}
@@ -189,11 +223,65 @@ export default function FleetroomImportTab() {
                 Fichiers trop lourds ({(totalBytes / 1048576).toFixed(1)} Mo) : déposez au plus ~2 mois à la fois.
               </div>
             )}
-            <button onClick={send} disabled={!canSend}
-              className="mt-2 px-5 py-2 rounded-xl font-bold text-sm text-black disabled:opacity-40"
-              style={{ background: "var(--tenant-color)" }}>
-              {busy ? "Intégration en cours…" : "Intégrer"}
-            </button>
+            {!apercu ? (
+              <button onClick={analyser} disabled={!canSend}
+                className="mt-2 px-5 py-2 rounded-xl font-bold text-sm text-black disabled:opacity-40"
+                style={{ background: "var(--tenant-color)" }}>
+                {busy ? "Lecture des fichiers…" : "Vérifier avant d'intégrer"}
+              </button>
+            ) : (
+              <div className="mt-3 space-y-3">
+                <div style={caption}>Aperçu — rien n&apos;est encore intégré</div>
+                {apercu.jours.length > 0 && (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm" style={{ color: "var(--sk-t1)" }}>
+                      <thead style={{ color: "var(--sk-t3)" }}>
+                        <tr className="text-left">
+                          <th className="py-1 pr-3">Jour</th><th className="pr-3">Chauffeurs</th><th className="pr-3">Transactions</th>
+                          <th className="pr-3">Commandes</th><th className="pr-3">Soldes</th><th className="pr-3">Brut (espèces + carte)</th>
+                          <th className="pr-3">Dernière transaction</th><th>Déjà en base</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {apercu.jours.slice(-31).map((d) => (
+                          <tr key={d.jour} style={{ borderTop: "1px solid var(--sk-surface)" }}>
+                            <td className="py-1 pr-3">{d.jour}</td><td className="pr-3">{d.chauffeurs || "—"}</td>
+                            <td className="pr-3">{fmt(d.transactions)}</td><td className="pr-3">{fmt(d.commandes)}</td>
+                            <td className="pr-3">{d.soldes || "—"}</td><td className="pr-3">{fmt(d.brut)}</td>
+                            <td className="pr-3">{d.derniereTransaction ?? "—"}</td><td>{d.dejaEnBase ? `${fmt(d.dejaEnBase)} lignes` : "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {apercu.jours.length > 31 && <div className="text-xs mt-1" style={{ color: "var(--sk-t3)" }}>{apercu.jours.length} jours au total, les 31 derniers sont affichés.</div>}
+                  </div>
+                )}
+                {apercu.alertes.length > 0 ? (
+                  <ul className="space-y-1">
+                    {apercu.alertes.map((a, i) => (
+                      <li key={i} style={{ color: a.niveau === "bloquant" ? "#dc2626" : "#b45309" }}>
+                        {a.niveau === "bloquant" ? "⛔ " : "⚠️ "}{a.texte}
+                      </li>
+                    ))}
+                  </ul>
+                ) : <div style={{ color: "#16a34a" }}>Aucune anomalie détectée dans ces fichiers.</div>}
+                {apercu.alertes.some((a) => a.niveau === "bloquant") ? (
+                  <div style={{ color: "#dc2626" }}>Intégration impossible tant que ces points ne sont pas réglés : choisissez d&apos;autres fichiers.</div>
+                ) : (
+                  <>
+                    <label className="flex items-start gap-2" style={{ color: "var(--sk-t1)" }}>
+                      <input type="checkbox" checked={verifie} onChange={(e) => setVerifie(e.target.checked)} className="mt-1" />
+                      <span>J&apos;ai vérifié : ces exports sont complets et je confirme leur intégration. Les déclarations de ces jours seront créées ou recalculées, directement validées.</span>
+                    </label>
+                    <button onClick={send} disabled={!canSend || !verifie}
+                      className="px-5 py-2 rounded-xl font-bold text-sm text-black disabled:opacity-40"
+                      style={{ background: "var(--tenant-color)" }}>
+                      {busy ? "Intégration en cours…" : "Confirmer l'intégration"}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         )}
         {error && <div className="mt-3 text-sm" style={{ color: "#dc2626" }}>{error}</div>}
