@@ -80,7 +80,9 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
       .eq("tenant_id", tenantId)
       .gte("date", dateFrom).lte("date", dateTo).order("date").order("id")),
     all<any>(() => admin.from("expenses").select("driver_id,category,amount,expense_date,description")
-      .eq("tenant_id", tenantId).gte("expense_date", dateFrom).lte("expense_date", dateTo).order("expense_date").order("id")),
+      .eq("tenant_id", tenantId).gte("expense_date", dateFrom).lte("expense_date", dateTo)
+      // validées seulement (sans statut = historique, compté validé) : une charge en attente ou rejetée n'est pas un fait
+      .or("status.is.null,status.eq.approved").order("expense_date").order("id")),
     all<any>(() => admin.from("payments").select("driver_id,amount,payment_date,salary_month,type")
       .eq("tenant_id", tenantId).order("payment_date").order("id")),
     admin.from("vehicles")
