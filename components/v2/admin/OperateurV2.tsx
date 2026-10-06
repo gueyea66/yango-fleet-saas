@@ -4,6 +4,8 @@
  * Saisie opérateur et validation (migration 075).
  * - SaisieOperateurV2 : l'opérateur (ex. dispatcher) saisit pour un chauffeur
  *   ses recettes hors Yango d'un jour, ou une charge avec preuve obligatoire.
+ *   Il corrige ou annule sa saisie tant qu'elle n'est pas validée. Un
+ *   décaissement (avance de fonds) ne se saisit que par un admin valideur.
  * - SaisiesAValiderV2 : un admin valideur (pas l'auteur) valide ou rejette.
  * - AdministrateursV2 : un valideur passe un admin en « saisie seule ».
  * - ObjectifFlotteV2 : « chaque chauffeur fait-il l'objectif ? », en un coup d'œil.
@@ -22,6 +24,7 @@ import { notifyDataChanged, useDataRefresh } from "@/lib/dataRefresh";
 import type { SegmentFilter } from "@/lib/analytics/segment";
 import { ObjectifControl, STATUS_COLOR, StatusPill, usePerfMeta } from "./perfShared";
 
+type TypeSaisie = "hors_yango" | "charge" | "decaissement";
 type Driver = { id: string; full_name?: string | null; driver_id?: string | null; active?: boolean | null; account_type?: string | null };
 
 const field: CSSProperties = { width: "100%", minWidth: 0, padding: "9px 11px", borderRadius: 10, border: "1px solid var(--sk-border)", background: "var(--sk-bg)", color: "inherit", fontSize: 16 };
@@ -41,14 +44,15 @@ function StatutBadge({ s }: { s: string }) {
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { cache: "no-store", ...init, headers: { "Content-Type": "application/json", ...(init?.headers || {}) } });
   const j = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(j.error || `Erreur ${res.status}`);
+  if (!res.ok) throw Object.assign(new Error(j.error || `Erreur ${res.status}`), { doublon: j.doublon === true });
   return j as T;
 }
 
 interface SaisiesData {
   me: { id: string; peut_valider: boolean };
   horsYango: { id: string; driver_id: string; chauffeur: string; jour: string; montant: number; courses: number; note: string | null; status: string; saisi_par: string | null; valide_par: string | null; entered_by: string | null; rejection_reason: string | null }[];
-  charges: { id: string; driver_id: string; chauffeur: string; expense_date: string; category: string; amount: number; description: string | null; status: string; saisi_par: string | null; valide_par: string | null; entered_by: string | null; pieces: number; fichiers: { file_path: string; file_name: string | null }[] }[];
+  charges: { id: string; driver_id: string; chauffeur: string; expense_date: string; category: string; amount: number; description: string | null; status: string; saisi_par: string | null; valide_par: string | null; entered_by: string | null; pieces: number; fichiers: { file_path: string; file_name: string | null }[];
+    rejection_reason: string | null; decaissement: boolean; advance_driver_id: string | null; beneficiaire: string | null; doublons: { origine: string; status: string }[] }[];
 }
 
 function useSaisies(statut: "submitted" | "all", tick: number) {
@@ -69,7 +73,10 @@ function useSaisies(statut: "submitted" | "all", tick: number) {
 /* ── Saisie (opérateur) ─────────────────────────────────────── */
 
 export function SaisieOperateurV2({ drivers, tenantId }: { drivers: Driver[]; tenantId: string }) {
-  const [type, setType] = useState<"hors_yango" | "charge">("hors_yango");
+  const [type, setType] = useState<TypeSaisie>("hors_yango");
+  const [benef, setBenef] = useState("");
+  // saisie en cours de correction (la sienne, encore en attente)
+  const [edit, setEdit] = useState<{ id: string; pieces: number } | null>(null);
   const [driverId, setDriverId] = useState("");
   const [jour, setJour] = useState(today());
   const [montant, setMontant] = useState("");
@@ -82,35 +89,82 @@ export function SaisieOperateurV2({ drivers, tenantId }: { drivers: Driver[]; te
   const [tick, setTick] = useState(0);
   const { data, error } = useSaisies("all", tick);
   const chauffeurs = drivers.filter((d) => d.account_type !== "technical" && d.active !== false);
+  const techniques = drivers.filter((d) => d.account_type === "technical" && d.active !== false);
+  const valideur = data?.me.peut_valider === true;
+  const avecPreuve = type !== "hors_yango";
+  const comptes = type === "decaissement" ? techniques : chauffeurs;
 
-  const reset = () => { setMontant(""); setCourses(""); setTexte(""); setFichiers([]); };
+  const reset = () => { setMontant(""); setCourses(""); setTexte(""); setFichiers([]); setBenef(""); setEdit(null); };
+  const changerType = (t: TypeSaisie) => { setType(t); setMsg(null); setDriverId(""); setBenef(""); setEdit(null); };
   const submit = async () => {
     setMsg(null);
-    if (!driverId) return setMsg({ ok: false, t: "Choisissez le chauffeur." });
+    if (!driverId) return setMsg({ ok: false, t: type === "decaissement" ? "Choisissez le compte de décaissement." : "Choisissez le chauffeur." });
     if (!(Number(montant) > 0)) return setMsg({ ok: false, t: "Montant requis." });
-    if (type === "charge" && fichiers.length === 0) return setMsg({ ok: false, t: "Preuve obligatoire : ajoutez une photo du reçu." });
+    if (type === "decaissement" && !texte.trim()) return setMsg({ ok: false, t: "Motif du décaissement obligatoire." });
+    if (avecPreuve && fichiers.length + (edit?.pieces ?? 0) === 0) return setMsg({ ok: false, t: "Preuve obligatoire : ajoutez une photo du reçu." });
     setBusy(true);
     try {
-      const body = type === "hors_yango"
+      const champs = type === "hors_yango"
         ? { type, driver_id: driverId, jour, montant: Number(montant), courses: courses ? Number(courses) : 0, note: texte }
-        : { type, driver_id: driverId, date: jour, categorie, montant: Number(montant), description: texte };
-      const { id } = await api<{ id: string }>("/api/admin/saisies", { method: "POST", body: JSON.stringify(body) });
-      if (type === "charge") {
+        : type === "charge"
+          ? { type, driver_id: driverId, date: jour, categorie, montant: Number(montant), description: texte }
+          : { type, driver_id: driverId, date: jour, montant: Number(montant), description: texte, advance_driver_id: benef || null };
+      let id: string;
+      if (edit) {
+        // correction : un décaissement est une ligne « charge » côté API
+        await api("/api/admin/saisies", { method: "PUT", body: JSON.stringify({ ...champs, type: type === "hors_yango" ? type : "charge", id: edit.id }) });
+        id = edit.id;
+      } else {
+        const envoyer = (extra?: object) => api<{ id: string }>("/api/admin/saisies", { method: "POST", body: JSON.stringify({ ...champs, ...extra }) });
+        try { ({ id } = await envoyer()); }
+        catch (e) {
+          // même dépense déjà déclarée (par le chauffeur ou l'exploitation) : on demande avant de doubler
+          if (!(e as { doublon?: boolean }).doublon) throw e;
+          if (!confirm(`${(e as Error).message}\n\nEnregistrer quand même cette charge ?`)) return;
+          ({ id } = await envoyer({ confirmer_doublon: true }));
+        }
+      }
+      if (avecPreuve && fichiers.length) {
         // preuve rattachée au chauffeur concerné (driver_id) et à la charge (ref_id)
         const r = await envoyerPieces({ fichiers, driverId, tenantId, fileType: "expense", refId: id });
         const m = messageEchecs(r);
-        if (m) { setMsg({ ok: false, t: `Charge enregistrée mais preuve incomplète :\n${m}` }); setTick((t) => t + 1); return; }
+        if (m) { setMsg({ ok: false, t: `Saisie enregistrée mais preuve incomplète :\n${m}` }); setFichiers([]); setEdit({ id, pieces: (edit?.pieces ?? 0) + r.reussies }); setTick((t) => t + 1); return; }
       }
-      setMsg({ ok: true, t: type === "charge" ? "Charge envoyée en validation." : "Hors Yango envoyé en validation." });
+      setMsg({ ok: true, t: edit ? "Saisie corrigée." : type === "charge" ? "Charge envoyée en validation." : type === "decaissement" ? "Décaissement envoyé en validation." : "Hors Yango envoyé en validation." });
       reset(); setTick((t) => t + 1); notifyDataChanged();
     } catch (e) {
       setMsg({ ok: false, t: e instanceof Error ? e.message : String(e) });
     } finally { setBusy(false); }
   };
 
-  const lignes = [
-    ...(data?.horsYango ?? []).map((s) => ({ k: `h${s.id}`, date: s.jour, chauffeur: s.chauffeur, quoi: `Hors Yango${s.courses ? ` · ${s.courses} course(s)` : ""}`, montant: s.montant, status: s.status, info: s.rejection_reason ? `Motif : ${s.rejection_reason}` : s.valide_par ? `par ${s.valide_par}` : "" })),
-    ...(data?.charges ?? []).map((c) => ({ k: `c${c.id}`, date: c.expense_date, chauffeur: c.chauffeur, quoi: `${c.category}${c.pieces ? ` · 📎 ${c.pieces}` : " · sans preuve"}`, montant: c.amount, status: c.status, info: c.valide_par ? `par ${c.valide_par}` : "" })),
+  // sa propre saisie, encore en attente : corrigeable et annulable
+  const aMoi = (x: { entered_by: string | null; status: string }) => x.status === "submitted" && !!data && x.entered_by === data.me.id;
+  const corriger = (l: Ligne) => {
+    setMsg(null); setFichiers([]);
+    if (l.h) {
+      setType("hors_yango"); setDriverId(l.h.driver_id); setJour(l.h.jour); setMontant(String(l.h.montant)); setCourses(l.h.courses ? String(l.h.courses) : ""); setTexte(l.h.note ?? "");
+      setEdit({ id: l.h.id, pieces: 0 });
+    } else if (l.c) {
+      setType(l.c.decaissement ? "decaissement" : "charge"); setDriverId(l.c.driver_id); setJour(l.c.expense_date); setMontant(String(l.c.amount)); setTexte(l.c.description ?? "");
+      if (l.c.decaissement) setBenef(l.c.advance_driver_id ?? ""); else setCategorie(l.c.category);
+      setEdit({ id: l.c.id, pieces: l.c.pieces });
+    }
+    if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const annuler = async (l: Ligne) => {
+    if (!confirm("Annuler cette saisie ? Elle est supprimée, avec sa preuve.")) return;
+    setBusy(true);
+    try {
+      await api(`/api/admin/saisies?type=${l.h ? "hors_yango" : "charge"}&id=${(l.h ?? l.c)!.id}`, { method: "DELETE" });
+      if (edit?.id === (l.h ?? l.c)!.id) reset();
+      setMsg({ ok: true, t: "Saisie annulée." }); setTick((t) => t + 1); notifyDataChanged();
+    } catch (e) { setMsg({ ok: false, t: e instanceof Error ? e.message : String(e) }); } finally { setBusy(false); }
+  };
+
+  type Ligne = { k: string; date: string; chauffeur: string; quoi: string; montant: number; status: string; info: string; mine: boolean; h?: SaisiesData["horsYango"][number]; c?: SaisiesData["charges"][number] };
+  const lignes: Ligne[] = [
+    ...(data?.horsYango ?? []).map((s) => ({ k: `h${s.id}`, date: s.jour, chauffeur: s.chauffeur, quoi: `Hors Yango${s.courses ? ` · ${s.courses} course(s)` : ""}`, montant: s.montant, status: s.status, info: s.rejection_reason ? `Motif : ${s.rejection_reason}` : s.valide_par ? `par ${s.valide_par}` : "", mine: aMoi(s), h: s })),
+    ...(data?.charges ?? []).map((c) => ({ k: `c${c.id}`, date: c.expense_date, chauffeur: c.decaissement && c.beneficiaire ? `${c.chauffeur} → ${c.beneficiaire}` : c.chauffeur, quoi: `${c.decaissement ? "Décaissement" : c.category}${c.pieces ? ` · 📎 ${c.pieces}` : " · sans preuve"}`, montant: c.amount, status: c.status, info: c.rejection_reason ? `Motif : ${c.rejection_reason}` : c.valide_par ? `par ${c.valide_par}` : "", mine: aMoi(c), c })),
   ].sort((a, b) => (a.date < b.date ? 1 : -1)).slice(0, 60);
 
   return (
@@ -119,19 +173,36 @@ export function SaisieOperateurV2({ drivers, tenantId }: { drivers: Driver[]; te
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 600 }}>Nouvelle saisie</div>
-              <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>Saisie pour le compte d&apos;un chauffeur. Elle part en validation chez un autre administrateur.</div>
+              <div style={{ fontSize: 16, fontWeight: 600 }}>{edit ? "Corriger la saisie" : "Nouvelle saisie"}</div>
+              <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>{type === "decaissement"
+                ? "Sortie de fonds du compte de décaissement. Elle part en validation chez un autre administrateur valideur."
+                : "Saisie pour le compte d\u2019un chauffeur. Elle part en validation chez un autre administrateur."}</div>
             </div>
-            <Segmented options={[{ key: "hors_yango" as const, label: "Recette hors Yango" }, { key: "charge" as const, label: "Charge" }]} value={type} onChange={(t) => { setType(t); setMsg(null); }} ariaLabel="Type de saisie" />
+            {!edit && (
+              <Segmented options={[{ key: "hors_yango" as const, label: "Recette hors Yango" }, { key: "charge" as const, label: "Charge" },
+                // décaissement : administrateurs valideurs seulement (un profil « saisie seule » ne le voit pas)
+                ...(valideur ? [{ key: "decaissement" as const, label: "Décaissement" }] : [])]} value={type} onChange={changerType} ariaLabel="Type de saisie" />
+            )}
           </div>
+          {type === "decaissement" && techniques.length === 0 && (
+            <div style={{ fontSize: 13, color: STATUS_COLOR.sous }}>Aucun compte de décaissement : créez un compte technique dans Équipe (type de compte « Compte technique »).</div>
+          )}
           <div style={grid}>
-            <label style={label}>Chauffeur{type === "charge" ? " concerné" : ""}
+            <label style={label}>{type === "decaissement" ? "Compte de décaissement" : `Chauffeur${type === "charge" ? " concerné" : ""}`}
               <select value={driverId} onChange={(e) => setDriverId(e.target.value)} style={field}>
                 <option value="">— Choisir —</option>
-                {chauffeurs.map((d) => <option key={d.id} value={d.id}>{d.full_name || d.driver_id}</option>)}
+                {comptes.map((d) => <option key={d.id} value={d.id}>{d.full_name || d.driver_id}</option>)}
               </select>
             </label>
-            <label style={label}>{type === "charge" ? "Date de la dépense" : "Jour"}
+            {type === "decaissement" && (
+              <label style={label}>Remis à (facultatif)
+                <select value={benef} onChange={(e) => setBenef(e.target.value)} style={field}>
+                  <option value="">— Aucun chauffeur —</option>
+                  {chauffeurs.map((d) => <option key={d.id} value={d.id}>{d.full_name || d.driver_id}</option>)}
+                </select>
+              </label>
+            )}
+            <label style={label}>{type === "hors_yango" ? "Jour" : type === "charge" ? "Date de la dépense" : "Date du décaissement"}
               <input type="date" value={jour} max={today()} onChange={(e) => setJour(e.target.value)} style={field} />
             </label>
             {type === "charge" && (
@@ -150,21 +221,24 @@ export function SaisieOperateurV2({ drivers, tenantId }: { drivers: Driver[]; te
               </label>
             )}
           </div>
-          <label style={label}>{type === "charge" ? `Description${categorie === "Autre" ? " (obligatoire)" : ""}` : "Note (facultatif)"}
-            <input value={texte} onChange={(e) => setTexte(e.target.value)} maxLength={500} style={field} placeholder={type === "charge" ? "Ex. plein station Total VDN" : "Ex. course privée aéroport"} />
+          <label style={label}>{type === "charge" ? `Commentaire${categorie === "Autre" ? " (obligatoire)" : " (facultatif)"}` : type === "decaissement" ? "Motif (obligatoire)" : "Commentaire (facultatif)"}
+            <input value={texte} onChange={(e) => setTexte(e.target.value)} maxLength={500} style={field} placeholder={type === "charge" ? "Ex. plein station Total VDN" : type === "decaissement" ? "Ex. avance réparation embrayage" : "Ex. course privée aéroport"} />
           </label>
-          {type === "charge" && (
+          {avecPreuve && (
             <label style={{ ...label, flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, border: "1px dashed var(--sk-border)", cursor: "pointer", color: "var(--sk-t1, inherit)" }}>
-                <Paperclip size={14} aria-hidden /> Preuve (photo du reçu) — obligatoire
+                <Paperclip size={14} aria-hidden /> {edit?.pieces ? "Ajouter une preuve" : "Preuve (photo du reçu) — obligatoire"}
               </span>
               <input type="file" accept="image/*,application/pdf" capture="environment" multiple style={{ display: "none" }}
                 onChange={(e) => setFichiers(Array.from(e.target.files || []))} />
-              <span style={{ fontSize: 12 }}>{fichiers.length ? `${fichiers.length} fichier(s) : ${fichiers.map((f) => f.name).join(", ")}` : "Aucun fichier"}</span>
+              <span style={{ fontSize: 12 }}>{fichiers.length ? `${fichiers.length} fichier(s) : ${fichiers.map((f) => f.name).join(", ")}` : edit?.pieces ? `${edit.pieces} preuve(s) déjà jointe(s)` : "Aucun fichier"}</span>
             </label>
           )}
           {msg && <div role="status" style={{ fontSize: 13, whiteSpace: "pre-line", color: msg.ok ? STATUS_COLOR.atteint : STATUS_COLOR.sous }}>{msg.t}</div>}
-          <div><Button onClick={() => void submit()} disabled={busy}>{busy ? "Envoi…" : "Envoyer en validation"}</Button></div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Button onClick={() => void submit()} disabled={busy}>{busy ? "Envoi…" : edit ? "Enregistrer la correction" : "Envoyer en validation"}</Button>
+            {edit && <Button variant="outline" disabled={busy} onClick={() => { reset(); setMsg(null); }}>Abandonner la correction</Button>}
+          </div>
         </div>
       </Card>
 
@@ -181,6 +255,12 @@ export function SaisieOperateurV2({ drivers, tenantId }: { drivers: Driver[]; te
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.chauffeur}</div>
                     <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>{l.quoi}{l.info ? ` · ${l.info}` : ""}</div>
+                    {l.mine && (
+                      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+                        <Button size="sm" variant="outline" disabled={busy} onClick={() => corriger(l)}>{l.c && l.c.pieces === 0 ? "Corriger / ajouter la preuve" : "Corriger"}</Button>
+                        <Button size="sm" variant="outline" icon={X} disabled={busy} onClick={() => void annuler(l)}>Annuler</Button>
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
                     <span className="v2-num" style={{ fontWeight: 600 }}>{formatAmount(l.montant)}</span>
@@ -262,11 +342,16 @@ export function SaisiesAValiderV2({ onChanged }: { onChanged?: () => void }) {
         <div key={c.id} style={{ padding: "10px 16px", borderTop: "1px solid var(--sk-border)", display: "flex", flexDirection: "column", gap: 8 }}>
           <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             <button type="button" onClick={() => setOuvert(ouvert === c.id ? null : c.id)} style={{ textAlign: "left", background: "none", border: 0, padding: 0, color: "inherit", cursor: "pointer", minWidth: 0 }}>
-              <div style={{ fontSize: 14, fontWeight: 500 }}>{c.chauffeur} · {c.category} du {ddmm(c.expense_date)}</div>
+              <div style={{ fontSize: 14, fontWeight: 500 }}>{c.decaissement ? `Décaissement · ${c.chauffeur}${c.beneficiaire ? ` → ${c.beneficiaire}` : ""}` : `${c.chauffeur} · ${c.category}`} du {ddmm(c.expense_date)}</div>
               <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>{formatAmount(c.amount)} XOF{c.description ? ` · ${c.description}` : ""} · saisi par {c.saisi_par ?? "—"} · 📎 {c.pieces} {ouvert === c.id ? "▲" : "▼ voir la preuve"}</div>
             </button>
             {actions("charge", c.id, c.entered_by, c.pieces === 0)}
           </div>
+          {c.doublons.length > 0 && (
+            <div role="alert" style={{ fontSize: 12, padding: "6px 10px", borderRadius: 8, background: `${STATUS_COLOR.proche}26`, boxShadow: `inset 0 0 0 1px ${STATUS_COLOR.proche}66` }}>
+              Doublon possible : même chauffeur, même jour, même catégorie et même montant — {c.doublons.map((d) => `${d.origine === "chauffeur" ? "déclarée par le chauffeur" : "saisie par l\u2019exploitation"} (${STATUT[d.status]?.txt.toLowerCase() ?? d.status})`).join(", ")}. Vérifiez avant de valider.
+            </div>
+          )}
           {ouvert === c.id && <Preuves fichiers={c.fichiers} />}
         </div>
       ))}
