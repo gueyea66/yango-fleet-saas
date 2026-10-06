@@ -7,11 +7,11 @@ import {
   amortissementParc, type VehiculeAmortissable,
 } from "@/lib/calc";
 
-import { CAT_AVANCE } from "@/lib/expenseCategories";
+import { CAT_AVANCE, CAT_SOLDE, estChargeDeResultat } from "@/lib/expenseCategories";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
 
 // Catégories de dépenses au traitement spécial (front-load)
-const CAT_SOLDE = "Solde Yango";
+// CAT_SOLDE : importé de lib/expenseCategories (provision, hors résultat)
 const CAT_CARBU = "Carburant";
 
 export interface DailyRow {
@@ -281,7 +281,9 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       const netYango = brutYango - commission;
       const horsYango = reps.reduce((s, r) => s + (r.off_yango_revenue || 0), 0);
       const totalBrut = reps.reduce((s, r) => s + (r.net_after_expenses || 0), 0);
-      const totalExpenses = exps.reduce((s, e) => s + (e.amount || 0), 0);
+      // Achats de solde = provision (trésorerie), pas une charge : les commissions
+      // qu'ils paient sont déjà retirées de totalBrut (cf. CAT_SOLDE).
+      const totalExpenses = exps.filter((e: any) => e.category !== CAT_SOLDE).reduce((s, e) => s + (e.amount || 0), 0);
       const totalDepenses = totalExpenses + totalSalaries; // charges = dépenses + salaires
       const netFinal = totalBrut - totalDepenses;
 
@@ -415,7 +417,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       ]);
       const dailyRows: DailyRow[] = Array.from(dateSet).sort().map((date) => {
         const dayReps = reps.filter((r) => r.date === date);
-        const dayExps = exps.filter((e) => getED(e) === date);
+        const dayExps = exps.filter((e) => e.category !== CAT_SOLDE && getED(e) === date); // achat de solde = provision, hors net du jour
         const brutY = dayReps.reduce((s, r) => s + (r.yango_gross || 0) + (r.yango_bonus || 0), 0);
         const horsY = dayReps.reduce((s, r) => s + (r.off_yango_revenue || 0), 0);
         const netR = dayReps.reduce((s, r) => s + (r.net_after_expenses || 0), 0);
@@ -431,7 +433,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
 
       // ── EXPENSE BREAKDOWN BY CATEGORY ──
       const catMap = new Map<string, number>();
-      exps.forEach((e: any) => catMap.set(e.category || "Autre", (catMap.get(e.category || "Autre") || 0) + (e.amount || 0)));
+      exps.forEach((e: any) => { if (e.category !== CAT_SOLDE) catMap.set(e.category || "Autre", (catMap.get(e.category || "Autre") || 0) + (e.amount || 0)); });
       if (totalSalaries > 0) catMap.set("💵 Salaires", totalSalaries);
       const expenseBreakdown = Array.from(catMap.entries())
         .map(([type, amount]) => ({ type, amount, percent: totalDepenses > 0 ? (amount / totalDepenses) * 100 : 0 }))
@@ -531,8 +533,8 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       })).sort((a, b) => b.netDeclared - a.netDeclared);
 
       // ── TODAY / WEEK (approved only, avances exclues — neutres au résultat) ──
-      const todayExpenses = (allExps || []).filter((e: any) => e.category !== CAT_AVANCE && getED(e) === today && (!e.status || e.status === "approved")).reduce((s: number, e: any) => s + e.amount, 0);
-      const weekExpAmt = (allExps || []).filter((e: any) => e.category !== CAT_AVANCE && getED(e) >= weekAgo && getED(e) <= today && (!e.status || e.status === "approved")).reduce((s: number, e: any) => s + e.amount, 0);
+      const todayExpenses = (allExps || []).filter((e: any) => estChargeDeResultat(e.category) && getED(e) === today && (!e.status || e.status === "approved")).reduce((s: number, e: any) => s + e.amount, 0);
+      const weekExpAmt = (allExps || []).filter((e: any) => estChargeDeResultat(e.category) && getED(e) >= weekAgo && getED(e) <= today && (!e.status || e.status === "approved")).reduce((s: number, e: any) => s + e.amount, 0);
       const weekActiveDays = new Set(weekReps.filter((r: any) => !isRepos(r)).map((r: any) => r.date)).size || 1;
 
       // Jours ouvrés écoulés de la période (fin bornée à aujourd'hui) : jours

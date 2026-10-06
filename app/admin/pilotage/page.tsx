@@ -148,7 +148,6 @@ export default function PilotagePage() {
          ["targetMonthlyNet",        "Objectif net",      "XOF"] as const,
          ["maintenanceCostPerMonth", "Maintenance/véh",   "XOF"] as const,
          ["fuelDailyOverride",       "Override fuel/j",   "XOF"] as const,
-         ["soldeDailyOverride",      "Override solde/j",  "XOF"] as const,
        ] as [keyof PilotageParams, string, string][]).map(([k, label, unit]) => (
          <div key={String(k)}>
            <label className="block text-[10px] mb-1 font-semibold" style={{ color: "var(--sk-t3)" }}>{label}</label>
@@ -616,7 +615,6 @@ function CashFlowSection({ data, params }: { data: ReturnType<typeof usePilotage
           const rows = [
             { label: "CA net", value: cf.revenue, color: "var(--tenant-color)", positive: true },
             { label: `⛽ Carburant (~${params.fuelPctOfRevenue}%)`, value: cf.fuel, color: "#ef4444" },
-            { label: `💳 Solde ${platLabel()} (~${params.soldePctOfRevenue}%)`, value: cf.solde, color: "#f97316" },
             { label: "📦 Autres dépenses", value: cf.other, color: "var(--sk-t2)" },
             { label: "🔧 Maintenance", value: cf.maintenance, color: "var(--sk-t3)" },
             { label: "💵 Salaires", value: cf.salaries, color: "#f97316" },
@@ -644,6 +642,12 @@ function CashFlowSection({ data, params }: { data: ReturnType<typeof usePilotage
               <div className="text-[10px] mt-1 text-right" style={{ color: "var(--sk-t4)" }}>
                 {cf.revenue > 0 ? pct((cf.net / cf.revenue) * 100) : "—"} marge nette
               </div>
+              {/* provision : visible, jamais retirée du net (le CA est déjà net des commissions) */}
+              {cf.solde > 0 && (
+                <div className="text-[10px] mt-2" style={{ color: "var(--sk-t4)" }}>
+                  💳 Achats de solde {platLabel()} du mois : {xof(cf.solde)} XOF — provision, déjà couverte par les commissions
+                </div>
+              )}
             </Card>
           );
         })}
@@ -653,7 +657,7 @@ function CashFlowSection({ data, params }: { data: ReturnType<typeof usePilotage
       <Card>
         <div className="text-sm font-bold text-white mb-4">Comparaison Cash Flow — 3 mois</div>
         <ResponsiveContainer width="100%" height={240}>
-          <BarChart data={data.cashFlow.map((cf) => ({ name: cf.label, Carburant: cf.fuel, Solde: cf.solde, Maintenance: cf.maintenance, Salaires: cf.salaries, Autres: cf.other, "Net Cash": cf.net, CA: cf.revenue }))}>
+          <BarChart data={data.cashFlow.map((cf) => ({ name: cf.label, Carburant: cf.fuel, Maintenance: cf.maintenance, Salaires: cf.salaries, Autres: cf.other, "Net Cash": cf.net, CA: cf.revenue }))}>
             <CartesianGrid strokeDasharray="2 4" stroke="var(--sk-surface)" vertical={false} />
             <XAxis dataKey="name" tick={{ fontSize: 11, fill: "var(--sk-t3)" }} />
             <YAxis tick={{ fontSize: 10, fill: "var(--sk-t3)" }} tickFormatter={(v) => (v / 1000).toFixed(0) + "k"} />
@@ -969,7 +973,7 @@ function OpsSection({ data }: { data: ReturnType<typeof usePilotage> }) {
           { icon: "🚗", label: "Courses / jour", value: hasCourses ? data.avgDailyMetrics.avgCourses.toFixed(1) : "—", sub: hasFare ? `Prix moy: ${xof(data.avgDailyMetrics.avgFare)} XOF` : "Déclarez via rapport", color: "#22c55e" },
           { icon: "📍", label: "KM / jour", value: hasKm ? data.avgDailyMetrics.avgKm.toFixed(0) + " km" : "—", sub: hasKm && revenuePerKm > 0 ? `${xof(revenuePerKm)} XOF/km` : "Renseignez l'odomètre", color: "var(--sk-t2)" },
           { icon: "⛽", label: "Carburant / jour", value: xof(data.avgDailyMetrics.fuelRawDailyAvg), sub: data.avgDailyMetrics.fuelPricePerLiter > 0 ? `${xof(data.avgDailyMetrics.fuelPricePerLiter)} XOF/L · ${data.avgDailyMetrics.totalLiters.toFixed(0)}L` : "Ajoutez les litres en description", color: "#f97316" },
-          { icon: "💳", label: `Solde ${platLabel()} / jour`, value: xof(data.avgDailyMetrics.solde), sub: "Wallet moyen déclaré", color: "#3b82f6" },
+          { icon: "💳", label: `Achats de solde ${platLabel()} / jour`, value: xof(data.avgDailyMetrics.solde), sub: "Provision, hors résultat", color: "#3b82f6" },
           { icon: "🎯", label: "Prix moyen course", value: hasFare ? xof(data.avgDailyMetrics.avgFare) + " XOF" : "—", sub: `Brut ${platLabel()} ÷ nb courses`, color: "#a855f7" },
           { icon: "🔧", label: "Coût / km", value: hasKm && costPerKm > 0 ? xof(costPerKm) + " XOF" : "—", sub: "(Fuel + Solde) ÷ KM", color: "#ef4444" },
           { icon: "📊", label: "Taux net / brut", value: data.avgDailyMetrics.revenue > 0 ? ((data.avgDailyMetrics.net / data.avgDailyMetrics.revenue) * 100).toFixed(0) + "%" : "—", sub: "Net après dépenses ÷ brut", color: "#22c55e" },

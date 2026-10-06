@@ -65,3 +65,18 @@ export const CATS_MAINTENANCE: readonly string[] = [CAT_ENTRETIEN, CAT_REPARATIO
  * masquer le mois où il se produit.
  */
 export const CATS_PROVISIONNEES: readonly string[] = [CAT_ENTRETIEN];
+
+/**
+ * « Solde Yango » = achat de solde (recharge du wallet) : une PROVISION, pas
+ * une charge (Abdou, 06/10). Le solde acheté sert à payer les commissions
+ * Yango, et celles-ci sont déjà retirées de la recette (net après
+ * commissions). Compter l'achat ET la commission déduirait deux fois la même
+ * ponction. L'achat de solde est une sortie de cash : il reste dans la
+ * trésorerie (décaissements, avance de solde), jamais dans le résultat.
+ * Même règle que docs/SPEC-CALCULS.md §2 (net opérationnel).
+ */
+export const CAT_SOLDE = "Solde Yango";
+
+/** La catégorie pèse-t-elle sur le résultat ? Ni avance propriétaire, ni achat de solde. */
+export const estChargeDeResultat = (categorie: string | null | undefined): boolean =>
+  categorie !== CAT_AVANCE && categorie !== CAT_SOLDE;

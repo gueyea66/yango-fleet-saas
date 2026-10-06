@@ -17,7 +17,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAdminAuth } from "@/lib/auth/server";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 import { getPlanLimits } from "@/lib/plans";
-import { CAT_AVANCE } from "@/lib/expenseCategories";
+import { estChargeDeResultat } from "@/lib/expenseCategories";
 import { driverStats, sortStats, sansHorsYango } from "@/lib/analytics/driverStats";
 import {
   REPORTS, isReportKey, classementColumns, classementRow, declarationsRows, depensesRows, paiementsRows,
@@ -151,7 +151,7 @@ export async function GET(req: NextRequest) {
           // comme le tableau de bord (un .in / .neq PostgREST écarterait les NULL)
           fetchAllRows(() => scopeDrivers(expenseInPeriod(admin.from("expenses").select("driver_id,amount,category,status,expense_date")
             .eq("tenant_id", tenantId))).order("id"))
-            .then((rows: any[]) => rows.filter((e) => keepExpenseStatus(e.status) && e.category !== CAT_AVANCE && inSegDriver(e.driver_id))),
+            .then((rows: any[]) => rows.filter((e) => keepExpenseStatus(e.status) && estChargeDeResultat(e.category) && inSegDriver(e.driver_id))),
           // amorce du km compteur : dernière déclaration validée avec compteur avant la
           // période (fenêtre de 180 jours : un chauffeur absent plus longtemps repart à 0)
           fetchAllRows(() => scopeDrivers(admin.from("daily_reports").select("driver_id,date,end_odometer")
