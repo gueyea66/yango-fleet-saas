@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { CAT_AVANCE, CAT_ENTRETIEN, CAT_REPARATION, CATS_MAINTENANCE, CATS_PROVISIONNEES } from "@/lib/expenseCategories";
+import { CAT_AVANCE, CAT_SOLDE, CAT_ENTRETIEN, CAT_REPARATION, CATS_MAINTENANCE, CATS_PROVISIONNEES } from "@/lib/expenseCategories";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
 import { amortissementPeriode, kmParMoisDepuisCompteur, type VehiculeAmortissable } from "@/lib/calc";
 
@@ -11,9 +11,7 @@ export const DEFAULT_PARAMS = {
   workingDaysPerMonth: 26,
   targetMonthlyNet: 1300000,
   fuelPctOfRevenue: 18,
-  soldePctOfRevenue: 8,
   fuelDailyOverride: 0,
-  soldeDailyOverride: 0,
   maintenanceCostPerMonth: 50000,
   salaryRules: [
     { min_net: 0,       total_salary: 200000, label: "Base" },
@@ -52,6 +50,7 @@ export interface DriverPilotage {
 }
 
 export interface CashFlowMonth {
+  /** `solde` : achats de solde du mois, pour information — jamais retirés du net (provision, cf. CAT_SOLDE). */
   month: string; label: string; revenue: number; fuel: number; solde: number;
   other: number; maintenance: number; salaries: number; net: number; isProjection: boolean;
 }
@@ -255,7 +254,10 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
 
   // ── EXPENSE BREAKDOWN ─────────────────────────────
   const breakdownForPeriod = (start: string, end: string): ExpenseBreakdown[] => {
-    const pe = expenses.filter((e) => { const d = getED(e); return d >= start && d <= end; });
+    // Achats de solde exclus : provision et non charge. Le CA du Pilotage est
+    // net de commissions ; retirer aussi le solde qui les paie compterait deux
+    // fois la même ponction (cf. lib/expenseCategories CAT_SOLDE).
+    const pe = expenses.filter((e) => { const d = getED(e); return e.category !== CAT_SOLDE && d >= start && d <= end; });
     const total = pe.reduce((s, e) => s + (e.amount || 0), 0);
     const catMap = new Map<string, number>();
     pe.forEach((e) => catMap.set(e.category || "Autre", (catMap.get(e.category || "Autre") || 0) + (e.amount || 0)));
@@ -343,7 +345,7 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   const avgPricePerLiter = totalLiters > 0 ? totalFuelCostHist / totalLiters : 0;
 
   // Solde
-  const soldeExps = expenses.filter((e) => e.category === "Solde Yango");
+  const soldeExps = expenses.filter((e) => e.category === CAT_SOLDE);
   const totalSoldeCostHist = soldeExps.reduce((s, e) => s + (e.amount || 0), 0);
   const avgDailySoldeCost = totalSoldeCostHist / activeDaysAll;
 
@@ -363,7 +365,6 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   const avgDailyEntretien = entretienHist / activeDaysAll;
 
   const effectiveFuelPerDay = params.fuelDailyOverride > 0 ? params.fuelDailyOverride : avgDailyFuelCost;
-  const effectiveSoldePerDay = params.soldeDailyOverride > 0 ? params.soldeDailyOverride : avgDailySoldeCost;
 
   // ── MASSE SALARIALE DU MOIS COURANT ───────────────
   // Règle (Abdou) : salaire DÉJÀ VERSÉ ce mois → on s'en tient au réel ;
@@ -391,25 +392,20 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   }, 0);
 
   // Projection dépenses : taux journalier MTD × jours ouvrés restants (pas de scaling proportionnel)
-  // Fuel et solde utilisent l'override ou la moyenne réelle par jour ouvré
+  // Le carburant utilise l'override ou la moyenne réelle par jour ouvré
   const mtdFuelActual = curPnL.expensesByCategory.find((e) => e.category === "Carburant")?.amount || 0;
-  const mtdSoldeActual = curPnL.expensesByCategory.find((e) => e.category === "Solde Yango")?.amount || 0;
   const projFuelTotal = mtdFuelActual + effectiveFuelPerDay * workingDaysRemaining;
-  const projSoldeTotal = mtdSoldeActual + effectiveSoldePerDay * workingDaysRemaining;
   // Autres dépenses : taux journalier MTD × jours ouvrés restants
   const projExpByCategory = curPnL.expensesByCategory.map((e) => {
     if (e.category === "Carburant") return { ...e, amount: projFuelTotal };
-    if (e.category === "Solde Yango") return { ...e, amount: projSoldeTotal };
     // Dépenses ponctuelles (amende, contrôle routier) : gardées au réalisé, jamais extrapolées
     if (PONCTUELLES.has(e.category)) return { ...e };
     const dailyRate = e.amount / mtdWorkingDays;
     return { ...e, amount: e.amount + dailyRate * workingDaysRemaining };
   });
-  // Si pas encore de données carburant/solde ce mois, ajouter la projection complète
+  // Si pas encore de données carburant ce mois, ajouter la projection complète
   if (!curPnL.expensesByCategory.find((e) => e.category === "Carburant") && effectiveFuelPerDay > 0)
     projExpByCategory.push({ category: "Carburant", amount: effectiveFuelPerDay * workingDaysTotal, pct: 0 });
-  if (!curPnL.expensesByCategory.find((e) => e.category === "Solde Yango") && effectiveSoldePerDay > 0)
-    projExpByCategory.push({ category: "Solde Yango", amount: effectiveSoldePerDay * workingDaysTotal, pct: 0 });
   const projTotalExp = projExpByCategory.reduce((s, e) => s + e.amount, 0);
   const projMaintenance = chargeMaintenance(projExpByCategory);
   const projEbitda = projRevenue - (projTotalExp - maintenanceReelle(projExpByCategory)) - projectedTotalSalary - projMaintenance;
@@ -560,13 +556,13 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
   const rDays = activeDaysAll;
   const totalFuel = totalFuelCostHist;
   const totalSolde = totalSoldeCostHist;
-  const totalExpAll = expenses.reduce((s, e) => s + e.amount, 0);
+  const totalExpAll = expenses.filter((e) => e.category !== CAT_SOLDE).reduce((s, e) => s + e.amount, 0);
   const totalCourses = reports.reduce((s, r) => s + (r.yango_trip_count || 0) + (r.off_yango_trip_count || 0), 0);
   const totalKm = Array.from(reportKm.values()).reduce((s, v) => s + v, 0);
   const totalYangoGross = reports.reduce((s, r) => s + (r.yango_gross || 0), 0);
 
   const avgDailyMetrics = {
-    revenue: totalRev / rDays, fuel: effectiveFuelPerDay, solde: effectiveSoldePerDay,
+    revenue: totalRev / rDays, fuel: effectiveFuelPerDay, solde: avgDailySoldeCost,
     net: (totalRev - totalExpAll) / rDays,
     fuelPricePerLiter: avgPricePerLiter, totalLiters,
     fuelRawDailyAvg: avgDailyFuelCost, fuelNbDeclarations: fuelExps.length,
@@ -615,7 +611,9 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
     const mWorkDays = mCalDays <= 28 ? 24 : mCalDays <= 30 ? 26 : 27;
     const projDays = offset === 0 ? workingDaysTotal : (params.workingDaysPerMonth > 0 ? params.workingDaysPerMonth : mWorkDays);
     const fuel = effectiveFuelPerDay > 0 ? effectiveFuelPerDay * projDays : rev * (params.fuelPctOfRevenue / 100);
-    const solde = effectiveSoldePerDay > 0 ? effectiveSoldePerDay * projDays : rev * (params.soldePctOfRevenue / 100);
+    // Achats de solde : affichés pour information (réel du mois en cours), hors net —
+    // la recette est déjà nette des commissions que ce solde paie.
+    const solde = offset === 0 ? soldeExps.filter((e) => getED(e).startsWith(m)).reduce((s, e) => s + (e.amount || 0), 0) : 0;
     // Autres = taux journalier RÉEL des dépenses récurrentes (hors ponctuelles), pas le ratio global gonflé
     const other = avgDailyOtherRecurrent * projDays;
     // Cash et non dotation : une provision ne sort d'aucun compte. Ce tableau
@@ -631,7 +629,7 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
     // ⛔ Pas d'amortissement ici, et il ne faut pas en ajouter : le cash flow
     // suit l'argent qui entre et sort, or l'amortissement ne sort d'aucun
     // compte. C'est la mensualité de leasing qui a sa place dans ce tableau.
-    return { month: m, label: ml(m), revenue: rev, fuel, solde, other, maintenance: maint, salaries: sal, net: rev - fuel - solde - other - maint - sal, isProjection: isProj };
+    return { month: m, label: ml(m), revenue: rev, fuel, solde, other, maintenance: maint, salaries: sal, net: rev - fuel - other - maint - sal, isProjection: isProj };
   });
 
   // ── VEHICLE SIMULATION ────────────────────────────
