@@ -417,7 +417,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       ]);
       const dailyRows: DailyRow[] = Array.from(dateSet).sort().map((date) => {
         const dayReps = reps.filter((r) => r.date === date);
-        const dayExps = exps.filter((e) => getED(e) === date);
+        const dayExps = exps.filter((e) => e.category !== CAT_SOLDE && getED(e) === date); // achat de solde = provision, hors net du jour
         const brutY = dayReps.reduce((s, r) => s + (r.yango_gross || 0) + (r.yango_bonus || 0), 0);
         const horsY = dayReps.reduce((s, r) => s + (r.off_yango_revenue || 0), 0);
         const netR = dayReps.reduce((s, r) => s + (r.net_after_expenses || 0), 0);
