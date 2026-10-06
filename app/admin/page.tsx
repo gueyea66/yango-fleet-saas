@@ -4836,9 +4836,9 @@ function ExportMenu({ dateFrom, dateTo, segment = "all", mixte = false }: { date
 
   // "rapport_2026-07-01_2026-07-31.html" → "01/07/2026 → 31/07/2026"
   const periodOf = (name: string) => {
-    const m = name.match(/(rapport|bilan-ytd|deepdive)_(\d{4})-(\d{2})-(\d{2})_(\d{4})-(\d{2})-(\d{2})/);
+    const m = name.match(/(rapport|bilan-ytd|deepdive|point-hebdo)_(\d{4})-(\d{2})-(\d{2})_(\d{4})-(\d{2})-(\d{2})/);
     if (!m) return name.replace(".html", "");
-    const label = m[1] === "bilan-ytd" ? "Bilan YTD · " : m[1] === "deepdive" ? "Deep dive · " : "";
+    const label = m[1] === "bilan-ytd" ? "Bilan YTD · " : m[1] === "deepdive" ? "Deep dive · " : m[1] === "point-hebdo" ? "Point hebdo · " : "";
     return `${label}${m[4]}/${m[3]}/${m[2]} → ${m[7]}/${m[6]}/${m[5]}`;
   };
 
@@ -4888,7 +4888,7 @@ function ExportMenu({ dateFrom, dateTo, segment = "all", mixte = false }: { date
     };
   })();
 
-  const openReport = async (type: "monthly" | "ytd" | "deepdive" = "monthly", range?: { from: string; to: string }) => {
+  const openReport = async (type: "monthly" | "ytd" | "deepdive" | "hebdo" = "monthly", range?: { from: string; to: string }) => {
     const from = range?.from ?? dateFrom, to = range?.to ?? dateTo;
     setBusy(`report-${type}${range ? "-complet" : ""}`); setErr(null);
     // Onglet ouvert AU CLIC : la génération dure plusieurs secondes, et un
@@ -4948,6 +4948,16 @@ function ExportMenu({ dateFrom, dateTo, segment = "all", mixte = false }: { date
           {/* Période affichée en cours : les trois rapports portent sur le dernier mois COMPLET
               (retour Abdou 04/10 : « je vois toujours octobre »). La période en cours reste
               accessible, en entrée secondaire. */}
+          {/* Point hebdomadaire : toujours le mois en cours à date, quel que soit le filtre affiché. */}
+          <button onClick={() => openReport("hebdo", { from: `${todayIso.slice(0, 7)}-01`, to: todayIso })} disabled={!!busy}
+            className="w-full text-left text-sm px-4 py-2.5 font-semibold disabled:opacity-50"
+            style={{ color: "var(--sk-t1)", borderBottom: "1px solid var(--sk-surface)" }}>
+            {busy === "report-hebdo-complet" ? "Génération…" : "🗓️ Point hebdomadaire d'exploitation"}
+            <span className="block text-xs font-normal" style={{ color: "var(--sk-t3)" }}>
+              Pour l&apos;exploitation, chaque lundi : avancement du mois, semaine écoulée, actions de la semaine
+              {" · "}{`mois en cours, ${fr(`${todayIso.slice(0, 7)}-01`)} → ${fr(todayIso)}`}
+            </span>
+          </button>
           {([["monthly", "📊 Rapport de direction (mensuel)"], ["deepdive", "🔬 Deep dive opérationnel (premium)"], ["ytd", "📈 Bilan financier année-à-date (premium)"]] as const).map(([type, label]) => (
             <button key={type} onClick={() => openReport(type, enCours ? moisComplet : undefined)} disabled={!!busy}
               className="w-full text-left text-sm px-4 py-2.5 font-semibold disabled:opacity-50"

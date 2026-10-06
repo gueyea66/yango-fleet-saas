@@ -3,7 +3,7 @@ import { narrate } from "@/lib/ai/llmGateway";
 import { runAgentPanel } from "@/lib/report-agent/agents";
 import { renderReport } from "@/lib/report-agent/render";
 import type { BrandTheme, NarrativeResult } from "@/lib/report-agent/types";
-import { buildFleetDataset, type FleetReportKind } from "@/lib/reportAdapters/fleet";
+import { buildFleetDataset, debutDuMois, type FleetReportKind } from "@/lib/reportAdapters/fleet";
 import type { SegmentFilter } from "@/lib/analytics/segment";
 
 /**
@@ -16,8 +16,8 @@ import type { SegmentFilter } from "@/lib/analytics/segment";
  * Architecture : lib/reportAdapters/fleet.ts calcule le dataset (formules
  * IDENTIQUES au recap — aucun montant recalculé ailleurs), lib/report-agent/
  * (noyau NEUTRE et copiable, voir son README) orchestre le panel IA et rend
- * le HTML. Trois types de rapports : monthly (standard), ytd et deepdive
- * (premium). Le panel IA (narration multi-agent) est réservé au premium.
+ * le HTML. Quatre types de rapports : monthly et hebdo (standard), ytd et
+ * deepdive (premium). Le panel IA (narration multi-agent) est réservé au premium.
  *
  * Kill-switch global : REPORT_AGENT=off → narration désactivée partout,
  * les rapports sortent en mode déterministe (jamais bloquant).
@@ -91,6 +91,18 @@ export function previousMonthRange(now: Date = new Date()): { dateFrom: string; 
   return { dateFrom: first.toISOString().slice(0, 10), dateTo: last.toISOString().slice(0, 10) };
 }
 
+/**
+ * Période du point hebdomadaire : du 1er du mois à la veille (mois en cours à
+ * date). Lancé un lundi 1er, il couvre donc le mois qui vient de se terminer.
+ */
+export function monthToDateRange(now: Date = new Date()): { dateFrom: string; dateTo: string } {
+  const dateTo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - 1)).toISOString().slice(0, 10);
+  return { dateFrom: debutDuMois(dateTo), dateTo };
+}
+
+const PREFIXE: Record<FleetReportKind, string> = { monthly: "rapport", ytd: "bilan-ytd", deepdive: "deepdive", hebdo: "point-hebdo" };
+const LIBELLE: Record<FleetReportKind, string> = { monthly: "rapport d'activité", ytd: "bilan année-à-date", deepdive: "deep dive opérations", hebdo: "point hebdomadaire d'exploitation" };
+
 function fleetTheme(tenantName: string, platformLabel: string): BrandTheme {
   return {
     brandName: tenantName || "M3A FLEET",
@@ -113,6 +125,8 @@ export async function buildReportHtml(
   opts: BuildReportOptions = {}
 ): Promise<{ html: string; period: string; tenantName: string; narrated: boolean }> {
   const kind = opts.kind ?? "monthly";
+  // point hebdomadaire : toujours le mois en cours à date, quelle que soit la période demandée
+  if (kind === "hebdo") dateFrom = debutDuMois(dateTo);
   const { dataset, tenantName, platformLabel } = await buildFleetDataset(tenantId, dateFrom, dateTo, kind, opts.segment ?? "all");
 
   let narrative: NarrativeResult | null = null;
@@ -156,8 +170,7 @@ export async function generateAndStoreReport(
   // Bucket privé, créé au premier passage (idempotent).
   await admin.storage.createBucket(REPORTS_BUCKET, { public: false }).catch(() => { /* existe déjà */ });
 
-  const prefix = kind === "monthly" ? "rapport" : kind === "ytd" ? "bilan-ytd" : "deepdive";
-  const file = `${prefix}_${dateFrom}_${dateTo}.html`;
+  const file = `${PREFIXE[kind]}_${kind === "hebdo" ? debutDuMois(dateTo) : dateFrom}_${dateTo}.html`;
   const { error } = await admin.storage.from(REPORTS_BUCKET)
     .upload(`${tenantId}/${file}`, Buffer.from(html, "utf-8"), {
       contentType: "text/html; charset=utf-8",
@@ -170,7 +183,7 @@ export async function generateAndStoreReport(
     const { sendNotification, getTenantAdminId } = await import("./notifications");
     const adminId = await getTenantAdminId(tenantId);
     if (adminId) {
-      const label = kind === "monthly" ? "rapport d'activité" : kind === "ytd" ? "bilan année-à-date" : "deep dive opérations";
+      const label = LIBELLE[kind];
       await sendNotification(
         tenantId, adminId, "report_available",
         `📊 Votre ${label} est disponible`,

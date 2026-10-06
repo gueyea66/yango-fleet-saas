@@ -9,6 +9,10 @@
       "schedule": "0 7 1 * *"
     },
     {
+      "path": "/api/internal/weekly-reports",
+      "schedule": "0 7 * * 1"
+    },
+    {
       "path": "/api/telematics/rebuild",
       "schedule": "45 23 * * *"
     }

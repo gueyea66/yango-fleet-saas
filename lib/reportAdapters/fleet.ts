@@ -28,7 +28,7 @@ const admin = createClient(
   { db: { schema: "fleet" } }
 );
 
-export type FleetReportKind = "monthly" | "ytd" | "deepdive";
+export type FleetReportKind = "monthly" | "ytd" | "deepdive" | "hebdo";
 
 const fmt = (v: number) => Math.round(v).toLocaleString("fr-FR").replace(/ /g, " ");
 const pct = (part: number, total: number) => (total > 0 ? Math.round((part / total) * 1000) / 10 : 0);
@@ -1357,6 +1357,265 @@ async function deepdiveDataset(tenantId: string, dateFrom: string, dateTo: strin
   };
 }
 
+// ── point hebdomadaire d'exploitation (mois en cours, à date) ───────────────
+
+const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+/** Premier jour du mois de `iso` : le point hebdomadaire couvre toujours le mois en cours, du 1er à la date du rapport. */
+export const debutDuMois = (iso: string) => `${iso.slice(0, 7)}-01`;
+
+export interface RythmeMois {
+  joursEcoules: number; joursRestants: number;
+  /** journées-chauffeur attendues d'ici la fin du mois, au rythme d'activité observé */
+  journeesRestantes: number;
+  ecartADate: number;       // recette − objectif × journées travaillées
+  atterrissage: number;     // recette de fin de mois au rythme calendaire actuel
+  cibleMois: number;        // objectif × (journées travaillées + journées restantes)
+  /** CA par jour travaillé à tenir sur le reste du mois pour finir à l'objectif ; null si le mois est fini ou sans activité */
+  caJourRequis: number | null;
+}
+
+/**
+ * Où en est le mois à la date du rapport, et ce qu'il reste à faire.
+ * Projection volontairement simple : le rythme observé depuis le 1er se
+ * prolonge jusqu'à la fin du mois (mêmes chauffeurs, même nombre de journées).
+ */
+export function rythmeDuMois(a: { dateTo: string; recette: number; journees: number; objectif: number }): RythmeMois {
+  const [y, m, d] = a.dateTo.split("-").map(Number);
+  const joursMois = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  const joursEcoules = Math.min(d, joursMois), joursRestants = joursMois - joursEcoules;
+  const journeesRestantes = joursEcoules > 0 ? (a.journees / joursEcoules) * joursRestants : 0;
+  const cibleMois = a.objectif * (a.journees + journeesRestantes);
+  return {
+    joursEcoules, joursRestants, journeesRestantes,
+    ecartADate: a.recette - a.objectif * a.journees,
+    atterrissage: a.recette + (joursEcoules > 0 ? (a.recette / joursEcoules) * joursRestants : 0),
+    cibleMois,
+    caJourRequis: a.objectif > 0 && journeesRestantes >= 1 ? Math.max(0, (cibleMois - a.recette) / journeesRestantes) : null,
+  };
+}
+
+export interface LigneSemaine { id: string; nom: string; jours: number; ca: number; joursAvant: number; caAvant: number }
+
+/** Par chauffeur : la semaine écoulée (7 jours finissant à `dateTo`) et les 7 jours d'avant. */
+export function semaineContrePrecedente(
+  rows: { date: string; driver_id: string; brut: number; bonus: number; hors: number }[],
+  dateTo: string, nomDe: (id: string) => string,
+): LigneSemaine[] {
+  const debut = addDays(dateTo, -6), debutAvant = addDays(dateTo, -13);
+  const m = new Map<string, LigneSemaine>();
+  for (const r of rows) {
+    if (r.date > dateTo || r.date < debutAvant) continue;
+    const l = m.get(r.driver_id) ?? { id: r.driver_id, nom: nomDe(r.driver_id), jours: 0, ca: 0, joursAvant: 0, caAvant: 0 };
+    const ca = r.brut + r.bonus + r.hors;
+    if (r.date >= debut) { l.jours += 1; l.ca += ca; } else { l.joursAvant += 1; l.caAvant += ca; }
+    m.set(r.driver_id, l);
+  }
+  return Array.from(m.values()).sort((a, b) => b.ca - a.ca);
+}
+
+/** Saisies en attente de validation : elles ne sont pas comptées dans le rapport. */
+async function enAttente(tenantId: string): Promise<{ declarations: number; charges: number; horsYango: number }> {
+  const compte = async (table: string) => {
+    const { count, error } = await admin.from(table).select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("status", "submitted");
+    return error ? 0 : count ?? 0; // table absente avant la migration 075 : 0
+  };
+  const [declarations, charges, horsYango] = await Promise.all([compte("daily_reports"), compte("expenses"), compte("saisies_hors_yango")]);
+  return { declarations, charges, horsYango };
+}
+
+/**
+ * Point hebdomadaire d'exploitation. Un seul lecteur : l'exploitation, le
+ * lundi. Une seule question : où en est le mois en cours à date, et que
+ * faire cette semaine ? Ni compte de résultat (rapport de direction), ni
+ * analyse de fond des créneaux et des repos (deep dive) : l'avancement du
+ * mois, la semaine écoulée face à la précédente, puis des actions nommées.
+ */
+async function hebdoDataset(tenantId: string, dateTo: string, tenantName: string, segment: SegmentFilter = "all"): Promise<ReportDataset> {
+  const dateFrom = debutDuMois(dateTo);
+  const debutSemaine = addDays(dateTo, -6), debutAvant = addDays(dateTo, -13);
+  const [p, quinzaine, perf, ech, attente] = await Promise.all([
+    aggregatePeriod(tenantId, dateFrom, dateTo, segment),
+    aggregatePeriod(tenantId, debutAvant, dateTo, segment), // la semaine précédente peut déborder sur le mois d'avant
+    perfOf(tenantId, dateFrom, dateTo, segment),
+    echeances(admin, tenantId, dateTo, segment).catch(() => null),
+    enAttente(tenantId),
+  ]);
+  const recette = recetteOf(p.tot);
+  const caJour = p.tot.jours > 0 ? recette / p.tot.jours : 0;
+  const objectif = perf?.objectif ?? 0;
+  const r = rythmeDuMois({ dateTo, recette, journees: p.tot.jours, objectif });
+  const moisFini = r.joursRestants === 0;
+
+  // ── 1. le mois à date ──
+  const avancement: Section = {
+    kind: "table", title: "Le mois à date · réalisé, rythme et atterrissage",
+    lead: p.tot.jours === 0 ? "Aucune journée validée depuis le début du mois."
+      : objectif > 0
+        ? `À ${fmt(caJour)} F par jour travaillé pour un objectif de ${fmt(objectif)} F, le mois est <b>${r.ecartADate >= 0 ? "en avance" : "en retard"} de ${fmt(Math.abs(r.ecartADate))} F</b> à date.`
+        : `${fmt(recette)} F de recette en ${p.tot.jours} journées travaillées.`,
+    columns: [{ label: "Indicateur" }, { label: "Valeur", align: "right" }, { label: "Lecture" }],
+    rows: [
+      { cells: ["Recette réalisée", `<b>${fmt(recette)}</b>`, `du ${fr(dateFrom)} au ${fr(dateTo)} · ${r.joursEcoules} jour${r.joursEcoules > 1 ? "s" : ""} écoulé${r.joursEcoules > 1 ? "s" : ""}, ${r.joursRestants} restant${r.joursRestants > 1 ? "s" : ""}`] },
+      { cells: ["Journées travaillées", String(p.tot.jours), `${p.tot.repos} repos déclaré${p.tot.repos > 1 ? "s" : ""}`] },
+      { cells: ["CA par jour travaillé", `<b>${fmt(caJour)}</b>`, objectif > 0 ? `objectif ${fmt(objectif)} F` : "moyenne de la flotte"], highlight: objectif > 0 && p.tot.jours > 0 ? (caJour >= objectif ? "ok" as const : "alert" as const) : undefined },
+      ...(objectif > 0 && p.tot.jours > 0 ? [
+        { cells: ["Écart cumulé à l'objectif", `${r.ecartADate >= 0 ? "+" : "−"}${fmt(Math.abs(r.ecartADate))}`, "recette réalisée moins l'objectif des journées travaillées"] },
+        ...(!moisFini ? [
+          { cells: ["Atterrissage fin de mois", fmt(r.atterrissage), `au rythme actuel, pour une cible de ${fmt(r.cibleMois)} F (estimation)`] },
+          ...(r.caJourRequis != null ? [{ cells: ["CA par jour à tenir d'ici la fin du mois", `<b>${fmt(r.caJourRequis)}</b>`, `sur environ ${Math.round(r.journeesRestantes)} journées restantes, pour finir le mois à l'objectif (estimation)`], total: true }] : []),
+        ] : []),
+      ] : []),
+    ],
+    note: "Mois en cours, du 1er à la date du rapport. Les estimations prolongent le rythme observé depuis le 1er : mêmes chauffeurs, même nombre de journées travaillées par jour.",
+  };
+
+  // ── 2. la semaine écoulée face à la précédente ──
+  const noms = new Map(quinzaine.drivers.map((a) => [a.id, a]));
+  const lignes = semaineContrePrecedente(quinzaine.reportRows, dateTo, (id) => noms.get(id)?.name ?? id.slice(0, 8))
+    .filter((l) => !noms.get(l.id)?.technical);
+  const parJour = (ca: number, j: number) => (j > 0 ? ca / j : null);
+  const variation = (l: { jours: number; ca: number; joursAvant: number; caAvant: number }) => {
+    const a = parJour(l.ca, l.jours), b = parJour(l.caAvant, l.joursAvant);
+    return a != null && b != null && b > 0 ? Math.round(((a - b) / b) * 100) : null;
+  };
+  const totS = lignes.reduce((t, l) => ({ jours: t.jours + l.jours, ca: t.ca + l.ca, joursAvant: t.joursAvant + l.joursAvant, caAvant: t.caAvant + l.caAvant }), { jours: 0, ca: 0, joursAvant: 0, caAvant: 0 });
+  const cellVar = (v: number | null) => (v == null ? "—" : `<span class="tag ${v >= 0 ? "ok" : "alert"}">${v >= 0 ? "+" : "−"}${Math.abs(v)} %</span>`);
+  const num = (v: number | null) => (v == null ? "—" : fmt(v));
+  const semaine: Section | null = lignes.length ? {
+    kind: "table", title: `La semaine du ${fr(debutSemaine)} au ${fr(dateTo)} face à la précédente`,
+    lead: totS.jours === 0 ? "Aucune journée validée cette semaine."
+      : `${fmt(totS.ca)} F en ${totS.jours} journées, soit <b>${fmt(totS.ca / totS.jours)} F par jour</b>${variation(totS) != null ? ` (${variation(totS)! >= 0 ? "+" : "−"}${Math.abs(variation(totS)!)} % face à la semaine précédente)` : ""}.`,
+    columns: [{ label: "Chauffeur" }, { label: "Jours", align: "right" }, { label: "CA / jour", align: "right" }, { label: "Jours sem. préc.", align: "right" }, { label: "CA / jour sem. préc.", align: "right" }, { label: "Variation", align: "right" }],
+    rows: [
+      ...lignes.map((l) => ({
+        cells: [`<span class="nw">${esc(l.nom)}</span>`, String(l.jours), num(parJour(l.ca, l.jours)), String(l.joursAvant), num(parJour(l.caAvant, l.joursAvant)), cellVar(variation(l))],
+        highlight: objectif > 0 && l.jours > 0 ? ((l.ca / l.jours) >= objectif ? "ok" as const : "alert" as const) : undefined,
+      })),
+      { cells: ["<b>Flotte</b>", String(totS.jours), num(parJour(totS.ca, totS.jours)), String(totS.joursAvant), num(parJour(totS.caAvant, totS.joursAvant)), cellVar(variation(totS))], total: true },
+    ],
+    note: `Semaine = 7 jours finissant le ${fr(dateTo)} ; semaine précédente = du ${fr(debutAvant)} au ${fr(addDays(dateTo, -7))} (elle peut déborder sur le mois d'avant). CA = Yango + bonus + hors Yango, journées validées seulement.${objectif > 0 ? ` Vert : objectif de ${fmt(objectif)} F par jour tenu sur la semaine.` : ""}`,
+  } : null;
+
+  const atteints = perf ? perf.chauffeurs.filter((c) => c.statut === "atteint").length : 0;
+  const refus = Number(perf?.facts.performance_courses_refusees ?? 0);
+  const perdu = Number(perf?.facts.performance_ca_non_realise_sur_refus_estime_fcfa ?? 0);
+  const sections = numbered([
+    avancement,
+    semaine,
+    perf ? withLead(pick(perf.sections, /face à l'objectif/) as Section, `Depuis le 1er : <b>${atteints} chauffeur${atteints > 1 ? "s" : ""} sur ${perf.chauffeurs.length}</b> à l'objectif${perf.manqueAGagner > 0 ? ` ; manque à gagner estimé : <b>${fmt(perf.manqueAGagner)} F</b>` : ""}.`) : null,
+    pick(perf?.sections, /Qualité de service/) ? withLead(pick(perf?.sections, /Qualité de service/) as Section, refus > 0 ? `<b>${fmt(refus)} courses refusées</b> depuis le 1er, environ ${fmt(perdu)} F non réalisés (estimation).` : null) : null,
+    ech?.section ?? null,
+  ]);
+
+  // ── actions de la semaine : une ligne = une personne ou une tâche nommée ──
+  const actions: Decision[] = [];
+  const totalAttente = attente.declarations + attente.charges + attente.horsYango;
+  if (totalAttente > 0) {
+    const quoi = [attente.declarations ? `${attente.declarations} déclaration${attente.declarations > 1 ? "s" : ""}` : null, attente.charges ? `${attente.charges} charge${attente.charges > 1 ? "s" : ""}` : null, attente.horsYango ? `${attente.horsYango} recette${attente.horsYango > 1 ? "s" : ""} hors Yango` : null].filter(Boolean).join(", ");
+    actions.push({ html: `<b>Valider ou rejeter les saisies en attente</b> (${quoi}) : elles ne sont comptées dans aucun chiffre tant qu'elles ne sont pas validées`, responsable: "Administrateur valideur", echeance: "aujourd'hui", gain: "chiffres du mois à jour" });
+  }
+  // présents la semaine d'avant, absents cette semaine
+  for (const l of lignes.filter((x) => x.jours === 0 && x.joursAvant >= 2).slice(0, 2)) {
+    actions.push({ html: `<b>Appeler ${esc(l.nom)}</b> : aucune journée validée cette semaine, contre ${l.joursAvant} la semaine précédente (panne, absence ou déclaration manquante ?)`, responsable: "Exploitation", echeance: "aujourd'hui", gain: `${fmt(l.caAvant)} F réalisés la semaine précédente` });
+  }
+  // en net recul d'une semaine sur l'autre
+  for (const l of lignes.filter((x) => x.jours >= 2 && x.joursAvant >= 2 && (variation(x) ?? 0) <= -15).sort((a, b) => (variation(a) ?? 0) - (variation(b) ?? 0)).slice(0, 2)) {
+    actions.push({ html: `<b>Faire le point avec ${esc(l.nom)}</b> : ${fmt(l.ca / l.jours)} F par jour cette semaine contre ${fmt(l.caAvant / l.joursAvant)} F la précédente (−${Math.abs(variation(l) ?? 0)} %)`, responsable: "Exploitation", echeance: "cette semaine", gain: `${fmt((l.caAvant / l.joursAvant - l.ca / l.jours) * l.jours)} F d'écart sur la semaine` });
+  }
+  // sous l'objectif depuis le début du mois
+  const dejaCites = new Set(actions.map((a) => a.html));
+  for (const c of (perf?.chauffeurs ?? []).filter((x) => x.statut === "sous").sort((a, b) => b.manque - a.manque).slice(0, 2)) {
+    if ([...dejaCites].some((h) => h.includes(esc(c.nom)))) continue;
+    actions.push({ html: `<b>Fixer un objectif de semaine à ${esc(c.nom)}</b> : ${fmt(c.caParJour ?? 0)} F par jour depuis le 1er pour un objectif de ${fmt(objectif)} F`, responsable: "Exploitation", echeance: "lundi", gain: `${fmt(c.manque)} F de manque à gagner depuis le 1er (estimation)` });
+  }
+  const pireRefus = (perf?.chauffeurs ?? []).filter((x) => x.refus > 0).sort((a, b) => b.caNonRealise - a.caNonRealise)[0];
+  if (pireRefus && pireRefus.caNonRealise > 0) {
+    actions.push({ html: `<b>Reprendre les refus de course avec ${esc(pireRefus.nom)}</b> : ${pireRefus.refus} refus depuis le 1er${pireRefus.acceptation != null ? `, acceptation ${Math.round(pireRefus.acceptation * 100)} %` : ""}`, responsable: "Exploitation", echeance: "cette semaine", gain: `${fmt(pireRefus.caNonRealise)} F non réalisés (estimation)` });
+  }
+  const sansActivite = (perf?.chauffeurs ?? []).filter((x) => x.sansActivite >= 3).sort((a, b) => b.sansActivite - a.sansActivite)[0];
+  if (sansActivite) {
+    actions.push({ html: `<b>Couvrir les jours sans activité de ${esc(sansActivite.nom)}</b> : ${sansActivite.sansActivite} jours sans course ni repos déclaré depuis le 1er (remplaçant ou repos à déclarer)`, responsable: "Exploitation", echeance: "cette semaine", gain: objectif > 0 ? `jusqu'à ${fmt(objectif)} F par jour récupéré (estimation)` : "non chiffré" });
+  }
+  if (Number(ech?.facts.echeances_documents_expires ?? 0) > 0) {
+    actions.push({ html: "<b>Régulariser les documents expirés avant toute remise en circulation</b> (tableau des échéances)", responsable: "Direction", echeance: "cette semaine", gain: "non chiffré" });
+  }
+
+  const actifs = p.drivers.filter((a) => !a.technical && a.jours > 0).length;
+  const facts: Record<string, string | number | null> = {
+    ...driverFacts(p), ...(perf?.facts ?? {}), ...(ech?.facts ?? {}),
+    perimetre: SEG_LABEL[segment], periode_du: frFull(dateFrom), periode_au: frFull(dateTo),
+    jours_ecoules_du_mois: r.joursEcoules, jours_restants_du_mois: r.joursRestants,
+    jours_travailles: p.tot.jours, repos_declares: p.tot.repos, courses: p.tot.courses,
+    recette_brute_fcfa: Math.round(recette), ca_par_jour_flotte_fcfa: Math.round(caJour),
+    ...(objectif > 0 && p.tot.jours > 0 ? {
+      ecart_cumule_a_l_objectif_fcfa: Math.round(r.ecartADate),
+      ...(!moisFini ? { atterrissage_fin_de_mois_estime_fcfa: Math.round(r.atterrissage), cible_du_mois_estimee_fcfa: Math.round(r.cibleMois), ...(r.caJourRequis != null ? { ca_par_jour_a_tenir_estime_fcfa: Math.round(r.caJourRequis) } : {}) } : {}),
+    } : {}),
+    semaine_recette_fcfa: Math.round(totS.ca), semaine_journees_travaillees: totS.jours,
+    semaine_precedente_recette_fcfa: Math.round(totS.caAvant), semaine_precedente_journees_travaillees: totS.joursAvant,
+    ...(variation(totS) != null ? { semaine_variation_ca_par_jour_pourcent: variation(totS) } : {}),
+    saisies_en_attente_de_validation: totalAttente,
+  };
+
+  const insights: Insight[] = [...(perf?.insights ?? []), ...(ech?.insights ?? [])];
+  if (objectif > 0 && p.tot.jours > 0 && !moisFini) {
+    insights.unshift(r.atterrissage >= r.cibleMois
+      ? { severity: "ok", html: `<b>Le mois atterrit à ${fmt(r.atterrissage)} F au rythme actuel</b>, au-dessus de la cible de ${fmt(r.cibleMois)} F (estimation).` }
+      : { severity: "alert", html: `<b>Au rythme actuel le mois atterrit à ${fmt(r.atterrissage)} F</b>, soit ${fmt(r.cibleMois - r.atterrissage)} F sous la cible de ${fmt(r.cibleMois)} F (estimation)${r.caJourRequis != null ? ` : il faut tenir ${fmt(r.caJourRequis)} F par jour travaillé d'ici la fin du mois` : ""}.` });
+  }
+  const vS = variation(totS);
+  if (vS != null && Math.abs(vS) >= 10) {
+    insights.push({ severity: vS > 0 ? "ok" : "warn", html: `<b>CA par jour de la semaine ${vS > 0 ? "en hausse" : "en baisse"} de ${Math.abs(vS)} %</b> face à la semaine précédente (${fmt(totS.ca / totS.jours)} F contre ${fmt(totS.caAvant / totS.joursAvant)} F).` });
+  }
+
+  return {
+    meta: {
+      docTitle: `Point hebdomadaire d'exploitation${segSuffix(segment)}`,
+      periodLabel: `Mois en cours à date : ${frFull(dateFrom)} → ${frFull(dateTo)}${segSuffix(segment)} · Montants en FCFA`,
+      generatedLabel: new Date().toLocaleDateString("fr-FR"),
+      shortLabel: `${frFull(dateFrom)} → ${frFull(dateTo)}`,
+      sourceLabel: `Source : ${tenantName} · M3A Fleet SaaS`,
+    },
+    kpis: [
+      { label: "CA par jour travaillé", value: fmt(caJour), sub: objectif > 0 ? `objectif ${fmt(objectif)} F` : "depuis le 1er", accent: true },
+      { label: "Recette du mois à date", value: fmt(recette), sub: `${p.tot.jours} journées · ${actifs} chauffeur${actifs > 1 ? "s" : ""}` },
+      ...(objectif > 0 && p.tot.jours > 0 && !moisFini ? [{ label: "Atterrissage fin de mois", value: fmt(r.atterrissage), sub: `cible ${fmt(r.cibleMois)} F · estimation`, accent: true }] : []),
+      ...(totS.jours > 0 ? [{ label: "CA par jour · semaine", value: fmt(totS.ca / totS.jours), sub: vS != null ? `${vS >= 0 ? "+" : "−"}${Math.abs(vS)} % face à la précédente` : `${totS.jours} journées` }] : []),
+      ...(perf ? [{ label: "Chauffeurs à l'objectif", value: `${atteints} / ${perf.chauffeurs.length}`, sub: "depuis le 1er" }] : []),
+      ...(totalAttente > 0 ? [{ label: "Saisies en attente", value: String(totalAttente), sub: "non comptées tant qu'elles ne sont pas validées" }] : []),
+    ],
+    sections,
+    facts,
+    aliases: aliasesOf(p),
+    context: [
+      ...CONTEXT_COMMON.filter((c) => !/ponction/i.test(c)),
+      ...segContext(segment), ...(perf?.context ?? []),
+      "Point hebdomadaire d'exploitation : il couvre le mois en cours du 1er à la date du rapport et sert à décider des actions de la semaine qui commence. Ni marge ni résultat net ici. Chaque action nomme un chauffeur ou une tâche, un responsable et une échéance dans la semaine.",
+      "Les montants « estimation » (atterrissage, cible, CA à tenir) prolongent le rythme observé depuis le 1er : ne pas les présenter comme acquis.",
+      ...(perf && !perf.hasFleetroom ? ["Pas d'export Yango pour ce compte : ni refus, ni taux d'acceptation — ne pas les inventer."] : []),
+    ],
+    deterministicInsights: insights,
+    deterministicDecisions: actions.slice(0, 6),
+    deterministicManques: [
+      ...(perf && !perf.hasFleetroom ? ["Pas d'export Yango (Fleetroom) : refus et taux d'acceptation ne sont pas mesurés."] : []),
+      ...(objectif === 0 ? ["Aucun objectif de CA par jour n'est réglé : ni écart, ni atterrissage face à une cible."] : []),
+      ...(p.tot.repos === 0 ? ["Aucun repos n'est déclaré dans l'application : un jour sans activité peut être un repos non saisi."] : []),
+      ...(totalAttente > 0 ? [`${totalAttente} saisie(s) en attente de validation ne sont pas comptées.`] : []),
+    ],
+    deterministicTldr: p.tot.jours === 0
+      ? `<b>Point de la semaine.</b> Aucune journée validée depuis le ${fr(dateFrom)}${totalAttente > 0 ? ` ; ${totalAttente} saisie(s) attendent une validation` : ""}.`
+      : `<b>Point de la semaine.</b> Depuis le ${fr(dateFrom)} : <b>${fmt(recette)} F</b> en ${p.tot.jours} journées, soit <b>${fmt(caJour)} F par jour</b>${objectif > 0 ? ` pour un objectif de ${fmt(objectif)} F` : ""}.${objectif > 0 && !moisFini ? ` Au rythme actuel le mois atterrit à ${fmt(r.atterrissage)} F pour une cible de ${fmt(r.cibleMois)} F (estimation).` : ""}${totS.jours > 0 && vS != null ? ` Cette semaine : ${fmt(totS.ca / totS.jours)} F par jour, ${vS >= 0 ? "+" : "−"}${Math.abs(vS)} % face à la précédente.` : ""}`,
+    profile: {
+      roles: ROLES_OPERATIONS,
+      editorSystem: EDITOR_OPERATIONS,
+      decisionStyle: "actions",
+      caps: { forces: 2, alertes: 4, info: 0, decisions: 6 },
+      labels: { tldr: "Point de la semaine", alertes: "Alertes", forces: "Ce qui fonctionne", decisions: "Actions de la semaine", manques: "Données manquantes" },
+      layout: ["tldr", "kpis", { sections: sections.map((_, i) => i) }, "alertes", "forces", "decisions", "manques"],
+    },
+  };
+}
+
 /**
  * White-label des libellés (retour Abdou 03/09) : le mot « Yango » des textes
  * générés est remplacé par le platform_label du tenant (migration 038) — même
@@ -1396,6 +1655,7 @@ export async function buildFleetDataset(
   const dataset =
     kind === "ytd" ? await ytdDataset(tenantId, dateTo, tenantName, segment)
     : kind === "deepdive" ? await deepdiveDataset(tenantId, dateFrom, dateTo, tenantName, segment)
+    : kind === "hebdo" ? await hebdoDataset(tenantId, dateTo, tenantName, segment)
     : await monthlyDataset(tenantId, dateFrom, dateTo, tenantName, segment);
   return { dataset: whiteLabelDataset(dataset, platformLabel), tenantName, platformLabel };
 }
