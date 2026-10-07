@@ -1,4 +1,4 @@
-import { doublonsPossibles, peutDecider, peutModifierSaisie, peutSaisirDecaissement, validerCharge, validerDecaissement, validerHorsYango, CATEGORIES_OPERATEUR } from "@/lib/operateur";
+import { doublonsPossibles, peutChangerDroit, peutDecider, peutModifierSaisie, peutSaisirDecaissement, validerCharge, validerCompteAdmin, validerDecaissement, validerHorsYango, CATEGORIES_OPERATEUR } from "@/lib/operateur";
 
 const D = "11111111-1111-4111-8111-111111111111";
 const today = "2026-10-02";
@@ -82,5 +82,49 @@ describe("doublon avec le flux chauffeur", () => {
       { ...c, id: "f", category: "Péage" },
     ];
     expect(doublonsPossibles(c, autres).map((e) => e.id)).toEqual(["b"]);
+  });
+});
+
+describe("droit de valider des administrateurs", () => {
+  const n = { id: "n", peut_valider: true }, d = { id: "d", peut_valider: true }, o = { id: "o", peut_valider: false };
+  it("un valideur change le droit d'un autre administrateur", () => {
+    expect(peutChangerDroit({ acteur: n, cibleId: "d", nouveau: false, admins: [n, d] }).ok).toBe(true);
+    expect(peutChangerDroit({ acteur: n, cibleId: "o", nouveau: true, admins: [n, o] }).ok).toBe(true);
+  });
+  it("jamais son propre droit : ni se le retirer, ni se le rendre", () => {
+    expect(peutChangerDroit({ acteur: n, cibleId: "n", nouveau: false, admins: [n, d] }).ok).toBe(false);
+    expect(peutChangerDroit({ acteur: o, cibleId: "o", nouveau: true, admins: [n, o] }).ok).toBe(false);
+  });
+  it("un profil saisie seule ne change le droit de personne", () => {
+    expect(peutChangerDroit({ acteur: o, cibleId: "n", nouveau: false, admins: [n, o] }).ok).toBe(false);
+  });
+  it("il reste toujours un valideur actif : les deux comptes ne peuvent pas finir en saisie seule", () => {
+    // n retire le droit de d : il reste n. d ne peut plus rien changer, n ne peut pas se retirer le sien.
+    const apres = [n, { ...d, peut_valider: false }];
+    expect(peutChangerDroit({ acteur: n, cibleId: "d", nouveau: false, admins: [n, d] }).ok).toBe(true);
+    expect(peutChangerDroit({ acteur: n, cibleId: "n", nouveau: false, admins: apres }).ok).toBe(false);
+    expect(peutChangerDroit({ acteur: apres[1], cibleId: "n", nouveau: false, admins: apres }).ok).toBe(false);
+    // un valideur désactivé ne compte pas comme valideur restant
+    expect(peutChangerDroit({ acteur: n, cibleId: "d", nouveau: false, admins: [{ ...n, active: false }, d] }).ok).toBe(false);
+  });
+  it("cible inconnue : refus", () => {
+    expect(peutChangerDroit({ acteur: n, cibleId: "x", nouveau: false, admins: [n, d] }).ok).toBe(false);
+  });
+});
+
+describe("compte gestionnaire", () => {
+  const base = { full_name: "  Awa Diop ", email: " Awa.Diop@Exemple.sn ", profil: "operateur", password: "provisoire-2026" };
+  it("création : nom, e-mail normalisé, profil et mot de passe provisoire", () => {
+    expect(validerCompteAdmin(base, "creation")).toEqual({ ok: true, value: { full_name: "Awa Diop", email: "awa.diop@exemple.sn", profil: "operateur", password: "provisoire-2026" } });
+    expect(validerCompteAdmin({ ...base, password: "court" }, "creation").ok).toBe(false);
+    expect(validerCompteAdmin({ ...base, email: "pas-une-adresse" }, "creation").ok).toBe(false);
+    expect(validerCompteAdmin({ ...base, full_name: " " }, "creation").ok).toBe(false);
+  });
+  it("seuls deux profils existent : valideur et opérateur", () => {
+    expect(validerCompteAdmin({ ...base, profil: "valideur" }, "creation").ok).toBe(true);
+    expect(validerCompteAdmin({ ...base, profil: "superadmin" }, "creation").ok).toBe(false);
+  });
+  it("modification : le mot de passe n'est jamais repris", () => {
+    expect(validerCompteAdmin({ ...base, password: "autre-mot-de-passe" }, "modification")).toEqual({ ok: true, value: { full_name: "Awa Diop", email: "awa.diop@exemple.sn", profil: "operateur" } });
   });
 });
