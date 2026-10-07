@@ -511,10 +511,11 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         else { entry.netPending += r.net_after_expenses || 0; entry.nbPending++; }
       });
       // ── Bonus d'objectif Yango (part chauffeur à un taux propre, cf. lib/salaire) ──
-      // Lu dans les transactions Yango et non dans les journées : Yango le crédite
-      // souvent un jour sans course, qui n'a donc pas de journée (45 cas sur NMK au
-      // 07/10/2026). Ce bonus-là manque au brut des journées : on l'ajoute ici au
-      // brut de la part chauffeur, sinon il ne serait payé à aucun taux.
+      // Lu dans les transactions Yango : c'est là que le libellé « Bonus d'objectif »
+      // le distingue des bonus à la course. Depuis la migration 082, un jour où Yango
+      // ne crédite que ce bonus a sa journée, donc le bonus est dans le brut. Filet de
+      // sécurité pour un jour pas encore recalculé : il est ajouté au brut de la part
+      // chauffeur, sinon il ne serait payé à aucun taux.
       if (bonusTx.length) {
         const profilDe = new Map<string, string>(drivers.filter((d: any) => d.yango_driver_id).map((d: any) => [d.yango_driver_id, d.id]));
         const joursDeclares = new Set(allActive.map((r: any) => `${r.driver_id}|${r.date}`));
