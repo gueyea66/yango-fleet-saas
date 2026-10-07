@@ -5,7 +5,7 @@ import { Check, CircleCheck, TriangleAlert, MessageSquare, Sparkles, Info, Chevr
 import { Badge, Button, Segmented, Toast } from "@/components/ui";
 import { useReportReview } from "@/components/admin/useReportReview";
 import { useExpenseReview } from "@/components/admin/useExpenseReview";
-import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
+import { CAT_AVANCE, EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
 import { displayLabel, platLabel } from "@/lib/tenant/platformLabel";
 import { formatAmount } from "@/lib/v2/format";
 import { netCheck, shortDayFr } from "@/lib/v2/driver";
@@ -16,6 +16,44 @@ import { AttachmentTile } from "@/components/admin/AttachmentTile";
 /* eslint-disable @typescript-eslint/no-explicit-any -- lignes rapports / dépenses non typées (convention du projet) */
 
 const nameOf = (r: any) => r?._profile?.full_name || r?.profiles?.full_name || r?._profile?.driver_id || "Chauffeur";
+
+/* ── Saisies opérateur (migration 075) : mêmes listes que le reste, règles à part ──
+ * Une charge saisie par l'exploitation vit dans « Dépenses », une recette hors
+ * Yango dans « Rapports », chacune avec sa pastille. La décision passe par
+ * /api/admin/saisies : jamais l'auteur, preuve obligatoire, motif de rejet. */
+interface OpsData {
+  me: { id: string; peut_valider: boolean };
+  horsYango: { id: string; driver_id: string; chauffeur: string; jour: string; montant: number; courses: number; note: string | null; saisi_par: string | null; entered_by: string | null; created_at?: string }[];
+  charges: { id: string; saisi_par: string | null; entered_by: string | null; pieces: number; beneficiaire: string | null; doublons: { origine: string; status: string }[] }[];
+}
+const estOperateur = (x: any) => x?.source === "operateur";
+
+function useOps(key: string) {
+  const [ops, setOps] = useState<OpsData | null>(null);
+  const load = useCallback(async () => {
+    try {
+      const r = await fetch("/api/admin/saisies?statut=submitted", { cache: "no-store" });
+      if (r.ok) setOps(await r.json()); // 409 = migration absente : pas de saisies opérateur
+    } catch { /* hors ligne : la liste chauffeur reste utilisable */ }
+  }, []);
+  useEffect(() => { void Promise.resolve().then(load); }, [load, key]);
+  return { ops, reload: load };
+}
+
+async function deciderSaisie(type: "hors_yango" | "charge", id: string, decision: "approved" | "rejected", motif: string) {
+  const res = await fetch("/api/admin/saisies", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type, id, decision, motif }) });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(j.error || `Erreur ${res.status}`);
+}
+
+/** Pourquoi l'appelant ne peut pas décider, ou null s'il le peut. */
+function blocage(ops: OpsData | null, auteur: string | null | undefined): string | null {
+  if (!ops) return "Chargement…";
+  if (!ops.me.peut_valider) return "Votre profil est en saisie seule : un administrateur valideur décide.";
+  if (auteur && auteur === ops.me.id) return "C'est votre saisie : un autre administrateur valide.";
+  return null;
+}
+
 const hhmm = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "");
 
 /**
@@ -30,7 +68,12 @@ export function PendingV2({ reports, expenses, loading, onRefresh }: {
   onRefresh: () => void;
 }) {
   const [kind, setKind] = useState<"reports" | "expenses">("reports");
-  const list = kind === "reports" ? reports : expenses;
+  const { ops, reload: reloadOps } = useOps(`${reports.length}:${expenses.map((e) => e.id).join(",")}`);
+  // recettes hors Yango saisies par l'exploitation : rangées avec les rapports
+  const horsYango = useMemo(() => (ops?.horsYango ?? []).map((s) => ({ id: `hy:${s.id}`, _hy: s, created_at: s.created_at })), [ops]);
+  const allReports = useMemo(() => [...horsYango, ...reports], [horsYango, reports]);
+  const refresh = useCallback(() => { onRefresh(); void reloadOps(); }, [onRefresh, reloadOps]);
+  const list = kind === "reports" ? allReports : expenses;
   const ids = useMemo(() => list.map((x) => x.id as string), [list]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const lastIndex = useRef(0);
@@ -63,7 +106,7 @@ export function PendingV2({ reports, expenses, loading, onRefresh }: {
       <div style={{ display: "flex", flexDirection: "column", borderRight: "1px solid var(--sk-surface)", minWidth: 0 }}>
         <div style={{ padding: "14px 16px" }}>
           <Segmented
-            options={[{ key: "reports", label: `Rapports ${reports.length}` }, { key: "expenses", label: `Dépenses ${expenses.length}` }]}
+            options={[{ key: "reports", label: `Rapports ${allReports.length}` }, { key: "expenses", label: `Dépenses ${expenses.length}` }]}
             value={kind} onChange={(k) => { setKind(k); setSelectedId(null); lastIndex.current = 0; }} ariaLabel="Type d'élément" style={{ width: "100%" }} size="mobile"
           />
         </div>
@@ -78,19 +121,25 @@ export function PendingV2({ reports, expenses, loading, onRefresh }: {
             const on = x.id === selectedId;
             const isReport = kind === "reports";
             const repos = isReport && typeof x.comment === "string" && x.comment.startsWith("[REPOS]");
+            const hy = x._hy as OpsData["horsYango"][number] | undefined;
+            const operateur = !!hy || estOperateur(x);
             return (
               <button key={x.id} type="button" role="option" aria-selected={on} onClick={() => select(x.id)} className="v2-row v2-focus"
                 style={{ display: "flex", flexDirection: "column", gap: 4, width: "100%", padding: "14px 20px", textAlign: "left", cursor: "pointer", border: "none", borderBottom: "1px solid var(--sk-surface)", color: "inherit",
                   background: on ? "var(--v2-select-bg)" : "transparent", boxShadow: on ? "inset 2px 0 0 var(--tenant-color)" : undefined }}>
                 <span style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: on ? 600 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nameOf(x)}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: on ? 600 : 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{hy ? hy.chauffeur : nameOf(x)}</span>
+                  {/* saisie faite par l'exploitation pour ce chauffeur, et non par lui */}
+                  {operateur && <Badge tone="neutral" square title="Saisie par l'exploitation pour ce chauffeur" style={{ fontSize: 10 }}>OPÉRATEUR</Badge>}
                   {isNew(x.created_at, now) && <Badge tone="brand" square style={{ fontSize: 10 }}>NOUVEAU</Badge>}
-                  <span className="v2-num" style={{ fontSize: 14 }}>{formatAmount(isReport ? x.net_after_expenses : x.amount)}</span>
+                  <span className="v2-num" style={{ fontSize: 14 }}>{formatAmount(hy ? hy.montant : isReport ? x.net_after_expenses : x.amount)}</span>
                 </span>
                 <span style={{ fontSize: 12, color: "var(--v2-muted)" }}>
-                  {isReport
-                    ? `${shortDayFr(x.date)} · ${repos ? "jour de repos" : x.yango_trip_count ? `${x.yango_trip_count} courses` : "rapport"}`
-                    : `${shortDayFr((x.expense_date || x.created_at || "").slice(0, 10))} · ${displayLabel(x.category || "Autre")}`}
+                  {hy
+                    ? `${shortDayFr(hy.jour)} · hors ${platLabel()}${hy.courses ? ` · ${hy.courses} course(s)` : ""}`
+                    : isReport
+                      ? `${shortDayFr(x.date)} · ${repos ? "jour de repos" : x.yango_trip_count ? `${x.yango_trip_count} courses` : "rapport"}`
+                      : `${shortDayFr((x.expense_date || x.created_at || "").slice(0, 10))} · ${x.category === CAT_AVANCE ? "Décaissement" : displayLabel(x.category || "Autre")}`}
                 </span>
               </button>
             );
@@ -104,10 +153,12 @@ export function PendingV2({ reports, expenses, loading, onRefresh }: {
           <div style={{ height: "100%", minHeight: 300, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--v2-muted)", fontSize: 14 }}>
             {list.length ? "Sélectionne un élément" : "Rien à valider pour l'instant"}
           </div>
+        ) : selected._hy ? (
+          <HorsYangoPanel key={selected.id} id={selected.id} saisie={selected._hy} ops={ops} onRefresh={refresh} onAction={onAction} />
         ) : kind === "reports" ? (
           <ReportPanel key={selected.id} report={selected} onRefresh={onRefresh} onAction={onAction} />
         ) : (
-          <ExpensePanel key={selected.id} expense={selected} onRefresh={onRefresh} onAction={onAction} />
+          <ExpensePanel key={selected.id} expense={selected} onRefresh={refresh} onAction={onAction} ops={ops} />
         )}
       </div>
       <Toast message={toast} onDone={clearToast} />
@@ -299,10 +350,82 @@ function ReportEditForm({ rv, report }: { rv: ReturnType<typeof useReportReview>
   );
 }
 
-export function ExpensePanel({ expense, onRefresh, onAction }: { expense: any; onRefresh: () => void; onAction: (id: string, label: string) => void }) {
+/** Recette hors Yango saisie par l'exploitation : même panneau, décision par l'API des saisies. */
+function HorsYangoPanel({ id, saisie, ops, onRefresh, onAction }: { id: string; saisie: OpsData["horsYango"][number]; ops: OpsData | null; onRefresh: () => void; onAction: (id: string, label: string) => void }) {
+  const [motif, setMotif] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const bloque = blocage(ops, saisie.entered_by);
+  const act = async (decision: "approved" | "rejected") => {
+    if (decision === "rejected" && !motif.trim()) { setErr("Écrivez le motif du rejet : l'opérateur le lira."); return; }
+    setSaving(true); setErr(null);
+    try {
+      await deciderSaisie("hors_yango", saisie.id, decision, motif.trim());
+      onAction(id, decision === "approved" ? `Recette hors ${platLabel()} validée — ${saisie.chauffeur}` : "Recette rejetée — l'opérateur voit le motif");
+      onRefresh();
+    } catch (e) { setErr(e instanceof Error ? e.message : String(e)); } finally { setSaving(false); }
+  };
+  const row = { display: "flex", padding: "11px 18px", borderBottom: "1px solid var(--sk-surface)", gap: 12 } as const;
+  return (
+    <PanelShell
+      title={`${saisie.chauffeur} · hors ${platLabel()}`}
+      sub={`Recette du ${shortDayFr(saisie.jour)} · saisie par ${saisie.saisi_par ?? "l'exploitation"} pour ce chauffeur`}
+      badge={<Badge tone="neutral" square style={{ padding: "5px 10px", fontSize: 12 }}>Saisie opérateur</Badge>}
+      actions={bloque ? <span style={{ fontSize: 13, color: "var(--v2-muted)" }}>{bloque}</span> : (
+        <>
+          <Button variant="danger" size="md" disabled={saving} onClick={() => void act("rejected")} style={{ height: 42 }}>Rejeter</Button>
+          <Button variant="validate" size="md" icon={Check} disabled={saving} onClick={() => void act("approved")} style={{ height: 42, fontWeight: 700 }}>{saving ? "…" : "Valider et suivant"}</Button>
+        </>
+      )}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ borderRadius: 14, background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", overflow: "hidden", fontSize: 14 }}>
+          <div style={row}><span style={{ flex: 1, color: "var(--sk-t2)" }}>Chauffeur</span><span>{saisie.chauffeur}</span></div>
+          <div style={row}><span style={{ flex: 1, color: "var(--sk-t2)" }}>Courses</span><span className="v2-num">{saisie.courses || "—"}</span></div>
+          {saisie.note && <div style={row}><span style={{ flex: 1, color: "var(--sk-t2)" }}>Commentaire</span><span style={{ textAlign: "right" }}>{saisie.note}</span></div>}
+          <div style={{ display: "flex", padding: "14px 18px", alignItems: "baseline" }}><span style={{ flex: 1, fontWeight: 600 }}>Montant</span><span className="v2-num" style={{ fontSize: 20, fontWeight: 600, color: "var(--fleet-positive)" }}>{formatAmount(saisie.montant)} XOF</span></div>
+        </div>
+        <Check2>Une fois validée, cette recette s&apos;ajoute à la journée du chauffeur.</Check2>
+        {!bloque && <MotifRejet value={motif} onChange={setMotif} />}
+        {err && <Check2 warn>{err}</Check2>}
+      </div>
+    </PanelShell>
+  );
+}
+
+function MotifRejet({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: "var(--v2-muted)" }}>
+      Motif de rejet (lu par l&apos;opérateur)
+      <textarea value={value} onChange={(e) => onChange(e.target.value)} rows={2} maxLength={300} className="v2-focus"
+        style={{ padding: "10px 12px", borderRadius: 10, background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", fontSize: 14, resize: "vertical", outline: "none" }} />
+    </label>
+  );
+}
+
+export function ExpensePanel({ expense, onRefresh, onAction, ops }: { expense: any; onRefresh: () => void; onAction: (id: string, label: string) => void; ops?: OpsData | null }) {
   const ev = useExpenseReview(expense, onRefresh);
   const [edit, setEdit] = useState(false);
   const name = nameOf(expense);
+  // charge saisie par l'exploitation : décision par l'API des saisies (jamais l'auteur, preuve obligatoire)
+  const operateur = estOperateur(expense);
+  const info = operateur ? ops?.charges.find((c) => c.id === expense.id) : undefined;
+  // `ops` absent = panneau ouvert hors de « À valider » (Historique) : lecture seule pour une saisie opérateur
+  const bloque = !operateur ? null : ops === undefined ? "Saisie opérateur : la décision se prend dans « À valider »." : blocage(ops, expense.entered_by);
+  const sansPreuve = operateur && ev.uploads.length === 0 && (info?.pieces ?? 0) === 0;
+  const [motif, setMotif] = useState("");
+  const [opSaving, setOpSaving] = useState(false);
+  const [opErr, setOpErr] = useState<string | null>(null);
+  const decaissement = expense.category === CAT_AVANCE;
+  const actOperateur = async (decision: "approved" | "rejected") => {
+    if (decision === "rejected" && !motif.trim()) { setOpErr("Écrivez le motif du rejet : l'opérateur le lira."); return; }
+    setOpSaving(true); setOpErr(null);
+    try {
+      await deciderSaisie("charge", expense.id, decision, motif.trim());
+      onAction(expense.id, decision === "approved" ? `${decaissement ? "Décaissement validé" : "Dépense validée"} — ${name}` : "Saisie rejetée — l'opérateur voit le motif");
+      onRefresh();
+    } catch (e) { setOpErr(e instanceof Error ? e.message : String(e)); } finally { setOpSaving(false); }
+  };
   const images = ev.uploads.filter((u: any) => u.kind === "image" || u.kind === "heic");
   const pjRef = useRef<HTMLInputElement>(null);
   const act = async (status: "approved" | "rejected") => {
@@ -313,25 +436,45 @@ export function ExpensePanel({ expense, onRefresh, onAction }: { expense: any; o
 
   return (
     <PanelShell
-      title={`${name} · ${displayLabel(expense.category || "Autre").toLowerCase()}`}
-      sub={`Dépense du ${shortDayFr((expense.expense_date || expense.created_at || "").slice(0, 10))}${expense.created_at ? ` · envoyée à ${hhmm(expense.created_at)}` : ""}`}
-      badge={images.length ? <Badge tone="ok" square style={{ padding: "5px 10px", fontSize: 12 }}>avec reçu photo</Badge> : <Badge tone="wait" square style={{ padding: "5px 10px", fontSize: 12 }}>sans reçu</Badge>}
-      actions={
+      title={`${name} · ${decaissement ? "décaissement" : displayLabel(expense.category || "Autre").toLowerCase()}`}
+      sub={`${decaissement ? "Décaissement" : "Dépense"} du ${shortDayFr((expense.expense_date || expense.created_at || "").slice(0, 10))}${expense.created_at ? ` · envoyée à ${hhmm(expense.created_at)}` : ""}${operateur ? ` · saisie par ${info?.saisi_par ?? "l'exploitation"} pour ${decaissement ? (info?.beneficiaire ?? "ce compte") : "ce chauffeur"}` : ""}`}
+      badge={
+        <span style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {operateur && <Badge tone="neutral" square style={{ padding: "5px 10px", fontSize: 12 }}>Saisie opérateur</Badge>}
+          {images.length || (operateur && ev.uploads.length) ? <Badge tone="ok" square style={{ padding: "5px 10px", fontSize: 12 }}>avec reçu</Badge> : <Badge tone="wait" square style={{ padding: "5px 10px", fontSize: 12 }}>sans reçu</Badge>}
+        </span>
+      }
+      actions={operateur ? (
+        bloque ? <span style={{ fontSize: 13, color: "var(--v2-muted)" }}>{bloque}</span> : (
+          <>
+            <Button variant="danger" size="md" disabled={opSaving} onClick={() => void actOperateur("rejected")} style={{ height: 42 }}>Rejeter</Button>
+            <Button variant="validate" size="md" icon={Check} disabled={opSaving || sansPreuve} title={sansPreuve ? "Preuve manquante" : undefined} onClick={() => void actOperateur("approved")} style={{ height: 42, fontWeight: 700 }}>
+              {opSaving ? "…" : "Valider et suivant"}
+            </Button>
+          </>
+        )
+      ) : (
         <>
           <Button variant="danger" size="md" disabled={ev.saving} onClick={() => void act("rejected")} style={{ height: 42 }}>Rejeter</Button>
           <Button variant="validate" size="md" icon={Check} disabled={ev.saving} onClick={() => void act("approved")} style={{ height: 42, fontWeight: 700 }}>
             {ev.saving ? "…" : "Valider et suivant"}
           </Button>
         </>
-      }
+      )}
     >
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_200px]" style={{ gap: 16 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {operateur && (info?.doublons.length ?? 0) > 0 && (
+            <Check2 warn>Doublon possible : même chauffeur, même jour, même catégorie et même montant — {info!.doublons.map((d) => (d.origine === "chauffeur" ? "déjà déclarée par le chauffeur" : "déjà saisie par l'exploitation")).join(", ")}. Vérifiez avant de valider.</Check2>
+          )}
+          {sansPreuve && <Check2 warn>Aucune preuve jointe : validation impossible. Ajoutez le reçu ou rejetez la saisie.</Check2>}
           <div style={{ borderRadius: 14, background: "var(--sk-bg)", border: "1px solid var(--sk-surface)", overflow: "hidden", fontSize: 14 }}>
             <div style={{ display: "flex", padding: "11px 18px", borderBottom: "1px solid var(--sk-surface)" }}><span style={{ flex: 1, color: "var(--sk-t2)" }}>Catégorie</span><span>{displayLabel(expense.category || "Autre")}</span></div>
             {expense.description && <div style={{ display: "flex", padding: "11px 18px", borderBottom: "1px solid var(--sk-surface)", gap: 12 }}><span style={{ flex: 1, color: "var(--sk-t2)" }}>Détail</span><span style={{ textAlign: "right" }}>{expense.description}</span></div>}
             <div style={{ display: "flex", padding: "14px 18px", alignItems: "baseline" }}><span style={{ flex: 1, fontWeight: 600 }}>Montant</span><span className="v2-num" style={{ fontSize: 20, fontWeight: 600, color: "var(--v2-negative-ink)" }}>{formatAmount(expense.amount)} XOF</span></div>
           </div>
+          {operateur && !bloque && <MotifRejet value={motif} onChange={setMotif} />}
+          {opErr && <Check2 warn>{opErr}</Check2>}
           <button type="button" onClick={() => setEdit((o) => !o)} aria-expanded={edit} className="v2-focus"
             style={{ alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", color: "var(--sk-t2)", fontSize: 13, cursor: "pointer", padding: "6px 0" }}>
             {edit ? <ChevronDown size={15} aria-hidden /> : <ChevronRight size={15} aria-hidden />}Modifier la dépense
