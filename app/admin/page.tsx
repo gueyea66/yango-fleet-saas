@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
-import { partSurCA } from "@/lib/salaire";
+import { configEffective, partSurCA } from "@/lib/salaire";
 import { obtenirUrlsSignees } from "@/lib/signedUrls";
 import { baseAmortissable, dureeAmortissementMois, porteParExploitant, kmParMoisDepuisCompteur } from "@/lib/calc";
 import { useRouter } from "next/navigation";
@@ -3060,7 +3060,7 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {allocations.map((d) => {
           // Config effective : modèle & base du chauffeur si définis, sinon tenant
-          const effCfg = { ...cfg, model: d.salary_model || cfg.model, base_amount: d.base_amount ?? cfg.base_amount };
+          const effCfg = configEffective(cfg, d);
           const dModel: string = effCfg.model;
           const salary = calcDriverSalary(d.netDeclared, effCfg, d.prorataFactor, d.brutDeclared, d.bonusObjectif);
           const isProrated = d.prorataFactor != null && d.prorataFactor < 1;
@@ -3149,7 +3149,7 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
   // moyenne × effectif, qui surestime dès qu'un chauffeur est entré en cours de mois.
   const allocations: any[] = Array.isArray(kpis.driverAllocations) ? kpis.driverAllocations : [];
   const realMasseSalariale = allocations.reduce((sum: number, d: any) => {
-    const effCfg = { ...cfg, model: d.salary_model || cfg.model, base_amount: d.base_amount ?? cfg.base_amount };
+    const effCfg = configEffective(cfg, d);
     return sum + calcDriverSalary(d.netDeclared, effCfg, d.prorataFactor, d.brutDeclared, d.bonusObjectif);
   }, 0);
 
