@@ -73,6 +73,51 @@ export function validerDecaissement(b: Record<string, unknown>, today: string): 
   return { ok: true, value: { driver_id, date, montant, advance_driver_id: benef, description } };
 }
 
+/**
+ * Peut-on changer le droit de valider d'un administrateur ?
+ *  - seul un valideur le peut ;
+ *  - jamais sur son propre compte (ni se retirer le droit, ni se le rendre) ;
+ *  - il reste toujours au moins un valideur actif, sinon plus personne ne
+ *    peut valider ni rétablir un droit depuis l'application.
+ */
+export function peutChangerDroit(p: {
+  acteur: { id: string; peut_valider: boolean };
+  cibleId: string;
+  nouveau: boolean;
+  admins: { id: string; peut_valider: boolean; active?: boolean | null }[];
+}): { ok: true } | Err {
+  if (!p.acteur.peut_valider) return { ok: false, error: "Réservé à un administrateur valideur." };
+  if (p.cibleId === p.acteur.id) return { ok: false, error: "Vous ne pouvez pas modifier votre propre droit : demandez à un autre administrateur valideur." };
+  if (!p.admins.some((a) => a.id === p.cibleId)) return { ok: false, error: "Administrateur introuvable" };
+  const restants = p.admins.filter((a) => a.peut_valider && a.active !== false && a.id !== p.cibleId).length;
+  if (!p.nouveau && restants === 0) return { ok: false, error: "Il doit rester au moins un administrateur valideur." };
+  return { ok: true };
+}
+
+/** Profils d'un compte gestionnaire : valideur (tous les droits) ou opérateur (saisie seule). */
+export type ProfilAdmin = "valideur" | "operateur";
+export const MDP_ADMIN_MIN = 10;
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+export interface CompteAdminInput { full_name: string; email: string; profil: ProfilAdmin; password?: string }
+
+/**
+ * Création (mot de passe exigé) ou modification (mot de passe ignoré) d'un
+ * compte gestionnaire. Le mot de passe n'est jamais modifiable ici après la
+ * création : chacun change le sien, personne ne prend le compte d'un autre.
+ */
+export function validerCompteAdmin(b: Record<string, unknown>, mode: "creation" | "modification"): Ok<CompteAdminInput> | Err {
+  const full_name = nettoie(b.full_name, 80);
+  const email = String(b.email ?? "").trim().toLowerCase();
+  if (!full_name || full_name.length < 2) return { ok: false, error: "Nom requis" };
+  if (!EMAIL.test(email) || email.length > 120) return { ok: false, error: "Adresse e-mail invalide" };
+  if (b.profil !== "valideur" && b.profil !== "operateur") return { ok: false, error: "Profil requis : valideur ou opérateur" };
+  if (mode === "modification") return { ok: true, value: { full_name, email, profil: b.profil } };
+  const password = String(b.password ?? "");
+  if (password.length < MDP_ADMIN_MIN) return { ok: false, error: `Mot de passe provisoire : ${MDP_ADMIN_MIN} caractères minimum` };
+  return { ok: true, value: { full_name, email, profil: b.profil, password } };
+}
+
 /** Un décaissement se saisit par un administrateur valideur, jamais par un profil « saisie seule ». */
 export function peutSaisirDecaissement(p: { peut_valider: boolean }): { ok: true } | Err {
   return p.peut_valider ? { ok: true } : { ok: false, error: "Les décaissements sont réservés aux administrateurs valideurs." };

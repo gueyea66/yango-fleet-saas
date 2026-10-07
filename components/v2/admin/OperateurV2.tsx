@@ -14,7 +14,7 @@ import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { Check, Paperclip, ShieldCheck, X } from "lucide-react";
 import { Button, Card, Segmented } from "@/components/ui";
 import { formatAmount } from "@/lib/v2/format";
-import { CATEGORIES_OPERATEUR } from "@/lib/operateur";
+import { CATEGORIES_OPERATEUR, MDP_ADMIN_MIN } from "@/lib/operateur";
 import { envoyerPieces, messageEchecs } from "@/lib/uploadPieces";
 import { obtenirUrlsSignees } from "@/lib/signedUrls";
 import { enrichUpload } from "@/lib/v2/history";
@@ -374,11 +374,24 @@ export function AdministrateursV2() {
     try { await api("/api/admin/administrateurs", { method: "PATCH", body: JSON.stringify({ id, peut_valider: v }) }); await load(); }
     catch (e) { alert(e instanceof Error ? e.message : String(e)); } finally { setBusy(null); }
   };
+  // création / modification d'un compte gestionnaire (valideur seulement)
+  const vide = { id: "", full_name: "", email: "", password: "", profil: "operateur" as "operateur" | "valideur" };
+  const [fiche, setFiche] = useState<typeof vide | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
+  const enregistrer = async () => {
+    if (!fiche) return;
+    setBusy("fiche"); setMsg(null);
+    try {
+      await api("/api/admin/administrateurs", { method: fiche.id ? "PUT" : "POST", body: JSON.stringify(fiche) });
+      setMsg({ ok: true, t: fiche.id ? "Compte modifié." : "Compte créé. Transmettez-lui son adresse et son mot de passe provisoire." });
+      setFiche(null); await load();
+    } catch (e) { setMsg({ ok: false, t: e instanceof Error ? e.message : String(e) }); } finally { setBusy(null); }
+  };
   return (
     <Card flush>
       <div style={{ padding: "14px 16px 6px" }}>
         <div style={{ fontSize: 15, fontWeight: 600 }}>Administrateurs et validation</div>
-        <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>Un administrateur « saisie seule » voit tout et saisit, mais ne valide rien. Personne ne valide sa propre saisie.</div>
+        <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>Un administrateur « saisie seule » voit tout et saisit, mais ne valide rien. Personne ne valide sa propre saisie, ni ne modifie son propre droit ; il reste toujours au moins un valideur.</div>
       </div>
       {error ? <div style={{ padding: 16, fontSize: 13, color: STATUS_COLOR.sous }}>{error}</div> : !data ? <div className="v2-skeleton" style={{ height: 60, margin: 16 }} aria-hidden /> : data.admins.map((a) => (
         <div key={a.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "10px 16px", borderTop: "1px solid var(--sk-border)" }}>
@@ -386,11 +399,55 @@ export function AdministrateursV2() {
             <div style={{ fontSize: 14, fontWeight: 500 }}>{a.full_name || "—"}{a.id === data.me.id ? " (vous)" : ""}</div>
             <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>{a.email}</div>
           </div>
-          <Segmented options={[{ key: "1", label: "Valideur" }, { key: "0", label: "Saisie seule" }]} value={a.peut_valider ? "1" : "0"}
-            onChange={(k) => { if (!data.me.peut_valider || busy) return; void toggle(a.id, k === "1"); }} ariaLabel={`Droit de valider de ${a.full_name}`} />
+          {data.me.peut_valider && <Button size="sm" variant="outline" disabled={!!busy} onClick={() => { setMsg(null); setFiche({ id: a.id, full_name: a.full_name ?? "", email: a.email ?? "", password: "", profil: a.peut_valider ? "valideur" : "operateur" }); }}>Modifier</Button>}
+          {a.id === data.me.id ? (
+            // son propre droit ne se modifie pas : ni se le retirer (compte bloqué), ni se le rendre
+            <span style={{ fontSize: 12, color: "var(--v2-muted)", textAlign: "right" }}>
+              <b style={{ color: "inherit" }}>{a.peut_valider ? "Valideur" : "Saisie seule"}</b> · votre droit est modifié par un autre valideur
+            </span>
+          ) : (
+            <Segmented options={[{ key: "1", label: "Valideur" }, { key: "0", label: "Saisie seule" }]} value={a.peut_valider ? "1" : "0"}
+              onChange={(k) => { if (!data.me.peut_valider || busy || (k === "1") === a.peut_valider) return; void toggle(a.id, k === "1"); }} ariaLabel={`Droit de valider de ${a.full_name}`} />
+          )}
         </div>
       ))}
-      {data && !data.me.peut_valider && <div style={{ padding: "8px 16px 14px", fontSize: 12, color: "var(--v2-muted)" }}>Seul un administrateur valideur peut modifier ces droits.</div>}
+      {data && !data.me.peut_valider && <div style={{ padding: "8px 16px 14px", fontSize: 12, color: "var(--v2-muted)" }}>Seul un administrateur valideur peut créer un compte ou modifier ces droits.</div>}
+      {data?.me.peut_valider && (
+        <div style={{ padding: "12px 16px 16px", borderTop: "1px solid var(--sk-border)", display: "flex", flexDirection: "column", gap: 10 }}>
+          {!fiche ? (
+            <div><Button size="sm" onClick={() => { setMsg(null); setFiche(vide); }}>Ajouter un compte</Button></div>
+          ) : (
+            <>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>{fiche.id ? "Modifier le compte" : "Nouveau compte"}</div>
+              <div style={grid}>
+                <label style={label}>Nom
+                  <input value={fiche.full_name} maxLength={80} onChange={(e) => setFiche({ ...fiche, full_name: e.target.value })} style={field} />
+                </label>
+                <label style={label}>Adresse e-mail (identifiant de connexion)
+                  <input type="email" value={fiche.email} maxLength={120} autoComplete="off" onChange={(e) => setFiche({ ...fiche, email: e.target.value })} style={field} />
+                </label>
+                {!fiche.id && (
+                  <label style={label}>Mot de passe provisoire ({MDP_ADMIN_MIN} caractères minimum)
+                    <input type="text" value={fiche.password} autoComplete="off" onChange={(e) => setFiche({ ...fiche, password: e.target.value })} style={field} />
+                  </label>
+                )}
+                <label style={label}>Profil
+                  <select value={fiche.profil} disabled={fiche.id === data.me.id} onChange={(e) => setFiche({ ...fiche, profil: e.target.value as "operateur" | "valideur" })} style={field}>
+                    <option value="operateur">Opérateur — saisie seule, ne valide rien</option>
+                    <option value="valideur">Administrateur — valide, crée les comptes</option>
+                  </select>
+                </label>
+              </div>
+              {fiche.id === data.me.id && <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>Votre propre profil est modifié par un autre valideur.</div>}
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Button size="sm" disabled={busy === "fiche"} onClick={() => void enregistrer()}>{busy === "fiche" ? "Enregistrement…" : fiche.id ? "Enregistrer" : "Créer le compte"}</Button>
+                <Button size="sm" variant="outline" disabled={busy === "fiche"} onClick={() => setFiche(null)}>Annuler</Button>
+              </div>
+            </>
+          )}
+          {msg && <div role="status" style={{ fontSize: 13, color: msg.ok ? STATUS_COLOR.atteint : STATUS_COLOR.sous }}>{msg.t}</div>}
+        </div>
+      )}
     </Card>
   );
 }
