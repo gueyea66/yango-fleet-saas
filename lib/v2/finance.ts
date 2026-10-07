@@ -12,6 +12,9 @@ export interface SalaryAllocation {
   driver_id: string;
   name: string;
   netDeclared: number;
+  /** CA brut déclaré et, dedans, bonus d'objectif : bases du modèle « % du CA ». */
+  brutDeclared?: number | null;
+  bonusObjectif?: number | null;
   prorataFactor?: number | null;
   salary_model?: string | null;
   base_amount?: number | null;
@@ -39,7 +42,10 @@ export interface SalaryRow {
 }
 
 type Range = { from: string; to: string };
-type SalaryFn = (netDeclared: number, cfg: any, prorataFactor?: number) => number;
+type SalaryFn = (netDeclared: number, cfg: any, prorataFactor?: number, brutDeclared?: number, bonusObjectif?: number) => number;
+/** Même appel partout : la part « % du CA » se prend sur le brut (et non sur le net), bonus d'objectif à part. */
+const duDe = (salaryOf: SalaryFn, d: SalaryAllocation, cfg: any) =>
+  salaryOf(d.netDeclared, cfg, d.prorataFactor ?? undefined, d.brutDeclared ?? undefined, d.bonusObjectif ?? undefined);
 
 const MODEL_LABEL: Record<string, string> = {
   fixed: "Salaire fixe", tiered: "Paliers CA net", percent: "% du CA",
@@ -66,7 +72,7 @@ export function palierLabel(netDeclared: number, cfg: any): string {
 
 /** Masse salariale projetée = Σ salaires dus (prorata inclus), comme RemunerationDashboardBlock. */
 export function masseSalariale(allocations: SalaryAllocation[], cfg: any, salaryOf: SalaryFn): number {
-  return allocations.reduce((s, d) => s + salaryOf(d.netDeclared, effectiveCfg(cfg, d), d.prorataFactor ?? undefined), 0);
+  return allocations.reduce((s, d) => s + duDe(salaryOf, d, effectiveCfg(cfg, d)), 0);
 }
 
 /**
@@ -84,7 +90,7 @@ export function salaryRows(allocations: SalaryAllocation[], cfg: any, payments: 
   return allocations.map((d) => {
     const eff = effectiveCfg(cfg, d);
     // arrondi au franc : un reste de 0,33 XOF laissait le bouton affiché
-    const du = Math.round(salaryOf(d.netDeclared, eff, d.prorataFactor ?? undefined));
+    const du = Math.round(duDe(salaryOf, d, eff));
     const mine = inPeriod.filter((p) => p.driver_id === d.driver_id);
     const avances = mine.filter((p) => p.type === "acompte").reduce((s, p) => s + (p.amount || 0), 0);
     const salaires = mine.filter((p) => p.type === "salaire");

@@ -82,7 +82,7 @@ export function mergeMonthlyKpis(list: DashboardKPIs[]): DashboardKPIs {
     .sort((a, b) => b.restant - a.restant);
   out.driverAllocations = mergeBy(list.flatMap((k) => k.driverAllocations), (r) => r.driver_id,
     (a, b) => ({
-      ...a, netDeclared: a.netDeclared + b.netDeclared, brutDeclared: a.brutDeclared + b.brutDeclared, netApproved: a.netApproved + b.netApproved, netPending: a.netPending + b.netPending,
+      ...a, netDeclared: a.netDeclared + b.netDeclared, brutDeclared: a.brutDeclared + b.brutDeclared, bonusObjectif: (a.bonusObjectif || 0) + (b.bonusObjectif || 0), netApproved: a.netApproved + b.netApproved, netPending: a.netPending + b.netPending,
       nbReports: a.nbReports + b.nbReports, nbApproved: a.nbApproved + b.nbApproved, nbPending: a.nbPending + b.nbPending,
     }))
     .sort((a, b) => b.netDeclared - a.netDeclared);

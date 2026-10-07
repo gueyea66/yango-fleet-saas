@@ -131,7 +131,15 @@ export async function GET(req: NextRequest) {
       },
     }));
 
+    // Bonus d'objectif Yango de la période : la part chauffeur s'y applique à un
+    // taux propre (lib/salaire). Lu dans les transactions, car Yango le crédite
+    // souvent un jour sans course, donc sans journée. Sans import Fleetroom : vide.
+    const { data: bonusObjectif } = await admin.from("yango_transactions").select("yango_driver_id, jour, amount")
+      .eq("tenant_id", tenantId).eq("category", "bonus").ilike("comment", "Bonus d_objectif%")
+      .gte("jour", periodStart).lte("jour", periodEnd).limit(5000);
+
     return Response.json({
+      bonusObjectif: bonusObjectif || [],
       parcAmortissable,
       allReps: allReps || [],
       allExps: allExps || [],

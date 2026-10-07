@@ -123,6 +123,8 @@ export interface DashboardKPIs {
      * net/brut varie d'un chauffeur à l'autre avec ses dépenses.
      */
     brutDeclared: number;
+    /** Bonus d'objectif Yango de la période, compris dans brutDeclared : partagé à un taux propre. */
+    bonusObjectif: number;
     netApproved: number;   // approved only
     netPending: number;    // submitted only
     nbReports: number;
@@ -176,6 +178,8 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       // km pour que le 1er jour de la période ait son delta (retour Abdou 03/09 —
       // « toujours prendre le km de la dernière déclaration, peu importe le mois »).
       let prevOdoReps: any[] = [];
+      // Bonus d'objectif Yango de la période (API admin uniquement)
+      let bonusTx: any[] = [];
       // Parc amortissable : fourni par l'API admin uniquement. En contexte
       // chauffeur il reste vide et l'amortissement vaut 0 — le coût du capital
       // de la flotte ne le regarde pas (cloisonnement, migration 069).
@@ -197,6 +201,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         driverProfiles = json.driverProfiles || [];
         prevOdoReps = json.prevOdoReps || [];
         parcAmortissable = json.parcAmortissable || [];
+        bonusTx = json.bonusObjectif || [];
         prev = json.prev || null;
       } else {
         // Driver context — use anon client (driver reads their own data, RLS allows it)
@@ -488,23 +493,40 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         return to >= from;
       };
       const allActive: any[] = (allReps || []).filter((r: any) => r.status === "approved" || r.status === "submitted");
-      const driverAllocationMap = new Map<string, { name: string; netApproved: number; netPending: number; brut: number; nbApproved: number; nbPending: number }>();
+      const driverAllocationMap = new Map<string, { name: string; netApproved: number; netPending: number; brut: number; bonusObjectif: number; nbApproved: number; nbPending: number }>();
       const brutDuRapport = (r: any) => (r.yango_gross || 0) + (r.yango_bonus || 0) + (r.off_yango_revenue || 0);
       // Seed avec les chauffeurs actifs sur la période (les chauffeurs à zéro rapport restent visibles)
       drivers.filter(isActiveForPeriod).forEach((d) => {
-        driverAllocationMap.set(d.id, { name: d.full_name || d.driver_id || d.id.slice(0, 8), netApproved: 0, netPending: 0, brut: 0, nbApproved: 0, nbPending: 0 });
+        driverAllocationMap.set(d.id, { name: d.full_name || d.driver_id || d.id.slice(0, 8), netApproved: 0, netPending: 0, brut: 0, bonusObjectif: 0, nbApproved: 0, nbPending: 0 });
       });
       allActive.forEach((r: any) => {
         if (!driverAllocationMap.has(r.driver_id)) {
           const p = drivers.find((d) => d.id === r.driver_id);
           if (p && !isActiveForPeriod(p)) return; // profil connu mais pas actif sur la période → pas affiché
-          driverAllocationMap.set(r.driver_id, { name: p?.full_name || p?.driver_id || r.driver_id?.slice(0, 8), netApproved: 0, netPending: 0, brut: 0, nbApproved: 0, nbPending: 0 });
+          driverAllocationMap.set(r.driver_id, { name: p?.full_name || p?.driver_id || r.driver_id?.slice(0, 8), netApproved: 0, netPending: 0, brut: 0, bonusObjectif: 0, nbApproved: 0, nbPending: 0 });
         }
         const entry = driverAllocationMap.get(r.driver_id)!;
         entry.brut += brutDuRapport(r);
         if (r.status === "approved") { entry.netApproved += r.net_after_expenses || 0; entry.nbApproved++; }
         else { entry.netPending += r.net_after_expenses || 0; entry.nbPending++; }
       });
+      // ── Bonus d'objectif Yango (part chauffeur à un taux propre, cf. lib/salaire) ──
+      // Lu dans les transactions Yango et non dans les journées : Yango le crédite
+      // souvent un jour sans course, qui n'a donc pas de journée (45 cas sur NMK au
+      // 07/10/2026). Ce bonus-là manque au brut des journées : on l'ajoute ici au
+      // brut de la part chauffeur, sinon il ne serait payé à aucun taux.
+      if (bonusTx.length) {
+        const profilDe = new Map<string, string>(drivers.filter((d: any) => d.yango_driver_id).map((d: any) => [d.yango_driver_id, d.id]));
+        const joursDeclares = new Set(allActive.map((r: any) => `${r.driver_id}|${r.date}`));
+        for (const t of bonusTx) {
+          const id = profilDe.get(t.yango_driver_id);
+          const entry = id ? driverAllocationMap.get(id) : undefined;
+          if (!entry) continue;
+          entry.bonusObjectif += t.amount || 0;
+          if (!joursDeclares.has(`${id}|${t.jour}`)) entry.brut += t.amount || 0;
+        }
+      }
+
       // Prorata salaire : jours ouvrés du mois (6j/7 sur le calendrier réel de la période)
       const joursOuvresPeriode = joursOuvresProjetes(periodStart, periodEnd);
       const hireByDriver: Record<string, string | null> = {};
@@ -523,6 +545,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         netPending: d.netPending,
         netDeclared: d.netApproved + d.netPending,
         brutDeclared: d.brut,
+        bonusObjectif: d.bonusObjectif,
         nbReports: d.nbApproved + d.nbPending,
         nbApproved: d.nbApproved,
         nbPending: d.nbPending,
