@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
-import { requireAdminAuth, requireValideurAuth } from "@/lib/auth/server";
+import { requireAdminAuth } from "@/lib/auth/server";
 import { ingestFleetroom, type FleetroomFile } from "@/lib/fleetroom/ingest";
 import { analyserDepot } from "@/lib/fleetroom/apercu";
 
@@ -45,8 +45,12 @@ export async function GET() {
  *   sinon        : intégration, refusée sans confirme=1 (le gestionnaire a vu l'aperçu). */
 export async function POST(req: NextRequest) {
   try {
-    // import = déclarations directement validées : admin valideur uniquement
-    const { tenantId, userId } = await requireValideurAuth();
+    // Ouvert à tout administrateur, opérateur « saisie seule » compris (décision
+    // d'Abdou, 07/10/2026 : l'opérateur dépose chaque matin, le valideur valide les
+    // saisies manuelles). Les exports Yango sont une donnée tierce, non une saisie :
+    // les déclarations qui en sortent restent directement validées. Garde-fou :
+    // aperçu et confirmation obligatoires ; trancher un écart reste réservé au valideur.
+    const { tenantId, userId } = await requireAdminAuth();
     const form = await req.formData();
     const soldesJour = (form.get("soldesJour") as string | null) || undefined;
     const files: FleetroomFile[] = [];

@@ -66,6 +66,8 @@ Alertes de l'aperçu (`lib/fleetroom/apercu.ts`) :
 - **bloquant** : journée en cours ou future (un export pris en cours de journée donne des déclarations et des soldes faux), fichier non reconnu, soldes sans date ;
 - **attention** : dernière transaction du dernier jour avant 20h, jour sans transaction au milieu de la période, pas de commandes, pas de soldes, date des soldes différente du dernier jour, fichier déjà déposé, jours déjà en base, chauffeurs absents de l'app.
 
+**Qui dépose** : tout administrateur, opérateur « saisie seule » compris (décision du 07/10/2026). Les déclarations issues des exports restent directement validées ; trancher un écart avec une déclaration de chauffeur reste réservé à un valideur.
+
 En ligne de commande, `scripts/fleetroom-import.ts` affiche le même aperçu et n'écrit rien sans `--confirmer`.
 
 Origine : le 05/10/2026, un export NMK pris à 17h40 (244 transactions) a été intégré pour une journée qui en comptait 312. Les données des 04 et 05/10 ont été retirées le 06/10 à la demande d'Abdou.
