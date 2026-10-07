@@ -60,7 +60,7 @@ import { isFullMonths, masseSalariale, paymentSalaryDate, recentMovements, salar
 import { CollapsedHistoryV2, MovementsV2, SalaryTableV2 } from "@/components/v2/admin/FinanceV2";
 import { ClassementV2, ExtractionV2, KpiChauffeursV2 } from "@/components/v2/admin/AnalyticsV2";
 import { TendancesV2 } from "@/components/v2/admin/TendancesV2";
-import { AdministrateursV2, ObjectifFlotteV2, SaisieOperateurV2, SaisiesAValiderV2 } from "@/components/v2/admin/OperateurV2";
+import { AdministrateursV2, ObjectifFlotteV2, SaisieOperateurV2 } from "@/components/v2/admin/OperateurV2";
 import type { SegmentFilter } from "@/lib/analytics/segment";
 import { driverScope, segCountsOf, FLEET_SEG_OPTS } from "@/lib/v2/fleetScope";
 import { Segmented } from "@/components/ui";
@@ -983,11 +983,11 @@ export default function AdminPage() {
             </div>
           ) : tab === "pending" ? (
             <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-            <SaisiesAValiderV2 onChanged={notifyDataChanged} />
             <PendingV2
               reports={reports.filter((r) => r.status === "submitted" && (!v2Range || inRange(r.date, v2Range)))}
-              // charges saisies par un opérateur : validées dans « Saisies opérateur » (preuve obligatoire)
-              expenses={expenses.filter((e) => (e.status || "submitted") === "submitted" && e.source !== "operateur" && (!v2Range || inRange(e.expense_date || e.created_at, v2Range)))}
+              // charges saisies par un opérateur : dans la même liste « Dépenses », avec leur pastille
+              // (demande d'Abdou, 07/10 : plus de bloc à part au-dessus de l'écran)
+              expenses={expenses.filter((e) => (e.status || "submitted") === "submitted" && (!v2Range || inRange(e.expense_date || e.created_at, v2Range)))}
               loading={loadingReports}
               onRefresh={notifyDataChanged}
             />
