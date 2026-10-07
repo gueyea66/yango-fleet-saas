@@ -128,7 +128,7 @@ export async function POST(request: Request) {
 
     if (action === "update") {
       // Mise à jour des paramètres de rému/commission d'un chauffeur
-      const { driverProfileId, comm_yango, comm_partner, hire_date, contract_end_date, solde_initial, salary_model, base_amount, account_type } = body;
+      const { driverProfileId, comm_yango, comm_partner, hire_date, contract_end_date, solde_initial, salary_model, base_amount, account_type, salary_rate, salary_bonus_objectif_rate } = body;
       if (!driverProfileId) return Response.json({ error: "driverProfileId manquant" }, { status: 400 });
 
       // Vérifier que le chauffeur appartient au tenant de l'admin
@@ -138,6 +138,13 @@ export async function POST(request: Request) {
       }
 
       const MODELS = ["fixed", "tiered", "percent", "hybrid", "location"];
+      // Taux propres au chauffeur (0–1) ; vide = paramétrage par défaut du compte.
+      const taux = (v: unknown): number | null => { const n = numOrNull(v); return n === null ? null : n; };
+      for (const [nom, v] of [["Part sur le CA", salary_rate], ["Part sur le bonus d'objectif", salary_bonus_objectif_rate]] as const) {
+        const n = taux(v);
+        if (n !== null && (n < 0 || n > 1)) return Response.json({ error: `${nom} : valeur entre 0 et 1 (ex. 0.20 pour 20 %)` }, { status: 400 });
+      }
+      const tauxPerso = { salary_rate: taux(salary_rate), salary_bonus_objectif_rate: taux(salary_bonus_objectif_rate) };
       const patch: Record<string, number | string | null> = {
         comm_yango: numOrNull(comm_yango),
         comm_partner: numOrNull(comm_partner),
@@ -149,7 +156,14 @@ export async function POST(request: Request) {
         ...(account_type === "driver" || account_type === "technical" ? { account_type } : {}),
         updated_at: new Date().toISOString(),
       };
-      const { error: updErr } = await adminClient.from("profiles").update(patch).eq("id", driverProfileId);
+      let { error: updErr } = await adminClient.from("profiles").update({ ...patch, ...tauxPerso }).eq("id", driverProfileId);
+      // colonnes de la migration 084 absentes : le reste des paramètres s'enregistre quand même
+      if (updErr && (updErr.code === "42703" || updErr.code === "PGRST204")) {
+        if (tauxPerso.salary_rate !== null || tauxPerso.salary_bonus_objectif_rate !== null) {
+          return Response.json({ error: "Les taux par chauffeur demandent la migration 084 : appliquez-la puis réessayez." }, { status: 409 });
+        }
+        ({ error: updErr } = await adminClient.from("profiles").update(patch).eq("id", driverProfileId));
+      }
       if (updErr) return Response.json({ error: updErr.message }, { status: 500 });
 
       audit({ tenantId, userId, action: "driver.update_settings", resourceType: "driver", resourceId: driverProfileId, ip });

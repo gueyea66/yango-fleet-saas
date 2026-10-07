@@ -134,6 +134,8 @@ export interface DashboardKPIs {
     prorataFactor: number;   // 1 = plein mois ; < 1 si entré en cours de période
     salary_model: string | null;  // modèle de rému du chauffeur (null → tenant)
     base_amount: number | null;   // salaire de base du chauffeur (null → tenant)
+    salary_rate: number | null;                  // part sur le CA propre au chauffeur (null → tenant)
+    salary_bonus_objectif_rate: number | null;   // part sur le bonus d'objectif propre au chauffeur (null → tenant)
   }>;
 
   loading: boolean;
@@ -346,9 +348,11 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       );
       const salaryModelByDriver: Record<string, string | null> = {};
       const baseAmountByDriver: Record<string, number | null> = {};
+      const tauxByDriver: Record<string, { ca: number | null; bonus: number | null }> = {};
       drivers.forEach((d: any) => {
         salaryModelByDriver[d.id] = d.salary_model ?? null;
         baseAmountByDriver[d.id] = d.base_amount ?? null;
+        tauxByDriver[d.id] = { ca: d.salary_rate ?? null, bonus: d.salary_bonus_objectif_rate ?? null };
       });
       const repsByDriver: Record<string, any[]> = {};
       reps.forEach((r: any) => { (repsByDriver[r.driver_id] ||= []).push(r); });
@@ -551,6 +555,8 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
         prorataFactor: prorataOf(hireByDriver[driver_id] ?? null),
         salary_model: salaryModelByDriver[driver_id] ?? null,
         base_amount: baseAmountByDriver[driver_id] ?? null,
+        salary_rate: tauxByDriver[driver_id]?.ca ?? null,
+        salary_bonus_objectif_rate: tauxByDriver[driver_id]?.bonus ?? null,
       })).sort((a, b) => b.netDeclared - a.netDeclared);
 
       // ── TODAY / WEEK (approved only, avances exclues — neutres au résultat) ──

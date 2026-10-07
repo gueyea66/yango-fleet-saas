@@ -19,15 +19,17 @@ interface Driver {
   solde_initial: number | null;
   salary_model: string | null;
   base_amount: number | null;
+  salary_rate?: number | null;                // part sur le CA propre au chauffeur (0–1) ; vide = défaut du compte
+  salary_bonus_objectif_rate?: number | null; // part sur le bonus d'objectif (0–1) ; vide = défaut du compte
   active?: boolean | null; // false = désactivé (plus de connexion, historique conservé)
   contract_end_date?: string | null; // fin de contrat → prorata masse salariale
   account_type?: string | null; // 'driver' | 'technical' (compte de décaissement)
 }
 
-type SettingsForm = { comm_yango: string; comm_partner: string; hire_date: string; contract_end_date: string; solde_initial: string; salary_model: string; base_amount: string; account_type: string };
+type SettingsForm = { comm_yango: string; comm_partner: string; hire_date: string; contract_end_date: string; solde_initial: string; salary_model: string; base_amount: string; account_type: string; salary_rate: string; salary_bonus_objectif_rate: string };
 
 const SALARY_MODELS: { value: string; label: string }[] = [
-  { value: "", label: "— (config tenant par défaut)" },
+  { value: "", label: "Par défaut (Paramètres › Rémunération)" },
   { value: "fixed", label: "Salaire fixe" },
   { value: "tiered", label: "Paliers (CA net)" },
   { value: "percent", label: "% du CA" },
@@ -55,7 +57,7 @@ export default function DriversPage() {
 
   // Édition des paramètres commission/rému par chauffeur
   const [editId, setEditId] = useState<string | null>(null);
-  const [settingsForm, setSettingsForm] = useState<SettingsForm>({ comm_yango: "", comm_partner: "", hire_date: "", contract_end_date: "", solde_initial: "", salary_model: "", base_amount: "", account_type: "driver" });
+  const [settingsForm, setSettingsForm] = useState<SettingsForm>({ comm_yango: "", comm_partner: "", hire_date: "", contract_end_date: "", solde_initial: "", salary_model: "", base_amount: "", account_type: "driver", salary_rate: "", salary_bonus_objectif_rate: "" });
   const [savingSettings, setSavingSettings] = useState(false);
   // Réinitialisation du mot de passe par l'admin
   const [pwInput, setPwInput] = useState<Record<string, string>>({});
@@ -92,6 +94,8 @@ export default function DriversPage() {
       salary_model: d.salary_model || "",
       base_amount: d.base_amount != null ? String(d.base_amount) : "",
       account_type: d.account_type || "driver",
+      salary_rate: d.salary_rate != null ? String(d.salary_rate) : "",
+      salary_bonus_objectif_rate: d.salary_bonus_objectif_rate != null ? String(d.salary_bonus_objectif_rate) : "",
     });
   };
 
@@ -406,6 +410,8 @@ export default function DriversPage() {
                     <div className="text-xs text-gray-500 mt-1">
                       Créé: {new Date(driver.created_at).toLocaleDateString("fr-FR")}
                       {driver.salary_model && <span className="ml-2 text-blue-400">· {SALARY_MODELS.find((m) => m.value === driver.salary_model)?.label}</span>}
+                      {driver.salary_rate != null && <span className="ml-2 text-blue-400">· part {Math.round(driver.salary_rate * 100)} %</span>}
+                      {driver.salary_bonus_objectif_rate != null && <span className="ml-2 text-blue-400">· bonus d&apos;objectif {Math.round(driver.salary_bonus_objectif_rate * 100)} %</span>}
                       {driver.comm_yango != null && <span className="ml-2 text-yellow-600">· Yango {driver.comm_yango}%</span>}
                       {driver.hire_date && <span className="ml-2 text-gray-400">· Entré {new Date(driver.hire_date).toLocaleDateString("fr-FR")}</span>}
                       {driver.contract_end_date && <span className="ml-2 text-orange-400">· Fin {new Date(driver.contract_end_date).toLocaleDateString("fr-FR")}</span>}
@@ -457,6 +463,22 @@ export default function DriversPage() {
                           onChange={(e) => setSettingsForm({ ...settingsForm, base_amount: e.target.value })}
                           placeholder="ex: 200000"
                           className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500" />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-400 block mb-1">Part du chauffeur sur le CA brut (0–1)</label>
+                        <input type="number" step="0.01" min="0" max="1" value={settingsForm.salary_rate}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, salary_rate: e.target.value })}
+                          placeholder="vide = par défaut"
+                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500" />
+                        <p className="text-[11px] text-gray-500 mt-1">Ex. 0.20 = 20 %. Sert aux modèles « % du CA » et « Fixe + bonus + % ».</p>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-400 block mb-1">Part sur le bonus d&apos;objectif (0–1)</label>
+                        <input type="number" step="0.01" min="0" max="1" value={settingsForm.salary_bonus_objectif_rate}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, salary_bonus_objectif_rate: e.target.value })}
+                          placeholder="vide = par défaut"
+                          className="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white text-sm focus:outline-none focus:border-yellow-500" />
+                        <p className="text-[11px] text-gray-500 mt-1">Ex. 0.50 = 50 % du bonus d&apos;objectif versé par la plateforme.</p>
                       </div>
                       <div>
                         <label className="text-xs text-gray-400 block mb-1">Commission Yango (%)</label>

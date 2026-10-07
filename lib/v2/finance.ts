@@ -5,6 +5,7 @@
  * /api/admin/reports). Le salaire dû vient du moteur existant (injecté).
  */
 import { inRange } from "./periodFilter";
+import { configEffective } from "@/lib/salaire";
 
 /* eslint-disable @typescript-eslint/no-explicit-any -- config rémunération non typée (convention du projet) */
 
@@ -17,6 +18,9 @@ export interface SalaryAllocation {
   bonusObjectif?: number | null;
   prorataFactor?: number | null;
   salary_model?: string | null;
+  /** taux propres au chauffeur (migration 084) ; vides = paramétrage du compte */
+  salary_rate?: number | null;
+  salary_bonus_objectif_rate?: number | null;
   base_amount?: number | null;
 }
 
@@ -56,9 +60,8 @@ const MODEL_LABEL: Record<string, string> = {
 export const paymentSalaryDate = (p: PaymentLike) =>
   p.salary_month?.slice(0, 10) || p.payment_date || p.created_at?.slice(0, 10) || "";
 
-/** Config effective d'un chauffeur : modèle et base perso si définis (comme DriverAllocationsBlock). */
-export const effectiveCfg = (cfg: any, d: SalaryAllocation) =>
-  ({ ...cfg, model: d.salary_model || cfg.model, base_amount: d.base_amount ?? cfg.base_amount });
+/** Config effective d'un chauffeur : modèle, base et taux de sa fiche s'ils sont réglés (lib/salaire). */
+export const effectiveCfg = (cfg: any, d: SalaryAllocation) => configEffective(cfg, d);
 
 /** Libellé du palier atteint (modèle à paliers) ou du modèle. */
 export function palierLabel(netDeclared: number, cfg: any): string {
