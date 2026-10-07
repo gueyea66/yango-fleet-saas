@@ -159,9 +159,13 @@ export async function ingestFleetroom(
   const newAnchor = results.some((r) => r.kind === "soldes" && r.status === "imported");
   let rebuild: Record<string, unknown> | null = null;
   if (p.from && p.to) {
+    // Un bonus crédité un jour sans course est reporté sur la dernière journée
+    // travaillée qui le précède (migration 083) : elle peut être antérieure aux
+    // fichiers déposés, d'où les 14 jours de marge avant la période.
+    const depuis = new Date(Date.parse(`${p.from}T00:00:00Z`) - 14 * 86_400_000).toISOString().slice(0, 10);
     rebuild = newAnchor
       ? await rebuildFleetroom(sb, tenantId)
-      : await rebuildFleetroom(sb, tenantId, p.from, p.to);
+      : await rebuildFleetroom(sb, tenantId, depuis, p.to);
   }
   return { files: results, rebuild, linkedDrivers: linked, unknownDrivers: unknown };
 }

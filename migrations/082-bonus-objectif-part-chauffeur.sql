@@ -9,7 +9,7 @@
 -- 1. remuneration_config.bonus_objectif_rate : taux propre au bonus d'objectif.
 --    NULL = même taux que le reste (aucun changement pour les autres comptes).
 --    Posé à 0,5 pour NMK et son compte de formation.
--- 2. fleetroom_rebuild : un jour où Yango ne crédite qu'un bonus (aucune course)
+-- 2. (remplacé par la migration 083) fleetroom_rebuild : un jour où Yango ne crédite qu'un bonus (aucune course)
 --    n'avait pas de journée, donc le bonus n'entrait pas dans le CA (45 jours
 --    sur NMK, 531 135 F sur 2025-2026). Ces jours ont désormais leur journée :
 --    0 course, le bonus en recette. Relancer ensuite le recalcul (script).

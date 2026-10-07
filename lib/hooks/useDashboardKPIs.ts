@@ -512,19 +512,16 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       });
       // ── Bonus d'objectif Yango (part chauffeur à un taux propre, cf. lib/salaire) ──
       // Lu dans les transactions Yango : c'est là que le libellé « Bonus d'objectif »
-      // le distingue des bonus à la course. Depuis la migration 082, un jour où Yango
-      // ne crédite que ce bonus a sa journée, donc le bonus est dans le brut. Filet de
-      // sécurité pour un jour pas encore recalculé : il est ajouté au brut de la part
-      // chauffeur, sinon il ne serait payé à aucun taux.
+      // le distingue des bonus à la course. Le montant est déjà dans le brut des
+      // journées : crédité un jour sans course, il est reporté sur la dernière
+      // journée travaillée (migration 083). Rien n'est donc ajouté au brut ici.
       if (bonusTx.length) {
         const profilDe = new Map<string, string>(drivers.filter((d: any) => d.yango_driver_id).map((d: any) => [d.yango_driver_id, d.id]));
-        const joursDeclares = new Set(allActive.map((r: any) => `${r.driver_id}|${r.date}`));
         for (const t of bonusTx) {
           const id = profilDe.get(t.yango_driver_id);
           const entry = id ? driverAllocationMap.get(id) : undefined;
           if (!entry) continue;
           entry.bonusObjectif += t.amount || 0;
-          if (!joursDeclares.has(`${id}|${t.jour}`)) entry.brut += t.amount || 0;
         }
       }
 
