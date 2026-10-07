@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth/context";
 import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
+import { partSurCA } from "@/lib/salaire";
 import { obtenirUrlsSignees } from "@/lib/signedUrls";
 import { baseAmortissable, dureeAmortissementMois, porteParExploitant, kmParMoisDepuisCompteur } from "@/lib/calc";
 import { useRouter } from "next/navigation";
@@ -3014,7 +3015,10 @@ function DailyTable({ data, periodFrom, periodTo }: { data: any[]; periodFrom: s
 // « 20 % » ne veut pas dire la même chose pour deux chauffeurs selon ce qu'ils
 // ont dépensé en carburant ce mois-là. Repli sur netDeclared quand le brut
 // n'est pas fourni, pour les appels qui ne l'ont pas encore.
-function calcDriverSalary(netDeclared: number, cfg: any, prorataFactor: number = 1, brutDeclared?: number): number {
+// `bonusObjectif` : part du brut venant du bonus d'objectif Yango, partagée au
+// taux cfg.bonus_objectif_rate quand le tenant en a un (NMK : 50 %, contre 20 % sur le reste).
+function calcDriverSalary(netDeclared: number, cfg: any, prorataFactor: number = 1, brutDeclared?: number, bonusObjectif: number = 0): number {
+  const part = (b: number) => partSurCA({ brut: b, bonusObjectif, taux: cfg.commission_rate || 0, tauxBonusObjectif: cfg.bonus_objectif_rate });
   const brut = brutDeclared ?? netDeclared;
   const model: string = cfg.model || "tiered";
   const pf = prorataFactor > 0 && prorataFactor <= 1 ? prorataFactor : 1;
@@ -3025,11 +3029,11 @@ function calcDriverSalary(netDeclared: number, cfg: any, prorataFactor: number =
     const tier = sorted.find((t) => netDeclared >= t.min_net) ?? sorted[sorted.length - 1];
     return (tier?.total_salary ?? cfg.base_amount ?? 0) * pf;
   }
-  if (model === "percent") return brut * (cfg.commission_rate || 0);
+  if (model === "percent") return part(brut);
   if (model === "hybrid") {
     const base = (cfg.base_amount || 0) * pf;
     const bonus = cfg.bonus_threshold > 0 && netDeclared >= cfg.bonus_threshold ? (cfg.bonus_amount || 0) : 0;
-    return base + bonus + brut * (cfg.commission_rate || 0);
+    return base + bonus + part(brut);
   }
   if (model === "location") return 0; // driver keeps their own net
   return 0;
@@ -3058,7 +3062,7 @@ function DriverAllocationsBlock({ allocations, cfg }: { allocations: any[]; cfg:
           // Config effective : modèle & base du chauffeur si définis, sinon tenant
           const effCfg = { ...cfg, model: d.salary_model || cfg.model, base_amount: d.base_amount ?? cfg.base_amount };
           const dModel: string = effCfg.model;
-          const salary = calcDriverSalary(d.netDeclared, effCfg, d.prorataFactor, d.brutDeclared);
+          const salary = calcDriverSalary(d.netDeclared, effCfg, d.prorataFactor, d.brutDeclared, d.bonusObjectif);
           const isProrated = d.prorataFactor != null && d.prorataFactor < 1;
           const hasPending = d.nbPending > 0;
           return (
@@ -3146,7 +3150,7 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
   const allocations: any[] = Array.isArray(kpis.driverAllocations) ? kpis.driverAllocations : [];
   const realMasseSalariale = allocations.reduce((sum: number, d: any) => {
     const effCfg = { ...cfg, model: d.salary_model || cfg.model, base_amount: d.base_amount ?? cfg.base_amount };
-    return sum + calcDriverSalary(d.netDeclared, effCfg, d.prorataFactor, d.brutDeclared);
+    return sum + calcDriverSalary(d.netDeclared, effCfg, d.prorataFactor, d.brutDeclared, d.bonusObjectif);
   }, 0);
 
   // Compute estimates per model
@@ -3177,10 +3181,11 @@ function RemunerationDashboardBlock({ kpis, cfg }: { kpis: any; cfg: any }) {
     // kpis.totalBrut est un NET malgré son nom (somme de net_after_expenses) :
     // la part chauffeur se prend donc sur la somme des bruts déclarés.
     const brutPeriode = allocations.reduce((s: number, d: any) => s + (d.brutDeclared || 0), 0);
-    const partDriver = brutPeriode * (cfg.commission_rate || 0);
+    const bonusObjectifPeriode = allocations.reduce((s: number, d: any) => s + (d.bonusObjectif || 0), 0);
+    const partDriver = partSurCA({ brut: brutPeriode, bonusObjectif: bonusObjectifPeriode, taux: cfg.commission_rate || 0, tauxBonusObjectif: cfg.bonus_objectif_rate });
     const partOpe = kpis.totalBrut - partDriver;
     items = [
-      { label: `Part drivers (${Math.round((cfg.commission_rate || 0) * 100)}%)`, value: xof(partDriver), color: "#ef4444" },
+      { label: `Part drivers (${Math.round((cfg.commission_rate || 0) * 100)}%${cfg.bonus_objectif_rate != null ? ` · ${Math.round(cfg.bonus_objectif_rate * 100)}% du bonus d'objectif` : ""})`, value: xof(partDriver), color: "#ef4444", ...(bonusObjectifPeriode > 0 ? { sub: `dont bonus d'objectif : ${xof(bonusObjectifPeriode)}` } : {}) },
       { label: "Part opérateur", value: xof(partOpe), color: "#22c55e" },
       { label: "CA net période", value: xof(kpis.totalBrut), color: "var(--tenant-color)" },
       { label: "Taux opérateur", value: `${Math.round((1 - (cfg.commission_rate || 0)) * 100)}%`, color: "var(--sk-t2)" },
@@ -4352,6 +4357,8 @@ interface RemunCfg {
   salary_tiers: SalaryTier[];
   target_net: number;
   daily_rent: number;
+  /** Taux propre au bonus d'objectif (migration 082) ; null = même taux que le reste. */
+  bonus_objectif_rate?: number | null;
 }
 
 const MODEL_LABELS: Record<RemuModel, string> = {
@@ -4390,6 +4397,7 @@ function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
           salary_tiers: Array.isArray(data.salary_tiers) ? data.salary_tiers : [],
           target_net: data.target_net || 0,
           daily_rent: data.daily_rent || 0,
+          bonus_objectif_rate: data.bonus_objectif_rate ?? null,
         });
       }
       setLoading(false);
@@ -4408,7 +4416,9 @@ function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
   const save = async () => {
     setSaving(true);
     const supabase = createClient() as any;
-    const payload = { ...cfg, tenant_id: tenantId, updated_at: new Date().toISOString() };
+    const payload: any = { ...cfg, tenant_id: tenantId, updated_at: new Date().toISOString() };
+    // colonne de la migration 082 : non envoyée tant qu'aucun taux propre n'est saisi
+    if (payload.bonus_objectif_rate == null) delete payload.bonus_objectif_rate;
     const { error } = configId
       ? await supabase.from("remuneration_config").update(payload).eq("id", configId)
       : await supabase.from("remuneration_config").insert(payload);
@@ -4540,6 +4550,10 @@ function RemunerationSettingsTab({ tenantId }: { tenantId: string }) {
           <input type="number" value={cfg.commission_rate} onChange={(e) => set("commission_rate", parseFloat(e.target.value) || 0)}
             className={inp} style={inpStyle} step="0.01" min="0" max="1" />
           <div className="text-[10px] mt-1" style={{ color: "var(--sk-t4)" }}>Ex : 0.20 = le chauffeur garde 20 % du CA brut, avant commission plateforme et avant dépenses</div>
+          <label className={`${lbl} mt-4 block`} style={{ color: "var(--sk-t3)" }}>% du bonus d&apos;objectif reversé au chauffeur (0–1, facultatif)</label>
+          <input type="number" value={cfg.bonus_objectif_rate ?? ""} onChange={(e) => set("bonus_objectif_rate", e.target.value === "" ? null : parseFloat(e.target.value) || 0)}
+            className={inp} style={inpStyle} step="0.01" min="0" max="1" placeholder="vide = même taux que le reste" />
+          <div className="text-[10px] mt-1" style={{ color: "var(--sk-t4)" }}>Ex : 0.50 = le chauffeur garde 50 % du bonus d&apos;objectif versé par la plateforme, et le taux ci-dessus sur tout le reste</div>
         </div>
       )}
 

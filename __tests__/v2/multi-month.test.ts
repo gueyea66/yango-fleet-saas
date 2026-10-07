@@ -29,7 +29,7 @@ function kpi(o: Partial<DashboardKPIs>): DashboardKPIs {
 }
 
 const alloc = (driver_id: string, net: number) => ({
-  driver_id, name: driver_id, netDeclared: net, brutDeclared: net * 2, netApproved: net, netPending: 0, nbReports: 10, nbApproved: 10, nbPending: 0,
+  driver_id, name: driver_id, netDeclared: net, brutDeclared: net * 2, bonusObjectif: 0, netApproved: net, netPending: 0, nbReports: 10, nbApproved: 10, nbPending: 0,
   hire_date: null, prorataFactor: 1, salary_model: null, base_amount: null,
 });
 

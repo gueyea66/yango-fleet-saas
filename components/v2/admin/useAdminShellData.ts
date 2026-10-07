@@ -6,7 +6,8 @@ import { useDataRefresh } from "@/lib/dataRefresh";
 /**
  * Lectures de la coque admin v2 (aucune écriture) :
  * - échéance d'essai / abonnement : mêmes colonnes que TrialBanner ;
- * - nombre d'éléments « À valider » (rapports + dépenses soumis) pour le badge.
+ * - nombre d'éléments « À valider » (rapports + dépenses soumis + recettes hors
+ *   Yango saisies par l'opérateur) pour le badge.
  */
 export function useAdminShellData(tenantId: string | null, refreshKey: unknown) {
   const [trial, setTrial] = useState<{ status: TrialStatus; expiresAt: string | null } | null>(null);
@@ -37,7 +38,11 @@ export function useAdminShellData(tenantId: string | null, refreshKey: unknown) 
         sb.from("daily_reports").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("status", "submitted"),
         sb.from("expenses").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("status", "submitted"),
       ]);
-      if (alive) setPending((r?.count ?? 0) + (e?.count ?? 0));
+      // Recettes hors Yango saisies par l'opérateur : table réservée au serveur, lue par
+      // l'API (les charges opérateur, elles, sont déjà dans le décompte des dépenses).
+      const horsYango = await fetch("/api/admin/saisies?statut=submitted", { cache: "no-store" })
+        .then((res) => (res.ok ? res.json() : null)).then((j) => (Array.isArray(j?.horsYango) ? j.horsYango.length : 0)).catch(() => 0);
+      if (alive) setPending((r?.count ?? 0) + (e?.count ?? 0) + horsYango);
     })();
     return () => { alive = false; };
   }, [tenantId, refreshKey, tick]);
