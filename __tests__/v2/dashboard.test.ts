@@ -24,6 +24,13 @@ describe("coûts par poste", () => {
     expect(rows.find((r) => r.type === "Lavage")).toBeUndefined();
   });
 
+  it("la commission plateforme est un poste de coût à part entière", () => {
+    const { rows, total } = costBreakdown(breakdown, 2000000, 0, 400000);
+    expect(rows.find((r) => r.type === "Commission Yango")).toEqual({ type: "Commission Yango", amount: 400000, pctCA: 20, pctCosts: 400000 / 1400000 * 100 });
+    expect(total.amount).toBe(1400000);
+    expect(costBreakdown(breakdown, 2000000, 0, 0).rows.find((r) => r.type === "Commission Yango")).toBeUndefined();
+  });
+
   it("les % des coûts somment à 100", () => {
     const { rows } = costBreakdown(breakdown, 2000000);
     expect(rows.reduce((s, r) => s + (r.pctCosts ?? 0), 0)).toBeCloseTo(100, 6);

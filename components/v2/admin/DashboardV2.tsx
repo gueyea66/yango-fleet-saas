@@ -7,7 +7,7 @@ import { Segmented, type SegmentOption } from "@/components/ui";
 import type { useDashboardKPIs } from "@/lib/hooks/useDashboardKPIs";
 import { displayLabel } from "@/lib/tenant/platformLabel";
 import { formatAmount, formatPct } from "@/lib/v2/format";
-import { costBreakdown, variationPct, cleanCategory, parseDashView, DASH_VIEW_KEY, LIGNE_AMORTISSEMENT, type DashView } from "@/lib/v2/dashboard";
+import { costBreakdown, variationPct, cleanCategory, parseDashView, DASH_VIEW_KEY, LIGNES_CALCULEES, type DashView } from "@/lib/v2/dashboard";
 import { ValidationQueueV2 } from "./ValidationQueueV2";
 
 type Kpis = ReturnType<typeof useDashboardKPIs>;
@@ -61,7 +61,7 @@ export function DashboardV2({ view, kpis, plat, tenantId, driverIds, range, onKp
   const amort = kpis.amortissement || 0;
   const netAffiche = amort > 0 ? kpis.netFinalApresAmort : kpis.netFinal;
   const margeAffichee = amort > 0 ? kpis.margeApresAmort : kpis.monthMarginPercent;
-  const costs = costBreakdown(kpis.expenseBreakdown, recettes, kpis.amortissement);
+  const costs = costBreakdown(kpis.expenseBreakdown, recettes, kpis.amortissement, kpis.soldeConsomme);
   const days = kpis.dailyRows;
   const maxDay = Math.max(1, ...days.map((d) => Math.max(d.brutYango + d.horsYango, d.netFinal)));
 
@@ -139,7 +139,7 @@ export function DashboardV2({ view, kpis, plat, tenantId, driverIds, range, onKp
                 <div key={c.type} style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr .8fr .9fr", gap: 8, alignItems: "center", padding: "6px 0", fontSize: 13 }}>
                   <span style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     <span style={{ width: 8, height: 8, borderRadius: 2, background: color, flex: "none" }} />{displayLabel(cleanCategory(c.type))}
-                    {c.type === LIGNE_AMORTISSEMENT && (
+                    {LIGNES_CALCULEES.includes(c.type) && (
                       <span style={{ fontSize: 10, padding: "1px 5px", borderRadius: 4, background: "var(--sk-surface)", color: "var(--v2-muted)", flex: "none" }}>calculé</span>
                     )}
                   </span>
