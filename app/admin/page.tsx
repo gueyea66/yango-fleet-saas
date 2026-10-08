@@ -4321,13 +4321,13 @@ function ActionLogsTab({ filterDriverId = "" }: { filterDriverId?: string }) {
                       {entityLabel[log.entity_type] || log.entity_type}
                     </span>
                     <span className="text-xs" style={{ color: "var(--sk-t3)" }}>
-                      par <span style={{ color: "var(--sk-t2)" }}>{log.actor_role === "driver" ? (profiles[log.actor_id] || "chauffeur") : "admin"}</span>
+                      par <span style={{ color: "var(--sk-t2)" }}>{profiles[log.actor_id] || (log.actor_role === "driver" ? "chauffeur" : "admin")}</span>
                     </span>
                   </div>
                   {log.metadata && (
                     <div className="text-xs mt-0.5" style={{ color: "var(--sk-t4)" }}>
-                      {log.entity_type === "expense" && `${log.metadata.category} · ${new Intl.NumberFormat("fr-FR").format(log.metadata.amount)}`}
-                      {log.entity_type === "daily_report" && `Date ${log.metadata.date} · Net ${new Intl.NumberFormat("fr-FR").format(log.metadata.net)}`}
+                      {log.entity_type === "expense" && log.metadata.category != null && `${log.metadata.category} · ${new Intl.NumberFormat("fr-FR").format(log.metadata.amount)}`}
+                      {log.entity_type === "daily_report" && log.metadata.date != null && `Date ${log.metadata.date} · Net ${new Intl.NumberFormat("fr-FR").format(log.metadata.net)}`}
                     </div>
                   )}
                 </div>
