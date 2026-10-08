@@ -43,6 +43,11 @@ describe("droit de décider", () => {
     expect(peutDecider({ decideur: nicolas, saisie, decision: "approved", piecesJointes: 0 }).ok).toBe(false);
     expect(peutDecider({ decideur: nicolas, saisie, decision: "rejected", piecesJointes: 0 }).ok).toBe(true);
   });
+  it("contrôle routier : validation possible sans preuve, pas les autres catégories", () => {
+    expect(peutDecider({ decideur: nicolas, saisie: { ...saisie, category: "Contrôle routier" }, decision: "approved", piecesJointes: 0 }).ok).toBe(true);
+    expect(peutDecider({ decideur: nicolas, saisie: { ...saisie, category: "Carburant" }, decision: "approved", piecesJointes: 0 }).ok).toBe(false);
+    expect(peutDecider({ decideur: nicolas, saisie: { ...saisie, category: "Amende" }, decision: "approved", piecesJointes: 0 }).ok).toBe(false);
+  });
 });
 
 describe("décaissement", () => {

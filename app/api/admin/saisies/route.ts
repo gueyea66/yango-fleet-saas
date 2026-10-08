@@ -11,7 +11,8 @@
  *   PATCH  { type: "hors_yango" | "charge", id, decision: "approved" | "rejected", motif? }
  *
  * Un décaissement est une ligne « charge » de catégorie CAT_AVANCE : il suit
- * la même validation (autre admin, preuve obligatoire).
+ * la même validation (autre admin, preuve obligatoire). Seul le contrôle
+ * routier se valide sans preuve (preuveExigee).
  *
  * Tenant et auteur : toujours ceux de la session (requireAdminAuth). Client
  * service-role → filtre tenant_id explicite partout. Règles de décision dans
@@ -280,7 +281,7 @@ export async function PATCH(req: NextRequest) {
 
     const table = b.type === "hors_yango" ? "saisies_hors_yango" : "expenses";
     // « source » n'existe que sur expenses : la demander sur saisies_hors_yango faisait échouer la lecture
-    const cols = table === "expenses" ? "id, status, entered_by, source" : "id, status, entered_by";
+    const cols = table === "expenses" ? "id, status, entered_by, source, category" : "id, status, entered_by";
     const { data: s, error } = await admin.from(table).select(cols).eq("id", b.id).eq("tenant_id", tenantId).maybeSingle();
     if (error) return migrationManquante(error) ? bad(MIGRATION_MSG, 409) : bad("Lecture impossible", 500);
     if (!s || (table === "expenses" && (s as any).source !== "operateur")) return bad("Saisie introuvable", 404);

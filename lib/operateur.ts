@@ -2,7 +2,8 @@
  * Saisie opérateur — règles pures (validation des champs, droit de décider).
  *
  * Un opérateur (admin « saisie seule », ex. dispatcher) saisit pour le compte
- * des chauffeurs : recettes hors Yango d'un jour, charges avec preuve. Un
+ * des chauffeurs : recettes hors Yango d'un jour, charges avec preuve (sauf
+ * contrôle routier, sans reçu possible). Un
  * AUTRE admin, valideur, décide. Les mêmes règles sont gardées en base
  * (migration 075, guard_validation_separee) : ce module sert les messages
  * clairs côté API et les tests.
@@ -15,6 +16,10 @@ export const MONTANT_MAX = 10_000_000;
 
 /** Catégories de charge proposées à l'opérateur (l'avance propriétaire a son propre circuit). */
 export const CATEGORIES_OPERATEUR = EXPENSE_CATEGORIES.filter((c) => c !== CAT_AVANCE);
+
+/** Catégories saisies sans reçu : un contrôle routier n'en délivre pas. Tout le reste exige une preuve. */
+const SANS_PREUVE: readonly string[] = ["Contrôle routier"];
+export const preuveExigee = (categorie: string | null | undefined) => !SANS_PREUVE.includes(categorie ?? "");
 
 export interface SaisieHorsYangoInput { driver_id: string; jour: string; montant: number; courses?: number; note?: string | null }
 export interface SaisieChargeInput { driver_id: string; date: string; categorie: string; montant: number; description?: string | null }
@@ -144,17 +149,18 @@ export function doublonsPossibles<T extends ChargeComparable>(c: ChargeComparabl
 
 /**
  * Peut-on décider (valider / rejeter) ? Valideur requis, jamais l'auteur,
- * uniquement une saisie en attente ; une charge opérateur exige une preuve.
+ * uniquement une saisie en attente ; une charge opérateur exige une preuve
+ * (sauf catégorie sans reçu, cf. preuveExigee).
  */
 export function peutDecider(p: {
   decideur: { id: string; peut_valider: boolean };
-  saisie: { entered_by: string | null; status: string };
+  saisie: { entered_by: string | null; status: string; category?: string | null };
   decision: "approved" | "rejected";
   piecesJointes?: number;   // charges : nombre de preuves rattachées
 }): { ok: true } | Err {
   if (!p.decideur.peut_valider) return { ok: false, error: "Votre profil est en saisie seule : la validation revient à un autre administrateur." };
   if (p.saisie.status !== "submitted") return { ok: false, error: "Saisie déjà traitée" };
   if (p.saisie.entered_by && p.saisie.entered_by === p.decideur.id) return { ok: false, error: "Une saisie ne peut pas être validée par son auteur." };
-  if (p.decision === "approved" && p.piecesJointes !== undefined && p.piecesJointes < 1) return { ok: false, error: "Preuve manquante : impossible de valider une charge sans pièce jointe." };
+  if (p.decision === "approved" && p.piecesJointes !== undefined && p.piecesJointes < 1 && preuveExigee(p.saisie.category)) return { ok: false, error: "Preuve manquante : impossible de valider une charge sans pièce jointe." };
   return { ok: true };
 }
