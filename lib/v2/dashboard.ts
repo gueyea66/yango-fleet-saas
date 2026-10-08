@@ -18,6 +18,9 @@ export interface CostRow {
  * exclu comme partout (une avance n'est pas une charge).
  */
 export const LIGNE_AMORTISSEMENT = "Amortissement";
+export const LIGNE_COMMISSION = "Commission Yango";
+/** Postes issus d'un calcul et non d'une dépense saisie : marqués « calculé » à l'écran. */
+export const LIGNES_CALCULEES: readonly string[] = [LIGNE_AMORTISSEMENT, LIGNE_COMMISSION];
 
 /**
  * `amortissement` entre dans le tableau comme un poste de coût à part entière,
@@ -27,15 +30,25 @@ export const LIGNE_AMORTISSEMENT = "Amortissement";
  * qu'un tableau où l'usure des véhicules n'apparaît nulle part lui fait croire
  * que rouler est gratuit. La ligne est marquée « calculé » à l'écran pour que
  * la différence de nature reste visible.
+ *
+ * `commission` (prélèvement de la plateforme : commissions + frais
+ * supplémentaires déclarés chaque jour) suit la même logique : ce n'est pas une
+ * dépense saisie, mais le % du CA se lit sur la recette BRUTE — sans cette
+ * ligne, le premier poste de coût de l'activité n'apparaissait nulle part. Les
+ * achats de solde restent exclus en amont : ils paient cette même commission.
  */
 export function costBreakdown(
   breakdown: { type: string; amount: number }[],
   recettes: number,
   amortissement = 0,
+  commission = 0,
 ): { rows: CostRow[]; total: CostRow } {
   const kept = breakdown.filter((b) => b.type !== CAT_AVANCE && Number.isFinite(b.amount) && b.amount > 0);
   if (Number.isFinite(amortissement) && amortissement > 0) {
     kept.push({ type: LIGNE_AMORTISSEMENT, amount: amortissement });
+  }
+  if (Number.isFinite(commission) && commission > 0) {
+    kept.push({ type: LIGNE_COMMISSION, amount: commission });
   }
   const totalAmount = kept.reduce((s, b) => s + b.amount, 0);
   const rows = kept
