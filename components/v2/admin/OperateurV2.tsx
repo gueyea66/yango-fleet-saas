@@ -3,7 +3,7 @@
 /**
  * Saisie opérateur et validation (migration 075).
  * - SaisieOperateurV2 : l'opérateur (ex. dispatcher) saisit pour un chauffeur
- *   ses recettes hors Yango d'un jour, ou une charge avec preuve obligatoire.
+ *   ses recettes hors Yango d'un jour, ou une charge avec preuve obligatoire (sauf contrôle routier).
  *   Il corrige ou annule sa saisie tant qu'elle n'est pas validée. Un
  *   décaissement (avance de fonds) ne se saisit que par un admin valideur.
  * - SaisiesAValiderV2 : un admin valideur (pas l'auteur) valide ou rejette.
@@ -14,7 +14,7 @@ import { useCallback, useEffect, useState, type CSSProperties } from "react";
 import { Check, Paperclip, ShieldCheck, X } from "lucide-react";
 import { Button, Card, Segmented } from "@/components/ui";
 import { formatAmount } from "@/lib/v2/format";
-import { CATEGORIES_OPERATEUR, MDP_ADMIN_MIN } from "@/lib/operateur";
+import { CATEGORIES_OPERATEUR, MDP_ADMIN_MIN, preuveExigee } from "@/lib/operateur";
 import { envoyerPieces, messageEchecs } from "@/lib/uploadPieces";
 import { obtenirUrlsSignees } from "@/lib/signedUrls";
 import { enrichUpload } from "@/lib/v2/history";
@@ -92,6 +92,8 @@ export function SaisieOperateurV2({ drivers, tenantId }: { drivers: Driver[]; te
   const techniques = drivers.filter((d) => d.account_type === "technical" && d.active !== false);
   const valideur = data?.me.peut_valider === true;
   const avecPreuve = type !== "hors_yango";
+  // contrôle routier : pas de reçu, la preuve reste possible mais n'est pas exigée
+  const preuveRequise = avecPreuve && (type !== "charge" || preuveExigee(categorie));
   const comptes = type === "decaissement" ? techniques : chauffeurs;
 
   const reset = () => { setMontant(""); setCourses(""); setTexte(""); setFichiers([]); setBenef(""); setEdit(null); };
@@ -101,7 +103,7 @@ export function SaisieOperateurV2({ drivers, tenantId }: { drivers: Driver[]; te
     if (!driverId) return setMsg({ ok: false, t: type === "decaissement" ? "Choisissez le compte de décaissement." : "Choisissez le chauffeur." });
     if (!(Number(montant) > 0)) return setMsg({ ok: false, t: "Montant requis." });
     if (type === "decaissement" && !texte.trim()) return setMsg({ ok: false, t: "Motif du décaissement obligatoire." });
-    if (avecPreuve && fichiers.length + (edit?.pieces ?? 0) === 0) return setMsg({ ok: false, t: "Preuve obligatoire : ajoutez une photo du reçu." });
+    if (preuveRequise && fichiers.length + (edit?.pieces ?? 0) === 0) return setMsg({ ok: false, t: "Preuve obligatoire : ajoutez une photo du reçu." });
     setBusy(true);
     try {
       const champs = type === "hors_yango"
@@ -227,7 +229,7 @@ export function SaisieOperateurV2({ drivers, tenantId }: { drivers: Driver[]; te
           {avecPreuve && (
             <label style={{ ...label, flexDirection: "row", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 10, border: "1px dashed var(--sk-border)", cursor: "pointer", color: "var(--sk-t1, inherit)" }}>
-                <Paperclip size={14} aria-hidden /> {edit?.pieces ? "Ajouter une preuve" : "Preuve (photo du reçu) — obligatoire"}
+                <Paperclip size={14} aria-hidden /> {edit?.pieces ? "Ajouter une preuve" : `Preuve (photo du reçu) — ${preuveRequise ? "obligatoire" : "facultative"}`}
               </span>
               <input type="file" accept="image/*,application/pdf" capture="environment" multiple style={{ display: "none" }}
                 onChange={(e) => setFichiers(Array.from(e.target.files || []))} />
@@ -257,7 +259,7 @@ export function SaisieOperateurV2({ drivers, tenantId }: { drivers: Driver[]; te
                     <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>{l.quoi}{l.info ? ` · ${l.info}` : ""}</div>
                     {l.mine && (
                       <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
-                        <Button size="sm" variant="outline" disabled={busy} onClick={() => corriger(l)}>{l.c && l.c.pieces === 0 ? "Corriger / ajouter la preuve" : "Corriger"}</Button>
+                        <Button size="sm" variant="outline" disabled={busy} onClick={() => corriger(l)}>{l.c && l.c.pieces === 0 && preuveExigee(l.c.category) ? "Corriger / ajouter la preuve" : "Corriger"}</Button>
                         <Button size="sm" variant="outline" icon={X} disabled={busy} onClick={() => void annuler(l)}>Annuler</Button>
                       </div>
                     )}
@@ -277,14 +279,16 @@ export function SaisieOperateurV2({ drivers, tenantId }: { drivers: Driver[]; te
 
 /* ── Validation (admin valideur) ────────────────────────────── */
 
-function Preuves({ fichiers }: { fichiers: { file_path: string; file_name: string | null }[] }) {
+function Preuves({ fichiers, requise = true }: { fichiers: { file_path: string; file_name: string | null }[]; requise?: boolean }) {
   const [items, setItems] = useState<ReturnType<typeof enrichUpload>[] | null>(null);
   const load = useCallback(async () => {
     const urls = await obtenirUrlsSignees(fichiers.map((f) => f.file_path));
     setItems(fichiers.map((f) => enrichUpload(f, urls[f.file_path])));
   }, [fichiers]);
   useEffect(() => { void Promise.resolve().then(load); }, [load]);
-  if (!fichiers.length) return <div style={{ fontSize: 12, color: STATUS_COLOR.sous }}>Aucune preuve jointe : validation impossible.</div>;
+  if (!fichiers.length) return requise
+    ? <div style={{ fontSize: 12, color: STATUS_COLOR.sous }}>Aucune preuve jointe : validation impossible.</div>
+    : <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>Aucune preuve jointe (non exigée pour cette catégorie).</div>;
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 160px), 1fr))", gap: 8 }}>
       {(items ?? []).map((u, i) => <AttachmentTile key={i} u={u} onRetry={() => void load()} maxHeight={160} />)}
@@ -345,14 +349,14 @@ export function SaisiesAValiderV2({ onChanged }: { onChanged?: () => void }) {
               <div style={{ fontSize: 14, fontWeight: 500 }}>{c.decaissement ? `Décaissement · ${c.chauffeur}${c.beneficiaire ? ` → ${c.beneficiaire}` : ""}` : `${c.chauffeur} · ${c.category}`} du {ddmm(c.expense_date)}</div>
               <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>{formatAmount(c.amount)} XOF{c.description ? ` · ${c.description}` : ""} · saisi par {c.saisi_par ?? "—"} · 📎 {c.pieces} {ouvert === c.id ? "▲" : "▼ voir la preuve"}</div>
             </button>
-            {actions("charge", c.id, c.entered_by, c.pieces === 0)}
+            {actions("charge", c.id, c.entered_by, c.pieces === 0 && preuveExigee(c.category))}
           </div>
           {c.doublons.length > 0 && (
             <div role="alert" style={{ fontSize: 12, padding: "6px 10px", borderRadius: 8, background: `${STATUS_COLOR.proche}26`, boxShadow: `inset 0 0 0 1px ${STATUS_COLOR.proche}66` }}>
               Doublon possible : même chauffeur, même jour, même catégorie et même montant — {c.doublons.map((d) => `${d.origine === "chauffeur" ? "déclarée par le chauffeur" : "saisie par l\u2019exploitation"} (${STATUT[d.status]?.txt.toLowerCase() ?? d.status})`).join(", ")}. Vérifiez avant de valider.
             </div>
           )}
-          {ouvert === c.id && <Preuves fichiers={c.fichiers} />}
+          {ouvert === c.id && <Preuves fichiers={c.fichiers} requise={preuveExigee(c.category)} />}
         </div>
       ))}
     </Card>

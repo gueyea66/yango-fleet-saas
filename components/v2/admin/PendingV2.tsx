@@ -5,6 +5,7 @@ import { Check, CircleCheck, TriangleAlert, MessageSquare, Sparkles, Info, Chevr
 import { Badge, Button, Segmented, Toast } from "@/components/ui";
 import { useReportReview } from "@/components/admin/useReportReview";
 import { useExpenseReview } from "@/components/admin/useExpenseReview";
+import { preuveExigee } from "@/lib/operateur";
 import { CAT_AVANCE, EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
 import { displayLabel, platLabel } from "@/lib/tenant/platformLabel";
 import { formatAmount } from "@/lib/v2/format";
@@ -412,7 +413,7 @@ export function ExpensePanel({ expense, onRefresh, onAction, ops }: { expense: a
   const info = operateur ? ops?.charges.find((c) => c.id === expense.id) : undefined;
   // `ops` absent = panneau ouvert hors de « À valider » (Historique) : lecture seule pour une saisie opérateur
   const bloque = !operateur ? null : ops === undefined ? "Saisie opérateur : la décision se prend dans « À valider »." : blocage(ops, expense.entered_by);
-  const sansPreuve = operateur && ev.uploads.length === 0 && (info?.pieces ?? 0) === 0;
+  const sansPreuve = operateur && ev.uploads.length === 0 && (info?.pieces ?? 0) === 0 && preuveExigee(expense.category);
   const [motif, setMotif] = useState("");
   const [opSaving, setOpSaving] = useState(false);
   const [opErr, setOpErr] = useState<string | null>(null);
