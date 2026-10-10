@@ -63,7 +63,8 @@ Depuis le 06/10/2026, rien n'entre en base sans confirmation. Le dépôt se fait
 2. **Confirmer** : case à cocher puis « Confirmer l'intégration ». L'API refuse une intégration sans `confirme=1`.
 
 Alertes de l'aperçu (`lib/fleetroom/apercu.ts`) :
-- **bloquant** : journée en cours ou future (un export pris en cours de journée donne des déclarations et des soldes faux), fichier non reconnu, soldes sans date ;
+- **bloquant** : dépôt qui ne contient que la journée en cours, soldes datés d'aujourd'hui (un export pris en cours de journée donne des déclarations et des soldes faux), fichier non reconnu, soldes sans date ;
+- **attention, lignes du jour en cours** : elles sont laissées de côté, jamais écrites, et reviennent avec l'export du lendemain. Cas courant (près d'un jour sur trois chez NMK) : une course partie avant minuit et finie après. Sa commande est gardée, parce que l'export Commandes la range au jour de la prise en charge et ne la redonnera pas ; ses transactions, datées d'après minuit, arrivent avec l'export suivant. La course et son encaissement comptent donc dans la journée où elle se termine, comme dans le solde Yango ;
 - **attention** : dernière transaction du dernier jour avant 20h, jour sans transaction au milieu de la période, pas de commandes, pas de soldes, date des soldes différente du dernier jour, fichier déjà déposé, jours déjà en base, chauffeurs absents de l'app.
 
 **Qui dépose** : tout administrateur, opérateur « saisie seule » compris (décision du 07/10/2026). Les déclarations issues des exports restent directement validées ; trancher un écart avec une déclaration de chauffeur reste réservé à un valideur.

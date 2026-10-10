@@ -29,7 +29,7 @@ interface Picked {
 }
 
 interface IngestResult {
-  files: { name: string; kind: FleetroomKind | null; status: string; message?: string; rows_total?: number; rows_new?: number }[];
+  files: { name: string; kind: FleetroomKind | null; status: string; message?: string; rows_total?: number; rows_new?: number; rows_ecartees?: number }[];
   rebuild: {
     inserted: number; updated: number; conflicts: number; recharges: number; unmapped_drivers: string[];
     /** Absent tant que la migration 076 n'est pas appliquée. */
@@ -293,7 +293,7 @@ export default function FleetroomImportTab() {
           {result.files.map((f) => (
             <div key={f.name} style={{ color: "var(--sk-t1)" }}>
               {f.kind ? KIND_LABEL[f.kind] : f.name} :{" "}
-              {f.status === "imported" ? `${fmt(f.rows_new)} nouvelles lignes, ${fmt((f.rows_total ?? 0) - (f.rows_new ?? 0))} déjà connues`
+              {f.status === "imported" ? `${fmt(f.rows_new)} nouvelles lignes, ${fmt((f.rows_total ?? 0) - (f.rows_new ?? 0))} déjà connues${f.rows_ecartees ? `, ${fmt(f.rows_ecartees)} du jour en cours laissées pour demain` : ""}`
                 : f.message}
             </div>
           ))}

@@ -228,6 +228,22 @@ export function parseSoldes(rows: string[][], jour: string): YangoBalance[] {
   return out;
 }
 
+/**
+ * Lignes d'une journée non terminée (`today` = jour courant, AAAA-MM-JJ, Dakar = UTC).
+ *
+ * Une transaction est datée de son heure : celles d'aujourd'hui reviennent dans
+ * l'export de demain. Une commande est exportée avec le jour de sa PRISE EN
+ * CHARGE (constaté sur NMK : la course 30/09 23:53 → 01/10 00:02 n'est que dans
+ * l'export du 30/09) : partie hier et finie après minuit, elle ne reviendra pas,
+ * il faut donc la garder.
+ */
+export const txEnCours = (t: YangoTransaction, today: string) => t.jour >= today;
+export const commandeEnCours = (o: YangoOrder, today: string) =>
+  (o.started_at?.slice(0, 10) ?? o.jour ?? "") >= today;
+/** Commande gardée alors qu'elle est datée d'aujourd'hui : partie avant minuit, finie après. */
+export const commandeApresMinuit = (o: YangoOrder, today: string) =>
+  !commandeEnCours(o, today) && (o.jour ?? "") >= today;
+
 export function periodOf(jours: (string | null)[]): { from: string | null; to: string | null } {
   const js = jours.filter((j): j is string => !!j).sort();
   return { from: js[0] ?? null, to: js[js.length - 1] ?? null };
