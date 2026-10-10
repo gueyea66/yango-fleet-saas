@@ -23,6 +23,27 @@ describe("aperçu d'un dépôt Fleetroom", () => {
     expect(a.alertes[0].texte).toContain("05/10 n'est pas terminé");
   });
 
+  it("course finie après minuit : la veille s'intègre, les lignes du jour en cours sont laissées de côté", () => {
+    const OH = "Identifiant;Code de la commande;Statut;Conducteur;Nom;Véhicule;Libellé;Date de prise en charge;Date de réalisation\r\n";
+    const cmd = (id: string, t0: string, t1: string) => `${id};C${id};Terminé;a1;Chauffeur a1;v1;Suzuki AA195SJ;${t0};${t1}\r\n`;
+    const a = apercuFichiers([
+      fichier(H + tx("05.10.2026", "23:40:00") + tx("06.10.2026", "00:02:00")),
+      fichier(OH + cmd("o1", "05.10.2026 22:00:00", "05.10.2026 22:20:00") + cmd("o2", "05.10.2026 23:53:00", "06.10.2026 00:02:00")
+        + cmd("o3", "06.10.2026 08:00:00", "06.10.2026 08:10:00"), "report_orders.csv"),
+    ], "2026-10-06");
+    expect(a.alertes.some((x) => x.niveau === "bloquant")).toBe(false);
+    expect(a.jours).toEqual([expect.objectContaining({ jour: "2026-10-05", transactions: 1, commandes: 1 })]);
+    expect(a.fichiers.map((f) => f.rows)).toEqual([1, 2]);
+    expect(textes(a)).toContain("1 transaction et 1 commande du 06/10 (journée en cours) laissées de côté");
+    expect(textes(a)).toContain("1 course partie avant minuit et terminée le 06/10");
+  });
+
+  it("solde daté du jour en cours : bloquant", () => {
+    const a = apercuFichiers([fichier(H + tx("05.10.2026", "23:40:00")), { name: "file.csv", text: SOL, soldesJour: "2026-10-06" }], "2026-10-06");
+    expect(a.alertes[0]).toMatchObject({ niveau: "bloquant" });
+    expect(a.alertes[0].texte).toContain("solde pris en cours de journée");
+  });
+
   it("signale une journée passée qui s'arrête tôt, sans bloquer", () => {
     const a = apercuFichiers([fichier(H + tx("05.10.2026", "17:32:00"))], "2026-10-06");
     expect(a.alertes.some((x) => x.niveau === "bloquant")).toBe(false);

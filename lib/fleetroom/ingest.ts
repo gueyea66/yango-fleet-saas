@@ -9,13 +9,16 @@
  *     jamais additionnées ; une déclaration saisie par le chauffeur n'est pas
  *     écrasée, l'écart part dans fleetroom_conflicts.
  *
+ * Les lignes du jour en cours ne sont jamais écrites (voir `txEnCours` et
+ * `commandeEnCours`) : elles reviennent, complètes, avec l'export du lendemain.
+ *
  * Utilisé par la route /api/admin/fleetroom et par scripts/fleetroom-import.ts.
  */
 import { createHash } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  detectKind, parseOrders, parseSoldes, parseTransactions, periodOf, splitCsv,
-  type FleetroomKind,
+  commandeEnCours, detectKind, parseOrders, parseSoldes, parseTransactions, periodOf, splitCsv,
+  txEnCours, type FleetroomKind,
 } from "./parse";
 
 export interface FleetroomFile {
@@ -32,6 +35,8 @@ export interface FileResult {
   message?: string;
   rows_total?: number;
   rows_new?: number;
+  /** lignes du jour en cours, laissées pour l'export du lendemain */
+  rows_ecartees?: number;
   period?: { from: string | null; to: string | null };
 }
 
@@ -82,6 +87,7 @@ async function linkDrivers(sb: SupabaseClient, tenantId: string, drivers: Map<st
 
 export async function ingestFleetroom(
   sb: SupabaseClient, tenantId: string, files: FleetroomFile[], createdBy?: string,
+  today = new Date().toISOString().slice(0, 10),
 ): Promise<IngestResult> {
   const results: FileResult[] = [];
   const drivers = new Map<string, string>();
@@ -98,6 +104,10 @@ export async function ingestFleetroom(
       results.push({ name: f.name, kind, status: "rejected", message: "Préciser la date du solde (AAAA-MM-JJ)" });
       continue;
     }
+    if (kind === "soldes" && f.soldesJour! >= today) {
+      results.push({ name: f.name, kind, status: "rejected", message: "Solde d'une journée non terminée : refaire l'export le lendemain" });
+      continue;
+    }
     // L'export « soldes » d'un même contenu peut viser deux dates : la date entre dans l'empreinte.
     const sha = createHash("sha256").update(f.text).update(f.soldesJour ?? "").digest("hex");
     const { data: dup } = await sb.schema("fleet").from("fleetroom_imports")
@@ -108,14 +118,19 @@ export async function ingestFleetroom(
     }
 
     let payload: object[] = [];
+    let ecartees = 0;
     let period = { from: null as string | null, to: null as string | null };
     if (kind === "transactions") {
-      const tx = parseTransactions(rows);
+      const tout = parseTransactions(rows);
+      const tx = tout.filter((t) => !txEnCours(t, today));
+      ecartees = tout.length - tx.length;
       tx.forEach((t) => drivers.set(t.yango_driver_id, t.driver_name));
       period = periodOf(tx.map((t) => t.jour));
       payload = tx.map((t) => ({ ...t, order_id: t.order_id ?? "" }));
     } else if (kind === "orders") {
-      const od = parseOrders(rows);
+      const tout = parseOrders(rows);
+      const od = tout.filter((o) => !commandeEnCours(o, today));
+      ecartees = tout.length - od.length;
       od.forEach((o) => o.yango_driver_id && o.driver_name && !drivers.has(o.yango_driver_id)
         && drivers.set(o.yango_driver_id, o.driver_name));
       period = periodOf(od.map((o) => o.jour));
@@ -124,6 +139,11 @@ export async function ingestFleetroom(
       const so = parseSoldes(rows, f.soldesJour!);
       period = { from: f.soldesJour!, to: f.soldesJour! };
       payload = so.map((s) => ({ driver_name: s.driver_name, jour: s.jour, solde_debut: s.solde_debut, solde_fin: s.solde_fin }));
+    }
+
+    if (payload.length === 0 && ecartees > 0) {
+      results.push({ name: f.name, kind, status: "rejected", rows_ecartees: ecartees, message: "Journée non terminée : refaire l'export le lendemain" });
+      continue;
     }
 
     const { data: imp, error: impErr } = await sb.schema("fleet").from("fleetroom_imports").insert({
@@ -147,7 +167,7 @@ export async function ingestFleetroom(
       .update({ rows_new: rowsNew, rows_known: payload.length - rowsNew }).eq("id", imp.id);
 
     jours.push(period.from, period.to);
-    results.push({ name: f.name, kind, status: "imported", rows_total: payload.length, rows_new: rowsNew, period });
+    results.push({ name: f.name, kind, status: "imported", rows_total: payload.length, rows_new: rowsNew, rows_ecartees: ecartees, period });
   }
 
   const { linked, unknown } = await linkDrivers(sb, tenantId, drivers);
@@ -158,7 +178,11 @@ export async function ingestFleetroom(
   // importés : dans ce cas on recalcule tout l'historique.
   const newAnchor = results.some((r) => r.kind === "soldes" && r.status === "imported");
   let rebuild: Record<string, unknown> | null = null;
-  if (p.from && p.to) {
+  // Une course finie après minuit date sa commande d'aujourd'hui : le recalcul
+  // s'arrête à hier, la journée en cours n'a pas encore ses transactions.
+  const hier = new Date(Date.parse(`${today}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  if (p.to && p.to > hier) p.to = hier;
+  if (p.from && p.to && p.from <= p.to) {
     // Un bonus crédité un jour sans course est reporté sur la dernière journée
     // travaillée qui le précède (migration 083) : elle peut être antérieure aux
     // fichiers déposés, d'où les 14 jours de marge avant la période.

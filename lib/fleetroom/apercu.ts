@@ -6,12 +6,16 @@
  * (NMK, 05/10/2026 : 244 transactions à 17h40, 312 le lendemain) : les
  * déclarations et les soldes du jour étaient faux, il a fallu tout retirer.
  * Rien n'est écrit ici ; l'intégration ne part qu'après confirmation.
+ *
+ * Les lignes du jour en cours ne bloquent pas le dépôt : l'export de la veille
+ * en contient près d'un jour sur trois (course partie avant minuit, finie
+ * après). Elles sont mises de côté, ici comme dans `ingestFleetroom`.
  */
 import { createHash } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
-  detectKind, parseOrders, parseSoldes, parseTransactions, periodOf, splitCsv,
-  type FleetroomKind,
+  commandeApresMinuit, commandeEnCours, detectKind, parseOrders, parseSoldes, parseTransactions, periodOf, splitCsv,
+  txEnCours, type FleetroomKind,
 } from "./parse";
 import type { FleetroomFile } from "./ingest";
 
@@ -55,6 +59,7 @@ export function apercuFichiers(files: FleetroomFile[], today: string): Apercu {
     if (!jours.has(j)) jours.set(j, { jour: j, transactions: 0, commandes: 0, chauffeurs: 0, soldes: 0, brut: 0, derniereTransaction: null, ids: new Set() });
     return jours.get(j)!;
   };
+  let txEcartees = 0, commandesEcartees = 0, apresMinuit = 0;
 
   for (const f of files) {
     const rows = splitCsv(f.text);
@@ -63,7 +68,9 @@ export function apercuFichiers(files: FleetroomFile[], today: string): Apercu {
     let n = Math.max(0, rows.length - 1);
     try {
       if (kind === "transactions") {
-        const tx = parseTransactions(rows);
+        const tout = parseTransactions(rows);
+        const tx = tout.filter((t) => !txEnCours(t, today));
+        txEcartees += tout.length - tx.length;
         n = tx.length; period = periodOf(tx.map((t) => t.jour));
         for (const t of tx) {
           const d = jourDe(t.jour);
@@ -73,9 +80,14 @@ export function apercuFichiers(files: FleetroomFile[], today: string): Apercu {
           if (!d.derniereTransaction || h > d.derniereTransaction) d.derniereTransaction = h;
         }
       } else if (kind === "orders") {
-        const od = parseOrders(rows);
+        const tout = parseOrders(rows);
+        const od = tout.filter((o) => !commandeEnCours(o, today));
+        commandesEcartees += tout.length - od.length;
         n = od.length; period = periodOf(od.map((o) => o.jour));
-        for (const o of od) if (o.jour) jourDe(o.jour).commandes += 1;
+        for (const o of od) {
+          if (commandeApresMinuit(o, today)) apresMinuit += 1;
+          else if (o.jour) jourDe(o.jour).commandes += 1;
+        }
       } else if (kind === "soldes") {
         if (/^\d{4}-\d{2}-\d{2}$/.test(f.soldesJour ?? "")) {
           const so = parseSoldes(rows, f.soldesJour!);
@@ -98,9 +110,19 @@ export function apercuFichiers(files: FleetroomFile[], today: string): Apercu {
   const avecTx = liste.filter((d) => d.transactions > 0);
   const kinds = new Set(fichiers.map((f) => f.kind));
 
-  // journée en cours ou future : l'export ne peut pas être complet
+  // journée en cours : ses lignes sont mises de côté ; seul un solde daté d'aujourd'hui arrive jusqu'ici
   for (const d of liste.filter((x) => x.jour >= today)) {
-    alertes.push({ niveau: "bloquant", texte: `Le ${fr(d.jour)} n'est pas terminé : un export pris en cours de journée donne des déclarations et des soldes faux. Refaites l'export le lendemain.` });
+    alertes.push({ niveau: "bloquant", texte: `Le ${fr(d.jour)} n'est pas terminé : un solde pris en cours de journée est faux. Refaites l'export Soldes le lendemain, ou corrigez sa date.` });
+  }
+  const s = (k: number) => (k > 1 ? "s" : "");
+  if ((txEcartees || commandesEcartees) && liste.length === 0) {
+    alertes.push({ niveau: "bloquant", texte: `Le ${fr(today)} n'est pas terminé : un export pris en cours de journée donne des déclarations et des soldes faux. Refaites l'export le lendemain.` });
+  } else if (txEcartees || commandesEcartees) {
+    const quoi = [txEcartees && `${txEcartees} transaction${s(txEcartees)}`, commandesEcartees && `${commandesEcartees} commande${s(commandesEcartees)}`].filter(Boolean).join(" et ");
+    alertes.push({ niveau: "attention", texte: `${quoi} du ${fr(today)} (journée en cours) laissée${s(txEcartees + commandesEcartees)} de côté : rien n'est intégré pour ce jour, tout reviendra avec l'export de demain.` });
+  }
+  if (apresMinuit) {
+    alertes.push({ niveau: "attention", texte: `${apresMinuit} course${s(apresMinuit)} partie${s(apresMinuit)} avant minuit et terminée${s(apresMinuit)} le ${fr(today)} : enregistrée${s(apresMinuit)}, comptée${s(apresMinuit)} dans la journée du ${fr(today)} une fois l'export de demain déposé.` });
   }
   if (!kinds.has("transactions") && fichiers.some((f) => f.kind)) {
     alertes.push({ niveau: "attention", texte: "Aucun export Transactions : sans lui, aucune déclaration n'est calculée pour ces jours." });
