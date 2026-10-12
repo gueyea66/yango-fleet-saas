@@ -312,7 +312,10 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       }
       const kmByDate: Record<string, number> = {};
       const repsByDriverKm: Record<string, any[]> = {};
-      reps.forEach((r: any) => { (repsByDriverKm[r.driver_id] ||= []).push(r); });
+      // Un repos n'a pas de compteur : hors chaîne, pour que la déclaration
+      // suivante se compare au dernier jour travaillé (même règle que
+      // kmCompteurParJour, lib/analytics/driverStats.ts).
+      reps.forEach((r: any) => { if (isRepos(r) && !r.end_odometer) return; (repsByDriverKm[r.driver_id] ||= []).push(r); });
       for (const [driverId, driverReps] of Object.entries(repsByDriverKm)) {
         const sorted = driverReps.sort((a, b) => a.date.localeCompare(b.date));
         const seed = seedByDriver[driverId];
