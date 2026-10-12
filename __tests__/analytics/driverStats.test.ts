@@ -25,6 +25,22 @@ describe("km au compteur", () => {
     expect(Object.fromEntries(km.get("a")!)).toEqual({ "2026-09-01": 100, "2026-09-02": 200 });
     expect(km.get("b")!.size).toBe(0); // jamais d'écart entre deux chauffeurs
   });
+  it("après un repos, l'écart se mesure depuis le dernier jour travaillé", () => {
+    const km = kmCompteurParJour([
+      rep("a", "2026-09-01", { end_odometer: 1000 }),
+      rep("a", "2026-09-02", { end_odometer: null, comment: "[REPOS] repos hebdo" }),
+      rep("a", "2026-09-03", { end_odometer: 1180 }),
+    ]);
+    expect(Object.fromEntries(km.get("a")!)).toEqual({ "2026-09-03": 180 });
+  });
+  it("un jour travaillé sans compteur coupe toujours la paire", () => {
+    const km = kmCompteurParJour([
+      rep("a", "2026-09-01", { end_odometer: 1000 }),
+      rep("a", "2026-09-02", { end_odometer: null }),
+      rep("a", "2026-09-03", { end_odometer: 1180 }),
+    ]);
+    expect(km.get("a")!.size).toBe(0);
+  });
 });
 
 describe("KPI Fleetroom", () => {

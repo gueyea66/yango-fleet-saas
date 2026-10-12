@@ -136,10 +136,15 @@ export function kmCompteurParJour(reports: ReportLike[], seeds: ReportLike[] = [
     const cur = seedBy.get(r.driver_id);
     if (!cur || r.date > cur.date) seedBy.set(r.driver_id, r);
   }
-  // Toutes les déclarations (repos compris) : un jour sans compteur coupe la
-  // paire, comme au tableau de bord — pas d'écart cumulé sur plusieurs jours.
+  // Un repos n'a pas de compteur : il sort de la chaîne, et la déclaration
+  // suivante se compare au dernier jour travaillé (le véhicule n'a pas roulé).
+  // Un jour TRAVAILLÉ sans compteur coupe toujours la paire, comme au tableau
+  // de bord — pas d'écart cumulé sur plusieurs jours de service.
   const byDriver = new Map<string, ReportLike[]>();
-  for (const r of reports) (byDriver.get(r.driver_id) ?? byDriver.set(r.driver_id, []).get(r.driver_id)!).push(r);
+  for (const r of reports) {
+    if (isRepos(r) && !r.end_odometer) continue;
+    (byDriver.get(r.driver_id) ?? byDriver.set(r.driver_id, []).get(r.driver_id)!).push(r);
+  }
   const out = new Map<string, Map<string, number>>();
   for (const [id, reps] of byDriver) {
     const chain = [...reps].sort((a, b) => a.date.localeCompare(b.date));
