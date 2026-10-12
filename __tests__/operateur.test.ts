@@ -1,4 +1,4 @@
-import { doublonsPossibles, peutChangerDroit, peutDecider, peutModifierSaisie, peutSaisirDecaissement, validerCharge, validerCompteAdmin, validerDecaissement, validerHorsYango, CATEGORIES_OPERATEUR } from "@/lib/operateur";
+import { doublonsPossibles, peutChangerDroit, peutDecider, peutModifierSaisie, peutSaisirDecaissement, validerCharge, validerCompteAdmin, validerDecaissement, validerHorsYango, validerRepos, CATEGORIES_OPERATEUR } from "@/lib/operateur";
 
 const D = "11111111-1111-4111-8111-111111111111";
 const today = "2026-10-02";
@@ -131,5 +131,19 @@ describe("compte gestionnaire", () => {
   });
   it("modification : le mot de passe n'est jamais repris", () => {
     expect(validerCompteAdmin({ ...base, password: "autre-mot-de-passe" }, "modification")).toEqual({ ok: true, value: { full_name: "Awa Diop", email: "awa.diop@exemple.sn", profil: "operateur" } });
+  });
+});
+
+describe("jour de repos saisi par l'exploitation", () => {
+  const d = "11111111-1111-4111-8111-111111111111";
+  it("accepte un jour passé, le jour même ou planifié", () => {
+    expect(validerRepos({ driver_id: d, date: "2026-10-01", motif: "  Maladie " }, "2026-10-12")).toEqual({ ok: true, value: { driver_id: d, date: "2026-10-01", motif: "Maladie" } });
+    expect(validerRepos({ driver_id: d, date: "2026-10-12" }, "2026-10-12").ok).toBe(true);
+    expect(validerRepos({ driver_id: d, date: "2026-11-20" }, "2026-10-12").ok).toBe(true);
+  });
+  it("refuse sans chauffeur, date invalide ou trop lointaine", () => {
+    expect(validerRepos({ date: "2026-10-01" }, "2026-10-12").ok).toBe(false);
+    expect(validerRepos({ driver_id: d, date: "12/10/2026" }, "2026-10-12").ok).toBe(false);
+    expect(validerRepos({ driver_id: d, date: "2027-06-01" }, "2026-10-12").ok).toBe(false);
   });
 });
