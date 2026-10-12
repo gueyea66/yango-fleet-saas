@@ -157,7 +157,7 @@ export function PendingV2({ reports, expenses, loading, onRefresh }: {
         ) : selected._hy ? (
           <HorsYangoPanel key={selected.id} id={selected.id} saisie={selected._hy} ops={ops} onRefresh={refresh} onAction={onAction} />
         ) : kind === "reports" ? (
-          <ReportPanel key={selected.id} report={selected} onRefresh={onRefresh} onAction={onAction} />
+          <ReportPanel key={selected.id} report={selected} onRefresh={onRefresh} onAction={onAction} ops={ops} />
         ) : (
           <ExpensePanel key={selected.id} expense={selected} onRefresh={refresh} onAction={onAction} ops={ops} />
         )}
@@ -192,7 +192,7 @@ function Check2({ ok, warn, children }: { ok?: boolean; warn?: boolean; children
   );
 }
 
-export function ReportPanel({ report, onRefresh, onAction }: { report: any; onRefresh: () => void; onAction: (id: string, label: string) => void }) {
+export function ReportPanel({ report, onRefresh, onAction, ops }: { report: any; onRefresh: () => void; onAction: (id: string, label: string) => void; ops?: OpsData | null }) {
   const rv = useReportReview(report, onRefresh);
   const ctx = useReviewContext(report);
   const [edit, setEdit] = useState(false);
@@ -233,7 +233,10 @@ export function ReportPanel({ report, onRefresh, onAction }: { report: any; onRe
       actions={
         // Mêmes actions que la modale actuelle : Rejeter / Valider tant que le
         // rapport n'est pas validé, « Annuler la validation » sinon.
-        report.status === "approved" ? (
+        // Profil « saisie seule » : il voit et corrige, un valideur décide (pas de bouton).
+        ops && !ops.me.peut_valider ? (
+          <span style={{ fontSize: 13, color: "var(--v2-muted)" }}>{blocage(ops, null)}</span>
+        ) : report.status === "approved" ? (
           <Button variant="danger" size="md" disabled={rv.saving} onClick={() => void act("rejected")} style={{ height: 42 }}>Annuler la validation</Button>
         ) : (
           <>
