@@ -78,6 +78,23 @@ export function validerDecaissement(b: Record<string, unknown>, today: string): 
   return { ok: true, value: { driver_id, date, montant, advance_driver_id: benef, description } };
 }
 
+/** Un repos se planifie à l'avance (calendrier) : jusqu'à 3 mois devant, contrairement aux saisies d'argent. */
+export const REPOS_HORIZON_JOURS = 92;
+export interface SaisieReposInput { driver_id: string; date: string; motif: string | null }
+
+/**
+ * Jour de repos saisi par l'exploitation pour un chauffeur : un rapport
+ * « [REPOS] » à zéro, même convention que la déclaration du chauffeur.
+ */
+export function validerRepos(b: Record<string, unknown>, today: string): Ok<SaisieReposInput> | Err {
+  const driver_id = String(b.driver_id ?? "");
+  const date = String(b.date ?? "");
+  if (!UUID.test(driver_id)) return { ok: false, error: "Chauffeur requis" };
+  const max = new Date(Date.parse(today) + REPOS_HORIZON_JOURS * 86400000).toISOString().slice(0, 10);
+  if (!ISO_JOUR.test(date) || Number.isNaN(Date.parse(date)) || date < "2020-01-01" || date > max) return { ok: false, error: "Date de repos invalide" };
+  return { ok: true, value: { driver_id, date, motif: nettoie(b.motif, 200) } };
+}
+
 /**
  * Peut-on changer le droit de valider d'un administrateur ?
  *  - seul un valideur le peut ;

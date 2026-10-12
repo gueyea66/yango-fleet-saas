@@ -4061,17 +4061,14 @@ function CalendrierTab({ filterDriverId, filterDriverIds, allDrivers }: { filter
     if (!addModal || !addDriver) return;
     setSaving(true);
     try {
-      const supabase = createClient() as any;
-      const { data: exists } = await supabase.from("daily_reports")
-        .select("id").eq("driver_id", addDriver).eq("date", addModal.date)
-        .in("status", ["submitted", "approved"]).limit(1).maybeSingle();
-      if (exists) { alert("Un rapport existe déjà pour ce chauffeur à cette date."); setSaving(false); return; }
-      await supabase.from("daily_reports").insert({
-        driver_id: addDriver, date: addModal.date, status: "approved",
-        comment: `[REPOS]${addMotif ? " " + addMotif : ""}`,
-        gross_earnings: 0, yango_gross: 0, yango_bonus: 0, off_yango_revenue: 0,
-        net_after_expenses: 0, commission_rate: 0, commission_amount: 0, expense_count: 0,
+      // écriture côté serveur : tenant et droit de valider lus sur la session
+      const res = await fetch("/api/admin/repos", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ driver_id: addDriver, date: addModal.date, motif: addMotif }),
       });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) { alert(j.error || "Enregistrement impossible"); return; }
+      if (j.status === "submitted") alert("Repos enregistré, en attente de validation par un administrateur valideur.");
       setAddModal(null); setAddMotif(""); setAddDriver("");
       await load();
     } catch (err: any) { alert("Erreur : " + err.message); }
