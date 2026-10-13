@@ -22,6 +22,8 @@ import { SaisieOperateurV2 } from "@/components/v2/admin/OperateurV2";
 import { computeTrends, lastBuckets } from "@/lib/analytics/trends";
 import type { SegmentFilter } from "@/lib/analytics/segment";
 import { FLEET_SEG_OPTS } from "@/lib/v2/fleetScope";
+import { RendementV2, type RendementPayload } from "@/components/v2/admin/RendementV2";
+import { calculerRendement, type OrderRow } from "@/lib/analytics/rendement";
 
 // Profil fictif : identifiants non-UUID → toute requête Supabase échoue côté
 // base (aucune lecture ni écriture possible). Sert à relire la mise en page.
@@ -56,6 +58,10 @@ export default function UiV2Showcase() {
 
   if (uiV2 && screen === "admin") {
     return <AdminShellDemo />;
+  }
+
+  if (uiV2 && screen === "rendement") {
+    return <RendementDemo />;
   }
 
   if (!uiV2) {
@@ -163,6 +169,68 @@ export default function UiV2Showcase() {
           <ListRow label="Ibrahima Fall" sub="Rapport · 22/09" tone="wait" divider={false} trailing={<Badge tone="wait">à vérifier</Badge>} />
         </Card>
       </section>
+    </main>
+  );
+}
+
+/**
+ * Commandes fictives, tirées d'un générateur à graine fixe : deux pics de tarif,
+ * un dimanche plus fluide, un chauffeur du soir. Sert à relire l'écran
+ * Rendement sans base ; aucun nom ni chiffre réel.
+ */
+function commandesFictives(): OrderRow[] {
+  let g = 20261013;
+  const alea = () => ((g = (g * 1664525 + 1013904223) >>> 0) / 4294967296);
+  const zones = [["GY", "Grand Yoff", 12, 1.05], ["ME", "Medina", 11, 1.12], ["NG", "Ngor-Almadies", 18, 0.92],
+    ["SC", "Sacre Coeur", 13, 1.06], ["OKM", "Ouakam", 16, 0.9], ["HB", "Hann-Bel Air", 15, 1.0], ["LIB", "Sicap Liberte", 13, 1.04]] as const;
+  const chauffeurs = [["c1", "Moussa Diop", 7, 17], ["c2", "Awa Ndiaye", 9, 20], ["c3", "Ibrahima Fall", 13, 23], ["c4", "Fatou Sarr", 6, 15]] as const;
+  const out: OrderRow[] = [];
+  const debut = Date.UTC(2026, 6, 6);
+  for (let j = 0; j < 98; j++) {
+    const js = j % 7;
+    for (const [id, nom, h0, h1] of chauffeurs) {
+      if (alea() < (js === 6 ? 0.55 : 0.12)) continue; // repos, plus fréquent le dimanche
+      let t = debut + j * 86400000 + h0 * 3600000 + alea() * 1800000;
+      const fin = debut + j * 86400000 + h1 * 3600000;
+      while (t < fin) {
+        const h = new Date(t).getUTCHours();
+        const [code, commune, vBase, prime] = zones[Math.floor(alea() * zones.length)];
+        const arrivee = zones[Math.floor(alea() * zones.length)];
+        const pointe = h === 7 ? 1.1 : h >= 17 && h <= 18 ? 1.12 : h < 6 || h > 21 ? 0.86 : 0.97;
+        const vitesse = vBase * (js === 6 ? 1.25 : h >= 17 && h <= 19 ? 0.72 : h < 7 ? 1.3 : 1);
+        const km = 1.5 + alea() * 8, min = (km / vitesse) * 60;
+        const base = { order_id: `f${out.length}`, yango_driver_id: id, driver_name: nom, plate: `AA10${id.slice(1)}SJ`,
+          address_from: `Rue ${code}-${Math.ceil(alea() * 90)}, ${commune}, Dakar, Département de Dakar`,
+          address_to: `Rue ${arrivee[0]}-${Math.ceil(alea() * 90)}, ${arrivee[1]}, Dakar, Département de Dakar`, service_class: "Éco" };
+        if (alea() < 0.2) {
+          out.push({ ...base, status: "Annulé", cancel_reason: "Course annulée par le client", started_at: new Date(t).toISOString(), ended_at: null, distance_m: null, tarif: null, commission: null });
+          t += 240000;
+          continue;
+        }
+        const tarif = Math.round((340 + 183 * km + 18 * min) * pointe * prime / 100) * 100;
+        out.push({ ...base, status: "Terminé", cancel_reason: null, started_at: new Date(t).toISOString(), ended_at: new Date(t + min * 60000).toISOString(), distance_m: km * 1000, tarif, commission: -tarif * 0.15 });
+        // de temps en temps, un long silence au milieu de la journée
+        t += min * 60000 + (alea() < 0.045 ? (70 + alea() * 110) * 60000 : (2 + alea() * 7) * 60000);
+      }
+    }
+  }
+  return out;
+}
+
+/** Écran Rendement hors connexion : données du poste si présentes, sinon fictives. */
+function RendementDemo() {
+  const [data, setData] = useState<RendementPayload | null>(null);
+  const [jours, setJours] = useState(90);
+  useEffect(() => {
+    let vivant = true;
+    // Fichier local non versionné, produit par __tests__/local : absent partout ailleurs.
+    fetch("/demo-rendement.local.json").then((r) => (r.ok ? r.json() : Promise.reject())).catch(() => calculerRendement(commandesFictives()))
+      .then((r) => { if (vivant) setData({ ...r, fenetre: 90 }); });
+    return () => { vivant = false; };
+  }, []);
+  return (
+    <main style={{ minHeight: "100vh", background: "var(--sk-deep)", padding: "28px 24px 80px" }}>
+      <RendementV2 data={data} jours={jours} onJours={setJours} loading={false} error={null} />
     </main>
   );
 }
