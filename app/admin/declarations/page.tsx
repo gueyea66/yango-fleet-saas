@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/context";
 import { useUiV2 } from "@/components/v2/useUiV2";
 import AdminFrameV2 from "@/components/v2/admin/AdminFrameV2";
-import { DeclarationsV2, type DeclarationsPayload } from "@/components/v2/admin/DeclarationsV2";
+import { DeclarationsV2, type DeclarationsPayload, type FiltreDeclarations } from "@/components/v2/admin/DeclarationsV2";
 
 /**
  * À valider → Déclarations. La page ne fait que demander le suivi pour la
@@ -17,7 +17,7 @@ export default function DeclarationsPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const uiV2 = useUiV2();
-  const [jours, setJours] = useState(14);
+  const [filtre, setFiltre] = useState<FiltreDeclarations>({ jours: 14, du: null, au: null, actifsSeulement: true, segment: "all" });
   const [data, setData] = useState<DeclarationsPayload | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,7 +29,10 @@ export default function DeclarationsPage() {
     const my = ++seq.current;
     setBusy(true); setError(null);
     try {
-      const res = await fetch(`/api/admin/declarations?jours=${jours}`, { cache: "no-store" });
+      const qs = new URLSearchParams(filtre.du && filtre.au ? { du: filtre.du, au: filtre.au } : { jours: String(filtre.jours) });
+      if (!filtre.actifsSeulement) qs.set("actifs", "0");
+      if (filtre.segment !== "all") qs.set("segment", filtre.segment);
+      const res = await fetch(`/api/admin/declarations?${qs}`, { cache: "no-store" });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || `Erreur ${res.status}`);
       if (my === seq.current) setData(json);
@@ -38,13 +41,13 @@ export default function DeclarationsPage() {
     } finally {
       if (my === seq.current) setBusy(false);
     }
-  }, [jours]);
+  }, [filtre]);
 
   useEffect(() => { if (user) void Promise.resolve().then(load); }, [user, load]);
 
   if (loading || !user) return null;
 
-  const ecran = <DeclarationsV2 data={data} jours={jours} onJours={setJours} loading={busy} error={error} onRecharger={load} />;
+  const ecran = <DeclarationsV2 data={data} filtre={filtre} onFiltre={setFiltre} loading={busy} error={error} onRecharger={load} />;
   if (uiV2) return <AdminFrameV2 tab="declarations">{ecran}</AdminFrameV2>;
   return <main style={{ minHeight: "100vh", background: "var(--sk-deep)", padding: "24px 20px 64px" }}>{ecran}</main>;
 }

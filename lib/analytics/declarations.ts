@@ -99,6 +99,8 @@ export interface SuiviDeclarations {
   jours: string[];
   chauffeurs: LigneChauffeur[];
   total: { dus: number; enRegle: number; taux: number | null; alertes: Record<Alerte, number>; chauffeursConcernes: number };
+  /** Anciens chauffeurs (plus actifs aujourd'hui) sous contrat sur la fenêtre, masqués ou non selon le filtre. */
+  anciens: number;
   /** Les courses Yango sont-elles disponibles pour servir de témoin ? */
   temoinYango: boolean;
   aTraiter: { chauffeurId: string; nom: string; jour: string; alerte: Alerte; detail: string }[];
@@ -123,6 +125,8 @@ export function suiviDeclarations(input: {
   du: string;
   au: string;
   aujourdhui: string;
+  /** Ne montrer que les chauffeurs encore actifs aujourd'hui (défaut : tous ceux sous contrat sur la fenêtre). */
+  actifsSeulement?: boolean;
 }): SuiviDeclarations {
   const { du, aujourdhui } = input;
   const au = input.au > aujourdhui ? aujourdhui : input.au;
@@ -151,10 +155,16 @@ export function suiviDeclarations(input: {
 
   const aTraiter: SuiviDeclarations["aTraiter"] = [];
   const lignes: LigneChauffeur[] = [];
+  let anciens = 0;
 
   for (const c of input.chauffeurs) {
     // Hors du périmètre : jamais sous contrat sur la fenêtre (compte technique, parti avant, arrivé après).
     if (!jours.some((j) => isDriverActiveOn(c, j, { requireHired: true }))) continue;
+    // Parti depuis : il a des journées dues sur la fenêtre, mais plus personne à relancer.
+    if (!isDriverActiveOn(c, aujourdhui)) {
+      anciens++;
+      if (input.actifsSeulement) continue;
+    }
     const nom = c.full_name || c.driver_id || "Chauffeur";
     const ligne: LigneChauffeur = { id: c.id, nom, plaque: c.plate?.trim() || null, cases: [], dus: 0, enRegle: 0, alertes: zeroAlertes(), dernierCarburant: null };
     let sansCarburant = 0; // journées travaillées de suite sans carburant déclaré
@@ -227,7 +237,7 @@ export function suiviDeclarations(input: {
     for (const a of ALERTES) totalAlertes[a.key] += l.alertes[a.key];
   }
   return {
-    du, au, aujourdhui, jours, chauffeurs: lignes, temoinYango, aTraiter,
+    du, au, aujourdhui, jours, chauffeurs: lignes, temoinYango, aTraiter, anciens,
     total: { dus, enRegle, taux: dus ? enRegle / dus : null, alertes: totalAlertes, chauffeursConcernes: lignes.filter((l) => nb(l) > 0).length },
   };
 }

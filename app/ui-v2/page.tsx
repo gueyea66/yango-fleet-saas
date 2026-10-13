@@ -24,7 +24,7 @@ import type { SegmentFilter } from "@/lib/analytics/segment";
 import { FLEET_SEG_OPTS } from "@/lib/v2/fleetScope";
 import { RendementV2, type RendementPayload } from "@/components/v2/admin/RendementV2";
 import { calculerRendement, type OrderRow } from "@/lib/analytics/rendement";
-import { DeclarationsV2 } from "@/components/v2/admin/DeclarationsV2";
+import { DeclarationsV2, type FiltreDeclarations } from "@/components/v2/admin/DeclarationsV2";
 import { suiviDeclarations, cleCourses, type RapportLigne, type DepenseLigne } from "@/lib/analytics/declarations";
 
 // Profil fictif : identifiants non-UUID → toute requête Supabase échoue côté
@@ -225,7 +225,8 @@ function commandesFictives(): OrderRow[] {
 
 /** Écran Déclarations hors connexion : quatorze jours fictifs, avec chaque type de manque. */
 function DeclarationsDemo() {
-  const [jours, setJours] = useState(14);
+  const [filtre, setFiltre] = useState<FiltreDeclarations>({ jours: 14, du: null, au: null, actifsSeulement: true, segment: "all" });
+  const jours = 31;
   const data = (() => {
     let g = 77;
     const alea = () => ((g = (g * 1664525 + 1013904223) >>> 0) / 4294967296);
@@ -237,6 +238,7 @@ function DeclarationsDemo() {
       { id: "c3", full_name: "Ibrahima Fall", yango_driver_id: "y3", plate: "AA103SJ" },
       { id: "c4", full_name: "Fatou Sarr", yango_driver_id: "y4", plate: "AA104SJ", hire_date: jour(8) },
       { id: "c5", full_name: "Cheikh Ba", yango_driver_id: "y5", plate: "AA105SJ" },
+      { id: "c6", full_name: "Omar Sy", yango_driver_id: "y6", plate: "AA106SJ", contract_end_date: jour(4) },
     ];
     const rapports: RapportLigne[] = [], depenses: DepenseLigne[] = [];
     const courses = new Map<string, number>();
@@ -252,11 +254,16 @@ function DeclarationsDemo() {
         if (alea() < (c.id === "c5" ? 0.3 : 0.7)) depenses.push({ driver_id: c.id, category: "Carburant", amount: 8000, status: "approved", expense_date: d });
       }
     }
-    return { fenetre: jours, ...suiviDeclarations({ chauffeurs, rapports, depenses, courses, du: jour(jours - 1), au: aujourdhui, aujourdhui }) };
+    const du = filtre.du ?? jour(filtre.jours - 1), au = filtre.au ?? aujourdhui;
+    // fictif : les deux derniers chauffeurs roulent sur des véhicules externes
+    const externe = new Set(["c4", "c5"]);
+    const retenus = chauffeurs.filter((c) => filtre.segment === "all" || (filtre.segment === "partenaire") === externe.has(c.id));
+    return { fenetre: filtre.du ? 0 : filtre.jours, actifsSeulement: filtre.actifsSeulement, segment: filtre.segment, mixte: true,
+      ...suiviDeclarations({ chauffeurs: retenus, rapports, depenses, courses, du, au, aujourdhui, actifsSeulement: filtre.actifsSeulement }) };
   })();
   return (
     <main style={{ minHeight: "100vh", background: "var(--sk-deep)", padding: "28px 24px 80px" }}>
-      <DeclarationsV2 data={data} jours={jours} onJours={setJours} loading={false} error={null} onRecharger={() => {}} />
+      <DeclarationsV2 data={data} filtre={filtre} onFiltre={setFiltre} loading={false} error={null} onRecharger={() => {}} />
     </main>
   );
 }

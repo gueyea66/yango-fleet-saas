@@ -16,8 +16,17 @@ import { Card, Overline, Segmented } from "@/components/ui";
 import { formatAmount } from "@/lib/v2/format";
 import { ALERTES, type Alerte, type Case, type EtatRecette, type LigneChauffeur, type SuiviDeclarations } from "@/lib/analytics/declarations";
 import { ChiffreAnime, useMouvementReduit } from "./RendementV2";
+import { FLEET_SEG_OPTS } from "@/lib/v2/fleetScope";
+import type { SegmentFilter } from "@/lib/analytics/segment";
 
-export type DeclarationsPayload = SuiviDeclarations & { fenetre: number };
+/** `fenetre` : préréglage en jours, 0 quand les dates sont choisies à la main. */
+export type DeclarationsPayload = SuiviDeclarations & {
+  fenetre: number; actifsSeulement: boolean; segment: SegmentFilter;
+  /** Le client a-t-il à la fois des véhicules internes et externes ? Sinon le filtre n'a pas lieu d'être. */
+  mixte: boolean;
+};
+/** Ce que l'utilisateur a choisi de regarder. `du`/`au` renseignés = dates libres. */
+export type FiltreDeclarations = { jours: number; du: string | null; au: string | null; actifsSeulement: boolean; segment: SegmentFilter };
 
 const PERIODES = [{ key: "7", label: "7 jours" }, { key: "14", label: "14 jours" }, { key: "31", label: "31 jours" }];
 const jourLong = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
@@ -131,10 +140,10 @@ const Ligne = ({ terme, children }: { terme: string; children: ReactNode }) => (
   </div>
 );
 
-export function DeclarationsV2({ data, jours, onJours, loading, error, onRecharger }: {
+export function DeclarationsV2({ data, filtre: vue, onFiltre, loading, error, onRecharger }: {
   data: DeclarationsPayload | null;
-  jours: number;
-  onJours: (j: number) => void;
+  filtre: FiltreDeclarations;
+  onFiltre: (f: FiltreDeclarations) => void;
   loading: boolean;
   error: string | null;
   /** Après une action (repos, relance) : relire les données. */
@@ -175,17 +184,47 @@ export function DeclarationsV2({ data, jours, onJours, loading, error, onRecharg
         <div style={{ flex: 1, minWidth: 240 }}>
           <h1 style={{ fontSize: 26, fontWeight: 700, color: "var(--sk-t1)", margin: 0, letterSpacing: "-0.01em" }}>Déclarations</h1>
           <p style={{ fontSize: 13.5, color: "var(--v2-muted)", margin: "4px 0 0" }}>
-            {data ? <>Du {jourLong(data.du)} au {jourLong(data.au)} · {data.chauffeurs.length} chauffeur{data.chauffeurs.length > 1 ? "s" : ""} sous contrat</>
+            {data ? <>{data.du === data.au ? `Le ${jourLong(data.du)}` : `Du ${jourLong(data.du)} au ${jourLong(data.au)}`} · {data.chauffeurs.length} chauffeur{data.chauffeurs.length > 1 ? "s" : ""}
+              {vue.actifsSeulement ? ` actif${data.chauffeurs.length > 1 ? "s" : ""}` : " sous contrat sur la période"}
+              {vue.actifsSeulement && data.anciens > 0 && ` · ${data.anciens} parti${data.anciens > 1 ? "s" : ""} depuis, masqué${data.anciens > 1 ? "s" : ""}`}</>
               : "Recettes, repos et carburant : qui a déclaré, et ce qui manque"}
           </p>
         </div>
-        <Segmented ariaLabel="Période suivie" options={PERIODES} value={String(jours)} onChange={(k) => { setChoix(null); onJours(Number(k)); }} />
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 10 }}>
+          <Segmented ariaLabel="Période suivie" options={PERIODES} value={vue.du ? "" : String(vue.jours)}
+            onChange={(k) => { setChoix(null); onFiltre({ ...vue, jours: Number(k), du: null, au: null }); }} />
+          {/* Dates libres : un seul jour si les deux dates sont identiques. */}
+          {(["du", "au"] as const).map((borne) => (
+            <label key={borne} style={{ display: "grid", gap: 3, fontSize: 11, color: "var(--v2-muted)" }}>
+              {borne === "du" ? "Du" : "Au"}
+              <input type="date" className="v2-focus dcl-date" max={data?.aujourdhui}
+                value={vue[borne] ?? (borne === "du" ? data?.du : data?.au) ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!v) return;
+                  const du = borne === "du" ? v : vue.du ?? data?.du ?? v, au = borne === "au" ? v : vue.au ?? data?.au ?? v;
+                  setChoix(null);
+                  // Une borne passée de l'autre côté entraîne l'autre : jamais de période à l'envers.
+                  onFiltre({ ...vue, du: du > au ? (borne === "du" ? du : au) : du, au: du > au ? (borne === "du" ? du : au) : au });
+                }} />
+            </label>
+          ))}
+          <Segmented ariaLabel="Chauffeurs affichés" value={vue.actifsSeulement ? "actifs" : "tous"}
+            options={[{ key: "actifs", label: "Actifs" }, { key: "tous", label: data?.anciens ? `Tous (+${data.anciens} parti${data.anciens > 1 ? "s" : ""})` : "Tous" }]}
+            onChange={(k) => { setChoix(null); onFiltre({ ...vue, actifsSeulement: k === "actifs" }); }} />
+          {(data?.mixte || vue.segment !== "all") && (
+            <Segmented ariaLabel="Type de véhicule" options={FLEET_SEG_OPTS} value={vue.segment}
+              onChange={(k) => { setChoix(null); onFiltre({ ...vue, segment: k }); }} />
+          )}
+        </div>
       </header>
 
       {error && <Card tone="neg"><p role="alert" style={{ margin: 0, fontSize: 14, color: "var(--sk-t1)" }}>{error}</p></Card>}
       {!data && !error && <div className="v2-skeleton" style={{ height: 420, borderRadius: 14 }} aria-busy="true" aria-label="Lecture en cours" />}
 
-      {data && data.chauffeurs.length === 0 && <Card><p style={{ margin: 0, fontSize: 14, color: "var(--sk-t2)" }}>Aucun chauffeur sous contrat sur cette période.</p></Card>}
+      {data && data.chauffeurs.length === 0 && <Card><p style={{ margin: 0, fontSize: 14, color: "var(--sk-t2)" }}>
+        {vue.actifsSeulement && data.anciens > 0 ? "Aucun chauffeur actif sur cette période. Affichez aussi les chauffeurs partis pour voir leurs journées." : "Aucun chauffeur sous contrat sur cette période."}
+      </p></Card>}
 
       {data && data.chauffeurs.length > 0 && (
         <>
@@ -242,7 +281,7 @@ export function DeclarationsV2({ data, jours, onJours, loading, error, onRecharg
               </p>
             </div>
             <div style={{ overflowX: "auto", paddingBottom: 4 }}>
-              <div className="dcl-grille" style={{ gridTemplateColumns: `minmax(130px, 190px) repeat(${data.jours.length}, minmax(30px, 1fr)) 74px`, minWidth: 220 + data.jours.length * 34 }}>
+              <div className="dcl-grille" style={{ gridTemplateColumns: `minmax(130px, 190px) repeat(${data.jours.length}, minmax(30px, ${data.jours.length <= 10 ? "72px" : "1fr"})) 74px`, justifyContent: "start", minWidth: 220 + data.jours.length * 34 }}>
                 <span />
                 {data.jours.map((j) => (
                   <div key={j} style={{ textAlign: "center", lineHeight: 1.15, paddingBottom: 4, color: j === data.aujourdhui ? "var(--sk-t1)" : "var(--v2-muted)" }}>
