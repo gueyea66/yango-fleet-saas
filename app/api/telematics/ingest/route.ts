@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
 import { timingSafeEqual } from "crypto";
 import { parseH02Stream } from "@/lib/telematics/h02";
-import { adaptTraccarPayload, fromH02, type IngestPosition } from "@/lib/telematics/traccar";
+import { adaptTraccarPayload, fromH02, toPositionRow, type IngestPosition } from "@/lib/telematics/traccar";
 
 /**
  * Ingestion télématique — LE point d'abstraction du fabricant (brief §6).
@@ -134,28 +134,7 @@ export async function POST(req: NextRequest) {
       rejected.push({ reason: `boîtier ${p.externalId} désactivé` });
       continue;
     }
-    rows.push({
-      device_id: device.id,
-      // tenant_id et vehicle_id sont volontairement absents : le trigger
-      // BEFORE INSERT les pose à partir du boîtier enrôlé. L'appelant n'est
-      // jamais cru sur parole sur l'organisation à laquelle il écrit.
-      recorded_at: p.recordedAt,
-      latitude: p.latitude,
-      longitude: p.longitude,
-      speed_kmh: p.speedKmh,
-      heading: p.heading,
-      altitude_m: p.altitudeM,
-      satellites: p.satellites,
-      valid_fix: p.validFix,
-      ignition: p.ignition,
-      odometer_m: p.odometerM,
-      battery_v: p.batteryV,
-      external_v: p.externalV,
-      event_type: p.eventType,
-      protocol: p.protocol,
-      status_raw: p.statusRaw,
-      raw: p.raw,
-    });
+    rows.push(toPositionRow(device.id, p));
   }
 
   if (rows.length === 0) {

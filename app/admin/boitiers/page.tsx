@@ -9,6 +9,7 @@ import { useUiV2 } from "@/components/v2/useUiV2";
 import AdminFrameV2 from "@/components/v2/admin/AdminFrameV2";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
 import { parseRconf } from "@/lib/telematics/devices";
+import GpswoxConnexion from "@/components/admin/GpswoxConnexion";
 
 /**
  * Boîtiers GPS — installation autonome par le gestionnaire.
@@ -25,6 +26,7 @@ type Step = { label: string; sms: string; explanation: string };
 type Device = {
   id: string;
   externalId: string;
+  vendor: string;
   model: string | null;
   firmware: string | null;
   label: string | null;
@@ -218,8 +220,10 @@ export default function BoitiersPage() {
           </div>
         )}
 
+        {data && <GpswoxConnexion vehicles={data.vehicles} onEnrolled={load} />}
+
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          {/* ── Liste ─────────────────────────────────────────────── */}
+          {/* ── Liste─────────────────────────────────────────────── */}
           <section className="lg:col-span-2 bg-gray-800 border border-gray-700 rounded-lg overflow-hidden self-start">
             <h2 className="px-4 py-3 text-sm font-semibold text-white border-b border-gray-700">
               {data ? `${data.devices.length} boîtier${data.devices.length > 1 ? "s" : ""}` : "Boîtiers"}
@@ -245,7 +249,9 @@ export default function BoitiersPage() {
                         <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
                           <span className={`px-2 py-0.5 rounded border ${TONE[s.tone]}`}>{s.text}</span>
                           {!d.active && <span className="px-2 py-0.5 rounded border border-gray-600 text-gray-400">désactivé</span>}
-                          {d.installedAt
+                          {d.vendor === "gpswox"
+                            ? <span className="text-gray-300">plateforme d&apos;origine</span>
+                            : d.installedAt
                             ? <span className="text-emerald-400">installé</span>
                             : d.rconfAt ? <span className="text-gray-300">prêt à basculer</span>
                             : <span className="text-amber-300">relevé RCONF à faire</span>}
@@ -439,7 +445,13 @@ export default function BoitiersPage() {
                 </div>
 
                 {/* Relevé RCONF : condition de la bascule */}
-                {!device.rconfAt || !device.hasPassword ? (
+                {device.vendor === "gpswox" ? (
+                  // Aucun SMS de bascule ici : repointer ce boîtier le ferait
+                  // disparaître de la plateforme que le client veut garder.
+                  <p className="text-sm text-gray-400">
+                    Ce boîtier reste sur sa plateforme GPS d&apos;origine : M3A en reçoit les positions, sans rien y changer.
+                  </p>
+                ) : !device.rconfAt || !device.hasPassword ? (
                   <div className="rounded-lg border border-amber-700 bg-amber-950/30 p-4 space-y-3">
                     <div>
                       <h3 className="text-amber-200 font-semibold text-sm">Étape préalable : relever la configuration</h3>

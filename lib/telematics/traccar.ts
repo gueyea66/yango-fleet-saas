@@ -115,6 +115,34 @@ export function adaptTraccarPayload(body: TraccarPayload): AdaptResult {
   };
 }
 
+/**
+ * Ligne `telematics_positions` d'une position normalisée.
+ * `tenant_id` et `vehicle_id` sont volontairement absents : le trigger
+ * BEFORE INSERT les pose à partir du boîtier enrôlé. L'appelant n'est jamais
+ * cru sur parole sur l'organisation à laquelle il écrit.
+ */
+export function toPositionRow(deviceId: string, p: IngestPosition) {
+  return {
+    device_id: deviceId,
+    recorded_at: p.recordedAt,
+    latitude: p.latitude,
+    longitude: p.longitude,
+    speed_kmh: p.speedKmh,
+    heading: p.heading,
+    altitude_m: p.altitudeM,
+    satellites: p.satellites,
+    valid_fix: p.validFix,
+    ignition: p.ignition,
+    odometer_m: p.odometerM,
+    battery_v: p.batteryV,
+    external_v: p.externalV,
+    event_type: p.eventType,
+    protocol: p.protocol,
+    status_raw: p.statusRaw,
+    raw: p.raw,
+  };
+}
+
 /** Convertit une position H02 déjà parsée au format d'ingestion commun. */
 export function fromH02(pos: {
   externalId: string;
