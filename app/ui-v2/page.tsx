@@ -24,6 +24,8 @@ import type { SegmentFilter } from "@/lib/analytics/segment";
 import { FLEET_SEG_OPTS } from "@/lib/v2/fleetScope";
 import { RendementV2, type RendementPayload } from "@/components/v2/admin/RendementV2";
 import { calculerRendement, type OrderRow } from "@/lib/analytics/rendement";
+import { DeclarationsV2 } from "@/components/v2/admin/DeclarationsV2";
+import { suiviDeclarations, cleCourses, type RapportLigne, type DepenseLigne } from "@/lib/analytics/declarations";
 
 // Profil fictif : identifiants non-UUID → toute requête Supabase échoue côté
 // base (aucune lecture ni écriture possible). Sert à relire la mise en page.
@@ -62,6 +64,10 @@ export default function UiV2Showcase() {
 
   if (uiV2 && screen === "rendement") {
     return <RendementDemo />;
+  }
+
+  if (uiV2 && screen === "declarations") {
+    return <DeclarationsDemo />;
   }
 
   if (!uiV2) {
@@ -215,6 +221,44 @@ function commandesFictives(): OrderRow[] {
     }
   }
   return out;
+}
+
+/** Écran Déclarations hors connexion : quatorze jours fictifs, avec chaque type de manque. */
+function DeclarationsDemo() {
+  const [jours, setJours] = useState(14);
+  const data = (() => {
+    let g = 77;
+    const alea = () => ((g = (g * 1664525 + 1013904223) >>> 0) / 4294967296);
+    const aujourdhui = new Date().toISOString().slice(0, 10);
+    const jour = (n: number) => new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+    const chauffeurs = [
+      { id: "c1", full_name: "Moussa Diop", yango_driver_id: "y1", plate: "AA101SJ" },
+      { id: "c2", full_name: "Awa Ndiaye", yango_driver_id: "y2", plate: "AA102SJ" },
+      { id: "c3", full_name: "Ibrahima Fall", yango_driver_id: "y3", plate: "AA103SJ" },
+      { id: "c4", full_name: "Fatou Sarr", yango_driver_id: "y4", plate: "AA104SJ", hire_date: jour(8) },
+      { id: "c5", full_name: "Cheikh Ba", yango_driver_id: "y5", plate: "AA105SJ" },
+    ];
+    const rapports: RapportLigne[] = [], depenses: DepenseLigne[] = [];
+    const courses = new Map<string, number>();
+    for (const c of chauffeurs) {
+      const serieux = c.id === "c1" ? 1 : c.id === "c3" ? 0.6 : 0.88;
+      for (let n = jours - 1; n >= 1; n--) {
+        const d = jour(n), tirage = alea();
+        if (tirage < 0.12) { rapports.push({ driver_id: c.id, date: d, status: "approved", comment: "[REPOS]", yango_gross: 0 }); if (c.id === "c5" && n === 3) courses.set(cleCourses(c.yango_driver_id, d), 11); continue; }
+        courses.set(cleCourses(c.yango_driver_id, d), 14 + Math.floor(alea() * 8));
+        if (alea() > serieux) continue; // rien déclaré alors que Yango a tourné
+        if (c.id === "c2" && n === 5) { rapports.push({ driver_id: c.id, date: d, status: "approved", yango_gross: 0 }); courses.delete(cleCourses(c.yango_driver_id, d)); continue; }
+        rapports.push({ driver_id: c.id, date: d, status: n <= 2 && alea() < 0.5 ? "submitted" : "approved", yango_gross: 28000 + Math.round(alea() * 14000), yango_trip_count: 18 });
+        if (alea() < (c.id === "c5" ? 0.3 : 0.7)) depenses.push({ driver_id: c.id, category: "Carburant", amount: 8000, status: "approved", expense_date: d });
+      }
+    }
+    return { fenetre: jours, ...suiviDeclarations({ chauffeurs, rapports, depenses, courses, du: jour(jours - 1), au: aujourdhui, aujourdhui }) };
+  })();
+  return (
+    <main style={{ minHeight: "100vh", background: "var(--sk-deep)", padding: "28px 24px 80px" }}>
+      <DeclarationsV2 data={data} jours={jours} onJours={setJours} loading={false} error={null} onRecharger={() => {}} />
+    </main>
+  );
 }
 
 /** Écran Rendement hors connexion : données du poste si présentes, sinon fictives. */

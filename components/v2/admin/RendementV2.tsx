@@ -38,7 +38,7 @@ const signe = (v: number) => `${v >= 0 ? "+" : "−"}${formatAmount(Math.abs(v))
 
 /* ── Mouvement ──────────────────────────────────────────────── */
 
-function useMouvementReduit() {
+export function useMouvementReduit() {
   const [reduit, setReduit] = useState(false);
   useEffect(() => {
     const m = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -51,7 +51,7 @@ function useMouvementReduit() {
 }
 
 /** Fait monter le premier nombre d'un texte (« +36 % », « 5 195 XOF/h ») de zéro à sa valeur. */
-function ChiffreAnime({ texte, style }: { texte: string; style?: CSSProperties }) {
+export function ChiffreAnime({ texte, style }: { texte: string; style?: CSSProperties }) {
   const reduit = useMouvementReduit();
   const m = texte.match(/^([^\d]*)(\d(?:[\d\s  ]*\d)?)(.*)$/);
   const cible = m ? Number(m[2].replace(/[^\d]/g, "")) : 0;
