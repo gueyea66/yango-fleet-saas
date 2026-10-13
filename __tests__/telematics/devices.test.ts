@@ -3,6 +3,7 @@ import {
   buildInstallSms,
   normalizeDeviceId,
   isIpv4,
+  nomVehicule,
 } from "@/lib/telematics/devices";
 
 /** Réponse RCONF réelle du Kia K3, reçue le 17/09/2026 (numéro autorisé masqué). */
@@ -118,5 +119,18 @@ describe("utilitaires", () => {
     expect(isIpv4("66.33.22.219")).toBe(true);
     expect(isIpv4("256.1.1.1")).toBe(false);
     expect(isIpv4("iriguchi.proxy.rlwy.net")).toBe(false);
+  });
+});
+
+describe("nomVehicule", () => {
+  it("met le nom devant la plaque, sans la répéter", () => {
+    expect(nomVehicule("AA194SJ", "El Hadj AA-194-SJ")).toBe("El Hadj · AA194SJ");
+    expect(nomVehicule("AA192SJ ", "OMAR MANE AA-192-SJ_en panne")).toBe("OMAR MANE en panne · AA192SJ");
+    expect(nomVehicule("AB268FK", "AB-268-FK CLIO")).toBe("CLIO · AB268FK");
+  });
+  it("se contente de ce qui existe", () => {
+    expect(nomVehicule("AA194SJ", null)).toBe("AA194SJ");
+    expect(nomVehicule("AA194SJ", "AA-194-SJ")).toBe("AA194SJ");
+    expect(nomVehicule(null, "Benne 4")).toBe("Benne 4");
   });
 });

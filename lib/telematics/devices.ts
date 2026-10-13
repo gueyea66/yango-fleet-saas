@@ -172,3 +172,17 @@ export function buildInstallSms(input: {
 
   return { ok: true, errors: [], steps, rollback };
 }
+
+/**
+ * Nom d'un véhicule tel que le gestionnaire le connaît : « El Hadj · AA194SJ ».
+ * Le libellé du boîtier reprend souvent la plaque (« El Hadj AA-194-SJ ») ; on
+ * l'en retire pour ne pas l'afficher deux fois.
+ */
+export function nomVehicule(plate: string | null | undefined, label: string | null | undefined): string {
+  const plaque = String(plate ?? "").trim();
+  let nom = String(label ?? "").trim();
+  const nue = plaque.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (nue.length >= 4) nom = nom.replace(new RegExp(nue.split("").join("[\\s_.-]*"), "i"), " ");
+  nom = nom.replace(/[\s_]+/g, " ").replace(/^[\s·-]+|[\s·-]+$/g, "");
+  return nom && plaque ? `${nom} · ${plaque}` : nom || plaque;
+}
