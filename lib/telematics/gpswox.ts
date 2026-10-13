@@ -26,6 +26,7 @@ import { normalizeDeviceId } from "./devices";
 import type { AdaptResult } from "./traccar";
 
 export interface BoitierGpswox {
+  /** IMEI, ou à défaut l'identité de repli `gpswox-<serveur>-<numéro>`. */
   imei: string | null;
   nom: string | null;
   plaque: string | null;
@@ -85,10 +86,17 @@ function brut(item: Record<string, unknown>): Record<string, unknown> {
   return { source: "gpswox-api", item: garde };
 }
 
-export function lireBoitier(item: Record<string, unknown>): BoitierGpswox {
+/**
+ * `hote` : serveur GPSwox interrogé. Il sert d'identité de repli quand le
+ * compte n'a pas le droit de voir l'IMEI (constaté sur le compte de NMK le
+ * 13/10/2026) : le numéro interne du boîtier n'est unique que sur son serveur.
+ */
+export function lireBoitier(item: Record<string, unknown>, hote = "gpswox"): BoitierGpswox {
   const data = obj(item["device_data"]) ?? {};
   const imeiBrut = str(data["imei"]) ?? str(item["imei"]) ?? (num(data["imei"]) !== null ? String(data["imei"]) : null);
-  const imei = imeiBrut ? normalizeDeviceId(imeiBrut) : null;
+  const numero = num(item["id"]) ?? num(data["id"]);
+  const imei = (imeiBrut ? normalizeDeviceId(imeiBrut) : null)
+    ?? (numero !== null ? `gpswox-${hote}-${numero}` : null);
   const nom = str(item["name"]) ?? str(data["name"]);
   const plaque = str(data["plate_number"]) ?? str(item["plate_number"]);
   const protocole = str(item["protocol"])?.toLowerCase() ?? null;
@@ -246,5 +254,6 @@ export async function listerBoitiers(baseUrl: string, cle: string): Promise<Boit
   if (status !== 200 || json === null) {
     throw new GpswoxError(`Réponse inattendue de la plateforme GPS (HTTP ${status}).`, "reponse");
   }
-  return aplatirBoitiers(json).map(lireBoitier);
+  const hote = new URL(baseUrl).host;
+  return aplatirBoitiers(json).map((item) => lireBoitier(item, hote));
 }

@@ -95,8 +95,15 @@ describe("lireBoitier", () => {
     expect(b.position.ok).toBe(false);
   });
 
-  it("refuse un boîtier sans IMEI, sans coordonnées, ou resté à (0, 0)", () => {
-    expect(lireBoitier({ ...ITEM, device_data: {} }).position.ok).toBe(false);
+  it("sans IMEI visible, identifie le boîtier par son numéro sur ce serveur", () => {
+    const b = lireBoitier({ ...ITEM, device_data: {} }, "173.249.19.50");
+    expect(b.imei).toBe("gpswox-173.249.19.50-12");
+    expect(b.position.ok).toBe(true);
+    if (b.position.ok) expect(b.position.position.externalId).toBe("gpswox-173.249.19.50-12");
+  });
+
+  it("refuse un boîtier sans aucune identité, sans coordonnées, ou resté à (0, 0)", () => {
+    expect(lireBoitier({ ...ITEM, id: undefined, device_data: {} }).position.ok).toBe(false);
     expect(lireBoitier({ ...ITEM, lat: null }).position.ok).toBe(false);
     expect(lireBoitier({ ...ITEM, lat: 0, lng: 0 }).position.ok).toBe(false);
     expect(lireBoitier({ ...ITEM, lat: 140 }).position.ok).toBe(false);
