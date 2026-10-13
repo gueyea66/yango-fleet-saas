@@ -20,7 +20,32 @@ let pendingOverride: Partial<TenantContext["settings"]> = {};
 let overrideListener: ((s: Partial<TenantContext["settings"]>) => void) | null = null;
 export function applyTenantBrandingOverride(s: Partial<TenantContext["settings"]>) {
   pendingOverride = { ...pendingOverride, ...s };
+  ecrireMarque(pendingOverride);
   overrideListener?.(pendingOverride);
+}
+
+// La marque du profil est MÉMORISÉE sur l'appareil (demande d'Abdou, 13/10/2026).
+// Elle n'arrive qu'après la session puis une lecture en base : à chaque
+// rechargement, un client connecté depuis l'adresse commune voyait donc la
+// marque M3A une seconde avant la sienne — et la gardait sur les pages qui ne
+// la redemandent pas (suivi GPS, boîtiers, rendement). Relue au démarrage, elle
+// sert d'override provisoire ; le script du layout pose les mêmes couleurs
+// avant le premier affichage. La base reste la source de vérité : sa réponse
+// réécrit la mémoire, et la déconnexion l'efface.
+export const CLE_MARQUE = "m3a-marque";
+function lireMarque(): Partial<TenantContext["settings"]> | null {
+  try {
+    const m = JSON.parse(localStorage.getItem(CLE_MARQUE) || "null");
+    return m && typeof m === "object" ? m : null;
+  } catch { return null; }
+}
+function ecrireMarque(s: Partial<TenantContext["settings"]>) {
+  try { localStorage.setItem(CLE_MARQUE, JSON.stringify(s)); } catch { /* stockage indisponible : on retombe sur l'ancien comportement */ }
+}
+/** À la déconnexion : le prochain visiteur de cet appareil ne doit pas hériter de la marque. */
+export function oublierMarque() {
+  pendingOverride = {};
+  try { localStorage.removeItem(CLE_MARQUE); } catch { /* idem */ }
 }
 
 const FALLBACK: TenantContext = {
@@ -35,6 +60,8 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let alive = true;
     overrideListener = (s) => { if (alive) setCtx((prev) => ({ ...prev, settings: { ...prev.settings, ...s } })); };
+    // Rien de poussé encore : la marque mémorisée tient lieu d'override en attendant la base.
+    if (!Object.keys(pendingOverride).length) pendingOverride = lireMarque() ?? {};
     // Un override déjà poussé (effet enfant monté avant celui du provider) est
     // repris immédiatement plutôt que perdu.
     if (Object.keys(pendingOverride).length) overrideListener(pendingOverride);
@@ -49,6 +76,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
 
   // Inject CSS variables + page title from tenant settings
   useEffect(() => {
+    // Tant qu'aucune donnée n'est arrivée, on ne touche à rien : réécrire ici les
+    // valeurs par défaut effacerait la marque posée par le script du layout.
+    if (ctx === FALLBACK) return;
     const color = ctx.settings.primary_color || "#f5a623";
     // hex → composantes RGB (gère #abc et #aabbcc) pour les rgba(var(--tenant-color-rgb), α)
     const hex = color.replace("#", "");
@@ -64,7 +94,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     if (ctx.settings.app_name) {
       document.title = ctx.settings.app_name;
     }
-  }, [ctx.settings.primary_color, ctx.settings.app_name, ctx.settings.skin]);
+  }, [ctx, ctx.settings.primary_color, ctx.settings.app_name, ctx.settings.skin]);
 
   return <Ctx.Provider value={ctx}>{children}</Ctx.Provider>;
 }
