@@ -101,6 +101,24 @@ describe("suiviDeclarations", () => {
     expect(s.chauffeurs[0].dus).toBe(3); // 8, 9, 10 — le 11 est en cours
   });
 
+  it("masque sur demande les chauffeurs partis depuis, et dit combien", () => {
+    const base = { rapports: [], depenses: [], du: "2026-10-05", au: "2026-10-11", aujourdhui: "2026-10-11" };
+    const chauffeurs = [AWA, { id: "p", full_name: "Parti Mardi", contract_end_date: "2026-10-07" }];
+    const tous = suiviDeclarations({ ...base, chauffeurs });
+    expect(tous.chauffeurs.map((c) => c.nom).sort()).toEqual(["Awa Ndiaye", "Parti Mardi"]);
+    expect(tous.anciens).toBe(1);
+    const actifs = suiviDeclarations({ ...base, chauffeurs, actifsSeulement: true });
+    expect(actifs.chauffeurs.map((c) => c.nom)).toEqual(["Awa Ndiaye"]);
+    expect(actifs.anciens).toBe(1);
+    expect(actifs.total.dus).toBe(6); // les journées du chauffeur parti ne pèsent plus dans le taux
+  });
+
+  it("suit une seule journée quand les deux dates sont identiques", () => {
+    const s = suiviDeclarations({ chauffeurs: [AWA], rapports: [rapport("2026-10-08")], depenses: [], du: "2026-10-08", au: "2026-10-08", aujourdhui: "2026-10-11" });
+    expect(s.jours).toEqual(["2026-10-08"]);
+    expect(s.total.taux).toBe(1);
+  });
+
   it("classe d'abord les chauffeurs qui ont le plus à régulariser", () => {
     const s = suivi({
       chauffeurs: [AWA, { id: "b", full_name: "Zed Ba" }],

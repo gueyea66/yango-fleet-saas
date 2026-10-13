@@ -308,6 +308,11 @@ html[data-ui="v2"] body {
 }
 .dcl-case:hover, .dcl-case:focus-visible { transform: scale(1.14); z-index: 1; }
 .dcl-case-choisie { outline: 2px solid var(--sk-t1); outline-offset: 2px; }
+.dcl-date {
+  height: 34px; padding: 0 9px; border-radius: 9px; border: 1px solid var(--sk-surface);
+  background: var(--sk-bg); color: var(--sk-t1); font-size: 13px; color-scheme: dark; cursor: pointer;
+}
+html[data-theme="light"] .dcl-date { color-scheme: light; }
 .dcl-carburant { position: absolute; right: 3px; bottom: 3px; width: 6px; height: 6px; border-radius: 50%; }
 @media (prefers-reduced-motion: reduce) {
   .rdt *, .rdt *::before { animation: none !important; transition: none !important; }
