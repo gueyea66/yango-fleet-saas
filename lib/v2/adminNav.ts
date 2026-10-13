@@ -33,6 +33,8 @@ export const ADMIN_DESTINATIONS: DestinationDef[] = [
     subTabs: [
       { tab: "pending", label: "À valider" },
       { tab: "saisie", label: "Saisie opérateur" },
+      // Page à part entière, née après la refonte : hors du contrôle « aucun onglet perdu ».
+      { tab: "declarations", label: "Déclarations", route: "/admin/declarations", extra: true },
     ],
   },
   { key: "pilot", label: "Pilotage", subTabs: [{ tab: "pilotage", label: "Pilotage" }], filter: {} },

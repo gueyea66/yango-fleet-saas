@@ -297,6 +297,18 @@ html[data-ui="v2"] body {
 @media (max-width: 860px) {
   .rdt-chauffeur { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 14px; }
 }
+/* ── v2 : Déclarations (components/v2/admin/DeclarationsV2.tsx) ── */
+.dcl-grille { display: grid; gap: 4px; align-items: center; justify-items: stretch; }
+.dcl-nom { position: sticky; left: 0; z-index: 2; background: var(--sk-bg); padding: 4px 10px 4px 0; min-width: 0; }
+.dcl-case {
+  position: relative; height: 30px; min-width: 30px; border-radius: 7px; border: 1px solid; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: opacity 0.3s ease, transform 0.12s ease;
+  animation: rdt-case-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.dcl-case:hover, .dcl-case:focus-visible { transform: scale(1.14); z-index: 1; }
+.dcl-case-choisie { outline: 2px solid var(--sk-t1); outline-offset: 2px; }
+.dcl-carburant { position: absolute; right: 3px; bottom: 3px; width: 6px; height: 6px; border-radius: 50%; }
 @media (prefers-reduced-motion: reduce) {
   .rdt *, .rdt *::before { animation: none !important; transition: none !important; }
 }
