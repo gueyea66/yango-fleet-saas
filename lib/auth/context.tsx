@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { User } from "@supabase/supabase-js";
 import { clearClient } from "@/lib/supabase/client";
+import { oublierMarque } from "@/lib/tenant/context";
 
 interface AuthContextType {
   user: User | null;
@@ -38,6 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Nettoyage local immédiat, puis révocation du cookie serveur ci-dessous
     localStorage.removeItem("yango-auth");
     localStorage.removeItem("yango-session");
+    oublierMarque();
     clearClient(); // Reset singleton so next login creates fresh client
     setUser(null);
     // Cookie de session serveur aussi (sinon /api/* et /open restent ouverts),
