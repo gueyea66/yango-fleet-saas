@@ -8,7 +8,7 @@ import { useAuth } from "@/lib/auth/context";
 import { useUiV2 } from "@/components/v2/useUiV2";
 import AdminFrameV2 from "@/components/v2/admin/AdminFrameV2";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
-import { parseRconf } from "@/lib/telematics/devices";
+import { parseRconf, nomVehicule } from "@/lib/telematics/devices";
 import GpswoxConnexion from "@/components/admin/GpswoxConnexion";
 
 /**
@@ -243,9 +243,12 @@ export default function BoitiersPage() {
                                     ${d.id === selectedId && !adding ? "bg-gray-700/60" : "hover:bg-gray-700/40"}`}
                       >
                         <div className="flex items-baseline justify-between gap-2">
-                          <span className="font-mono text-white tabular-nums">{d.externalId}</span>
-                          <span className="text-sm text-yellow-500 font-mono">{d.plate ?? "non rattaché"}</span>
+                          <span className="text-white truncate">{nomVehicule(d.plate, d.label) || d.externalId}</span>
+                          {!d.plate && <span className="text-sm text-amber-300">non rattaché</span>}
                         </div>
+                        {(d.plate || d.label) && (
+                          <p className="text-xs text-gray-500 font-mono tabular-nums truncate">{d.externalId}</p>
+                        )}
                         <div className="mt-1.5 flex flex-wrap items-center gap-2 text-xs">
                           <span className={`px-2 py-0.5 rounded border ${TONE[s.tone]}`}>{s.text}</span>
                           {!d.active && <span className="px-2 py-0.5 rounded border border-gray-600 text-gray-400">désactivé</span>}
@@ -399,10 +402,10 @@ export default function BoitiersPage() {
               <div className="space-y-6">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-semibold text-white font-mono">{device.externalId}</h2>
+                    <h2 className="text-lg font-semibold text-white">{nomVehicule(device.plate, device.label) || device.externalId}</h2>
                     <p className="text-sm text-gray-400">
                       {[device.model, device.firmware].filter(Boolean).join(" ") || "Modèle non relevé"}
-                      {device.label ? ` · ${device.label}` : ""}
+                      {" · "}<span className="font-mono">{device.externalId}</span>
                     </p>
                   </div>
                   <span className={`px-3 py-1.5 rounded-lg border text-sm ${TONE[signal(device.lastSeenAt).tone]}`}>

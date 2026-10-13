@@ -9,6 +9,7 @@ import { useUiV2 } from "@/components/v2/useUiV2";
 import AdminFrameV2 from "@/components/v2/admin/AdminFrameV2";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
 import { nomVehicule } from "@/lib/telematics/devices";
+import CarteFlotte, { type PointFlotte } from "@/components/admin/CarteFlotte";
 import type { Map as LeafletMap, Polyline, CircleMarker, LayerGroup } from "leaflet";
 
 /**
@@ -86,6 +87,7 @@ type Payload = {
   day: string;
   devices: Device[];
   selectedVehicleId?: string | null;
+  selectedDeviceId?: string | null;
   positions: Position[];
   positionCount: number;
   lastPosition: Position | null;
@@ -201,7 +203,12 @@ export default function SuiviPage() {
   const uiV2 = useUiV2(); // refonte UI v2 : page affichée dans la coque v2
 
   const [date, setDate] = useState(today());
-  const [vehicleId, setVehicleId] = useState<string | null>(null);
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+  // Plusieurs véhicules cochés = vue flotte (où ils sont, maintenant) ;
+  // un seul = le détail de sa journée. Vide = le véhicule par défaut.
+  const [selection, setSelection] = useState<string[]>([]);
+  const flotteMode = selection.length > 1;
+  const [flotte, setFlotte] = useState<{ deviceId: string; position: PointFlotte["position"] }[] | null>(null);
 
   // La journée consultée vit dans l'URL : un lien vers une journée précise se
   // partage, et le retour arrière du navigateur reste cohérent.
@@ -261,11 +268,11 @@ export default function SuiviPage() {
   const load = useCallback(async (opts: { silencieux?: boolean } = {}) => {
     // Un rafraîchissement automatique ne doit ni faire clignoter l'écran ni
     // remettre le rejeu à zéro : seul un changement de journée le fait.
-    if (!opts.silencieux) setBusy(true);
+    if (!opts.silencieux) { setBusy(true); jourCadre.current = null; }
     setError(null);
     try {
       const qs = new URLSearchParams({ date });
-      if (vehicleId) qs.set("vehicleId", vehicleId);
+      if (deviceId) qs.set("deviceId", deviceId);
       const json = await fetchJsonRetry(`/api/admin/telematics?${qs}`);
       setData(json as Payload);
       setRefreshedAt(Date.now());
@@ -279,21 +286,40 @@ export default function SuiviPage() {
     } finally {
       if (!opts.silencieux) setBusy(false);
     }
-  }, [date, vehicleId]);
+  }, [date, deviceId]);
 
   useEffect(() => { if (user) void load(); }, [user, load]);
+
+  // Le code de la carte se télécharge pendant que les données arrivent, au
+  // lieu d'attendre qu'elles soient là pour commencer.
+  useEffect(() => { void import("leaflet"); }, []);
+
+  // ── Vue flotte ─────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!user || !flotteMode) return;
+    let vivant = true;
+    const lire = async () => {
+      try {
+        const json = await fetchJsonRetry("/api/admin/telematics?flotte=1") as { flotte: typeof flotte };
+        if (vivant) setFlotte(json.flotte);
+      } catch { /* la prochaine lecture rattrapera */ }
+    };
+    void lire();
+    const t = setInterval(() => { if (!document.hidden) void lire(); }, 15000);
+    return () => { vivant = false; clearInterval(t); };
+  }, [user, flotteMode]);
 
   // ── Suivi en direct ────────────────────────────────────────────────────
   const enDirect = live && date === today();
 
   useEffect(() => {
-    if (!user || !enDirect) return;
+    if (!user || !enDirect || flotteMode) return;
     const t = setInterval(() => {
       // Inutile d'interroger le serveur pour un onglet que personne ne regarde.
       if (!document.hidden) void load({ silencieux: true });
-    }, 30000);
+    }, 15000);
     return () => clearInterval(t);
-  }, [user, enDirect, load]);
+  }, [user, enDirect, flotteMode, load]);
 
   const fixes = useMemo(
     () => (data?.positions ?? []).filter((p) => p.valid_fix),
@@ -331,7 +357,16 @@ export default function SuiviPage() {
   // paraissait figé sur une image. La carte vit maintenant en dehors du cycle
   // de rafraîchissement ; seules ses couches changent.
   useEffect(() => {
-    if (!mapEl.current || mapRef.current) return;
+    if (!mapEl.current) return;
+    if (mapRef.current) {
+      if (mapRef.current.getContainer() === mapEl.current) return;
+      // Le conteneur a été remplacé (retour de la vue flotte) : l'ancienne
+      // carte est attachée à un élément disparu, on repart d'une carte neuve.
+      mapRef.current.remove();
+      mapRef.current = null;
+      jourCadre.current = null;
+      setCarteOuverte(false);
+    }
     let cancelled = false;
 
     (async () => {
@@ -360,9 +395,9 @@ export default function SuiviPage() {
     })();
 
     return () => { cancelled = true; };
-    // Le conteneur n'existe qu'une fois des positions reçues : on retente
-    // donc l'initialisation quand elles arrivent.
-  }, [fixes.length]);
+    // Le conteneur n'existe qu'une fois les données reçues, et disparaît en
+    // vue flotte : on retente l'initialisation à chacun de ces moments.
+  }, [fixes.length, busy, flotteMode, data?.installed]);
 
   // Contenu de la carte : trace, arrêts, pertes de signal.
   useEffect(() => {
@@ -463,6 +498,7 @@ export default function SuiviPage() {
    */
   const etatVue: { label: string; tone: "live" | "stale" | "static" } = (() => {
     const jour = data?.day ?? date;
+    if (flotteMode) return { label: `En direct · ${selection.length} véhicules`, tone: "live" };
     if (jour !== today()) {
       return {
         label: `Historique du ${new Date(`${jour}T12:00:00Z`).toLocaleDateString("fr-FR",
@@ -487,8 +523,24 @@ export default function SuiviPage() {
   })();
 
   const dayAgg = data?.daily?.find((d) => d.day === data.day);
-  const device = data?.devices?.find((d) => d.vehicle_id === (vehicleId ?? data?.selectedVehicleId))
+  const device = data?.devices?.find((d) => d.id === (deviceId ?? data?.selectedDeviceId))
     ?? data?.devices?.[0];
+
+  const coches = selection.length ? selection : device ? [device.id] : [];
+  const basculer = (id: string) => {
+    const suivant = coches.includes(id) ? coches.filter((x) => x !== id) : [...coches, id];
+    if (!suivant.length) return; // toujours au moins un véhicule à l'écran
+    setSelection(suivant);
+    if (suivant.length === 1) setDeviceId(suivant[0]);
+  };
+  const voirSeul = (id: string) => { setSelection([id]); setDeviceId(id); };
+  const pointsFlotte: PointFlotte[] = (data?.devices ?? [])
+    .filter((d) => selection.includes(d.id))
+    .map((d) => ({
+      id: d.id,
+      nom: nomVehicule(d.plate, d.label) || d.external_id,
+      position: flotte?.find((f) => f.deviceId === d.id)?.position ?? null,
+    }));
   const lastSeen = ageLabel(data?.lastPosition?.recorded_at ?? null);
   const here = fixes[Math.min(cursor, Math.max(0, fixes.length - 1))];
   const isDemo = device?.vendor === "simulator";
@@ -560,7 +612,7 @@ export default function SuiviPage() {
                   {etatVue.label}
                 </span>
 
-                {!enDirect && (
+                {!enDirect && !flotteMode && (
                   <button
                     onClick={revenirAuDirect}
                     className="min-h-[44px] px-4 rounded-lg bg-yellow-500 text-gray-900 font-semibold text-sm
@@ -573,24 +625,7 @@ export default function SuiviPage() {
               </div>
             </div>
             <div className="flex flex-wrap gap-3">
-              {(data?.devices?.length ?? 0) > 1 && (
-                <label className="text-sm">
-                  <span className="block text-xs uppercase tracking-widest text-gray-400 mb-1">Véhicule</span>
-                  <select
-                    value={vehicleId ?? data?.selectedVehicleId ?? ""}
-                    onChange={(e) => setVehicleId(e.target.value || null)}
-                    className="bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 min-h-[44px]
-                               focus:outline-none focus:ring-2 focus:ring-yellow-500 cursor-pointer"
-                  >
-                    {data?.devices.map((d) => (
-                      <option key={d.id} value={d.vehicle_id ?? ""}>
-                        {nomVehicule(d.plate, d.label) || d.external_id}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
-              <label className="text-sm">
+              {!flotteMode && <label className="text-sm">
                 <span className="block text-xs uppercase tracking-widest text-gray-400 mb-1">Journée</span>
                 <input
                   type="date" value={date} max={today()}
@@ -598,9 +633,34 @@ export default function SuiviPage() {
                   className="bg-gray-800 border border-gray-700 text-white rounded-lg px-3 py-2 min-h-[44px]
                              focus:outline-none focus:ring-2 focus:ring-yellow-500 cursor-pointer"
                 />
-              </label>
+              </label>}
             </div>
           </div>
+
+          {/* Un véhicule coché : sa journée. Plusieurs : où ils sont, ensemble. */}
+          {(data?.devices?.length ?? 0) > 1 && (
+            <div className="mt-4 flex flex-wrap items-center gap-2" role="group" aria-label="Véhicules affichés">
+              {data?.devices.map((d) => {
+                const actif = coches.includes(d.id);
+                return (
+                  <button key={d.id} type="button" aria-pressed={actif} onClick={() => basculer(d.id)}
+                    className={`min-h-[44px] px-3 rounded-lg border text-sm transition-colors duration-150 cursor-pointer
+                                focus:outline-none focus:ring-2 focus:ring-yellow-500
+                                ${actif ? "border-yellow-500 bg-yellow-500/15 text-white"
+                                        : "border-gray-700 bg-gray-800 text-gray-300 hover:border-gray-500"}`}>
+                    {nomVehicule(d.plate, d.label) || d.external_id}
+                  </button>
+                );
+              })}
+              {coches.length < (data?.devices.length ?? 0) && (
+                <button type="button" onClick={() => setSelection(data!.devices.map((d) => d.id))}
+                  className="min-h-[44px] px-3 rounded-lg text-sm text-gray-300 underline hover:text-white cursor-pointer
+                             focus:outline-none focus:ring-2 focus:ring-yellow-500">
+                  Tous
+                </button>
+              )}
+            </div>
+          )}
         </header>
 
         {isDemo && (
@@ -642,7 +702,11 @@ export default function SuiviPage() {
           </div>
         )}
 
-        {data?.installed && data.devices.length > 0 && (
+        {data?.installed && flotteMode && (
+          <CarteFlotte points={pointsFlotte} chargement={flotte === null} onChoisir={voirSeul} />
+        )}
+
+        {data?.installed && data.devices.length > 0 && !flotteMode && (
           <>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
               <article className="bg-gray-800 border-l-4 border-yellow-500 rounded-lg p-4">
@@ -806,20 +870,26 @@ export default function SuiviPage() {
                     weekday: "long", day: "numeric", month: "long" })}
                 </h2>
 
-                {busy ? (
-                  <div className="h-[420px] animate-pulse bg-gray-700/40" aria-label="Chargement de la carte" />
-                ) : fixes.length === 0 ? (
-                  <div className="h-[420px] flex flex-col items-center justify-center text-center px-6">
-                    <p className="text-white font-medium">Aucune position ce jour-là</p>
-                    <p className="text-gray-400 text-sm mt-2 max-w-sm">
-                      Soit le boîtier n&apos;émettait pas encore, soit il n&apos;a pas eu de réseau.
-                      Les journées sans donnée ne sont jamais comblées par une estimation.
-                    </p>
-                  </div>
-                ) : (
+                {/* La carte reste montée : changer de véhicule ou de journée ne
+                    la reconstruit pas, seules ses couches changent. */}
+                <div className="relative">
+                  <div ref={mapEl} className="h-[420px] w-full"
+                       role="img" aria-label={`Trajet du ${data.day}, ${data.positionCount} positions`} />
+                  {busy ? (
+                    <div className="absolute inset-0 z-[1000] animate-pulse bg-gray-800/80" aria-label="Chargement de la carte" />
+                  ) : fixes.length === 0 && (
+                    <div className="absolute inset-0 z-[1000] bg-gray-800 flex flex-col items-center justify-center text-center px-6">
+                      <p className="text-white font-medium">Aucune position ce jour-là</p>
+                      <p className="text-gray-400 text-sm mt-2 max-w-sm">
+                        Soit le boîtier n&apos;émettait pas encore, soit il n&apos;a pas eu de réseau.
+                        Les journées sans donnée ne sont jamais comblées par une estimation.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {!busy && fixes.length > 0 && (
                   <>
-                    <div ref={mapEl} className="h-[420px] w-full"
-                         role="img" aria-label={`Trajet du ${data.day}, ${data.positionCount} positions`} />
 
                     {/* Contrôles de rejeu */}
                     <div className="border-t border-gray-700 p-4">
