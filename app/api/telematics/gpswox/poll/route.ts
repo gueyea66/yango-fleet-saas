@@ -11,7 +11,8 @@ import { synchroniserGpswox } from "@/lib/telematics/gpswoxSync";
  * docs/TELEMATICS/04-LECTURE-API-GPSWOX.md). Rejouable sans risque : une
  * position déjà connue n'est pas réécrite.
  *
- * Authentification : `x-telematics-key`, ou `Authorization: Bearer <CRON_SECRET>`.
+ * Authentification : `x-telematics-key` (GPSWOX_POLL_KEY ou clé d'ingestion),
+ * ou `Authorization: Bearer <CRON_SECRET>`.
  */
 
 export const dynamic = "force-dynamic";
@@ -28,7 +29,9 @@ function autorise(req: NextRequest): boolean {
   const fourni = req.headers.get("x-telematics-key")
     ?? req.headers.get("authorization")?.replace(/^Bearer\s+/i, "")
     ?? "";
-  for (const ref of [process.env.TELEMATICS_INGEST_KEY, process.env.CRON_SECRET]) {
+  // GPSWOX_POLL_KEY : clé propre à la relève planifiée, pour ne pas déposer
+  // la clé d'ingestion (illisible une fois saisie dans Vercel) dans la base.
+  for (const ref of [process.env.GPSWOX_POLL_KEY, process.env.TELEMATICS_INGEST_KEY, process.env.CRON_SECRET]) {
     if (!ref) continue;
     const a = Buffer.from(fourni);
     const b = Buffer.from(ref);
