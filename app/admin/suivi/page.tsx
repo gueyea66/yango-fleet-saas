@@ -9,6 +9,7 @@ import { useUiV2 } from "@/components/v2/useUiV2";
 import AdminFrameV2 from "@/components/v2/admin/AdminFrameV2";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
 import { nomVehicule } from "@/lib/telematics/devices";
+import { tracePropre } from "@/lib/telematics/trace";
 import CarteFlotte, { type PointFlotte } from "@/components/admin/CarteFlotte";
 import type { Map as LeafletMap, Polyline, CircleMarker, LayerGroup } from "leaflet";
 
@@ -321,8 +322,10 @@ export default function SuiviPage() {
     return () => clearInterval(t);
   }, [user, enDirect, flotteMode, load]);
 
-  const fixes = useMemo(
-    () => (data?.positions ?? []).filter((p) => p.valid_fix),
+  // La dérive du GPS à l'arrêt est retirée du dessin et du rejeu : la carte
+  // montre ce que le calcul des kilomètres compte, pas un gribouillis.
+  const { trace: fixes, regroupes } = useMemo(
+    () => tracePropre((data?.positions ?? []).filter((p) => p.valid_fix)),
     [data],
   );
 
@@ -956,6 +959,13 @@ export default function SuiviPage() {
                         />
                       </label>
 
+                      {regroupes > 20 && (
+                        <p className="text-xs text-gray-400 mb-2">
+                          {fixes.length === 1 ? "Véhicule à l'arrêt." : "Arrêts regroupés."}{" "}
+                          {regroupes} positions reçues sans déplacement réel ne sont pas tracées : à l&apos;arrêt, le GPS
+                          se promène de quelques dizaines de mètres.
+                        </p>
+                      )}
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <p className="text-xs text-gray-500 font-mono tabular-nums">
                           point {cursor + 1} / {fixes.length}
