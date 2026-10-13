@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth/context";
 import { useUiV2 } from "@/components/v2/useUiV2";
 import AdminFrameV2 from "@/components/v2/admin/AdminFrameV2";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
+import { nomVehicule } from "@/lib/telematics/devices";
 import type { Map as LeafletMap, Polyline, CircleMarker, LayerGroup } from "leaflet";
 
 /**
@@ -583,7 +584,7 @@ export default function SuiviPage() {
                   >
                     {data?.devices.map((d) => (
                       <option key={d.id} value={d.vehicle_id ?? ""}>
-                        {(d.plate ?? d.label ?? d.external_id).trim()}
+                        {nomVehicule(d.plate, d.label) || d.external_id}
                       </option>
                     ))}
                   </select>
@@ -649,7 +650,7 @@ export default function SuiviPage() {
                 <p className={`text-xl sm:text-2xl font-bold font-mono mt-2 ${TONE[lastSeen.tone]}`}>
                   {lastSeen.text}
                 </p>
-                <p className="text-xs text-gray-500 mt-1 font-mono">{(device?.plate ?? device?.external_id ?? "").trim()}</p>
+                <p className="text-xs text-gray-500 mt-1 font-mono">{nomVehicule(device?.plate, device?.label) || (device?.external_id ?? "")}</p>
 
                 {/* Aller au véhicule : une position sans itinéraire ne sert à
                     rien quand il faut récupérer un camion en panne. */}
