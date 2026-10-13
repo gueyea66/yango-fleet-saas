@@ -7,7 +7,7 @@ import { synchroniserGpswox } from "@/lib/telematics/gpswoxSync";
  * Relève planifiée des plateformes GPSwox connectées.
  *
  * Chaque appel lit la dernière position de chaque boîtier : la finesse des
- * trajets dépend donc de la cadence d'appel (une fois par minute visée — voir
+ * trajets dépend donc de la cadence d'appel (toutes les 15 secondes — voir
  * docs/TELEMATICS/04-LECTURE-API-GPSWOX.md). Rejouable sans risque : une
  * position déjà connue n'est pas réécrite.
  *

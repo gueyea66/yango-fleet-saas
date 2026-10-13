@@ -7,7 +7,7 @@
 ```
 Boîtier NMK ──► serveur GPSwox de NMK (inchangé, l'application Gpswox continue de marcher)
                     ▲
-                    │  lecture /api/get_devices, une fois par minute
+                    │  lecture /api/get_devices, toutes les 15 secondes
                     │
         /api/telematics/gpswox/poll ──► telematics_positions (tenant NMK) ──► suivi, trajets, km
 ```
@@ -29,14 +29,14 @@ Pour ces boîtiers, l'écran ne propose aucun SMS de bascule : les repointer les
 | Appliquer `migrations/086-telematics-sources.sql` | sur go d'Abdou | à faire |
 | Fusionner et déployer la branche `feat/gps-gpswox` | sur go d'Abdou | à faire |
 | Connecter le compte depuis l'écran Boîtiers (admin NMK) | Abdou | à faire |
-| Planifier la relève par minute (bloc pg_cron en bas de la 086, clé à déposer dans Vault) | sur go d'Abdou | à faire |
+| Planifier la relève toutes les 15 s (bloc pg_cron en bas de la 086, clé à déposer dans Vault) | sur go d'Abdou | à faire |
 
 Tant que la relève n'est pas planifiée, le bouton « Relever maintenant » fait une lecture à la demande.
 
 ## Limites connues
 
 - **Format non vérifié sur le serveur réel.** Le lecteur (`lib/telematics/gpswox.ts`) suit la documentation GPSwox et tolère ses variantes, mais aucune réponse authentifiée du serveur de NMK n'a encore été lue. La première connexion dira si un champ diffère (IMEI, `timestamp`).
-- **Une position par relève.** `get_devices` ne donne que la dernière position : à une relève par minute, un trajet est tracé avec un point par minute, et les kilomètres (calculés de point en point) sont un peu sous-estimés dans les virages. Si l'écart avec le compteur est gênant, étape suivante : relire `/api/get_history`, qui rend tous les points.
+- **Une position par relève.** `get_devices` ne donne que la dernière position : à une relève toutes les 15 secondes (demande d'Abdou, 13/10/2026), on capte à peu près chaque émission d'un boîtier en mouvement. Les points émis plus vite que cela sont perdus ; `/api/get_history` les rendrait tous, mais ses horodatages sont du texte dans le fuseau du compte : à ne brancher qu'après lecture d'une réponse réelle.
 - **Pas de rattrapage.** Une coupure de la relève laisse un trou : les positions manquées ne sont pas relues après coup (même remède : `get_history`).
 - **État moteur** repris seulement si GPSwox l'envoie en booléen (`engine_status`) ; sinon il reste vide.
 - **http sans chiffrement** sur le serveur actuel : la clé de lecture circule en clair entre Vercel et le serveur GPSwox. À faire corriger par le prestataire (https), et prévoir un compte en lecture seule.

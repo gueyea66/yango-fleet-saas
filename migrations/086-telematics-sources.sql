@@ -40,10 +40,12 @@ COMMENT ON TABLE fleet.telematics_sources IS
   'Comptes de plateformes GPS relus par API. Serveur uniquement : contient la clé d''API du client.';
 
 /* ── Cadence de relève (à activer séparément, sur go) ─────────
-   Le plan Vercel ne planifie qu'une fois par jour ; une relève par minute
-   passe par pg_cron + pg_net, déjà fournis par Supabase :
+   Le plan Vercel ne planifie qu'une fois par jour ; la relève passe par
+   pg_cron + pg_net, déjà fournis par Supabase. Toutes les 15 secondes : c'est
+   la cadence d'émission d'un boîtier en mouvement, donc presque aucun point
+   n'est perdu entre deux lectures.
 
-     SELECT cron.schedule('gpswox-releve', '* * * * *', $$
+     SELECT cron.schedule('gpswox-releve', '15 seconds', $$
        SELECT net.http_post(
          url     := 'https://m3afleet.com/api/telematics/gpswox/poll',
          headers := jsonb_build_object('x-telematics-key',
