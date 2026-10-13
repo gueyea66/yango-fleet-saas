@@ -39,6 +39,7 @@ export async function GET(req: NextRequest) {
 
     const day = searchParams.get("date") || new Date().toISOString().slice(0, 10);
     const vehicleId = searchParams.get("vehicleId");
+    const deviceId = searchParams.get("deviceId");
     const histDays = 14;
     const histStart = new Date(Date.parse(`${day}T00:00:00Z`) - (histDays - 1) * 86400_000)
       .toISOString().slice(0, 10);
@@ -63,7 +64,30 @@ export async function GET(req: NextRequest) {
       .select("id, plate, make, model")
       .eq("tenant_id", tenantId);
 
+    // Vue flotte : la dernière position de chaque boîtier, et rien d'autre.
+    // Elle ne paie ni la trace du jour ni l'historique d'un véhicule précis.
+    if (searchParams.get("flotte") === "1") {
+      const flotte = await Promise.all((devices ?? []).map((d) =>
+        admin
+          .from("telematics_positions")
+          .select("recorded_at, latitude, longitude, speed_kmh")
+          .eq("device_id", d.id)
+          .eq("valid_fix", true)
+          .order("recorded_at", { ascending: false })
+          .limit(1)
+          .then((r) => ({ deviceId: d.id, position: r.data?.[0] ?? null }))));
+      return Response.json({
+        installed: true,
+        devices: (devices ?? []).map((d) => ({
+          ...d,
+          plate: vehicles?.find((v) => v.id === d.vehicle_id)?.plate ?? null,
+        })),
+        flotte,
+      });
+    }
+
     const selected =
+      (deviceId && devices?.find((d) => d.id === deviceId)) ||
       (vehicleId && devices?.find((d) => d.vehicle_id === vehicleId)) ||
       devices?.[0] ||
       null;
