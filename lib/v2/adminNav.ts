@@ -43,6 +43,8 @@ export const ADMIN_DESTINATIONS: DestinationDef[] = [
       { tab: "classement", label: "Classement" },
       { tab: "kpichauffeurs", label: "KPI chauffeurs" },
       { tab: "extraction", label: "Extraction" },
+      // Page à part entière, née après la refonte : hors du contrôle « aucun onglet perdu ».
+      { tab: "rendement", label: "Rendement", route: "/admin/rendement", extra: true },
     ],
   },
   {
