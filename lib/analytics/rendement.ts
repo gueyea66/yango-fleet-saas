@@ -83,6 +83,31 @@ export interface Chauffeur {
   /** Écart restant une fois les horaires neutralisés : sa manière de travailler. */
   effetPropre: number;
   coupures: number;
+  /** Heures d'activité par case jour × heure (168 valeurs, 0 = lundi 0 h), ramenées à une semaine. */
+  semaine: number[];
+  /** Ses zones de départ : part de ses courses et ce qu'elles lui rapportent par heure en course. */
+  zones: { zone: string; part: number; xofHCourse: number | null; flotteXofHCourse: number | null }[];
+  /** Propositions tirées de ses habitudes et de ce que paie la flotte. */
+  conseils: Conseil[];
+}
+
+/** Tranches de la journée utilisées pour croiser zones et horaires. */
+export const TRANCHES = [
+  { de: 0, a: 6, label: "la nuit (0 h – 6 h)" }, { de: 6, a: 9, label: "tôt le matin (6 h – 9 h)" },
+  { de: 9, a: 12, label: "en matinée (9 h – 12 h)" }, { de: 12, a: 15, label: "en début d'après-midi (12 h – 15 h)" },
+  { de: 15, a: 18, label: "en fin d'après-midi (15 h – 18 h)" }, { de: 18, a: 21, label: "en soirée (18 h – 21 h)" },
+  { de: 21, a: 24, label: "tard le soir (21 h – 24 h)" },
+] as const;
+const trancheDe = (h: number) => TRANCHES.findIndex((t) => h >= t.de && h < t.a);
+
+export interface Conseil {
+  type: "ajouter" | "alleger" | "zone" | "horaire_zone";
+  titre: string;
+  detail: string;
+  /** Ce que la proposition rapporterait par heure déplacée, face à ce qu'il fait aujourd'hui (XOF). */
+  gainHeure: number | null;
+  /** Cases jour × heure concernées, pour les montrer sur sa grille. */
+  cases: number[];
 }
 
 export interface Coupure {
@@ -125,6 +150,8 @@ export interface Rendement {
   heures: { h: number; heures: number; xofH: number | null; xofKm: number | null; vitesse: number | null; majoration: number | null }[];
   jours: { js: number; heures: number; xofH: number | null; vitesse: number | null }[];
   zones: Zone[];
+  /** Ce que rapporte chaque zone de départ selon la tranche de la journée (flotte entière). */
+  zonesTranches: { zone: string; tranche: number; courses: number; xofHCourse: number }[];
   chauffeurs: Chauffeur[];
   coupures: Coupure[];
   coupuresResume: { nombre: number; heures: number; avecGps: number; roulees: number; kmRoules: number; parHeure: number[] };
@@ -423,6 +450,25 @@ export function calculerRendement(
     .sort((x, y) => Number(y.nature === "roule") - Number(x.nature === "roule") || y.debut.localeCompare(x.debut))
     .slice(0, opts.maxCoupures ?? 40);
 
+  // ── Zones × tranches de la journée (flotte) ──
+  const zt = new Map<string, { n: number; ca: number; h: number }>();
+  for (const e of courses) {
+    const z = zoneDe(e.o.address_from);
+    if (!z) continue;
+    const k = `${z}|${trancheDe(hDe(e.t))}`;
+    const v = zt.get(k) ?? zt.set(k, { n: 0, ca: 0, h: 0 }).get(k)!;
+    v.n++; v.ca += e.tarif; v.h += e.min / 60;
+  }
+  const seuilZt = Math.max(25, Math.round(courses.length / 1500));
+  const zonesTranches = [...zt].filter(([, v]) => v.n >= seuilZt && v.h > 0).map(([k, v]) => {
+    const [zone, t] = k.split("|");
+    return { zone, tranche: Number(t), courses: v.n, xofHCourse: v.ca / v.h };
+  });
+  const flotteZone = new Map(zones.map((z) => [z.code, z.xofHCourse]));
+
+  // Semaines couvertes : pour parler en heures par semaine, pas en total sur la période.
+  const semaines = Math.max(1, evts.length ? (evts[evts.length - 1].t - evts[0].t) / (7 * 86_400_000) : 1);
+
   // ── Chauffeurs ──
   const partFlotte = Array.from(act, (v) => (heuresActivite > 0 ? v / heuresActivite : 0));
   const rendementCellule = grille.map((g) => g.xofHLisse ?? xofHGlobal ?? 0);
@@ -434,6 +480,22 @@ export function calculerRendement(
     const xofH = a.heures > 0 ? caC / a.heures : 0;
     let effet = 0;
     if (a.heures > 0) for (let i = 0; i < 168; i++) effet += (a.grille[i] / a.heures - partFlotte[i]) * rendementCellule[i];
+
+    // Ses zones de départ, et sa propre recette horaire en course dans chacune.
+    const parZone = new Map<string, { n: number; ca: number; h: number; parTranche: number[] }>();
+    for (const e of faites) {
+      const z = zoneDe(e.o.address_from);
+      if (!z) continue;
+      const v = parZone.get(z) ?? parZone.set(z, { n: 0, ca: 0, h: 0, parTranche: Array(TRANCHES.length).fill(0) }).get(z)!;
+      v.n++; v.ca += e.tarif; v.h += e.min / 60; v.parTranche[trancheDe(hDe(e.t))]++;
+    }
+    const avecZone = [...parZone.values()].reduce((s, v) => s + v.n, 0);
+    const zonesC = [...parZone].sort((x, y) => y[1].n - x[1].n).slice(0, 6).map(([zone, v]) => ({
+      zone, part: avecZone ? v.n / avecZone : 0, xofHCourse: v.h > 0 && v.n >= 10 ? v.ca / v.h : null,
+      flotteXofHCourse: flotteZone.get(zone) ?? null,
+    }));
+    const semaine = Array.from(a.grille, (v) => v / semaines);
+
     return {
       id, nom: liste[liste.length - 1].nom, heures: a.heures, courses: faites.length, ca: caC, xofH,
       xofKm: mediane(faites.map((e) => e.tarif / e.km)),
@@ -442,6 +504,8 @@ export function calculerRendement(
       effetHoraires: effet,
       effetPropre: xofH - (xofHGlobal ?? 0) - effet,
       coupures: coupuresChauffeur.get(liste[liste.length - 1].nom) ?? 0,
+      semaine, zones: zonesC,
+      conseils: conseiller({ semaine, xofH, grille, parZone, avecZone, zonesTranches, xofHGlobal }),
     };
   }).filter((c) => c.heures >= Math.max(20, heuresActivite * 0.02)).sort((a, b) => b.xofH - a.xofH);
 
@@ -472,7 +536,7 @@ export function calculerRendement(
   };
 
   return {
-    periode, modeleTarif: modele, grille, heures, jours, zones, chauffeurs, coupures,
+    periode, modeleTarif: modele, grille, heures, jours, zones, zonesTranches, chauffeurs, coupures,
     coupuresResume: {
       nombre: coupuresToutes.length, heures: coupuresToutes.reduce((s, c) => s + c.minutes, 0) / 60,
       avecGps: coupuresToutes.filter((c) => c.nature !== "inconnue").length,
@@ -483,6 +547,128 @@ export function calculerRendement(
     constats: constats({ periode, grille, heures, jours, zones, chauffeurs, coupuresToutes, roulees }),
   };
 }
+
+// ── Conseils à un chauffeur : ses habitudes face à ce que paie la flotte ──
+
+const JOURS_C = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
+
+/**
+ * Regroupe des cases en plages lisibles. Le même horaire sur plusieurs jours
+ * devient une seule plage : « 6 h – 8 h, du lundi au vendredi ».
+ */
+function plages(cases: number[]): { texte: string; cases: number[] }[] {
+  const tri = [...new Set(cases)].sort((x, y) => x - y);
+  const parJour: number[][] = [];
+  for (const c of tri) {
+    const der = parJour[parJour.length - 1];
+    if (der && c === der[der.length - 1] + 1 && Math.floor(c / 24) === Math.floor(der[0] / 24)) der.push(c);
+    else parJour.push([c]);
+  }
+  const parHoraire = new Map<string, number[][]>();
+  for (const p of parJour) {
+    const k = `${p[0] % 24}|${(p[p.length - 1] % 24) + 1}`;
+    (parHoraire.get(k) ?? parHoraire.set(k, []).get(k)!).push(p);
+  }
+  return [...parHoraire].map(([k, ps]) => {
+    const [h0, h1] = k.split("|");
+    const jours = ps.map((p) => Math.floor(p[0] / 24));
+    return { texte: `${h0} h – ${h1} h, ${quand(jours)}`, cases: ps.flat() };
+  }).sort((a, b) => b.cases.length - a.cases.length);
+}
+
+function quand(jours: number[]): string {
+  const j = [...new Set(jours)].sort();
+  if (j.length === 7) return "tous les jours";
+  if (j.length === 5 && j.join() === "0,1,2,3,4") return "du lundi au vendredi";
+  const noms = j.map((x) => JOURS_C[x]);
+  return noms.length === 1 ? `le ${noms[0]}` : `le ${noms.slice(0, -1).join(", ")} et ${noms[noms.length - 1]}`;
+}
+
+function conseiller(d: {
+  semaine: number[]; xofH: number; grille: Cellule[];
+  parZone: Map<string, { n: number; ca: number; h: number; parTranche: number[] }>; avecZone: number;
+  zonesTranches: Rendement["zonesTranches"]; xofHGlobal: number | null;
+}): Conseil[] {
+  const out: Conseil[] = [];
+  const ref = d.xofHGlobal;
+  if (!ref) return out;
+  const total = d.semaine.reduce((s, v) => s + v, 0);
+  if (total <= 0) return out;
+  // Heures de la journée où il roule d'ordinaire : un créneau voisin est réaliste, un créneau à l'opposé ne l'est pas.
+  const parHeure = Array.from({ length: 24 }, (_, h) => d.semaine.filter((_, i) => i % 24 === h).reduce((s, v) => s + v, 0));
+  const habituelles = new Set(parHeure.flatMap((v, h) => (v / total >= 0.03 ? [h] : [])));
+  const proche = (h: number) => [-2, -1, 0, 1, 2].some((k) => habituelles.has((h + k + 24) % 24));
+  const rend = (i: number) => d.grille[i].xofHLisse ?? ref;
+
+  // 1. Créneaux qui paient, voisins de ses horaires, où il ne vient presque jamais.
+  const candidats = d.grille.map((c, i) => i)
+    .filter((i) => d.grille[i].fiable && rend(i) >= ref * 1.08 && d.semaine[i] < 0.25 && proche(i % 24))
+    .sort((x, y) => rend(y) - rend(x)).slice(0, 10);
+  let meilleurAjout: number | null = null;
+  for (const p of plages(candidats).slice(0, 2)) {
+    const moy = p.cases.reduce((s, i) => s + rend(i), 0) / p.cases.length;
+    meilleurAjout = Math.max(meilleurAjout ?? 0, moy);
+    out.push({
+      type: "ajouter", titre: `Rouler ${p.texte}`,
+      detail: `La flotte y gagne ${fmt(moy)} XOF par heure d'activité, contre ${fmt(d.xofH)} pour lui en moyenne. Il n'y vient presque jamais, alors que c'est à côté de ses horaires habituels.`,
+      gainHeure: moy - d.xofH, cases: p.cases,
+    });
+  }
+
+  // 2. Créneaux où il passe du temps et où la flotte gagne peu : à déplacer vers les précédents.
+  const faibles = d.semaine.map((v, i) => i)
+    .filter((i) => d.semaine[i] >= 0.4 && d.grille[i].fiable && rend(i) <= ref * 0.92)
+    .sort((x, y) => d.semaine[y] - d.semaine[x]).slice(0, 8);
+  for (const p of plages(faibles).slice(0, 2)) {
+    const moy = p.cases.reduce((s, i) => s + rend(i), 0) / p.cases.length;
+    const h = p.cases.reduce((s, i) => s + d.semaine[i], 0);
+    out.push({
+      type: "alleger", titre: `Alléger ${p.texte}`,
+      detail: `${fmt1(h)} h par semaine sur un créneau à ${fmt(moy)} XOF par heure, ${Math.round((1 - moy / ref) * 100)} % sous la moyenne de la flotte.${meilleurAjout ? " Chaque heure déplacée vers un créneau proposé ci-dessus rapporterait la différence." : ""}`,
+      gainHeure: meilleurAjout ? meilleurAjout - moy : null, cases: p.cases,
+    });
+  }
+
+  // 3. Pour ses tranches habituelles, la zone qui paie le mieux, face à celle où il charge.
+  const sesTranches = TRANCHES.map((_, t) => ({ t, n: [...d.parZone.values()].reduce((s, v) => s + v.parTranche[t], 0) }))
+    .filter((x) => x.n >= 15).sort((x, y) => y.n - x.n).slice(0, 2);
+  for (const { t, n } of sesTranches) {
+    // Une zone ne se propose que si elle porte une vraie part de la demande à ce moment-là :
+    // un bon tarif sur trois courses n'attend pas un chauffeur de plus.
+    const volume = d.zonesTranches.filter((z) => z.tranche === t).reduce((s, z) => s + z.courses, 0);
+    const offre = d.zonesTranches.filter((z) => z.tranche === t && z.courses >= volume * 0.04).sort((x, y) => y.xofHCourse - x.xofHCourse);
+    const [zone, v] = [...d.parZone].sort((x, y) => y[1].parTranche[t] - x[1].parTranche[t])[0] ?? [];
+    if (!offre.length || !zone || !v) continue;
+    const ici = offre.find((z) => z.zone === zone);
+    const mieux = offre[0];
+    if (mieux.zone === zone || !ici || mieux.xofHCourse < ici.xofHCourse * 1.08) continue;
+    out.push({
+      type: "zone", titre: `${TRANCHES[t].label[0].toUpperCase()}${TRANCHES[t].label.slice(1)}, viser ${mieux.zone}`,
+      detail: `${fmt(mieux.xofHCourse)} XOF par heure en course au départ de ${mieux.zone} à ce moment-là, contre ${fmt(ici.xofHCourse)} au départ de ${zone}, où il prend ${Math.round((v.parTranche[t] / n) * 100)} % de ses courses de la tranche.`,
+      gainHeure: mieux.xofHCourse - ici.xofHCourse, cases: [],
+    });
+  }
+
+  // 4. Pour sa zone principale, le moment où elle paie le mieux.
+  const [principale, pv] = [...d.parZone].sort((x, y) => y[1].n - x[1].n)[0] ?? [];
+  if (principale && pv && pv.n >= 30) {
+    // Même règle : la nuit paie souvent mieux à l'heure de course, mais n'offre que peu de courses.
+    const volumeZone = d.zonesTranches.filter((z) => z.zone === principale).reduce((s, z) => s + z.courses, 0);
+    const moments = d.zonesTranches.filter((z) => z.zone === principale && z.courses >= volumeZone * 0.1).sort((x, y) => y.xofHCourse - x.xofHCourse);
+    const sa = pv.parTranche.indexOf(Math.max(...pv.parTranche));
+    const ici = moments.find((z) => z.tranche === sa);
+    if (moments.length >= 2 && ici && moments[0].tranche !== sa && moments[0].xofHCourse >= ici.xofHCourse * 1.08) {
+      out.push({
+        type: "horaire_zone", titre: `À ${principale}, c'est ${TRANCHES[moments[0].tranche].label} que ça paie`,
+        detail: `Sa zone principale (${Math.round((pv.n / Math.max(1, d.avecZone)) * 100)} % de ses courses) rapporte ${fmt(moments[0].xofHCourse)} XOF par heure en course ${TRANCHES[moments[0].tranche].label}, contre ${fmt(ici.xofHCourse)} ${TRANCHES[sa].label}, quand il y travaille le plus.`,
+        gainHeure: moments[0].xofHCourse - ici.xofHCourse, cases: [],
+      });
+    }
+  }
+  return out;
+}
+const fmt = (v: number) => Math.round(v).toLocaleString("fr-FR").replace(/\u202f/g, "\u00a0");
+const fmt1 = (v: number) => v.toFixed(1).replace(".", ",");
 
 // ── Constats : ce que les chiffres disent, rangé par ce que cela peut rapporter ──
 

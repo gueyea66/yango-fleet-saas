@@ -121,6 +121,19 @@ describe("calculerRendement", () => {
     for (const c of r.chauffeurs) expect(c.xofH - r.periode.xofH! - c.effetHoraires - c.effetPropre).toBeCloseTo(0, 5);
   });
 
+  it("donne à chaque chauffeur sa semaine type, ses zones et des propositions", () => {
+    const r = calculerRendement(orders);
+    const c = r.chauffeurs[0];
+    expect(c.semaine).toHaveLength(168);
+    // 30 lundis sur ~29 semaines : un peu plus de 6 h d'activité par semaine
+    expect(c.semaine.reduce((s, v) => s + v, 0)).toBeGreaterThan(5);
+    expect(c.semaine[9]).toBeGreaterThan(0.9);       // lundi 9 h
+    expect(c.semaine[24 + 9]).toBe(0);              // mardi 9 h
+    expect(c.zones[0]).toMatchObject({ zone: "Grand Yoff", part: 1 });
+    expect(r.zonesTranches.some((z) => z.zone === "Grand Yoff")).toBe(true);
+    expect(Array.isArray(c.conseils)).toBe(true);
+  });
+
   it("reste muet sur trop peu de données", () => {
     const r = calculerRendement(serie("2026-03-02T08:00:00Z", 6));
     expect(r.constats).toEqual([]);

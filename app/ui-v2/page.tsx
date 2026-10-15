@@ -22,7 +22,7 @@ import { SaisieOperateurV2 } from "@/components/v2/admin/OperateurV2";
 import { computeTrends, lastBuckets } from "@/lib/analytics/trends";
 import type { SegmentFilter } from "@/lib/analytics/segment";
 import { FLEET_SEG_OPTS } from "@/lib/v2/fleetScope";
-import { RendementV2, type RendementPayload } from "@/components/v2/admin/RendementV2";
+import { RendementV2, type RendementPayload, type PeriodeRendement } from "@/components/v2/admin/RendementV2";
 import { calculerRendement, type OrderRow } from "@/lib/analytics/rendement";
 import { DeclarationsV2, type FiltreDeclarations } from "@/components/v2/admin/DeclarationsV2";
 import { suiviDeclarations, cleCourses, type RapportLigne, type DepenseLigne } from "@/lib/analytics/declarations";
@@ -271,7 +271,7 @@ function DeclarationsDemo() {
 /** Écran Rendement hors connexion : données du poste si présentes, sinon fictives. */
 function RendementDemo() {
   const [data, setData] = useState<RendementPayload | null>(null);
-  const [jours, setJours] = useState(90);
+  const [periode, setPeriode] = useState<PeriodeRendement>({ jours: 90, du: null, au: null });
   useEffect(() => {
     let vivant = true;
     // Fichier local non versionné, produit par __tests__/local : absent partout ailleurs.
@@ -281,7 +281,7 @@ function RendementDemo() {
   }, []);
   return (
     <main style={{ minHeight: "100vh", background: "var(--sk-deep)", padding: "28px 24px 80px" }}>
-      <RendementV2 data={data} jours={jours} onJours={setJours} loading={false} error={null} />
+      <RendementV2 data={data} periode={periode} onPeriode={setPeriode} loading={false} error={null} />
     </main>
   );
 }
