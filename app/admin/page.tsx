@@ -28,7 +28,8 @@ import { useAuth } from "@/lib/auth/context";
 import { EXPENSE_CATEGORIES } from "@/lib/expenseCategories";
 import { configEffective, partSurCA } from "@/lib/salaire";
 import { obtenirUrlsSignees } from "@/lib/signedUrls";
-import { baseAmortissable, dureeAmortissementMois, porteParExploitant, kmParMoisDepuisCompteur } from "@/lib/calc";
+import { baseAmortissable, dureeAmortissementMois, porteParExploitant, kmParMoisVehicule } from "@/lib/calc";
+import { kmMoisCoursesParVehicule } from "@/lib/fleetroom/kmCourses";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getTenantId } from "@/lib/supabase/tenanted";
@@ -1499,7 +1500,7 @@ function AmortissementApercu({ form, kmParMois, xof }: { form: any; kmParMois: n
 
   const base = baseAmortissable(v);
   if (base == null) return <div className="text-xs" style={T4}>Renseignez le prix d&apos;acquisition pour voir la charge mensuelle.</div>;
-  if (kmParMois == null) return <div className="text-xs" style={T4}>Rythme d&apos;usure pas encore mesurable — il faut au moins deux semaines de relevés de compteur.</div>;
+  if (kmParMois == null) return <div className="text-xs" style={T4}>Rythme d&apos;usure pas encore mesurable — il faut au moins deux semaines de relevés de compteur, ou de courses Yango importées.</div>;
   if (!form.date_acquisition) return <div className="text-xs" style={T4}>Renseignez la date d&apos;acquisition pour démarrer l&apos;amortissement.</div>;
 
   const duree = dureeAmortissementMois(v, kmParMois);
@@ -1601,7 +1602,9 @@ function FleetTab({ tenantId, segments, onSegments, onCounts }: { tenantId: stri
     ]);
     setVehicle(v);
     setMaintenance(m || []);
-    setVehicleKmParMois(kmParMoisDepuisCompteur(odo || []));
+    // Sans compteur déclaré, le rythme se lit sur les courses Yango (Fleetroom).
+    const kmCourses = v ? await kmMoisCoursesParVehicule(supabase, tenantId, [v]).catch(() => new Map<string, number>()) : new Map<string, number>();
+    setVehicleKmParMois(kmParMoisVehicule(odo || [], kmCourses.get(id)));
     if (v) setForm({ plate: v.plate || "", make: v.make || "", model: v.model || "", year: String(v.year || ""), color: v.color || "", fuel_type: v.fuel_type || "essence", transmission: v.transmission || "manuelle", vin: v.vin || "", mileage: String(v.mileage || 0), status: v.status || "active", insurance_company: v.insurance_company || "", insurance_number: v.insurance_number || "", insurance_expiry: v.insurance_expiry || "", visite_expiry: v.visite_expiry || "", notes: v.notes || "", driver_id: v.driver_id || "", fleet_segment: segOf(v), owner_name: v.owner_name || "", prix_acquisition: v.prix_acquisition != null ? String(v.prix_acquisition) : "", valeur_residuelle: v.valeur_residuelle != null ? String(v.valeur_residuelle) : "", date_acquisition: v.date_acquisition || "", amort_plafond_km: String(v.amort_plafond_km ?? 400000), amort_duree_max_mois: String(v.amort_duree_max_mois ?? 36), amort_porte_par: porteParExploitant({ porteePar: v.amort_porte_par, segment: segOf(v) }) ? "exploitant" : "proprietaire_tiers" });
   };
 

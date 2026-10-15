@@ -46,6 +46,12 @@ La reconstitution n'est juste que si les transactions sont complètes. Depuis la
 
 Vérification au 29/09 : pour les 6 chauffeurs actifs, l'écart est inférieur à 1 XOF sur le solde de début, le mouvement du jour et le solde de fin.
 
+### Km des courses (`lib/fleetroom/kmCourses.ts`)
+
+Fleetroom ne donne pas le compteur : sans lui, l'amortissement n'avait pas de rythme d'usure et valait 0 (ligne absente du tableau de bord NMK, constaté le 14/10/2026). À défaut de relevés de compteur, le rythme se lit sur les km des courses terminées des 60 derniers jours, rattachées au véhicule par la plaque (`kmParMoisVehicule`). Ce sont des km en course, sans approche ni vide : la durée reste bornée à `amort_duree_max_mois`. Branché partout où l'amortissement est calculé : tableau de bord, pilotage, rapports, briefing IA, fiche véhicule.
+
+Le suivi GPS affiche aussi, jour par jour, les km Yango et la part du roulage GPS passée en course : l'écart, c'est l'approche et le vide.
+
 ## Garde-fous contre la double déclaration
 
 1. **Même fichier déposé deux fois** : refusé. L'empreinte sha256 est enregistrée dans `fleetroom_imports`.

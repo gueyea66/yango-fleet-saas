@@ -2,7 +2,8 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Decision, Insight, Kpi, ReportDataset, Section, TableSection } from "@/lib/report-agent/types";
 import { CAT_AVANCE, CAT_SOLDE, estChargeDeResultat } from "@/lib/expenseCategories";
-import { amortissementPeriode, kmParMoisDepuisCompteur } from "@/lib/calc";
+import { amortissementPeriode, kmParMoisVehicule } from "@/lib/calc";
+import { kmMoisCoursesParVehicule } from "@/lib/fleetroom/kmCourses";
 import { performanceBlock, type PerformanceBlock } from "./performance";
 import { demandeHoraire, echeances } from "./extras";
 import { fetchAllRows } from "@/lib/fetchAllRows";
@@ -181,6 +182,7 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
   // les dépenses sans chauffeur comptent dans le total (même règle que le recap)
   tot.dep = Math.round(Array.from(depCat.values()).reduce((s, v) => s + v, 0));
 
+  const kmCourses = await kmMoisCoursesParVehicule(admin, tenantId, (vehsQ.data || []) as any[]);
   const relevesVeh = new Map<string, Array<{ date: string; end_odometer: number | null }>>();
   for (const r of (odoQ.data || []) as any[]) {
     if (!r.vehicle_id) continue;
@@ -195,7 +197,7 @@ async function aggregatePeriod(tenantId: string, dateFrom: string, dateTo: strin
       porteePar: v.amort_porte_par, segment: v.fleet_segment,
     },
     fromISO: dateFrom, toISO: dateTo,
-    kmParMois: kmParMoisDepuisCompteur(relevesVeh.get(v.id) || []),
+    kmParMois: kmParMoisVehicule(relevesVeh.get(v.id) || [], kmCourses.get(v.id)),
   }).montant, 0));
 
   return {

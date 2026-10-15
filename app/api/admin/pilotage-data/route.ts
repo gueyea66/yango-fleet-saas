@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
 import { requireAdminAuth } from "@/lib/auth/server";
+import { kmMoisCoursesParVehicule } from "@/lib/fleetroom/kmCourses";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 
 export const dynamic = "force-dynamic";
@@ -43,12 +44,16 @@ export async function GET(req: NextRequest) {
       tQ(admin.from("vehicles").select("id,plate,driver_id,mileage,fleet_segment,prix_acquisition,valeur_residuelle,date_acquisition,amort_plafond_km,amort_duree_max_mois,amort_porte_par")).then((r: any) => r.data || []),
     ]);
 
+    // Rythme d'usure lu sur les courses Yango, pour les véhicules sans compteur
+    // déclaré : calculé ici pour ne pas envoyer les courses au navigateur.
+    const kmCourses = await kmMoisCoursesParVehicule(admin, tenantId, vehs || []);
+
     return Response.json({
       reports: reps || [],
       expenses: exps || [],
       payments: pays || [],
       profiles: profs || [],
-      vehicles: vehs || [],
+      vehicles: (vehs || []).map((v: any) => ({ ...v, km_mois_courses: kmCourses.get(v.id) ?? null })),
     });
   } catch (err: any) {
     const status = err.status ?? 500;

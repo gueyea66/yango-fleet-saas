@@ -7,7 +7,8 @@
  */
 import { aiAdmin } from "./adminClient";
 import { soldeConsomme, coutCarburantParKm, carburantConsomme, computeOperationnel,
-  amortissementPeriode, kmParMoisDepuisCompteur } from "@/lib/calc";
+  amortissementPeriode, kmParMoisVehicule } from "@/lib/calc";
+import { kmMoisCoursesParVehicule } from "@/lib/fleetroom/kmCourses";
 import { CAT_AVANCE } from "@/lib/expenseCategories";
 
 export interface RawReport {
@@ -71,6 +72,8 @@ export function activeDriverIds(win: TenantWindow, date: string): Set<string> {
 
 export interface RawVehicle {
   id: string;
+  /** km/mois en course (Yango), à défaut de compteur — rempli par fetchTenantWindow. */
+  km_mois_courses?: number | null;
   plate: string | null;
   mileage: number | null;
   fleet_segment: string | null;
@@ -141,8 +144,15 @@ export async function fetchTenantWindow(tenantId: string, days = 70): Promise<Te
     expenses: ((exp.data ?? []) as RawExpense[]).filter(
       (e) => !e.driver_id || !technical.has(e.driver_id)
     ),
-    vehicles: vehRows ?? [],
+    vehicles: await avecKmCourses(admin, tenantId, vehRows ?? []),
   };
+}
+
+/** Rythme d'usure lu sur les courses Yango, pour les véhicules sans compteur déclaré. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function avecKmCourses(admin: any, tenantId: string, vehicles: RawVehicle[]): Promise<RawVehicle[]> {
+  const km = await kmMoisCoursesParVehicule(admin, tenantId, vehicles);
+  return vehicles.map((v) => ({ ...v, km_mois_courses: km.get(v.id) ?? null }));
 }
 
 /* ── Agrégats déterministes (purs) ──────────────────────────────────── */
@@ -329,7 +339,7 @@ function amortissementParcWindow(win: TenantWindow, from: string, to: string): n
       porteePar: v.amort_porte_par, segment: v.fleet_segment,
     },
     fromISO: from, toISO: to,
-    kmParMois: kmParMoisDepuisCompteur(releves.get(v.id) || []),
+    kmParMois: kmParMoisVehicule(releves.get(v.id) || [], v.km_mois_courses),
   }).montant, 0);
 }
 

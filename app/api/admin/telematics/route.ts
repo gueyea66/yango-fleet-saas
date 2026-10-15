@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, after } from "next/server";
 import { requireAdminAuth } from "@/lib/auth/server";
+import { kmCoursesParJour } from "@/lib/fleetroom/kmCourses";
 import { fetchAllRows } from "@/lib/fetchAllRows";
 
 /**
@@ -109,7 +110,8 @@ export async function GET(req: NextRequest) {
     const dayEnd = `${day}T23:59:59.999Z`;
 
     // ── Trace du jour, dernière position, événements, historique ─────────
-    const [positions, events, daily, reconciliation, lastPos, trips] = await Promise.all([
+    const plaque = vehicles?.find((v) => v.id === selected.vehicle_id)?.plate ?? null;
+    const [positions, events, daily, reconciliationBrut, lastPos, trips, kmYango] = await Promise.all([
       fetchAllRows(() =>
         admin
           .from("telematics_positions")
@@ -162,7 +164,24 @@ export async function GET(req: NextRequest) {
         .lte("started_at", dayEnd)
         .order("started_at")
         .then((r) => r.data ?? []),
+      // Km « actifs » Yango (courses terminées, import Fleetroom) : à défaut de
+      // compteur déclaré, c'est la seule déclaration de km disponible. Écart
+      // avec le GPS = approche et km à vide. Sans import : table vide.
+      kmCoursesParJour(admin, tenantId, plaque, histStart, day)
+        .catch(() => new Map<string, { km: number; courses: number }>()),
     ]);
+
+    const reconciliation = (reconciliationBrut as Array<{ day: string; km_gps: number | null }>).map((r) => {
+      const y = kmYango.get(r.day);
+      const kmY = y ? Math.round(y.km * 10) / 10 : null;
+      return {
+        ...r,
+        km_yango: kmY,
+        courses_yango: y?.courses ?? null,
+        part_en_course: kmY != null && r.km_gps != null && Number(r.km_gps) > 0
+          ? Math.round((kmY / Number(r.km_gps)) * 100) : null,
+      };
+    });
 
     // ── Recalcul à l'ouverture ───────────────────────────────────────────
     // Les positions arrivent en continu, mais les trajets et les kilomètres

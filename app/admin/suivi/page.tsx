@@ -76,6 +76,11 @@ type Recon = {
   recette_par_heure_service?: number | null;
   recette_par_km?: number | null;
   rendement_exploitable?: boolean | null;
+  /** Km des courses Yango terminées ce jour (import Fleetroom), null sans import. */
+  km_yango?: number | null;
+  courses_yango?: number | null;
+  /** km Yango ÷ km GPS, en % : la part du roulage passée en course. */
+  part_en_course?: number | null;
 };
 
 type Device = {
@@ -559,6 +564,7 @@ export default function SuiviPage() {
    * manière de le regarder ne serait plus une mesure.
    */
   const urbain = data?.usageProfile === "urbain";
+  const avecYango = (data?.reconciliation ?? []).some((r) => r.km_yango != null);
   const service = (() => {
     if (!dayAgg?.first_movement_at || !dayAgg?.last_movement_at) return null;
     const amplitudeS = Math.max(
@@ -1100,6 +1106,13 @@ export default function SuiviPage() {
                 </p>
               </div>
 
+              {data.reconciliation.some((r) => r.km_yango != null) && (
+                <p className="px-4 pt-3 text-xs text-gray-400">
+                  Km Yango = km des courses terminées (export Fleetroom). La différence avec le GPS,
+                  c&apos;est l&apos;approche et le roulage à vide. Sans compteur déclaré, ce sont les seuls
+                  km déclarés disponibles.
+                </p>
+              )}
               {data.reconciliation.length === 0 ? (
                 <div className="p-8 text-center">
                   <p className="text-white font-medium">Pas encore de rapprochement</p>
@@ -1115,6 +1128,12 @@ export default function SuiviPage() {
                         <th scope="col" className="text-left font-semibold px-4 py-3">Jour</th>
                         <th scope="col" className="text-right font-semibold px-4 py-3">Km GPS</th>
                         <th scope="col" className="text-right font-semibold px-4 py-3">Km déclarés</th>
+                        {avecYango && (
+                          <>
+                            <th scope="col" className="text-right font-semibold px-4 py-3">Km Yango</th>
+                            <th scope="col" className="text-right font-semibold px-4 py-3">En course</th>
+                          </>
+                        )}
                         <th scope="col" className="text-right font-semibold px-4 py-3">Écart</th>
                         <th scope="col" className="text-right font-semibold px-4 py-3">Couverture</th>
                         {urbain && (
@@ -1140,6 +1159,25 @@ export default function SuiviPage() {
                             <td className="px-4 py-3 text-gray-200 font-mono tabular-nums">{r.day}</td>
                             <td className="px-4 py-3 text-right text-white font-mono tabular-nums">{r.km_gps ?? "—"}</td>
                             <td className="px-4 py-3 text-right text-white font-mono tabular-nums">{r.km_declares ?? "—"}</td>
+                            {avecYango && (
+                              <>
+                                <td className="px-4 py-3 text-right text-white font-mono tabular-nums">
+                                  {r.km_yango ?? "—"}
+                                  {r.courses_yango != null && (
+                                    <span className="block text-xs text-gray-500">{r.courses_yango} courses</span>
+                                  )}
+                                </td>
+                                {/* Part du roulage GPS passée en course. Pas de seuil
+                                    coloré : aucune référence mesurée ne dit encore
+                                    ce qu'est une « bonne » part en ville. Masquée si
+                                    la journée GPS est mal couverte. */}
+                                <td className="px-4 py-3 text-right text-white font-mono tabular-nums">
+                                  {r.part_en_course == null || (r.coverage ?? 0) < 0.8
+                                    ? <span className="text-gray-600">—</span>
+                                    : `${r.part_en_course} %`}
+                                </td>
+                              </>
+                            )}
                             <td className={`px-4 py-3 text-right font-mono tabular-nums ${
                               !usable ? "text-gray-500" : big ? TONE.warn : TONE.ok}`}>
                               {r.ecart_km === null ? "—"
@@ -1173,7 +1211,8 @@ export default function SuiviPage() {
                             )}
 
                             <td className="px-4 py-3 text-gray-400 text-xs">
-                              {r.km_declares === null ? "aucune déclaration validée"
+                              {r.km_declares === null && r.km_yango != null ? "pas de compteur déclaré · comparé aux courses Yango"
+                                : r.km_declares === null ? "aucune déclaration validée"
                                 : (r.jours_couverts ?? 1) > 1
                                   ? `déclaration couvrant ${r.jours_couverts} jours — non comparable`
                                   : !usable ? "couverture GPS insuffisante"

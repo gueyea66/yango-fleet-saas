@@ -3,7 +3,8 @@ import { NextRequest } from "next/server";
 import { requireAdminAuth } from "@/lib/auth/server";
 import { estChargeDeResultat } from "@/lib/expenseCategories";
 import { fetchAllRows } from "@/lib/fetchAllRows";
-import { kmParMoisDepuisCompteur } from "@/lib/calc";
+import { kmParMoisVehicule } from "@/lib/calc";
+import { kmMoisCoursesParVehicule } from "@/lib/fleetroom/kmCourses";
 
 export const dynamic = "force-dynamic";
 
@@ -115,10 +116,13 @@ export async function GET(req: NextRequest) {
       (relevesParVehicule.get(r.vehicle_id) ?? relevesParVehicule.set(r.vehicle_id, []).get(r.vehicle_id)!)
         .push({ date: r.date, end_odometer: r.end_odometer });
     }
+    // Sans compteur déclaré (déclarations venues de Fleetroom), le rythme
+    // d'usure se lit sur les km des courses Yango.
+    const kmCourses = await kmMoisCoursesParVehicule(admin, tenantId, (vehicles || []) as any[], today);
     const parcAmortissable = ((vehicles || []) as any[]).map((v) => ({
       id: v.id,
       plate: String(v.plate ?? "").trim(),
-      kmParMois: kmParMoisDepuisCompteur(relevesParVehicule.get(v.id) || []),
+      kmParMois: kmParMoisVehicule(relevesParVehicule.get(v.id) || [], kmCourses.get(v.id)),
       vehicule: {
         prixAcquisition: v.prix_acquisition,
         valeurResiduelle: v.valeur_residuelle,
