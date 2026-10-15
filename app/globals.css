@@ -293,6 +293,10 @@ html[data-ui="v2"] body {
 @keyframes rdt-pousse { from { transform: scaleY(0); } to { transform: scaleY(1); } }
 @keyframes rdt-etire { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 @keyframes rdt-bulle-in { from { opacity: 0; transform: scale(0); } to { opacity: 1; transform: scale(1); } }
+.rdt-empreinte { display: grid; grid-template-columns: 26px repeat(24, minmax(0, 1fr)); gap: 2px; align-items: center; max-width: 520px; }
+.rdt-mini { position: relative; aspect-ratio: 1 / 1; border-radius: 3px; animation: rdt-case-in 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.rdt-or { position: absolute; left: 50%; top: 50%; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%;
+  background: var(--sk-t1); box-shadow: 0 0 0 1.5px var(--sk-bg); }
 .rdt-chauffeur { display: grid; gap: 16px; grid-template-columns: minmax(120px, 190px) minmax(140px, 1fr) minmax(150px, 220px) auto; }
 @media (max-width: 860px) {
   .rdt-chauffeur { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px 14px; }

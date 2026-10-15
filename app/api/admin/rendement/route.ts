@@ -7,6 +7,7 @@ import { calculerRendement, type OrderRow, type Trace, type Rendement } from "@/
  * Rendement de la flotte : créneaux, zones, chauffeurs, coupures déduites.
  *
  *   GET /api/admin/rendement?jours=90     (30 | 90 | 365 | 0 = tout l'historique)
+ *   GET /api/admin/rendement?du=…&au=…    (AAAA-MM-JJ) : pour comparer une période récente à tout l'historique
  *
  * Rien n'est stocké : le calcul repart des commandes Yango à chaque demande,
  * donc l'écran suit seul l'arrivée des nouveaux exports et des positions GPS.
@@ -35,10 +36,11 @@ const COUPURES_GPS_JOURS = 21;
 const cache = new Map<string, { a: number; r: Rendement }>();
 const CACHE_MS = 5 * 60_000;
 
-async function toutesLesCommandes(tenantId: string, depuis: string | null): Promise<OrderRow[]> {
+async function toutesLesCommandes(tenantId: string, depuis: string | null, jusqua: string | null = null): Promise<OrderRow[]> {
   const base = () => {
     let q = admin.from("yango_orders").select(COLONNES, { count: "exact" }).eq("tenant_id", tenantId);
     if (depuis) q = q.gte("jour", depuis);
+    if (jusqua) q = q.lte("jour", jusqua);
     return q.order("order_id");
   };
   const { data, count, error } = await base().range(0, PAGE - 1);
@@ -95,15 +97,23 @@ async function tracesDesCoupures(tenantId: string, coupures: Rendement["coupures
 export async function GET(req: NextRequest) {
   try {
     const { tenantId } = await requireAdminAuth();
-    const demande = Number(new URL(req.url).searchParams.get("jours") ?? 90);
+    const sp = new URL(req.url).searchParams;
+    const demande = Number(sp.get("jours") ?? 90);
     const jours = [30, 90, 365, 0].includes(demande) ? demande : 90;
+    // Dates libres : elles priment sur le préréglage, validées avant d'entrer dans un filtre.
+    const ISO = /^\d{4}-\d{2}-\d{2}$/;
+    const du = sp.get("du"), au = sp.get("au");
+    const libre = Boolean(du || au);
+    if (libre && (!ISO.test(du ?? "") || !ISO.test(au ?? "") || du! > au!)) {
+      return Response.json({ error: "Période invalide : la date de début doit précéder la date de fin." }, { status: 400 });
+    }
 
-    const cle = `${tenantId}|${jours}`;
+    const cle = libre ? `${tenantId}|${du}|${au}` : `${tenantId}|${jours}`;
     const connu = cache.get(cle);
-    if (connu && Date.now() - connu.a < CACHE_MS) return Response.json({ fenetre: jours, ...connu.r });
+    if (connu && Date.now() - connu.a < CACHE_MS) return Response.json({ fenetre: libre ? -1 : jours, ...connu.r });
 
-    const depuis = jours ? new Date(Date.now() - jours * 86_400_000).toISOString().slice(0, 10) : null;
-    const orders = await toutesLesCommandes(tenantId, depuis);
+    const depuis = libre ? du : jours ? new Date(Date.now() - jours * 86_400_000).toISOString().slice(0, 10) : null;
+    const orders = await toutesLesCommandes(tenantId, depuis, libre ? au : null);
 
     // Premier passage pour connaître les coupures, second avec leurs traces GPS.
     const brut = calculerRendement(orders, { maxCoupures: 400 });
@@ -111,7 +121,7 @@ export async function GET(req: NextRequest) {
     const r = traces.size ? calculerRendement(orders, { traces }) : { ...brut, coupures: brut.coupures.slice(0, 40) };
 
     cache.set(cle, { a: Date.now(), r });
-    return Response.json({ fenetre: jours, ...r });
+    return Response.json({ fenetre: libre ? -1 : jours, ...r });
   } catch (err) {
     const e = err as { status?: number; message?: string };
     return Response.json({ error: e.message ?? "erreur" }, { status: e.status ?? 500 });

@@ -18,10 +18,12 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNod
 import { ChevronLeft, ChevronRight, MapPin, Pause, Play, Route } from "lucide-react";
 import { Card, Overline, Segmented } from "@/components/ui";
 import { formatAmount, formatDecimal } from "@/lib/v2/format";
-import type { Cellule, Constat, Coupure, Rendement } from "@/lib/analytics/rendement";
+import { TRANCHES, type Cellule, type Chauffeur as LigneChauffeur, type Conseil, type Constat, type Coupure, type Rendement } from "@/lib/analytics/rendement";
 
 /** `fenetre` : nombre de jours demandés (0 = tout l'historique). */
 export type RendementPayload = Rendement & { fenetre: number };
+/** Période choisie : un préréglage en jours (0 = tout), ou des dates libres. */
+export type PeriodeRendement = { jours: number; du: string | null; au: string | null };
 
 const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const JOURS_COURTS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
@@ -458,15 +460,21 @@ function Chauffeurs({ data }: { data: Rendement }) {
   if (!c.length) return <Vide>Aucun chauffeur n&apos;a assez d&apos;heures d&apos;activité sur cette période.</Vide>;
   const max = Math.max(...c.map((x) => x.xofH), ref) * 1.05;
   const maxProfil = Math.max(...c.flatMap((x) => x.profil));
+  const [ouvert, setOuvert] = useState<string | null>(null);
   return (
     <div>
       <p style={{ fontSize: 13, color: "var(--v2-muted)", margin: "0 0 14px", maxWidth: 760 }}>
         Gain par heure d&apos;activité face à la moyenne de la flotte (le trait). L&apos;écart se sépare en deux : ce que rapportent ou coûtent les
         horaires choisis, et ce qui reste, qui tient à la manière de travailler. La frise montre quand chacun roule, de 0 h à 23 h.
+        {" "}<strong style={{ color: "var(--sk-t2)" }}>Cliquez un chauffeur pour son empreinte et des propositions d&apos;horaires et de zones.</strong>
       </p>
       <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 2 }}>
         {c.map((x, k) => (
-          <li key={x.id} className="v2-row rdt-chauffeur" style={{ alignItems: "center", padding: "10px 8px", borderRadius: 10 }}>
+          <li key={x.id} style={{ borderRadius: 12, background: ouvert === x.id ? "var(--v2-select-bg)" : undefined, transition: "background-color .2s" }}>
+          <div className="v2-row rdt-chauffeur v2-focus" role="button" tabIndex={0} aria-expanded={ouvert === x.id}
+               onClick={() => setOuvert((o) => (o === x.id ? null : x.id))}
+               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOuvert((o) => (o === x.id ? null : x.id)); } }}
+               style={{ alignItems: "center", padding: "10px 8px", borderRadius: 10, cursor: "pointer" }}>
             <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 14, fontWeight: 600, color: "var(--sk-t1)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{x.nom}</div>
               <div style={{ fontSize: 12, color: "var(--v2-muted)" }}>
@@ -489,9 +497,130 @@ function Chauffeurs({ data }: { data: Rendement }) {
               <Pastille titre="Horaires" valeur={x.effetHoraires} />
               <Pastille titre="Manière" valeur={x.effetPropre} />
             </div>
+          </div>
+          {ouvert === x.id && <Empreinte c={x} data={data} />}
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+/* ── Empreinte d'un chauffeur ───────────────────────────────── */
+
+const TYPE_CONSEIL: Record<Conseil["type"], string> = {
+  ajouter: "Créneau à prendre", alleger: "Créneau à alléger", zone: "Zone pour ses horaires", horaire_zone: "Horaire pour sa zone",
+};
+
+function Empreinte({ c, data }: { c: LigneChauffeur; data: Rendement }) {
+  const [survol, setSurvol] = useState<number | null>(null);
+  const ref = data.periode.xofH ?? 0;
+  // Créneaux en or : le haut du panier de la flotte, cases assez remplies pour être crues.
+  const fiables = data.grille.filter((g) => g.fiable && g.xofHLisse != null).map((g) => g.xofHLisse!).sort((a, b) => b - a);
+  const seuilOr = fiables[Math.floor(fiables.length * 0.12)] ?? Infinity;
+  const maxSem = Math.max(0.01, ...c.semaine);
+  const surligne = new Set(survol != null ? c.conseils[survol]?.cases ?? [] : []);
+  const heuresSemaine = c.semaine.reduce((s, v) => s + v, 0);
+  const dansOr = c.semaine.reduce((s, v, i) => s + ((data.grille[i].xofHLisse ?? 0) >= seuilOr ? v : 0), 0);
+  const maxZone = Math.max(...c.zones.map((z) => Math.max(z.xofHCourse ?? 0, z.flotteXofHCourse ?? 0)), 1);
+
+  return (
+    <div className="rdt-entree" style={{ display: "grid", gap: 22, gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", padding: "8px 12px 18px" }}
+         onClick={(e) => e.stopPropagation()}>
+      <section style={{ minWidth: 0 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--sk-t1)", margin: "0 0 2px" }}>Sa semaine type</h3>
+        <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 10px" }}>
+          {formatDecimal(heuresSemaine, 1)} h d&apos;activité par semaine, dont {Math.round((dansOr / Math.max(heuresSemaine, 0.01)) * 100)} % sur les créneaux qui paient le plus.
+        </p>
+        <div className="rdt-empreinte" role="img" aria-label={`Semaine type de ${c.nom}`}>
+          <span />
+          {Array.from({ length: 24 }, (_, h) => (
+            <span key={`h${h}`} className="v2-num" style={{ fontSize: 9, color: "var(--v2-muted)", textAlign: "center" }}>{h % 6 === 0 ? h : ""}</span>
+          ))}
+          {Array.from({ length: 7 }, (_, js) => (
+            <Ligne key={js}>
+              <span style={{ fontSize: 10.5, color: "var(--sk-t2)" }}>{JOURS_COURTS[js]}</span>
+              {Array.from({ length: 24 }, (_, h) => {
+                const i = js * 24 + h, v = c.semaine[i] / maxSem, or = (data.grille[i].xofHLisse ?? 0) >= seuilOr && data.grille[i].fiable;
+                return (
+                  <span key={h} className="rdt-mini" title={`${JOURS[js]} ${h} h : ${formatDecimal(c.semaine[i], 1)} h par semaine`}
+                    style={{
+                      animationDelay: `${h * 10 + js * 8}ms`,
+                      background: v > 0.02 ? `color-mix(in oklab, var(--tenant-color) ${Math.round(12 + 88 * v)}%, var(--sk-surface))` : "var(--sk-surface)",
+                      outline: surligne.has(i) ? "2px solid var(--sk-t1)" : undefined, outlineOffset: 1,
+                    }}>
+                    {or && <i className="rdt-or" aria-hidden="true" />}
+                  </span>
+                );
+              })}
+            </Ligne>
+          ))}
+        </div>
+        <p style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px", fontSize: 11.5, color: "var(--v2-muted)", margin: "8px 0 0" }}>
+          <span><span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 2, background: "var(--tenant-color)", verticalAlign: "-1px" }} /> ses heures</span>
+          <span><i className="rdt-or" style={{ position: "static", display: "inline-block", verticalAlign: "1px" }} /> créneau qui paie le plus à la flotte</span>
+        </p>
+      </section>
+
+      <section style={{ minWidth: 0 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--sk-t1)", margin: "0 0 2px" }}>Ses zones de départ</h3>
+        <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 10px" }}>Part de ses courses, et ce qu&apos;il gagne par heure en course face à la flotte au même départ.</p>
+        {c.zones.length === 0 ? <Vide>Pas assez d&apos;adresses lisibles.</Vide> : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 10 }}>
+            {c.zones.map((z) => (
+              <li key={z.zone}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12.5 }}>
+                  <span style={{ color: "var(--sk-t1)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{z.zone}</span>
+                  <span className="v2-num" style={{ color: "var(--v2-muted)" }}>{Math.round(z.part * 100)} %</span>
+                </div>
+                <div style={{ display: "grid", gap: 3, marginTop: 4 }}>
+                  <Barre valeur={z.xofHCourse} max={maxZone} couleur="var(--tenant-color)" legende="lui" />
+                  <Barre valeur={z.flotteXofHCourse} max={maxZone} couleur="var(--sk-t3)" legende="flotte" />
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section style={{ minWidth: 0 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 600, color: "var(--sk-t1)", margin: "0 0 2px" }}>Ce qu&apos;on peut lui proposer</h3>
+        <p style={{ fontSize: 12.5, color: "var(--v2-muted)", margin: "0 0 10px" }}>
+          Tiré de ses habitudes et de ce que paie la flotte, à {formatAmount(ref)} XOF par heure en moyenne. Survolez une proposition pour la voir sur sa semaine.
+        </p>
+        {c.conseils.length === 0 ? <Vide>Ses horaires et ses zones suivent déjà ce qui paie le mieux sur cette période.</Vide> : (
+          <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 8 }}>
+            {c.conseils.map((k, i) => (
+              <li key={i} className="rdt-entree" onMouseEnter={() => setSurvol(i)} onMouseLeave={() => setSurvol(null)}
+                  style={{ animationDelay: `${i * 50}ms`, padding: "10px 12px", borderRadius: 11, border: `1px solid ${survol === i ? "var(--tenant-color)" : "var(--sk-surface)"}`, background: "var(--sk-bg)", transition: "border-color .15s" }}>
+                <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
+                  <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: ".06em", textTransform: "uppercase", color: "var(--v2-muted)" }}>{TYPE_CONSEIL[k.type]}</span>
+                  {k.gainHeure != null && k.gainHeure > 0 && (
+                    <span className="v2-num" style={{ fontSize: 12.5, fontWeight: 700, color: "var(--fleet-positive)", whiteSpace: "nowrap" }}>+{formatAmount(k.gainHeure)} XOF/h</span>
+                  )}
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--sk-t1)", margin: "4px 0 3px" }}>{k.titre}</div>
+                <div style={{ fontSize: 12.5, color: "var(--sk-t2)", lineHeight: 1.5 }}>{k.detail}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p style={{ fontSize: 11.5, color: "var(--v2-muted)", margin: "10px 0 0", lineHeight: 1.5 }}>
+          Ce sont des moyennes de la flotte, pas une promesse : un créneau qui paie le fait peut-être parce que les meilleurs y roulent. À essayer quelques semaines, puis à relire ici.
+        </p>
+      </section>
+    </div>
+  );
+}
+
+function Barre({ valeur, max, couleur, legende }: { valeur: number | null; max: number; couleur: string; legende: string }) {
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "38px 1fr 48px", gap: 6, alignItems: "center" }}>
+      <span style={{ fontSize: 10.5, color: "var(--v2-muted)" }}>{legende}</span>
+      <div style={{ height: 6, borderRadius: 3, background: "var(--sk-surface)" }}>
+        {valeur != null && <div className="rdt-barre-l" style={{ height: 6, borderRadius: 3, width: `${(valeur / max) * 100}%`, background: couleur }} />}
+      </div>
+      <span className="v2-num" style={{ fontSize: 11, color: "var(--sk-t2)", textAlign: "right" }}>{valeur == null ? "—" : formatAmount(valeur)}</span>
     </div>
   );
 }
@@ -601,10 +730,10 @@ const Vide = ({ children }: { children: ReactNode }) => <p style={{ fontSize: 14
 
 type Detail = "zones" | "chauffeurs" | "coupures";
 
-export function RendementV2({ data, jours, onJours, loading, error }: {
+export function RendementV2({ data, periode, onPeriode, loading, error }: {
   data: RendementPayload | null;
-  jours: number;
-  onJours: (j: number) => void;
+  periode: PeriodeRendement;
+  onPeriode: (p: PeriodeRendement) => void;
   loading: boolean;
   error: string | null;
 }) {
@@ -626,7 +755,25 @@ export function RendementV2({ data, jours, onJours, loading, error }: {
               : "Où, quand et comment la flotte gagne le plus"}
           </p>
         </div>
-        <Segmented ariaLabel="Période analysée" options={PERIODES} value={String(jours)} onChange={(k) => onJours(Number(k))} />
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 10 }}>
+          <Segmented ariaLabel="Période analysée" options={PERIODES} value={periode.du ? "" : String(periode.jours)}
+            onChange={(k) => onPeriode({ jours: Number(k), du: null, au: null })} />
+          {/* Dates libres : comparer une période récente à tout l'historique. */}
+          {(["du", "au"] as const).map((borne) => (
+            <label key={borne} style={{ display: "grid", gap: 3, fontSize: 11, color: "var(--v2-muted)" }}>
+              {borne === "du" ? "Du" : "Au"}
+              <input type="date" className="v2-focus dcl-date" max={new Date().toISOString().slice(0, 10)}
+                value={periode[borne] ?? (borne === "du" ? data?.periode.du : data?.periode.au) ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (!v) return;
+                  const du = borne === "du" ? v : periode.du ?? data?.periode.du ?? v;
+                  const au = borne === "au" ? v : periode.au ?? data?.periode.au ?? v;
+                  onPeriode({ jours: periode.jours, du: du > au ? (borne === "du" ? du : au) : du, au: du > au ? (borne === "du" ? du : au) : au });
+                }} />
+            </label>
+          ))}
+        </div>
       </header>
 
       {error && <Card tone="neg"><p role="alert" style={{ margin: 0, fontSize: 14, color: "var(--sk-t1)" }}>{error}</p></Card>}
