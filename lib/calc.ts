@@ -552,7 +552,7 @@ export interface ACaisse {
   especes: number;
   /** recettes hors plateforme, encaissées en espèces */
   horsPlateforme: number;
-  /** avances remises par le propriétaire (« Décaissement propriétaire ») : cash sorti de la caisse */
+  /** avances du propriétaire (« Décaissement propriétaire ») rattachées à un chauffeur : cash sorti de la caisse */
   avances: number;
   /** dépenses validées, payées sur la recette ou sur une avance */
   charges: number;

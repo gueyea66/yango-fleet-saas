@@ -296,8 +296,12 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       const totalExpenses = exps.filter((e: any) => e.category !== CAT_SOLDE).reduce((s, e) => s + (e.amount || 0), 0);
       const totalDepenses = totalExpenses + totalSalaries; // charges = dépenses + salaires
       // Rapprochement caisse : mêmes dépenses que le résultat (ni solde, ni avances),
-      // plus les avances remises depuis la caisse qui en financent une partie.
-      const caisse = aVerserEnCaisse(reps, totalExpenses, totalAvances);
+      // plus les avances remises depuis la caisse qui en financent une partie —
+      // seulement celles rattachées à un chauffeur à la saisie (Abdou, 15/10) :
+      // une avance sans bénéficiaire n'est due par personne.
+      const avancesChauffeurs = avancesExps.filter((e: any) => e.advance_driver_id)
+        .reduce((s: number, e: any) => s + (e.amount || 0), 0);
+      const caisse = aVerserEnCaisse(reps, totalExpenses, avancesChauffeurs);
       const netFinal = totalBrut - totalDepenses;
 
       // ── KM PER DAY from odometer ──
