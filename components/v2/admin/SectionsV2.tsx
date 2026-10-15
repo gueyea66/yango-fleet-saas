@@ -10,6 +10,7 @@ import { financeKpis, kycState, teamCounts, driverDayGrid, type KycState } from 
 import { initials } from "@/lib/v2/format";
 import { decaissementsDetail, margeApresSalaires } from "@/lib/v2/finance";
 import { ExpensePanel, ReportPanel } from "./PendingV2";
+import { CaisseCardV2 } from "./CaisseV2";
 import { displayLabel } from "@/lib/tenant/platformLabel";
 import type { PeriodRange } from "@/lib/v2/periodFilter";
 import { buildHistoryRows, historyStatusCounts, type HistoryRow, type HistoryStatus, type HistoryStatusFilter, type HistoryTypeFilter } from "@/lib/v2/history";
@@ -28,11 +29,13 @@ function Kpi({ label, value, sub, tone }: { label: string; value: string; sub?: 
 
 /* ─── 4b Finance : 4 KPI au-dessus des onglets Paiements / Avances ─── */
 /** masse : masse salariale projetée (Σ salaires dus, moteur de rémunération existant). */
-export function FinanceKpisV2({ kpis, masse }: { kpis: any; masse?: { amount: number; drivers: number } | null }) {
+export function FinanceKpisV2({ kpis, masse, plat = "Yango" }: { kpis: any; masse?: { amount: number; drivers: number } | null; plat?: string }) {
   if (kpis.loading) return <div className="v2-skeleton" style={{ height: 96, borderRadius: 14 }} aria-hidden />;
   const f = financeKpis(kpis);
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
+      {/* Même carte que le tableau de bord : le rapprochement de caisse se fait ici. */}
+      {kpis.caisse && <CaisseCardV2 caisse={kpis.caisse} plat={plat} style={{ gridColumn: "1 / -1" }} />}
       <Kpi label="Encaissements" value={formatAmount(f.encaissements)} sub="recettes encaissées" />
       <Kpi label="Décaissements" value={formatAmount(f.decaissements)} sub="achats, dépenses, avances, paiements" tone="neg" />
       {masse
