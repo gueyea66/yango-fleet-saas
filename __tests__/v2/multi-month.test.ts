@@ -22,6 +22,7 @@ function kpi(o: Partial<DashboardKPIs>): DashboardKPIs {
     totalDrivers: 3, avgRevenuePerDriver: 0,
     dailyRows: [], expenseBreakdown: [], dailyExpByCategory: [], dailyTrendData: [], topDrivers: [], driverAllocations: [],
     amortissement: 0, resultatNet: 0, netFinalApresAmort: 0, margeApresAmort: 0,
+    caisse: { especes: 0, horsPlateforme: 0, avances: 0, charges: 0, montant: 0 },
     amortNonRenseignes: [], amortParVehicule: [],
     loading: false, error: null,
     ...o,
@@ -54,6 +55,11 @@ describe("Juil + Sep = somme des deux mois pris séparément", () => {
     for (const k of ["totalBrut", "netFinal", "totalDepenses", "decaissements", "tresorerie", "joursOuvres", "achatsCarburant"] as const) {
       expect(m[k]).toBe(juil[k] + sep[k]);
     }
+  });
+  it("argent à verser en caisse additionné, composante par composante", () => {
+    const a = kpi({ caisse: { especes: 100, horsPlateforme: 10, avances: 20, charges: 30, montant: 100 } });
+    const b = kpi({ caisse: { especes: 50, horsPlateforme: 0, avances: 0, charges: 5, montant: 45 } });
+    expect(mergeMonthlyKpis([a, b]).caisse).toEqual({ especes: 150, horsPlateforme: 10, avances: 20, charges: 35, montant: 145 });
   });
   it("ratios recalculés sur les totaux (pas moyennés)", () => {
     expect(m.monthMarginPercent).toBeCloseTo((500_000 / 1_500_000) * 100);

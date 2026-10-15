@@ -4,7 +4,7 @@ import { getTenantId } from "@/lib/supabase/tenanted";
 import {
   coutCarburantParKm, carburantConsomme,
   computeOperationnel, computeTresorerie, joursOuvresProjetes,
-  amortissementParc, type VehiculeAmortissable,
+  amortissementParc, aVerserEnCaisse, type ACaisse, type VehiculeAmortissable,
 } from "@/lib/calc";
 
 import { CAT_AVANCE, CAT_SOLDE, estChargeDeResultat } from "@/lib/expenseCategories";
@@ -62,6 +62,8 @@ export interface DashboardKPIs {
   // ── Vue TRÉSORERIE ──
   decaissements: number;
   tresorerie: number;
+  /** argent à remettre en caisse : espèces + hors plateforme − dépenses (lib/calc aVerserEnCaisse) */
+  caisse: ACaisse;
   avanceSolde: number;         // cash immobilisé en solde
   avanceCarburant: number;     // cash immobilisé en carburant
   // ── Avances propriétaire (Décaissement propriétaire = avance, neutre pour le résultat) ──
@@ -144,6 +146,7 @@ export interface DashboardKPIs {
 
 const ZERO: DashboardKPIs = {
   brutYango: 0, netYango: 0, horsYango: 0, totalBrut: 0, totalDepenses: 0, netFinal: 0,
+  caisse: { especes: 0, horsPlateforme: 0, avances: 0, charges: 0, montant: 0 },
   prevNetFinal: null, prevTotalBrut: null, prevRecettes: null,
   joursOuvres: 0, prevJoursOuvres: null,
   soldeConsomme: 0, carburantConsomme: 0, coutCarburantKm: 0, provisionsSolde: 0,
@@ -292,6 +295,9 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       // qu'ils paient sont déjà retirées de totalBrut (cf. CAT_SOLDE).
       const totalExpenses = exps.filter((e: any) => e.category !== CAT_SOLDE).reduce((s, e) => s + (e.amount || 0), 0);
       const totalDepenses = totalExpenses + totalSalaries; // charges = dépenses + salaires
+      // Rapprochement caisse : mêmes dépenses que le résultat (ni solde, ni avances),
+      // plus les avances remises depuis la caisse qui en financent une partie.
+      const caisse = aVerserEnCaisse(reps, totalExpenses, totalAvances);
       const netFinal = totalBrut - totalDepenses;
 
       // ── KM PER DAY from odometer ──
@@ -580,7 +586,7 @@ export function useDashboardKPIs(dateFrom?: string, dateTo?: string, explicitTen
       const joursOuvres = Math.max(0, periodLen - reposFleetDays);
 
       setKPIs({
-        brutYango, netYango, horsYango, totalBrut, totalDepenses, netFinal,
+        brutYango, netYango, horsYango, totalBrut, totalDepenses, netFinal, caisse,
         amortissement, resultatNet, netFinalApresAmort, margeApresAmort,
         amortNonRenseignes, amortParVehicule,
         prevNetFinal: prev?.netFinal ?? null, prevTotalBrut: prev?.totalBrut ?? null, prevRecettes: prev?.recettes ?? null,
