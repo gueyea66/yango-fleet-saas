@@ -1041,6 +1041,7 @@ export default function AdminPage() {
               <FinanceKpisV2
                 kpis={kpis}
                 masse={v2Masse}
+                plat={plat}
               />
               {tab === "payments" && adminTenantId ? (
                 <PaymentsTab

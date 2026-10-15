@@ -9,6 +9,7 @@ import { displayLabel } from "@/lib/tenant/platformLabel";
 import { formatAmount, formatPct } from "@/lib/v2/format";
 import { costBreakdown, variationPct, cleanCategory, parseDashView, DASH_VIEW_KEY, LIGNES_CALCULEES, type DashView } from "@/lib/v2/dashboard";
 import { ValidationQueueV2 } from "./ValidationQueueV2";
+import { CaisseCardV2 } from "./CaisseV2";
 
 type Kpis = ReturnType<typeof useDashboardKPIs>;
 
@@ -102,19 +103,7 @@ export function DashboardV2({ view, kpis, plat, tenantId, driverIds, range, onKp
             <div className="v2-num" style={{ fontSize: 26, fontWeight: 600, letterSpacing: "-.02em", marginTop: 10 }}>{formatAmount(recettes)}</div>
             <div style={{ fontSize: 13, color: "var(--v2-muted)", marginTop: 6 }}>dont hors {plat} <span className="v2-num">{formatAmount(kpis.horsYango)}</span></div>
           </div>
-          {/* Le chiffre à rapprocher du comptage de la caisse : mis en avant,
-              avec son calcul sous les yeux pour retrouver un écart. */}
-          <div style={{ ...card, padding: "18px 20px", border: "2px solid var(--tenant-color)" }} aria-label="Argent à verser en caisse">
-            <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>À verser en caisse</div>
-            <div className="v2-num" style={{ fontSize: 26, fontWeight: 600, letterSpacing: "-.02em", marginTop: 10, color: kpis.caisse.montant < 0 ? "var(--v2-negative-ink)" : undefined }}>{formatAmount(kpis.caisse.montant)}</div>
-            <div style={{ fontSize: 12, color: "var(--v2-muted)", marginTop: 6, lineHeight: 1.5 }}>
-              espèces {plat} <span className="v2-num">{formatAmount(kpis.caisse.especes)}</span>
-              {kpis.caisse.horsPlateforme > 0 && <> + hors {plat} <span className="v2-num">{formatAmount(kpis.caisse.horsPlateforme)}</span></>}
-              {kpis.caisse.avances > 0 && <> + avances <span className="v2-num">{formatAmount(kpis.caisse.avances)}</span></>}
-              {" "}− dépenses <span className="v2-num">{formatAmount(kpis.caisse.charges)}</span>
-              <div>hors carte, commissions, achats de solde et amortissement</div>
-            </div>
-          </div>
+          <CaisseCardV2 caisse={kpis.caisse} plat={plat} />
           <div style={{ ...card, padding: "18px 20px" }}>
             <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>Trésorerie nette</div>
             <div className="v2-num" style={{ fontSize: 26, fontWeight: 600, letterSpacing: "-.02em", marginTop: 10, color: kpis.tresorerie < 0 ? "var(--v2-negative-ink)" : undefined }}>{formatAmount(kpis.tresorerie)}</div>
