@@ -55,6 +55,12 @@ export function mergeMonthlyKpis(list: DashboardKPIs[]): DashboardKPIs {
   // Amortissement : même règle que le hook (marge sur les recettes réelles).
   const recettesReelles = out.brutYango + out.horsYango;
   out.margeApresAmort = recettesReelles > 0 ? (out.netFinalApresAmort / recettesReelles) * 100 : 0;
+  // Caisse : chaque composante s'additionne mois par mois.
+  const somme = (f: (k: DashboardKPIs) => number) => list.reduce((s, k) => s + (f(k) || 0), 0);
+  out.caisse = {
+    especes: somme((k) => k.caisse?.especes), horsPlateforme: somme((k) => k.caisse?.horsPlateforme),
+    avances: somme((k) => k.caisse?.avances), charges: somme((k) => k.caisse?.charges), montant: somme((k) => k.caisse?.montant),
+  };
   out.amortNonRenseignes = [...new Set(list.flatMap((k) => k.amortNonRenseignes ?? []))];
   out.amortParVehicule = mergeBy(list.flatMap((k) => k.amortParVehicule ?? []), (r) => r.plate,
     // Montants additionnés ; mensualité / durée / mois restants = mois le plus récent.

@@ -544,3 +544,46 @@ function num(v: unknown): number {
   const n = typeof v === "number" ? v : parseFloat(String(v ?? 0));
   return Number.isFinite(n) ? n : 0;
 }
+
+/* ═══════════════ ARGENT À VERSER EN CAISSE ═══════════════ */
+
+export interface ACaisse {
+  /** espèces encaissées sur la plateforme (sans carte ni bonus, qui ne passent pas par le chauffeur) */
+  especes: number;
+  /** recettes hors plateforme, encaissées en espèces */
+  horsPlateforme: number;
+  /** avances du propriétaire (« Décaissement propriétaire ») rattachées à un chauffeur : cash sorti de la caisse */
+  avances: number;
+  /** dépenses validées, payées sur la recette ou sur une avance */
+  charges: number;
+  /** especes + horsPlateforme + avances − charges */
+  montant: number;
+}
+
+/**
+ * Argent que les chauffeurs doivent remettre en caisse sur la période, pour
+ * le rapprocher du comptage réel (demande d'Abdou, 15/10/2026).
+ *
+ * Espèces et non brut : la carte et le bonus sont versés sur le solde Yango,
+ * jamais dans la main du chauffeur. Les charges sont celles du résultat
+ * (`estChargeDeResultat`) : ni commissions Yango, ni achats de solde qui les
+ * paient, ni amortissement (aucune sortie de cash).
+ *
+ * Les avances du propriétaire s'AJOUTENT : remises au chauffeur depuis la
+ * caisse, elles financent une partie des dépenses déduites ici. Sans elles, un
+ * chauffeur qui répare avec une avance de 100 000 « devrait » 100 000 de moins
+ * qu'en réalité (M3A, septembre 2026 : 656 200 d'avances).
+ *
+ * Une déclaration sans espèces renseignées retombe sur brut − carte.
+ */
+export function aVerserEnCaisse(
+  reports: Array<{ yango_cash?: number | null; yango_card?: number | null; yango_gross?: number | null; off_yango_revenue?: number | null }>,
+  charges: number,
+  avances = 0,
+): ACaisse {
+  const especes = reports.reduce((s, r) =>
+    s + (r.yango_cash != null ? num(r.yango_cash) : Math.max(0, num(r.yango_gross) - num(r.yango_card))), 0);
+  const horsPlateforme = reports.reduce((s, r) => s + num(r.off_yango_revenue), 0);
+  const c = num(charges), a = num(avances);
+  return { especes, horsPlateforme, avances: a, charges: c, montant: especes + horsPlateforme + a - c };
+}
