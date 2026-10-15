@@ -730,10 +730,12 @@ const Vide = ({ children }: { children: ReactNode }) => <p style={{ fontSize: 14
 
 type Detail = "zones" | "chauffeurs" | "coupures";
 
-export function RendementV2({ data, periode, onPeriode, loading, error }: {
+export function RendementV2({ data, periode, onPeriode, loading, error, entete }: {
   data: RendementPayload | null;
   periode: PeriodeRendement;
   onPeriode: (p: PeriodeRendement) => void;
+  /** contrôle supplémentaire en tête (vue par défaut) */
+  entete?: ReactNode;
   loading: boolean;
   error: string | null;
 }) {
@@ -756,6 +758,7 @@ export function RendementV2({ data, periode, onPeriode, loading, error }: {
           </p>
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 10 }}>
+          {entete}
           <Segmented ariaLabel="Période analysée" options={PERIODES} value={periode.du ? "" : String(periode.jours)}
             onChange={(k) => onPeriode({ jours: Number(k), du: null, au: null })} />
           {/* Dates libres : comparer une période récente à tout l'historique. */}
