@@ -88,6 +88,8 @@ interface DailyReport {
 }
 
 import TreemapDepenses, { EXPENSE_COLORS } from "@/components/TreemapDepenses";
+import { VueDefautMenu } from "@/components/v2/admin/VueDefautMenu";
+import { figerPeriode, restaurerPeriode, lireVueDefaut, ecrireVueDefaut, oublierVueDefaut, vueCourante, type VueDefaut } from "@/lib/v2/vueDefaut";
 
 export default function AdminPage() {
   const { user, loading, signOut } = useAuth();
@@ -215,14 +217,46 @@ export default function AdminPage() {
   const lastDay = new Date(filterYear, lastMonth, 0).getDate();
   const periodTo = v2Range ? v2Range.to : `${filterYear}-${String(lastMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
   // État des filtres v2 dans l'URL (?p=mois&m=2026-09, ?p=dates&du=…&au=…, &d=id1,id2) : lu au montage, réécrit à chaque choix.
+  // Vue par défaut du gestionnaire (lib/v2/vueDefaut) : appliquée à l'ouverture.
+  // Un lien qui porte déjà une période (?p=…) garde la main : il a été partagé ou
+  // rechargé exprès. Type de véhicule et hors Yango, absents de l'URL, suivent la vue.
+  const [vueDefaut, setVueDefaut] = useState<VueDefaut | null>(null);
+  const [vueTick, setVueTick] = useState(0);
+  const appliquerVue = React.useCallback((v: VueDefaut, periodeAussi: boolean) => {
+    if (periodeAussi) {
+      setV2Period(restaurerPeriode(v.periode, defaultPeriod(new Date())));
+      setFilterDriverIds(v.chauffeurs ?? []);
+    }
+    setFleetSegment(v.segment ?? "all");
+    setPerfHors(v.horsYango ?? true);
+    setVueTick((t) => t + 1); // les réglages internes de Performance repartent de la vue
+  }, []);
   useEffect(() => {
-    if (!uiV2) return;
+    if (!uiV2 || !user?.id) return;
     const f = parseAdminFilter(window.location.search, new Date());
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- lecture de l'URL après montage
+    const v = lireVueDefaut(user.id);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- lecture de l'URL et de l'appareil après montage
+    setVueDefaut(v);
+    const lienAvecPeriode = new URLSearchParams(window.location.search).has("p");
     setV2Period(f.period);
     if (f.drivers.length) setFilterDriverIds(f.drivers);
+    if (v) appliquerVue(v, !lienAvecPeriode);
     setV2FiltersReady(true);
-  }, [uiV2]);
+  }, [uiV2, user?.id, appliquerVue]);
+  const enregistrerVue = () => {
+    if (!user?.id) return;
+    const v: VueDefaut = {
+      periode: figerPeriode(v2Period, new Date()), chauffeurs: filterDriverIds, segment: fleetSegment, horsYango: perfHors,
+      tendances: vueCourante.tendances ?? vueDefaut?.tendances, rendement: vueDefaut?.rendement,
+    };
+    ecrireVueDefaut(user.id, v);
+    setVueDefaut(v);
+  };
+  const menuVue = (
+    <VueDefautMenu existe={!!vueDefaut} onEnregistrer={enregistrerVue}
+      onAppliquer={() => { if (vueDefaut) appliquerVue(vueDefaut, true); }}
+      onOublier={() => { if (user?.id) oublierVueDefaut(user.id); setVueDefaut(null); }} />
+  );
   useEffect(() => {
     if (!uiV2 || !v2FiltersReady) return;
     const q = serializeAdminFilter(v2Period, filterDriverIds, window.location.search);
@@ -858,7 +892,7 @@ export default function AdminPage() {
 
         {tab === "saisie" && adminTenantId && <SaisieOperateurV2 drivers={allDrivers} tenantId={adminTenantId} />}
         {tab === "administrateurs" && <AdministrateursV2 />}
-        {tab === "tendances" && <TendancesV2 driverIds={filterDriverIds} segment={fleetSegment} horsYango={perfHors} onHorsYango={setPerfHors} anchor={periodTo} />}
+        {tab === "tendances" && <TendancesV2 key={vueTick} initial={vueDefaut?.tendances} driverIds={filterDriverIds} segment={fleetSegment} horsYango={perfHors} onHorsYango={setPerfHors} anchor={periodTo} />}
         {(tab === "classement" || tab === "kpichauffeurs" || tab === "extraction") && (() => {
           // même période et mêmes chauffeurs que la barre de filtres (v2) ou les mois choisis (legacy)
           const common = {
@@ -951,10 +985,11 @@ export default function AdminPage() {
           advancedBack={resolvedUiMode === "simple" ? () => toggleUiAdvanced(false) : undefined}
           headerRight={tab === "dashboard" ? (
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              {menuVue}
               <ExportMenu dateFrom={periodFrom} dateTo={periodTo} segment={fleetSegment} mixte={estMixte(segCountsOf(allDrivers))} />
               <DashViewToggle view={dashView} onChange={setDashView} />
             </div>
-          ) : undefined}
+          ) : ["tendances", "classement", "kpichauffeurs", "extraction"].includes(tab) ? menuVue : undefined}
           filters={{
             period: v2Period,
             onPeriodChange: setV2Period,

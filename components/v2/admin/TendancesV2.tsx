@@ -20,6 +20,7 @@ import { Button, Card, Segmented } from "@/components/ui";
 import { formatAmount } from "@/lib/v2/format";
 import type { SegmentFilter } from "@/lib/analytics/segment";
 import type { BucketStats, Granularite, Statut, TrendsResult } from "@/lib/analytics/trends";
+import { vueCourante } from "@/lib/v2/vueDefaut";
 import { HorsYangoControl, ObjectifControl, SERIES_COLOR, STATUS_COLOR, STATUS_ICON, STATUS_LABEL, StatusPill, usePerfMeta } from "./perfShared";
 
 type Statut2 = "approved" | "all";
@@ -162,7 +163,7 @@ const Row = ({ k: key, v }: { k: string; v: string }) => (
 
 /* ── Écran ─────────────────────────────────────────────────── */
 
-export function TendancesV2({ driverIds, segment, horsYango = true, onHorsYango, anchor, demo }: {
+export function TendancesV2({ driverIds, segment, horsYango = true, onHorsYango, anchor, demo, initial }: {
   driverIds: string[];
   /** filtre « type de véhicule » de la barre de filtres globale */
   segment: SegmentFilter;
@@ -173,9 +174,14 @@ export function TendancesV2({ driverIds, segment, horsYango = true, onHorsYango,
   anchor?: string;
   /** vitrine /ui-v2 : données fictives, aucun appel réseau */
   demo?: TrendsResult;
+  /** réglages de la vue par défaut du gestionnaire (lib/v2/vueDefaut) */
+  initial?: { granularite: string; statut: string };
 }) {
-  const [granularite, setGranularite] = useState<Granularite>("mois");
-  const [statut, setStatut] = useState<Statut2>("approved");
+  const [granularite, setGranularite] = useState<Granularite>(() =>
+    GRAN_OPTS.some((g) => g.key === initial?.granularite) ? (initial!.granularite as Granularite) : "mois");
+  const [statut, setStatut] = useState<Statut2>(() => (initial?.statut === "all" ? "all" : "approved"));
+  // déposé pour « Enregistrer comme vue par défaut »
+  useEffect(() => { vueCourante.tendances = { granularite, statut }; }, [granularite, statut]);
   const [tick, setTick] = useState(0);
   const { meta, reload } = usePerfMeta();
   const today = new Date().toISOString().slice(0, 10);

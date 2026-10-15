@@ -25,6 +25,7 @@ import { FLEET_SEG_OPTS } from "@/lib/v2/fleetScope";
 import { RendementV2, type RendementPayload, type PeriodeRendement } from "@/components/v2/admin/RendementV2";
 import { calculerRendement, type OrderRow } from "@/lib/analytics/rendement";
 import { DeclarationsV2, type FiltreDeclarations } from "@/components/v2/admin/DeclarationsV2";
+import { VueDefautMenu } from "@/components/v2/admin/VueDefautMenu";
 import { suiviDeclarations, cleCourses, type RapportLigne, type DepenseLigne } from "@/lib/analytics/declarations";
 
 // Profil fictif : identifiants non-UUID → toute requête Supabase échoue côté
@@ -281,7 +282,8 @@ function RendementDemo() {
   }, []);
   return (
     <main style={{ minHeight: "100vh", background: "var(--sk-deep)", padding: "28px 24px 80px" }}>
-      <RendementV2 data={data} periode={periode} onPeriode={setPeriode} loading={false} error={null} />
+      <RendementV2 data={data} periode={periode} onPeriode={setPeriode} loading={false} error={null}
+        entete={<VueDefautMenu existe={false} onEnregistrer={() => {}} onAppliquer={() => {}} onOublier={() => {}} />} />
     </main>
   );
 }
