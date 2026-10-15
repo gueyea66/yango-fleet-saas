@@ -10,7 +10,6 @@ import { financeKpis, kycState, teamCounts, driverDayGrid, type KycState } from 
 import { initials } from "@/lib/v2/format";
 import { decaissementsDetail, margeApresSalaires } from "@/lib/v2/finance";
 import { ExpensePanel, ReportPanel } from "./PendingV2";
-import { CaisseCardV2 } from "./CaisseV2";
 import { displayLabel } from "@/lib/tenant/platformLabel";
 import type { PeriodRange } from "@/lib/v2/periodFilter";
 import { buildHistoryRows, historyStatusCounts, type HistoryRow, type HistoryStatus, type HistoryStatusFilter, type HistoryTypeFilter } from "@/lib/v2/history";
@@ -34,8 +33,6 @@ export function FinanceKpisV2({ kpis, masse, plat = "Yango" }: { kpis: any; mass
   const f = financeKpis(kpis);
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12 }}>
-      {/* Même carte que le tableau de bord : le rapprochement de caisse se fait ici. */}
-      {kpis.caisse && <CaisseCardV2 caisse={kpis.caisse} plat={plat} style={{ gridColumn: "1 / -1" }} />}
       <Kpi label="Encaissements" value={formatAmount(f.encaissements)} sub="recettes encaissées" />
       <Kpi label="Décaissements" value={formatAmount(f.decaissements)} sub="achats, dépenses, avances, paiements" tone="neg" />
       {masse
@@ -44,6 +41,11 @@ export function FinanceKpisV2({ kpis, masse, plat = "Yango" }: { kpis: any; mass
       {masse
         ? (() => { const m = margeApresSalaires(kpis.totalBrut ?? 0, masse.amount); return <Kpi label="Marge après salaires" value={formatAmount(m)} tone={m >= 0 ? "pos" : "neg"} sub="CA net − salaires dus" />; })()
         : <Kpi label="Marge après salaires" value={formatAmount(f.margeApresSalaires)} tone={f.margeApresSalaires >= 0 ? "pos" : "neg"} sub="net final" />}
+      {/* Même calcul que la carte du tableau de bord, au format des autres cartes (Abdou, 15/10). */}
+      {kpis.caisse && (
+        <Kpi label="À verser en caisse" value={formatAmount(kpis.caisse.montant)} tone={kpis.caisse.montant < 0 ? "neg" : undefined}
+          sub={`espèces ${plat} ${formatAmount(kpis.caisse.especes)}${kpis.caisse.horsPlateforme > 0 ? ` + hors ${plat} ${formatAmount(kpis.caisse.horsPlateforme)}` : ""}${kpis.caisse.avances > 0 ? ` + avances ${formatAmount(kpis.caisse.avances)}` : ""} − dépenses ${formatAmount(kpis.caisse.charges)}`} />
+      )}
       <details className="v2-details" style={{ gridColumn: "1 / -1" }}>
         <summary className="v2-focus" style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", fontSize: 13, color: "var(--v2-muted)", listStyle: "none" }}>
           <ChevronDown size={14} aria-hidden className="v2-details-chevron" /> Détail des décaissements
