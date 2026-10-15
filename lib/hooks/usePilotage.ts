@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { CAT_AVANCE, CAT_SOLDE, CAT_ENTRETIEN, CAT_REPARATION, CATS_MAINTENANCE, CATS_PROVISIONNEES } from "@/lib/expenseCategories";
 import { fetchJsonRetry } from "@/lib/fetchJsonRetry";
-import { amortissementPeriode, kmParMoisDepuisCompteur, type VehiculeAmortissable } from "@/lib/calc";
+import { amortissementPeriode, kmParMoisVehicule, type VehiculeAmortissable } from "@/lib/calc";
 
 // ── PARAMETERS ────────────────────────────────────────
 export const DEFAULT_PARAMS = {
@@ -237,7 +237,7 @@ function computeFromRaw(raw: RawData, params: PilotageParams, driverFilter?: str
       .push({ date: r.date, end_odometer: r.end_odometer });
   });
   const parcAmort = (raw.vehicles || []).map((v: any) => ({
-    kmParMois: kmParMoisDepuisCompteur(releveParVehicule.get(v.id) || []),
+    kmParMois: kmParMoisVehicule(releveParVehicule.get(v.id) || [], v.km_mois_courses),
     vehicule: {
       prixAcquisition: v.prix_acquisition, valeurResiduelle: v.valeur_residuelle,
       dateAcquisition: v.date_acquisition, compteurActuel: v.mileage,

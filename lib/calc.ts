@@ -286,6 +286,36 @@ export function kmParMoisDepuisCompteur(
 }
 
 /**
+ * Km par mois déduits des courses Yango terminées (import Fleetroom), quand
+ * aucun compteur n'est déclaré (cas NMK : les déclarations viennent de
+ * Fleetroom, qui ne donne pas le compteur).
+ *
+ * Ce sont des km EN COURSE : sans l'approche ni le vide, ils sous-estiment
+ * l'usure réelle. La durée reste bornée par `dureeMaxMois`. Mêmes garde-fous
+ * que le compteur : moins de 14 jours entre la première et la dernière course,
+ * ou aucun km, et la mesure n'est pas retenue.
+ */
+export function kmParMoisDepuisCourses(
+  courses: Array<{ jour: string | null; distance_m: number | null }>,
+): number | null {
+  const pts = courses.filter((c) => c.jour && c.distance_m != null && c.distance_m > 0);
+  if (pts.length === 0) return null;
+  const jours = pts.map((c) => c.jour as string).sort();
+  const km = pts.reduce((s, c) => s + (c.distance_m as number), 0) / 1000;
+  const n = joursCalendaires(jours[0], jours[jours.length - 1]);
+  if (km <= 0 || n < 14) return null;
+  return Math.round((km / n) * 30.4);
+}
+
+/** Rythme d'usure retenu : le compteur d'abord, les courses Yango à défaut. */
+export function kmParMoisVehicule(
+  releves: Array<{ date: string; end_odometer: number | null }>,
+  kmMoisCourses: number | null | undefined,
+): number | null {
+  return kmParMoisDepuisCompteur(releves) ?? (kmMoisCourses != null && kmMoisCourses > 0 ? kmMoisCourses : null);
+}
+
+/**
  * Durée d'amortissement en mois, déduite du kilométrage restant puis bornée.
  *
  * `null` quand on ne sait pas encore : pas de km/mois mesuré (véhicule qui
