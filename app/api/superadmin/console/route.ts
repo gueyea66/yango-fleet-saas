@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   const { superadminKey, op } = payload;
   const storedKey = await getStoredKey();
-  if (!checkSuperadminKey(superadminKey ?? "", storedKey, getClientIp(req))) {
+  if (!(await checkSuperadminKey(superadminKey ?? "", storedKey, getClientIp(req)))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

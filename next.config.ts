@@ -15,7 +15,10 @@ const securityHeaders = [
     key: "Content-Security-Policy",
     value: [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      // Audit du 18/10/2026 (F13) : 'unsafe-eval' ne sert qu'au mode développement de Next. Reste à passer à
+      // une politique à nonces pour retirer aussi 'unsafe-inline' (voir docs/AUDIT-SECURITE-2026-10-18.md).
+      `script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'"}`,
+      "object-src 'none'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob: https:",
       "font-src 'self' data:",
@@ -23,6 +26,7 @@ const securityHeaders = [
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
+      "upgrade-insecure-requests",
     ].join("; "),
   },
 ];

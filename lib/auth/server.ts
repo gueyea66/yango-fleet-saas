@@ -159,40 +159,46 @@ export function forbiddenResponse(message = "Accès interdit") {
  * @param ip           IP du client pour le rate limiting
  */
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const ESSAIS_SA = 8, FENETRE_SA_S = 15 * 60;
 
-export function checkSuperadminKey(providedKey: string, storedKey: string, ip: string): boolean {
-  const now = Date.now();
-  const windowMs = 15 * 60 * 1000;
-  const maxAttempts = 5;
-
-  const entry = rateLimitMap.get(ip);
-  if (entry) {
-    if (now > entry.resetAt) {
-      rateLimitMap.delete(ip);
-    } else if (entry.count >= maxAttempts) {
-      return false;
-    }
+/** Vrai si cette adresse a dépassé les essais ratés, d'après le compteur partagé ; une erreur de lecture refuse. */
+async function cleSuperadminBloquee(ip: string): Promise<boolean> {
+  try {
+    const { data, error } = await rlClient().rpc("rate_limit_depasse", { p_bucket: `sa-echec:${ip}`, p_max: ESSAIS_SA, p_window_sec: FENETRE_SA_S });
+    return error ? true : data === true;
+  } catch {
+    return true;
   }
+}
 
+/**
+ * Vérifie la clé superadmin. Audit du 18/10/2026 (M8) : les essais ratés se comptent dans la base, partagés
+ * entre toutes les instances du serveur (le compteur en mémoire de chacune ne suffisait pas) ; au-delà de huit
+ * en quinze minutes, la clé est refusée même juste. Une clé absente n'est pas un essai.
+ */
+export async function checkSuperadminKey(providedKey: string, storedKey: string, ip: string): Promise<boolean> {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (entry && now <= entry.resetAt && entry.count >= ESSAIS_SA) return false;
+  if (entry && now > entry.resetAt) rateLimitMap.delete(ip);
+  if (!providedKey) return false;
   if (!storedKey) {
     console.error("SUPERADMIN_KEY non configurée");
     return false;
   }
+  if (await cleSuperadminBloquee(ip)) return false;
 
   // Comparaison constant-time (évite les timing attacks)
-  const a = Buffer.from(String(providedKey ?? ""));
+  const a = Buffer.from(String(providedKey));
   const b = Buffer.from(storedKey);
   const valid = a.length === b.length && timingSafeEqual(a, b);
 
   if (!valid) {
     const current = rateLimitMap.get(ip);
-    if (current && now <= current.resetAt) {
-      current.count += 1;
-    } else {
-      rateLimitMap.set(ip, { count: 1, resetAt: now + windowMs });
-    }
+    if (current && now <= current.resetAt) current.count += 1;
+    else rateLimitMap.set(ip, { count: 1, resetAt: now + FENETRE_SA_S * 1000 });
+    await rateLimitOk("sa-echec", ip, ESSAIS_SA, FENETRE_SA_S);
   }
-
   return valid;
 }
 

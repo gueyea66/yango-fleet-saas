@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
 
     const body = meta.body(safeData);
     await Promise.allSettled(recipientIds.map((rid) =>
-      sendNotification(tenantId, rid, type as NotifType, meta.title, body, { url: meta.url, ...safeData })));
+      sendNotification(tenantId, rid, type as NotifType, meta.title, body, { ...safeData, url: meta.url })));
     // Relais Telegram du tenant — UNE fois par événement admin (canal garanti,
     // indépendant des souscriptions navigateur qui expirent).
     if (meta.recipient === "admin") await sendTelegramToTenant(tenantId, meta.title, body);

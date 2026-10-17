@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
   }
   const { key } = await req.json();
   const storedKey = await getStoredKey();
-  const ok = checkSuperadminKey(key, storedKey, ip);
+  const ok = await checkSuperadminKey(key, storedKey, ip);
   if (!ok) {
     // Ne pas distinguer "rate limited" de "mauvaise clé" (évite l'énumération)
     return NextResponse.json({ ok: false }, { status: 401 });

@@ -19,10 +19,14 @@ export async function POST(req: NextRequest) {
   const { superadminKey, tenantId, plan = "standard", months = 1 } = await req.json();
 
   const storedKey = await getStoredKey();
-  if (!checkSuperadminKey(superadminKey, storedKey, getClientIp(req))) {
+  if (!(await checkSuperadminKey(superadminKey, storedKey, getClientIp(req)))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (!tenantId) return NextResponse.json({ error: "tenantId requis" }, { status: 400 });
+  // Audit du 18/10/2026 (M8) : un paiement couvre de 1 à 24 mois d'une formule connue.
+  if (typeof tenantId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) return NextResponse.json({ error: "tenantId invalide" }, { status: 400 });
+  if (!["standard", "pro", "enterprise"].includes(plan)) return NextResponse.json({ error: "Formule inconnue" }, { status: 400 });
+  if (!Number.isInteger(months) || months < 1 || months > 24) return NextResponse.json({ error: "Durée invalide : de 1 à 24 mois" }, { status: 400 });
 
   const expiresAt = new Date(Date.now() + months * 30 * 86_400_000).toISOString();
 

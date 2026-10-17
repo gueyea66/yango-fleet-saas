@@ -26,6 +26,13 @@ export async function POST(req: NextRequest) {
   if (!tenantId || !email || !password) {
     return NextResponse.json({ error: "Champs manquants" }, { status: 400 });
   }
+  // Audit du 18/10/2026 (M8) : entrées vérifiées, et un administrateur a un mot de passe solide.
+  if (typeof tenantId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId) || typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ error: "Entreprise ou adresse e-mail invalide" }, { status: 400 });
+  }
+  if (typeof password !== "string" || password.length < 12 || !/[A-Za-z]/.test(password) || !/\d/.test(password)) {
+    return NextResponse.json({ error: "Mot de passe trop faible : 12 caractères au moins, avec des lettres et des chiffres" }, { status: 400 });
+  }
 
   const { data: user, error: authError } = await adminClient.auth.admin.createUser({
     email,

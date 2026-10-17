@@ -17,7 +17,10 @@ const admin = createClient(
 function toCSV(rows: Record<string, unknown>[], headers: string[]): string {
   const SEP = ";";
   const escape = (v: unknown) => {
-    const s = v == null ? "" : String(v);
+    let s = v == null ? "" : String(v);
+    // Audit du 18/10/2026 (F2) : une cellule texte qui commence par = + - @ (ou tabulation, retour)
+    // serait lue comme une formule par Excel. On la neutralise d'une apostrophe ; les nombres restent des nombres.
+    if (typeof v !== "number" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
     return s.includes(SEP) || s.includes('"') || s.includes("\n")
       ? `"${s.replace(/"/g, '""')}"`
       : s;

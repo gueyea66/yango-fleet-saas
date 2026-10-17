@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cronAutorise } from "@/lib/auth/cron";
 import { runDailyBatch } from "@/lib/ai/batch";
 import { isAiEnabled } from "@/lib/ai/killSwitch";
 
@@ -12,9 +13,7 @@ export const maxDuration = 300;
  * Première instruction : kill-switch — flag off → rien n'est lu ni écrit.
  */
 async function handle(req: NextRequest) {
-  const secret = (process.env.CRON_SECRET ?? "").trim();
-  const auth = (req.headers.get("authorization") ?? "").trim();
-  if (!secret || auth !== `Bearer ${secret}`) {
+  if (!cronAutorise(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

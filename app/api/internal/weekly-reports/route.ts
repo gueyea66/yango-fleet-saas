@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cronAutorise } from "@/lib/auth/cron";
 import {
   activeReportTenants, generateAndStoreReport, getReportAddonTenants, getReportPremiumTenants, monthToDateRange,
 } from "@/lib/reportHtml";
@@ -15,9 +16,7 @@ export const maxDuration = 300;
  * d'une semaine sur l'autre reste consultable dans « Rapports reçus ».
  */
 async function handle(req: NextRequest) {
-  const secret = (process.env.CRON_SECRET ?? "").trim();
-  const auth = (req.headers.get("authorization") ?? "").trim();
-  if (!secret || auth !== `Bearer ${secret}`) {
+  if (!cronAutorise(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
