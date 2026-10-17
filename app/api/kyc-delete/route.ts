@@ -42,6 +42,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const path: string | undefined = typeof body?.path === "string" ? body.path : undefined;
     if (!path) return NextResponse.json({ error: "path requis" }, { status: 400 });
+    // Audit du 18/10/2026 (F3) : un fichier orphelin n'a plus de ligne pour prouver son entreprise.
+    // Le chemin lui-même doit donc commencer par celle de l'appelant (préfixe posé par /api/kyc-upload).
+    if (!path.startsWith(`${tenantId}/`) || path.includes("..")) {
+      return NextResponse.json({ error: "Pièce hors de votre périmètre" }, { status: 403 });
+    }
 
     // Le chemin doit rester dans le tenant de l'appelant. Vérifié sur les
     // lignes qui le référencent encore, toutes tables confondues : un chemin

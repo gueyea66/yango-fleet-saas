@@ -122,7 +122,9 @@ self.addEventListener("pushsubscriptionchange", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = event.notification.data?.url ?? "/admin";
+  // Audit du 18/10/2026 (M3) : on n'ouvre qu'un chemin de l'application, jamais une adresse extérieure.
+  const demande = event.notification.data?.url;
+  const url = typeof demande === "string" && demande.startsWith("/") && !demande.startsWith("//") ? demande : "/admin";
   event.waitUntil(
     clients.matchAll({ type: "window", includeUncontrolled: true }).then((list) => {
       for (const client of list) {

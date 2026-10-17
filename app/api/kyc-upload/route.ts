@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { requireAnyAuth } from "@/lib/auth/server";
@@ -9,6 +10,9 @@ import { requireAnyAuth } from "@/lib/auth/server";
 const ALLOWED_MIME_TYPES = ["application/pdf", "image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"];
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 const BUCKET = "kyc-documents";
+const EXTENSION: Record<string, string> = {
+  "application/pdf": "pdf", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic", "image/heif": "heif",
+};
 
 // Service role — bypasses storage RLS
 const adminStorage = createClient(
@@ -23,7 +27,7 @@ const adminStorage = createClient(
 //    plus écrire (ni écraser) le document d'un collègue.
 //  - Les admins restent libres dans leur tenant (ils gèrent les KYC de leurs
 //    chauffeurs), mais jamais hors de leur tenant.
-function sanitizePath(rawPath: string, tenantId: string, opts: { role: string; userId: string }): string | null {
+function sanitizePath(rawPath: string, tenantId: string, opts: { role: string; userId: string; type: string }): string | null {
   const normalized = rawPath.replace(/\\/g, "/").replace(/\.{2,}/g, "");
   const segments = normalized.split("/").filter(Boolean);
   if (segments.length < 2) return null;
@@ -37,6 +41,11 @@ function sanitizePath(rawPath: string, tenantId: string, opts: { role: string; u
   const safe = finalSegments.every(s => /^[\w.\-]+$/.test(s));
   if (!safe) return null;
 
+  // Audit du 18/10/2026 (F4) : le nom du fichier est fixé ici, unique, avec l'extension du type
+  // réellement lu. Un envoi ne peut donc jamais écraser une pièce existante (déjà validée).
+  const dernier = finalSegments.pop()!;
+  const radical = dernier.replace(/\.[^.]*$/, "").slice(0, 80) || "piece";
+  finalSegments.push(`${radical}_${randomUUID().slice(0, 8)}.${EXTENSION[opts.type] ?? "bin"}`);
   return finalSegments.join("/");
 }
 
@@ -58,10 +67,11 @@ export async function POST(req: NextRequest) {
     const buffer = Buffer.from(arrayBuffer);
 
     // Détection simple du type via les magic bytes
-    const detectedType = detectMimeType(buffer, file.type);
-    if (!ALLOWED_MIME_TYPES.includes(detectedType)) {
+    // Audit du 18/10/2026 (F4) : un type non reconnu dans les octets est refusé, jamais repris du navigateur.
+    const detectedType = detectMimeType(buffer);
+    if (!detectedType || !ALLOWED_MIME_TYPES.includes(detectedType)) {
       return NextResponse.json(
-        { error: `Type de fichier non autorisé (${detectedType}). Formats acceptés : PDF, JPEG, PNG, WebP` },
+        { error: "Type de fichier non autorisé. Formats acceptés : PDF, JPEG, PNG, WebP, HEIC" },
         { status: 400 }
       );
     }
@@ -73,7 +83,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Sanitisation du path — isolation tenant + intra-tenant (chauffeur)
-    const safePath = sanitizePath(rawPath, tenantId, { role, userId });
+    const safePath = sanitizePath(rawPath, tenantId, { role, userId, type: detectedType });
     if (!safePath) {
       return NextResponse.json({ error: "Chemin de fichier invalide" }, { status: 400 });
     }
@@ -92,7 +102,7 @@ export async function POST(req: NextRequest) {
       .from(BUCKET)
       .upload(safePath, buffer, {
         contentType: detectedType,
-        upsert: true,
+        upsert: false,
       });
 
     if (uploadError) {
@@ -112,8 +122,8 @@ export async function POST(req: NextRequest) {
 }
 
 /** Détection basique du type MIME via magic bytes */
-function detectMimeType(buffer: Buffer, fallback: string): string {
-  if (buffer.length < 4) return fallback;
+function detectMimeType(buffer: Buffer): string | null {
+  if (buffer.length < 4) return null;
 
   // PDF: %PDF
   if (buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) {
@@ -142,5 +152,5 @@ function detectMimeType(buffer: Buffer, fallback: string): string {
     if (["mif1", "msf1"].includes(marque)) return "image/heif";
   }
 
-  return fallback;
+  return null;
 }

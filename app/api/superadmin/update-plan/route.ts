@@ -31,10 +31,17 @@ export async function POST(req: NextRequest) {
   const { superadminKey, tenantId, plan, active, plan_expires_at, report_addon, report_premium } = await req.json();
 
   const storedKey = await getStoredKey();
-  if (!checkSuperadminKey(superadminKey, storedKey, getClientIp(req))) {
+  if (!(await checkSuperadminKey(superadminKey, storedKey, getClientIp(req)))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   if (!tenantId) return NextResponse.json({ error: "tenantId requis" }, { status: 400 });
+  // Audit du 18/10/2026 (M8) : chaque champ est contrôlé avant d'écrire.
+  if (typeof tenantId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(tenantId)) return NextResponse.json({ error: "tenantId invalide" }, { status: 400 });
+  if (plan !== undefined && !["trial", "pending_payment", "standard", "pro", "enterprise"].includes(plan)) return NextResponse.json({ error: "Formule inconnue" }, { status: 400 });
+  if (active !== undefined && typeof active !== "boolean") return NextResponse.json({ error: "active doit valoir vrai ou faux" }, { status: 400 });
+  if (plan_expires_at !== undefined && plan_expires_at !== null && (typeof plan_expires_at !== "string" || Number.isNaN(Date.parse(plan_expires_at)))) {
+    return NextResponse.json({ error: "Date d'échéance invalide" }, { status: 400 });
+  }
 
   // Add-on « Rapport d'activité » (standard) et niveau « premium » (narration
   // multi-agent + YTD + deep dive) — services complémentaires (payants)

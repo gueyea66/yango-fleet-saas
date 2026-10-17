@@ -52,27 +52,15 @@ export default function SuperAdminPage() {
 
   const notify = (text: string, ok = true) => { setMsg({ text, ok }); setTimeout(() => setMsg(null), 4000); };
 
-  // Clé mémorisable sur l'appareil (opt-in) — toujours re-vérifiée côté serveur
-  const KEY_STORE = "m3a_sa_key";
-  const [remember, setRemember] = useState(true);
+  // Audit du 18/10/2026 (M8) : la clé ne vit plus que dans la mémoire de la page ouverte. Gardée dans le
+  // navigateur, une seule faille d'affichage suffisait à la lire. Le gestionnaire de mots de passe du
+  // navigateur peut toujours la proposer (champ « mot de passe »).
+  const ANCIENNE_CLE = "m3a_sa_key";
   const [autoChecking, setAutoChecking] = useState(true);
 
   useEffect(() => {
-    const saved = localStorage.getItem(KEY_STORE);
-    if (!saved) { setAutoChecking(false); return; }
-    setKey(saved);
-    (async () => {
-      try {
-        const res = await fetch("/api/superadmin/verify", {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ key: saved }),
-        });
-        const d = await res.json();
-        if (d.ok) setAuthed(true);
-        else localStorage.removeItem(KEY_STORE);
-      } catch { /* réseau : on laisse l'écran de saisie */ }
-      setAutoChecking(false);
-    })();
+    try { localStorage.removeItem(ANCIENNE_CLE); } catch { /* stockage bloqué : rien à effacer */ }
+    setAutoChecking(false);
   }, []);
 
   async function verifyAndLogin() {
@@ -83,13 +71,11 @@ export default function SuperAdminPage() {
     });
     const d = await res.json();
     if (d.ok) {
-      if (remember) localStorage.setItem(KEY_STORE, key);
       setAuthed(true);
     } else { setAuthError("Clé incorrecte"); }
   }
 
   function lockConsole() {
-    localStorage.removeItem(KEY_STORE);
     setKey("");
     setAuthed(false);
   }
@@ -106,7 +92,6 @@ export default function SuperAdminPage() {
     notify("✓ Clé d'accès mise à jour — utilisez la nouvelle clé à la prochaine connexion");
     setKeyForm({ current: "", newKey: "", confirm: "" });
     setKey(keyForm.newKey);
-    if (localStorage.getItem(KEY_STORE)) localStorage.setItem(KEY_STORE, keyForm.newKey);
   }
 
   async function load() {
@@ -274,16 +259,12 @@ export default function SuperAdminPage() {
         style={{ background: "var(--sk-bg)", border: "0.5px solid var(--sk-surface)", borderRadius: 16, padding: 40, width: 340, maxWidth: "92vw" }}>
         <div style={{ color: "#f5a623", fontWeight: 700, fontSize: 18, marginBottom: 4 }}>M3A · Superadmin</div>
         <div style={{ color: "#6b7280", fontSize: 12, marginBottom: 24 }}>
-          {autoChecking ? "Vérification de la clé enregistrée..." : "Accès réservé — M3A Solutions"}
+          {autoChecking ? "Ouverture..." : "Accès réservé — M3A Solutions"}
         </div>
         <input type="text" name="username" value="superadmin" readOnly autoComplete="username" style={{ display: "none" }} />
         <input type="password" name="password" placeholder="Clé d'accès" value={key} autoComplete="current-password"
           onChange={e => { setKey(e.target.value); setAuthError(""); }}
           style={{ ...S.input, marginBottom: 12 }} />
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--sk-t2)", marginBottom: 14, cursor: "pointer" }}>
-          <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} />
-          Rester connecté sur cet appareil
-        </label>
         <button type="submit"
           style={{ width: "100%", background: "#f5a623", color: "var(--sk-deep)", border: "none", borderRadius: 8, padding: 10, fontWeight: 700, cursor: "pointer" }}>
           Accéder →

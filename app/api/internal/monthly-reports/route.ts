@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cronAutorise } from "@/lib/auth/cron";
 import {
   activeReportTenants, generateAndStoreReport, getReportAddonTenants, getReportPremiumTenants, previousMonthRange,
 } from "@/lib/reportHtml";
@@ -14,9 +15,7 @@ export const maxDuration = 300;
  * narration multi-agent + le deep dive opérations du même mois.
  */
 async function handle(req: NextRequest) {
-  const secret = (process.env.CRON_SECRET ?? "").trim();
-  const auth = (req.headers.get("authorization") ?? "").trim();
-  if (!secret || auth !== `Bearer ${secret}`) {
+  if (!cronAutorise(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

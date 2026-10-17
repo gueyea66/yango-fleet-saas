@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { cronAutorise } from "@/lib/auth/cron";
 import { createClient } from "@supabase/supabase-js";
 import { isDriverActiveOn } from "@/lib/drivers";
 import { getTenantAdminIds, sendNotification, sendTelegramToOperator, sendTelegramToTenant } from "@/lib/notifications";
@@ -35,9 +36,7 @@ const daysUntil = (dateStr: string, today: string) =>
   Math.round((Date.parse(dateStr) - Date.parse(today)) / 86_400_000);
 
 async function handle(req: NextRequest) {
-  const secret = (process.env.CRON_SECRET ?? "").trim();
-  const auth = (req.headers.get("authorization") ?? "").trim();
-  if (!secret || auth !== `Bearer ${secret}`) {
+  if (!cronAutorise(req)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

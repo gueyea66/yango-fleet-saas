@@ -1,6 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest } from "next/server";
 import { timingSafeEqual } from "crypto";
+import { filtrerVraisemblables, invraisemblance } from "@/lib/telematics/vraisemblance";
 import { parseH02Stream } from "@/lib/telematics/h02";
 import { adaptTraccarPayload, fromH02, toPositionRow, type IngestPosition } from "@/lib/telematics/traccar";
 
@@ -136,6 +137,26 @@ export async function POST(req: NextRequest) {
     }
     rows.push(toPositionRow(device.id, p));
   }
+
+  // ── 2 bis. Vraisemblance (audit du 18/10/2026, I1) ─────────────────────
+  // Un boîtier H02 ne s'authentifie pas : on écarte une heure dans le futur ou trop ancienne, et un saut qui
+  // supposerait une vitesse impossible depuis le point enregistré juste avant, pour le même boîtier.
+  const parBoitier = new Map<string, typeof rows>();
+  for (const r of rows) (parBoitier.get(r.device_id) ?? parBoitier.set(r.device_id, []).get(r.device_id)!).push(r);
+  const retenues: typeof rows = [];
+  for (const [deviceId, lot] of parBoitier) {
+    const premier = lot.map((r) => r.recorded_at).sort()[0];
+    const { data: avant } = await db.from("telematics_positions").select("recorded_at, latitude, longitude")
+      .eq("device_id", deviceId).eq("valid_fix", true).lt("recorded_at", premier).order("recorded_at", { ascending: false }).limit(1);
+    const ref = avant?.[0] ? { recordedAt: new Date(avant[0].recorded_at as string).toISOString(), latitude: Number(avant[0].latitude), longitude: Number(avant[0].longitude) } : null;
+    // Un point sans position valide ne sert pas de référence et n'est pas jugé sur sa distance.
+    const sansFix = lot.filter((r) => !r.valid_fix);
+    const { gardees, refus } = filtrerVraisemblables(lot.filter((r) => r.valid_fix).map((r) => ({ ...r, recordedAt: r.recorded_at })), ref);
+    retenues.push(...sansFix.filter((r) => !invraisemblance({ recordedAt: r.recorded_at, latitude: r.latitude, longitude: r.longitude }, null)), ...gardees.map(({ recordedAt: _, ...r }) => r));
+    for (const x of refus) rejected.push({ reason: `position écartée : ${x.raison}` });
+  }
+  rows.length = 0;
+  rows.push(...retenues);
 
   if (rows.length === 0) {
     return Response.json({ accepted: positions.length, inserted: 0, rejected }, { status: 422 });

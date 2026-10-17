@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   if (newKey.length < 12) return NextResponse.json({ error: "Clé trop courte (12 caractères min)" }, { status: 400 });
 
   const storedKey = await getStoredKey();
-  if (!checkSuperadminKey(currentKey, storedKey, getClientIp(req))) {
+  if (!(await checkSuperadminKey(currentKey, storedKey, getClientIp(req)))) {
     return NextResponse.json({ error: "Clé actuelle incorrecte" }, { status: 401 });
   }
 

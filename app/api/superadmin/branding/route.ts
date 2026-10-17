@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
     const tenantId = String(formData.get("tenantId") ?? "");
 
     const storedKey = await getStoredKey();
-    if (!checkSuperadminKey(superadminKey, storedKey, getClientIp(req))) {
+    if (!(await checkSuperadminKey(superadminKey, storedKey, getClientIp(req)))) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
     if (!tenantId) return NextResponse.json({ error: "tenantId requis" }, { status: 400 });
