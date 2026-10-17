@@ -60,11 +60,12 @@ export async function requireAdminAuth(): Promise<AuthedAdmin> {
 
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
-    .select("tenant_id, role")
+    .select("tenant_id, role, active")
     .eq("id", user.id)
     .single();
 
-  if (profileError || !profile?.tenant_id) {
+  // Audit de sécurité du 18/10/2026 (E3) : un compte suspendu ne garde aucun accès, pages comme API.
+  if (profileError || !profile?.tenant_id || profile.active === false) {
     const err = new Error("FORBIDDEN") as Error & { status: number };
     err.status = 403;
     throw err;
@@ -125,15 +126,16 @@ export async function requireAnyAuth(): Promise<AuthedAdmin> {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("tenant_id, role")
+    .select("tenant_id, role, active")
     .eq("id", user.id)
     .single();
 
-  if (!profile?.tenant_id) {
+  if (!profile?.tenant_id || profile.active === false) {
     const err = new Error("FORBIDDEN") as Error & { status: number };
     err.status = 403;
     throw err;
   }
+  await assertTenantActive(supabase, profile.tenant_id);
 
   return { userId: user.id, tenantId: profile.tenant_id, role: profile.role };
 }
