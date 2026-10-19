@@ -25,7 +25,7 @@
  *         l'interruption nocturne n'est plus comptée comme une panne.
  * 1.0.0 — première version (couverture faussée par les nuits).
  */
-export const METHOD_VERSION = "trips/1.3.0";
+export const METHOD_VERSION = "trips/1.4.0";
 
 export interface RawPoint {
   recordedAt: string;
@@ -61,6 +61,18 @@ export interface TripParams {
   longStopS: number;
   /** Silence du boîtier au-delà duquel on note une perte de couverture (s). */
   maxGapS: number;
+  /**
+   * Déplacement en deçà duquel un silence est une VEILLE et non une perte (m).
+   *
+   * Un véhicule garé contact coupé n'émet plus, ou très peu : beaucoup de
+   * boîtiers se mettent en veille, et la lecture de l'API GPSwox ne reçoit
+   * aucune position nouvelle tant que le véhicule ne bouge pas. Si le véhicule
+   * réapparaît au même endroit, rien n'a été perdu : aucun kilomètre, aucun
+   * trajet. Ces silences étaient comptés comme des pannes, et une journée avec
+   * de longues pauses affichait 57 % de couverture sans qu'un seul point de
+   * trajet manque (constaté par Abdou le 19/10/2026 sur El Hadj, AA194SJ).
+   */
+  veilleMaxM: number;
   /** Distance minimale d'un trajet retenu (m) — en deçà, c'est de la dérive. */
   tripMinDistanceM: number;
   /** Durée minimale d'un trajet retenu (s). */
@@ -86,6 +98,7 @@ export const DEFAULT_PARAMS: TripParams = {
   movingStepM: 20,
   longStopS: 1200,
   maxGapS: 600,
+  veilleMaxM: 150,
   tripMinDistanceM: 300,
   tripMinDurationS: 60,
   expectedIntervalS: 30,
@@ -150,6 +163,8 @@ export interface DailyAggregate {
   lastMovementAt: string | null;
   /** Part du temps réellement couverte par le boîtier (0 à 1). */
   coverage: number;
+  /** Silences sans déplacement (véhicule garé, boîtier en veille) : ni comptés comme trous, ni attendus en points (s). */
+  veilleS: number;
   maxSpeedKmh: number;
   methodVersion: string;
 }
@@ -331,7 +346,8 @@ export function buildTrips(
     // Seuls les silences SURVENUS PENDANT la journée de travail sont des
     // pertes de couverture. L'interruption nocturne n'en est pas une : la
     // signaler produirait une fausse alerte chaque nuit.
-    if (s.gapIntraDay) {
+    // Un silence au bout duquel le véhicule n'a pas bougé est une veille : rien n'a été perdu.
+    if (s.gapIntraDay && s.distM >= p.veilleMaxM) {
       const from = clean[s.fromIdx];
       events.push({
         type: "GPS_OFFLINE",
@@ -479,7 +495,7 @@ function aggregateDaily(
         distanceM: 0, movingS: 0, idleS: 0, trips: 0, points: 0,
         gapsS: 0, jumpsDropped: 0,
         firstMovementAt: null, lastMovementAt: null,
-        coverage: 0, maxSpeedKmh: 0,
+        coverage: 0, veilleS: 0, maxSpeedKmh: 0,
         methodVersion: METHOD_VERSION,
       };
       byDay.set(day, d);
@@ -514,7 +530,9 @@ function aggregateDaily(
 
   for (const s of segs) {
     if (s.gapIntraDay) {
-      ensure(localDay(points[s.fromIdx].recordedAt, p.localOffsetH)).gapsS += s.dtS;
+      const d = ensure(localDay(points[s.fromIdx].recordedAt, p.localOffsetH));
+      if (s.distM >= p.veilleMaxM) d.gapsS += s.dtS;
+      else d.veilleS += s.dtS;
     }
   }
 
@@ -536,7 +554,9 @@ function aggregateDaily(
     //     s'affichait « 100 % couverte », ce qui est faux.
     // La couverture retenue est la plus sévère des deux.
     const sp = span.get(d.day);
-    const amplitudeS = sp ? (sp.last - sp.first) / 1000 : 0;
+    d.veilleS = round(d.veilleS, 0);
+    // Le temps passé garé en veille n'est ni un trou ni un temps où l'on attend des points.
+    const amplitudeS = sp ? Math.max(0, (sp.last - sp.first) / 1000 - d.veilleS) : 0;
 
     if (amplitudeS < 600) {
       // Moins de 10 minutes observées : on ne prétend pas avoir couvert la journée.
