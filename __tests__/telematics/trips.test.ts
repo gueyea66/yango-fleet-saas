@@ -219,6 +219,22 @@ describe("buildTrips — honnêteté de la mesure", () => {
     expect(daily[0].coverage).toBeLessThan(1);
   });
 
+  it("ne compte pas un véhicule garé en veille comme une perte de signal", () => {
+    // Cas constaté le 19/10/2026 (El Hadj, lecture GPSwox) : garé contact coupé,
+    // le boîtier n'émet plus ; il réapparaît au même endroit deux heures après.
+    const matin = track({ startIso: "2026-09-15T08:00:00Z", count: 40, speedKmh: 40 });
+    const fin = matin[matin.length - 1];
+    const apres = track({
+      startIso: new Date(Date.parse(fin.recordedAt) + 2 * 3_600_000).toISOString(),
+      count: 40, speedKmh: 40, fromLat: fin.latitude + 0.0003, fromLon: fin.longitude,
+    });
+    const { daily, events } = buildTrips([...matin, ...apres]);
+    expect(daily[0].gapsS).toBe(0);
+    expect(daily[0].veilleS).toBeGreaterThan(7000);
+    expect(daily[0].coverage).toBe(1);
+    expect(events.filter((e) => e.type === "GPS_OFFLINE")).toHaveLength(0);
+  });
+
   it("ne compte pas la nuit comme une panne de boîtier", () => {
     // Cas réel rencontré le 16/09/2026 sur les premières données injectées :
     // le silence entre le dernier point du soir et le premier du lendemain
