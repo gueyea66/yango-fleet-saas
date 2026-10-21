@@ -25,7 +25,7 @@
  *         l'interruption nocturne n'est plus comptée comme une panne.
  * 1.0.0 — première version (couverture faussée par les nuits).
  */
-export const METHOD_VERSION = "trips/1.4.0";
+export const METHOD_VERSION = "trips/1.5.0";
 
 export interface RawPoint {
   recordedAt: string;
@@ -51,8 +51,19 @@ export interface TripParams {
    * (≈ 15 m) et bien en dessous de toute progression réelle.
    */
   stopRadiusM: number;
-  /** Écart entre deux points au-delà duquel on parle de saut de fix (m). */
+  /** Écart entre deux points au-delà duquel on SOUPÇONNE un saut de fix (m). */
   jumpMaxM: number;
+  /**
+   * Vitesse au-delà de laquelle ce grand écart est un saut de fix (km/h).
+   *
+   * Un écart de plus de 3 km entre deux points n'est pas toujours une erreur :
+   * quand le réseau mobile du boîtier se coupe quelques minutes, le véhicule a
+   * réellement parcouru ces kilomètres. Depuis le 14/10/2026, le K3 perdait
+   * ainsi 70 à 125 km par jour, jetés comme des « sauts ». On ne retient comme
+   * saut que l'écart impossible à parcourir dans le temps écoulé ; l'autre est
+   * compté en ligne droite, donc plutôt sous-estimé que gonflé.
+   */
+  jumpSpeedKmh: number;
   /** En deçà, le véhicule est considéré à l'arrêt (km/h). */
   movingSpeedKmh: number;
   /** Déplacement minimal d'un segment pour compter comme mouvement (m). */
@@ -94,6 +105,7 @@ export const DEFAULT_PARAMS: TripParams = {
   stopMinS: 300,
   stopRadiusM: 50,
   jumpMaxM: 3000,
+  jumpSpeedKmh: 160,
   movingSpeedKmh: 5,
   movingStepM: 20,
   longStopS: 1200,
@@ -252,11 +264,12 @@ export function buildTrips(
     const b = clean[i];
     const dtS = (b.t - a.t) / 1000;
     const distM = haversineM(a.latitude, a.longitude, b.latitude, b.longitude);
-    const jump = distM > p.jumpMaxM;
     const gap = dtS > p.maxGapS;
     // Vitesse : celle du boîtier quand elle est fournie, sinon la vitesse
     // implicite du segment. Un saut de fix ne produit jamais de vitesse.
     const implied = dtS > 0 ? (distM / dtS) * 3.6 : 0;
+    // Au-delà d'un silence long (nuit, panne), le chemin est inconnu : la ligne droite n'est pas comptée.
+    const jump = distM > p.jumpMaxM && (gap || dtS <= 0 || implied > p.jumpSpeedKmh);
     const speedKmh = jump ? 0 : (b.speedKmh ?? implied);
     const moving = !jump && distM >= p.movingStepM && speedKmh >= p.movingSpeedKmh;
     const gapIntraDay =

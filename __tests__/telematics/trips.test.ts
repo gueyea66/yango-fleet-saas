@@ -179,6 +179,21 @@ describe("buildTrips — découpage", () => {
 });
 
 describe("buildTrips — honnêteté de la mesure", () => {
+  it("compte les km parcourus pendant une coupure réseau de quelques minutes", () => {
+    // Cas du K3 depuis le 14/10/2026 : le boîtier se tait 5 minutes en roulant et
+    // réapparaît 4 km plus loin. Ce n'est pas un saut de fix : 48 km/h est possible.
+    const avant = track({ startIso: "2026-09-15T08:00:00Z", count: 20, speedKmh: 40 });
+    const fin = avant[avant.length - 1];
+    const apres = track({
+      startIso: new Date(Date.parse(fin.recordedAt) + 300_000).toISOString(),
+      count: 20, speedKmh: 40, fromLat: fin.latitude + 0.036, fromLon: fin.longitude,
+    });
+    const { trips } = buildTrips([...avant, ...apres]);
+    expect(trips).toHaveLength(1);
+    expect(trips[0].jumpsDropped).toBe(0);
+    expect(trips[0].distanceM).toBeGreaterThan(4_000);
+  });
+
   it("écarte un saut de fix et le compte au lieu de l'avaler", () => {
     const pts = track({ startIso: "2026-09-15T08:00:00Z", count: 20, speedKmh: 40 });
     // Point aberrant : 200 km plus loin, revenu juste après.
