@@ -10,13 +10,15 @@ import { displayLabel } from "@/lib/tenant/platformLabel";
 import { formatAmount } from "@/lib/v2/format";
 import { buildMonthGrid, dayStatus, monthNameFr, shortDayFr, type DayStatus } from "@/lib/v2/driver";
 import { ScreenHeader, ScreenBody, DoneHero, SkeletonBlock, Label, fieldStyle } from "./parts";
+import { ChoixAbsence, PastilleAbsence } from "@/components/absence/ChoixAbsence";
+import { infoAbsence, lireAbsence } from "@/lib/absence";
 import { useDriverMonth, type MonthReport } from "./useDriverMonth";
 
 const CELL: Record<Exclude<DayStatus, null> | "none" | "future", { bg: string; bd: string; fg: string; label?: string }> = {
   approved: { bg: "rgba(34,197,94,.18)", bd: "var(--v2-validate)", fg: "var(--sk-t1)", label: "Validé" },
   submitted: { bg: "rgba(249,115,22,.16)", bd: "var(--fleet-warning)", fg: "var(--sk-t1)", label: "En attente" },
   rejected: { bg: "rgba(239,68,68,.16)", bd: "var(--fleet-negative)", fg: "var(--sk-t1)", label: "Rejeté" },
-  repos: { bg: "var(--sk-surface)", bd: "var(--sk-border)", fg: "var(--sk-t2)", label: "Repos" },
+  repos: { bg: "var(--sk-surface)", bd: "var(--sk-border)", fg: "var(--sk-t2)", label: "Absence" },
   none: { bg: "transparent", bd: "var(--sk-surface)", fg: "var(--sk-t2)" },
   future: { bg: "transparent", bd: "var(--sk-surface)", fg: "var(--sk-t3)" },
 };
@@ -87,15 +89,17 @@ export function CalendarV2({ profile, onBack, startWithRepos = false }: { profil
               const s = dayStatus(reportsByDay.get(c.date) ?? []);
               const look = CELL[s ?? (c.date > today ? "future" : "none")];
               const on = c.date === selected;
+              const ab = s === "repos" ? infoAbsence(lireAbsence((reportsByDay.get(c.date) ?? []).find((r) => r.status === "approved" || r.status === "submitted")?.comment)?.categorie ?? "repos") : null;
               return (
                 <button key={c.date} type="button" role="gridcell" aria-selected={on} onClick={() => setSelected(c.date!)}
-                  aria-label={`${shortDayFr(c.date)}${look.label ? ` · ${look.label}` : ""}`} className="v2-num v2-focus"
+                  aria-label={`${shortDayFr(c.date)}${ab ? ` · ${ab.label}` : look.label ? ` · ${look.label}` : ""}`} className="v2-num v2-focus"
                   style={{
-                    aspectRatio: "1", borderRadius: 10, fontSize: 13, cursor: "pointer", padding: 0,
-                    background: look.bg, border: `1px solid ${look.bd}`, color: look.fg,
+                    aspectRatio: "1", borderRadius: 10, fontSize: 13, cursor: "pointer", padding: 0, position: "relative",
+                    background: ab ? ab.couleur + "22" : look.bg, border: `1px solid ${ab ? ab.couleur + "88" : look.bd}`, color: look.fg,
                     boxShadow: on ? "0 0 0 2px var(--tenant-color)" : undefined,
                   }}>
                   {c.day}
+                  {ab && <span aria-hidden style={{ position: "absolute", top: 2, right: 4, fontSize: 9, fontWeight: 800, color: ab.couleur }}>{ab.lettre}</span>}
                 </button>
               );
             })}
@@ -117,9 +121,15 @@ export function CalendarV2({ profile, onBack, startWithRepos = false }: { profil
           {active && st !== "repos" && (
             <Row label="Net" value={formatAmount(active.net_after_expenses ?? 0)} />
           )}
-          {st === "repos" && active?.comment && active.comment.replace("[REPOS]", "").trim() && (
-            <div style={{ fontSize: 13, color: "var(--sk-t2)" }}>{active.comment.replace("[REPOS]", "").trim()}</div>
-          )}
+          {st === "repos" && active && (() => {
+            const ab = lireAbsence(active.comment);
+            return (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--sk-t2)" }}>
+                <PastilleAbsence categorie={ab?.categorie ?? "repos"} taille={18} />
+                {infoAbsence(ab?.categorie ?? "repos").label}{ab?.motif ? ` · ${ab.motif}` : ""}
+              </div>
+            );
+          })()}
           {dayExpenses.map((e) => (
             <Row key={e.id} label={`Dépense ${displayLabel(e.category || "").toLowerCase()}`} value={formatAmount(e.amount || 0)}
               tag={e.status === "rejected" ? "Rejetée" : e.status === "approved" ? undefined : "En attente"} />
@@ -145,7 +155,7 @@ export function CalendarV2({ profile, onBack, startWithRepos = false }: { profil
         ))}
 
         <Button variant="outline" size="lg" icon={BedDouble} block onClick={() => setRepos(true)} style={{ marginTop: "auto", height: 52 }}>
-          Déclarer un jour de repos
+          Déclarer une absence
         </Button>
       </ScreenBody>
     </>
@@ -163,9 +173,9 @@ function Row({ label, value, tag }: { label: string; value: string; tag?: string
   );
 }
 
-/** Déclaration de repos : insert `daily_reports` [REPOS] de l'UI actuelle (useReposForm). */
+/** Déclaration d'absence (repos, panne, congé, malade) : insert `daily_reports` [REPOS] de l'UI actuelle (useReposForm). */
 function ReposV2({ profile, defaultDate, onDone, onBack }: { profile: Profile; defaultDate: string; onDone: () => void; onBack: () => void }) {
-  const { date, setDate, motif, setMotif, saving, submitted, existing, submit } = useReposForm(profile);
+  const { date, setDate, motif, setMotif, categorie, setCategorie, saving, submitted, existing, submit } = useReposForm(profile);
   useEffect(() => {
     // Pré-sélectionne le jour choisi dans le calendrier (une seule fois).
     if (defaultDate) setDate(defaultDate);
@@ -176,7 +186,7 @@ function ReposV2({ profile, defaultDate, onDone, onBack }: { profile: Profile; d
     return (
       <>
         <ScreenBody padding="24px 20px" style={{ justifyContent: "center" }}>
-          <DoneHero title="Jour de repos déclaré" text="En attente de validation par ton gestionnaire." />
+          <DoneHero title={`Absence déclarée : ${infoAbsence(categorie).label.toLowerCase()}`} text="En attente de validation par ton gestionnaire." />
         </ScreenBody>
         <div style={{ padding: 16, flex: "none" }}>
           <Button size="xl" block onClick={onDone}>Retour au calendrier</Button>
@@ -187,10 +197,14 @@ function ReposV2({ profile, defaultDate, onDone, onBack }: { profile: Profile; d
 
   return (
     <>
-      <ScreenHeader title="Déclarer un jour de repos" onBack={onBack} />
+      <ScreenHeader title="Déclarer une absence" onBack={onBack} />
       <ScreenBody gap={16}>
         <div style={{ fontSize: 14, color: "var(--v2-muted)", lineHeight: 1.5 }}>
           Ton gestionnaire valide la déclaration. Elle n&apos;impacte pas tes revenus.
+        </div>
+        <div>
+          <Label>Type d&apos;absence</Label>
+          <ChoixAbsence value={categorie} onChange={setCategorie} />
         </div>
         <div>
           <Label htmlFor="v2-repos-date">Date (passée ou à venir)</Label>
@@ -198,22 +212,23 @@ function ReposV2({ profile, defaultDate, onDone, onBack }: { profile: Profile; d
         </div>
         <div>
           <Label htmlFor="v2-repos-motif">Motif (optionnel)</Label>
-          <input id="v2-repos-motif" type="text" placeholder="Congé, maladie, entretien…" value={motif} onChange={(e) => setMotif(e.target.value)} className="v2-focus" style={fieldStyle} />
+          <input id="v2-repos-motif" type="text" placeholder="Garage, rendez-vous médical, voyage…" value={motif} onChange={(e) => setMotif(e.target.value)} className="v2-focus" style={fieldStyle} />
         </div>
         {existing.length > 0 && (
           <Card mobile flush>
-            <div style={{ padding: "12px 16px", fontSize: 13, color: "var(--v2-muted)", borderBottom: "1px solid var(--sk-surface)" }}>Repos déclarés ou prévus</div>
+            <div style={{ padding: "12px 16px", fontSize: 13, color: "var(--v2-muted)", borderBottom: "1px solid var(--sk-surface)" }}>Absences déclarées ou prévues</div>
             {existing.map((r, i) => (
               <div key={r.date + i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 16px", minHeight: 52, borderBottom: i < existing.length - 1 ? "1px solid var(--sk-surface)" : "none" }}>
+                <PastilleAbsence categorie={lireAbsence(r.comment)?.categorie ?? "repos"} taille={20} />
                 <span className="v2-num" style={{ fontSize: 14 }}>{shortDayFr(r.date)}</span>
-                <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "var(--sk-t2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.comment?.replace("[REPOS]", "").trim() || ""}</span>
+                <span style={{ flex: 1, minWidth: 0, fontSize: 13, color: "var(--sk-t2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lireAbsence(r.comment)?.motif || infoAbsence(lireAbsence(r.comment)?.categorie ?? "repos").label}</span>
                 <Badge tone={r.status === "approved" ? "ok" : r.status === "rejected" ? "neg" : "wait"}>{r.status === "approved" ? "Validé" : r.status === "rejected" ? "Refusé" : "En attente"}</Badge>
               </div>
             ))}
           </Card>
         )}
         <Button size="xl" block disabled={saving || !date} onClick={() => void submit()} style={{ marginTop: "auto" }}>
-          {saving ? "Envoi…" : "Déclarer ce jour de repos"}
+          {saving ? "Envoi…" : `Déclarer : ${infoAbsence(categorie).label.toLowerCase()}`}
         </Button>
       </ScreenBody>
     </>

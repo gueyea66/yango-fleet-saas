@@ -89,6 +89,8 @@ interface DailyReport {
 
 import TreemapDepenses, { EXPENSE_COLORS } from "@/components/TreemapDepenses";
 import { VueDefautMenu } from "@/components/v2/admin/VueDefautMenu";
+import { ChoixAbsence, PastilleAbsence } from "@/components/absence/ChoixAbsence";
+import { ABSENCES, infoAbsence, lireAbsence, type CategorieAbsence } from "@/lib/absence";
 import { figerPeriode, restaurerPeriode, lireVueDefaut, ecrireVueDefaut, oublierVueDefaut, vueCourante, type VueDefaut } from "@/lib/v2/vueDefaut";
 
 export default function AdminPage() {
@@ -2547,17 +2549,20 @@ function ReportList({ reports: allReports, expenses: allExpenses, loading, empty
                   <div>
                     <div className="flex items-center gap-2">
                       <div className="font-semibold text-white text-sm">{r.date}</div>
-                      {isRepos(r) && (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,.15)", color: "#818cf8" }}>
-                          REPOS
-                        </span>
-                      )}
+                      {isRepos(r) && (() => {
+                        const a = infoAbsence(lireAbsence(r.comment)?.categorie ?? "repos");
+                        return (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full uppercase" style={{ background: a.couleur + "26", color: a.couleur }}>
+                            {a.label}
+                          </span>
+                        );
+                      })()}
                     </div>
                     <div className="text-xs mt-1" style={{ color: "var(--sk-t3)" }}>
                       {(() => {
                         const who = r._profile?.full_name || r._profile?.driver_id || `${r.driver_id?.slice(0, 8)}…`;
                         return isRepos(r)
-                          ? `${r.comment?.replace("[REPOS]", "").trim() || "Jour de repos"} · ${who}`
+                          ? `${lireAbsence(r.comment)?.motif || infoAbsence(lireAbsence(r.comment)?.categorie ?? "repos").label} · ${who}`
                           : `${who} · ${r.yango_trip_count ?? 0} courses`;
                       })()}
                     </div>
@@ -4054,6 +4059,7 @@ function CalendrierTab({ filterDriverId, filterDriverIds, allDrivers }: { filter
   const [addModal, setAddModal] = useState<{ date: string } | null>(null);
   const [addDriver, setAddDriver] = useState("");
   const [addMotif, setAddMotif] = useState("");
+  const [addCategorie, setAddCategorie] = useState<CategorieAbsence>("repos");
   const [saving, setSaving] = useState(false);
 
   const monthStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
@@ -4103,12 +4109,12 @@ function CalendrierTab({ filterDriverId, filterDriverIds, allDrivers }: { filter
       // écriture côté serveur : tenant et droit de valider lus sur la session
       const res = await fetch("/api/admin/repos", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ driver_id: addDriver, date: addModal.date, motif: addMotif }),
+        body: JSON.stringify({ driver_id: addDriver, date: addModal.date, motif: addMotif, categorie: addCategorie }),
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) { alert(j.error || "Enregistrement impossible"); return; }
-      if (j.status === "submitted") alert("Repos enregistré, en attente de validation par un administrateur valideur.");
-      setAddModal(null); setAddMotif(""); setAddDriver("");
+      if (j.status === "submitted") alert("Absence enregistrée, en attente de validation par un administrateur valideur.");
+      setAddModal(null); setAddMotif(""); setAddDriver(""); setAddCategorie("repos");
       await load();
     } catch (err: any) { alert("Erreur : " + err.message); }
     finally { setSaving(false); }
@@ -4120,7 +4126,8 @@ function CalendrierTab({ filterDriverId, filterDriverIds, allDrivers }: { filter
   const deleteRepos = async (e: { id: string; date: string; driver_id: string; comment?: string | null }) => {
     if (!e.comment?.startsWith("[REPOS]")) return;
     const jour = new Date(`${e.date}T00:00:00`).toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
-    if (!confirm(`Supprimer le repos du ${jour} pour ${driverName(e.driver_id)} ?`)) return;
+    const quoi = infoAbsence(lireAbsence(e.comment)?.categorie ?? "repos").label.toLowerCase();
+    if (!confirm(`Supprimer l'absence (${quoi}) du ${jour} pour ${driverName(e.driver_id)} ?`)) return;
     const supabase = createClient() as any;
     const { error } = await supabase.from("daily_reports").delete().eq("id", e.id);
     if (error) { alert("Suppression impossible : " + error.message); return; }
@@ -4150,7 +4157,11 @@ function CalendrierTab({ filterDriverId, filterDriverIds, allDrivers }: { filter
 
       {/* Legend */}
       <div className="flex gap-4 flex-wrap text-xs">
-        {[["#6366f1","Repos planifié"],["#22c55e","Travaillé"],["var(--tenant-color)","En attente"],["#ef4444","Rejeté"]].map(([c, l]) => (
+        {ABSENCES.map((a) => (
+          <div key={a.key} className="flex items-center gap-1.5"><PastilleAbsence categorie={a.key} taille={14} /><span style={{ color: "var(--sk-t2)" }}>{a.label}</span></div>
+        ))}
+        <span style={{ color: "var(--sk-border)" }}>|</span>
+        {[["#22c55e","Travaillé"],["var(--tenant-color)","En attente"],["#ef4444","Rejeté"]].map(([c, l]) => (
           <div key={l} className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-sm" style={{ background: c }} /><span style={{ color: "var(--sk-t2)" }}>{l}</span></div>
         ))}
       </div>
@@ -4190,18 +4201,22 @@ function CalendrierTab({ filterDriverId, filterDriverIds, allDrivers }: { filter
                   </div>
                   <div className="space-y-0.5">
                     {dayEvents.slice(0, 3).map((e) => {
-                      const isRepos = e.comment?.startsWith("[REPOS]");
-                      const color = isRepos
-                        ? (e.status === "approved" ? "#6366f1" : e.status === "rejected" ? "#ef4444" : "#a5b4fc")
+                      const absence = lireAbsence(e.comment);
+                      const isRepos = !!absence;
+                      // absence : couleur de sa catégorie ; bord en pointillé tant qu'elle n'est pas validée
+                      const enAttente = !!absence && e.status === "submitted";
+                      const color = absence
+                        ? (e.status === "rejected" ? "#ef4444" : infoAbsence(absence.categorie).couleur)
                         : (e.status === "approved" ? "#22c55e" : e.status === "rejected" ? "#ef4444" : "var(--tenant-color)");
                       return (
                         <div key={e.id} onClick={(ev) => { ev.stopPropagation(); }}
                           className="text-[10px] px-1.5 py-0.5 rounded font-semibold truncate flex items-center justify-between group"
-                          style={{ background: color + "20", color, border: `1px solid ${color}40` }}>
-                          <span className="truncate">{isRepos ? "Repos" : "✓"} {driverName(e.driver_id)}</span>
+                          title={absence ? `${infoAbsence(absence.categorie).label}${absence.motif ? ` · ${absence.motif}` : ""}${enAttente ? " (en attente)" : ""}` : undefined}
+                          style={{ background: color + "20", color, border: `1px ${enAttente ? "dashed" : "solid"} ${color}${enAttente ? "99" : "40"}` }}>
+                          <span className="truncate flex items-center gap-1">{absence ? <PastilleAbsence categorie={absence.categorie} taille={12} /> : "✓"} {driverName(e.driver_id)}</span>
                           {isRepos && (
                             <button onClick={(ev) => { ev.stopPropagation(); deleteRepos(e); }}
-                              aria-label={`Supprimer le repos de ${driverName(e.driver_id)}`}
+                              aria-label={`Supprimer l'absence de ${driverName(e.driver_id)}`}
                               className="ml-1 opacity-60 group-hover:opacity-100 text-[9px] flex-shrink-0"
                               style={{ color: "#ef4444" }}>✕</button>
                           )}
@@ -4237,16 +4252,20 @@ function CalendrierTab({ filterDriverId, filterDriverIds, allDrivers }: { filter
               </select>
             </div>
             <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>Type d'absence</label>
+              <ChoixAbsence value={addCategorie} onChange={setAddCategorie} />
+            </div>
+            <div>
               <label className="block text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: "var(--sk-t3)" }}>Motif (optionnel)</label>
               <input type="text" value={addMotif} onChange={(e) => setAddMotif(e.target.value)}
-                placeholder="Congé, maladie, entretien..." className="w-full rounded-xl px-4 py-3 text-sm outline-none"
+                placeholder="Garage, rendez-vous médical, voyage..." className="w-full rounded-xl px-4 py-3 text-sm outline-none"
                 style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)" }} />
             </div>
             <button onClick={addRepos} disabled={saving || !addDriver}
               className="w-full py-3 rounded-xl text-sm font-bold"
-              style={{ background: saving || !addDriver ? "var(--sk-surface)" : "linear-gradient(135deg,#6366f1,#4f46e5)",
+              style={{ background: saving || !addDriver ? "var(--sk-surface)" : infoAbsence(addCategorie).couleur,
                 color: saving || !addDriver ? "var(--sk-t4)" : "#fff" }}>
-              {saving ? "Enregistrement..." : "Planifier le repos"}
+              {saving ? "Enregistrement..." : `Planifier : ${infoAbsence(addCategorie).label.toLowerCase()}`}
             </button>
           </div>
         </div>
@@ -4277,7 +4296,15 @@ function CalendrierTab({ filterDriverId, filterDriverIds, allDrivers }: { filter
                   </div>
                   <div className="rounded-xl py-2" style={{ background: "var(--sk-deep)" }}>
                     <div className="text-lg font-bold" style={{ color: "#6366f1" }}>{reposCount}</div>
-                    <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Repos</div>
+                    <div className="text-[10px]" style={{ color: "var(--sk-t4)" }}>Absences</div>
+                    {reposCount > 0 && (
+                      <div className="flex justify-center gap-1 mt-1 flex-wrap">
+                        {ABSENCES.map((a) => {
+                          const n = dEvents.filter((e) => lireAbsence(e.comment)?.categorie === a.key).length;
+                          return n ? <span key={a.key} className="flex items-center gap-0.5 text-[10px]" style={{ color: a.couleur }}><PastilleAbsence categorie={a.key} taille={11} />{n}</span> : null;
+                        })}
+                      </div>
+                    )}
                   </div>
                   <div className="rounded-xl py-2" style={{ background: "var(--sk-deep)" }}>
                     <div className="text-sm font-bold font-mono" style={{ color: "var(--tenant-color)" }}>{(totalNet / 1000).toFixed(0)}k</div>

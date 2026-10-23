@@ -137,7 +137,9 @@ describe("compte gestionnaire", () => {
 describe("jour de repos saisi par l'exploitation", () => {
   const d = "11111111-1111-4111-8111-111111111111";
   it("accepte un jour passé, le jour même ou planifié", () => {
-    expect(validerRepos({ driver_id: d, date: "2026-10-01", motif: "  Maladie " }, "2026-10-12")).toEqual({ ok: true, value: { driver_id: d, date: "2026-10-01", motif: "Maladie" } });
+    expect(validerRepos({ driver_id: d, date: "2026-10-01", motif: "  Maladie " }, "2026-10-12")).toEqual({ ok: true, value: { driver_id: d, date: "2026-10-01", motif: "Maladie", categorie: "repos" } });
+    expect(validerRepos({ driver_id: d, date: "2026-10-01", categorie: "panne" }, "2026-10-12")).toMatchObject({ ok: true, value: { categorie: "panne" } });
+    expect(validerRepos({ driver_id: d, date: "2026-10-01", categorie: "vacances" }, "2026-10-12").ok).toBe(false);
     expect(validerRepos({ driver_id: d, date: "2026-10-12" }, "2026-10-12").ok).toBe(true);
     expect(validerRepos({ driver_id: d, date: "2026-11-20" }, "2026-10-12").ok).toBe(true);
   });

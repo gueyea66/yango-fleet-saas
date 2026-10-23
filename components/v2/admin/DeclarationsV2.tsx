@@ -10,6 +10,8 @@
  *   3. le détail d'une case, avec l'action qui la règle.
  * Un état n'est jamais porté par la couleur seule : chaque case a son signe.
  */
+import { PastilleAbsence } from "@/components/absence/ChoixAbsence";
+import { ABSENCES, infoAbsence, type CategorieAbsence } from "@/lib/absence";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 import { Check, Clock, Fuel, Minus, Moon, X } from "lucide-react";
 import { Card, Overline, Segmented } from "@/components/ui";
@@ -38,7 +40,7 @@ type Ton = "ok" | "wait" | "neg" | "info" | "vide";
 const ETATS: Record<EtatRecette, { label: string; ton: Ton; signe: ReactNode }> = {
   declaree: { label: "Recette validée", ton: "ok", signe: <Check size={14} strokeWidth={3} /> },
   attente: { label: "Recette à valider", ton: "wait", signe: <Clock size={13} strokeWidth={2.5} /> },
-  repos: { label: "Repos déclaré", ton: "info", signe: <Moon size={13} strokeWidth={2.5} /> },
+  repos: { label: "Absence déclarée", ton: "info", signe: <Moon size={13} strokeWidth={2.5} /> },
   sans_chiffre: { label: "Déclaré à zéro, sans repos", ton: "neg", signe: <span style={{ fontWeight: 700, fontSize: 13 }}>0</span> },
   manquante: { label: "Rien de déclaré", ton: "neg", signe: <X size={14} strokeWidth={3} /> },
   en_cours: { label: "Journée en cours", ton: "vide", signe: <Minus size={12} /> },
@@ -71,16 +73,28 @@ function Anneau({ taux }: { taux: number | null }) {
   );
 }
 
+/** Libellé et signe d'une case : une absence montre sa catégorie (R, P, C, M). */
+function etatDe(c: Case): { label: string; ton: Ton; signe: ReactNode; style?: CSSProperties } {
+  const e = ETATS[c.recette];
+  if (c.recette !== "repos" || !c.absence) return e;
+  const a = infoAbsence(c.absence);
+  return {
+    label: a.key === "repos" ? "Repos déclaré" : `Absence : ${a.label.toLowerCase()}`, ton: "info",
+    signe: <span style={{ fontWeight: 800, fontSize: 12 }}>{a.lettre}</span>,
+    style: { background: a.couleur + "22", borderColor: a.couleur + "77", color: a.couleur },
+  };
+}
+
 function CaseJour({ c, estompee, choisie, delai, etiquette, onClick }: {
   c: Case; estompee: boolean; choisie: boolean; delai: number; etiquette: string; onClick: () => void;
 }) {
-  const e = ETATS[c.recette];
+  const e = etatDe(c);
   if (c.recette === "hors_contrat") return <span aria-hidden="true" />;
   const carburantSignale = c.alertes.includes("carburant_manquant");
   return (
     <button type="button" onClick={onClick} aria-pressed={choisie} className={`dcl-case v2-focus${choisie ? " dcl-case-choisie" : ""}`}
       aria-label={`${etiquette} : ${e.label}${c.carburant === "absent" ? ", pas de carburant déclaré" : ""}${c.alertes.length ? ", à régulariser" : ""}`}
-      style={{ ...TONS[e.ton], animationDelay: `${delai}ms`, opacity: estompee ? 0.22 : 1 }}>
+      style={{ ...TONS[e.ton], ...e.style, animationDelay: `${delai}ms`, opacity: estompee ? 0.22 : 1 }}>
       {e.signe}
       {c.carburant === "absent" && (
         <span className="dcl-carburant" style={{ background: carburantSignale ? "var(--v2-negative-ink)" : "var(--sk-t3)" }} aria-hidden="true" />
@@ -89,8 +103,8 @@ function CaseJour({ c, estompee, choisie, delai, etiquette, onClick }: {
   );
 }
 
-function Detail({ ligne, c, onRepos, occupe }: { ligne: LigneChauffeur; c: Case; onRepos: () => void; occupe: boolean }) {
-  const e = ETATS[c.recette];
+function Detail({ ligne, c, onRepos, occupe }: { ligne: LigneChauffeur; c: Case; onRepos: (categorie: CategorieAbsence) => void; occupe: boolean }) {
+  const e = etatDe(c);
   // Un repos ne se pose que sur un jour vide : une déclaration à zéro existe déjà et se corrige par la saisie.
   const reposPossible = c.recette === "manquante" && !c.coursesYango;
   return (
@@ -98,7 +112,7 @@ function Detail({ ligne, c, onRepos, occupe }: { ligne: LigneChauffeur; c: Case;
       <div>
         <div style={{ fontSize: 15, fontWeight: 600, color: "var(--sk-t1)" }}>{ligne.nom}</div>
         <div style={{ fontSize: 13, color: "var(--v2-muted)" }}>{jourLong(c.jour)}{ligne.plaque ? ` · ${ligne.plaque}` : ""}</div>
-        <div style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 10, padding: "5px 10px", borderRadius: 8, border: "1px solid", fontSize: 13, ...TONS[e.ton] }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 10, padding: "5px 10px", borderRadius: 8, border: "1px solid", fontSize: 13, ...TONS[e.ton], ...e.style }}>
           {e.signe}<span style={{ color: "var(--sk-t1)" }}>{e.label}</span>
         </div>
       </div>
@@ -118,10 +132,15 @@ function Detail({ ligne, c, onRepos, occupe }: { ligne: LigneChauffeur; c: Case;
         ))}
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {reposPossible && (
-            <button type="button" className="v2-btn v2-btn-outline v2-focus" disabled={occupe} onClick={onRepos}
-              style={{ height: 36, padding: "0 12px", borderRadius: 9, border: "1px solid var(--sk-border)", background: "transparent", color: "var(--sk-t1)", fontSize: 13, cursor: "pointer" }}>
-              C&apos;était un repos
-            </button>
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, width: "100%" }}>
+              <span style={{ fontSize: 13, color: "var(--v2-muted)" }}>C&apos;était une absence :</span>
+              {ABSENCES.map((a) => (
+                <button key={a.key} type="button" className="v2-btn v2-btn-outline v2-focus" disabled={occupe} onClick={() => onRepos(a.key)}
+                  style={{ height: 34, padding: "0 10px", borderRadius: 9, border: `1px solid ${a.couleur}66`, background: "transparent", color: "var(--sk-t1)", fontSize: 13, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <PastilleAbsence categorie={a.key} taille={16} />{a.label}
+                </button>
+              ))}
+            </div>
           )}
           {c.alertes.length > 0 && (
             <a href="/admin?tab=saisie" className="v2-btn v2-btn-fill v2-focus"
@@ -311,12 +330,20 @@ export function DeclarationsV2({ data, filtre: vue, onFiltre, loading, error, on
             </div>
 
             <ul aria-label="Légende" style={{ listStyle: "none", display: "flex", flexWrap: "wrap", gap: "6px 16px", margin: "14px 0 0", padding: 0, fontSize: 12, color: "var(--v2-muted)" }}>
-              {(["declaree", "attente", "repos", "sans_chiffre", "manquante"] as EtatRecette[]).map((k) => (
+              {(["declaree", "attente", "sans_chiffre", "manquante"] as EtatRecette[]).map((k) => (
                 <li key={k} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                   <span style={{ width: 20, height: 20, borderRadius: 5, border: "1px solid", display: "inline-flex", alignItems: "center", justifyContent: "center", ...TONS[ETATS[k].ton] }}>{ETATS[k].signe}</span>
                   {ETATS[k].label}
                 </li>
               ))}
+              <li style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                Absences :
+                {ABSENCES.map((a) => (
+                  <span key={a.key} style={{ display: "inline-flex", alignItems: "center", gap: 4, marginLeft: 4 }}>
+                    <PastilleAbsence categorie={a.key} taille={18} />{a.label}
+                  </span>
+                ))}
+              </li>
               <li style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
                 <Fuel size={13} aria-hidden="true" /> point en coin : pas de carburant déclaré ce jour (rouge dès la 2ᵉ journée travaillée de suite)
               </li>
@@ -325,7 +352,7 @@ export function DeclarationsV2({ data, filtre: vue, onFiltre, loading, error, on
             <div aria-live="polite" style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--sk-surface)", minHeight: 96 }}>
               {ligneChoisie && caseChoisie ? (
                 <Detail ligne={ligneChoisie} c={caseChoisie} occupe={occupe}
-                  onRepos={() => agir("/api/admin/repos", { driver_id: ligneChoisie.id, date: caseChoisie.jour }, () => `Repos enregistré pour ${ligneChoisie.nom}.`)} />
+                  onRepos={(categorie) => agir("/api/admin/repos", { driver_id: ligneChoisie.id, date: caseChoisie.jour, categorie }, () => `Absence (${infoAbsence(categorie).label.toLowerCase()}) enregistrée pour ${ligneChoisie.nom}.`)} />
               ) : (
                 <p style={{ margin: 0, fontSize: 13, color: "var(--v2-muted)" }}>Aucune case sélectionnée.</p>
               )}

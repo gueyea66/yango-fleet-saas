@@ -1,5 +1,6 @@
 "use client";
 
+import { infoAbsence, lireAbsence } from "@/lib/absence";
 import { CircleCheck, Receipt, ClipboardList } from "lucide-react";
 import { useValidationQueue } from "@/components/ValidationQueue";
 import { displayLabel } from "@/lib/tenant/platformLabel";
@@ -58,7 +59,7 @@ export function ValidationQueueV2({ tenantId, driverIds, range, onChanged, onOpe
                     {name} · {kind === "report" ? `rapport ${ddmm(row.date)}` : displayLabel(row.category || "Autre").toLowerCase()}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--v2-muted)", marginTop: 2 }}>
-                    {kind === "report" ? (row.comment?.startsWith("[REPOS]") ? "Jour de repos" : "Rapport du soir") : `Dépense du ${ddmm(row.expense_date || row.created_at)}`}
+                    {kind === "report" ? (lireAbsence(row.comment) ? `Absence · ${infoAbsence(lireAbsence(row.comment)!.categorie).label.toLowerCase()}` : "Rapport du soir") : `Dépense du ${ddmm(row.expense_date || row.created_at)}`}
                   </div>
                 </button>
                 <span className="v2-num" style={{ fontSize: 14 }}>{formatAmount(kind === "report" ? row.net_after_expenses : row.amount)}</span>

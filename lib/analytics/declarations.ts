@@ -19,6 +19,7 @@
  * Quand les courses Yango sont importées, elles servent de témoin : des courses
  * un jour sans déclaration, ou un jour déclaré « repos », sont une incohérence.
  */
+import { lireAbsence, type CategorieAbsence } from "@/lib/absence";
 import { isDriverActiveOn, type DriverActivityFields } from "@/lib/drivers";
 
 export const CAT_CARBURANT = "Carburant";
@@ -80,6 +81,8 @@ export interface Case {
   depenses: { nombre: number; montant: number; enAttente: number };
   coursesYango: number | null;
   alertes: Alerte[];
+  /** Type d'absence quand la journée est un « repos » au sens large (repos, panne, congé, malade). */
+  absence: CategorieAbsence | null;
 }
 export interface LigneChauffeur {
   id: string;
@@ -107,7 +110,7 @@ export interface SuiviDeclarations {
 }
 
 const jourSuivant = (iso: string, n = 1) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
-const estRepos = (r: RapportLigne) => (r.comment ?? "").trimStart().startsWith("[REPOS]");
+const estRepos = (r: RapportLigne) => lireAbsence(r.comment) != null;
 const recetteDe = (r: RapportLigne) => {
   const detail = (r.yango_gross ?? 0) + (r.off_yango_revenue ?? 0);
   return detail > 0 ? detail : r.gross_earnings ?? 0;
@@ -198,6 +201,7 @@ export function suiviDeclarations(input: {
 
       const cas: Case = {
         jour, recette, ca: r && !estRepos(r) ? recetteDe(r) : null, source: r?.source ?? null,
+        absence: recette === "repos" && r ? lireAbsence(r.comment)!.categorie : null,
         rejetee: !r && rejetes.has(k), carburant,
         depenses: {
           nombre: dep.length, montant: dep.reduce((s, d) => s + (d.amount ?? 0), 0),
