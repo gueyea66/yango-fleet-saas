@@ -9,6 +9,7 @@
  * clairs côté API et les tests.
  */
 import { CAT_AVANCE, EXPENSE_CATEGORIES } from "./expenseCategories";
+import { estCategorieAbsence, type CategorieAbsence } from "./absence";
 
 export const ISO_JOUR = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -80,7 +81,7 @@ export function validerDecaissement(b: Record<string, unknown>, today: string): 
 
 /** Un repos se planifie à l'avance (calendrier) : jusqu'à 3 mois devant, contrairement aux saisies d'argent. */
 export const REPOS_HORIZON_JOURS = 92;
-export interface SaisieReposInput { driver_id: string; date: string; motif: string | null }
+export interface SaisieReposInput { driver_id: string; date: string; motif: string | null; categorie: CategorieAbsence }
 
 /**
  * Jour de repos saisi par l'exploitation pour un chauffeur : un rapport
@@ -92,7 +93,10 @@ export function validerRepos(b: Record<string, unknown>, today: string): Ok<Sais
   if (!UUID.test(driver_id)) return { ok: false, error: "Chauffeur requis" };
   const max = new Date(Date.parse(today) + REPOS_HORIZON_JOURS * 86400000).toISOString().slice(0, 10);
   if (!ISO_JOUR.test(date) || Number.isNaN(Date.parse(date)) || date < "2020-01-01" || date > max) return { ok: false, error: "Date de repos invalide" };
-  return { ok: true, value: { driver_id, date, motif: nettoie(b.motif, 200) } };
+  // catégorie absente (anciens appels) = repos
+  const categorie = b.categorie == null || b.categorie === "" ? "repos" : b.categorie;
+  if (!estCategorieAbsence(categorie)) return { ok: false, error: "Type d'absence invalide" };
+  return { ok: true, value: { driver_id, date, motif: nettoie(b.motif, 200), categorie } };
 }
 
 /**

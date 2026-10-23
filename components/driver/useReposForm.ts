@@ -4,11 +4,13 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "./shared";
+import { commentaireAbsence, type CategorieAbsence } from "@/lib/absence";
 
 export function useReposForm(profile: Profile) {
   const today = new Date().toISOString().split("T")[0];
   const [date, setDate] = useState(today);
   const [motif, setMotif] = useState("");
+  const [categorie, setCategorie] = useState<CategorieAbsence>("repos");
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [existing, setExisting] = useState<any[]>([]);
@@ -48,7 +50,7 @@ export function useReposForm(profile: Profile) {
         date,
         source: "saas",
         status: "submitted",
-        comment: `[REPOS]${motif ? " " + motif.trim() : ""}`,
+        comment: commentaireAbsence(categorie, motif),
         gross_earnings: 0,
         yango_gross: 0,
         yango_bonus: 0,
@@ -68,5 +70,5 @@ export function useReposForm(profile: Profile) {
     finally { setSaving(false); }
   };
 
-  return { today, date, setDate, motif, setMotif, saving, submitted, setSubmitted, existing, submit };
+  return { today, date, setDate, motif, setMotif, categorie, setCategorie, saving, submitted, setSubmitted, existing, submit };
 }

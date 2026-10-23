@@ -1,5 +1,6 @@
 "use client";
 
+import { infoAbsence, lireAbsence, motifAbsence } from "@/lib/absence";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Check, CircleCheck, TriangleAlert, MessageSquare, Sparkles, Info, ChevronDown, ChevronRight } from "lucide-react";
 import { Badge, Button, Segmented, Toast } from "@/components/ui";
@@ -139,7 +140,7 @@ export function PendingV2({ reports, expenses, loading, onRefresh }: {
                   {hy
                     ? `${shortDayFr(hy.jour)} · hors ${platLabel()}${hy.courses ? ` · ${hy.courses} course(s)` : ""}`
                     : isReport
-                      ? `${shortDayFr(x.date)} · ${repos ? "jour de repos" : x.yango_trip_count ? `${x.yango_trip_count} courses` : "rapport"}`
+                      ? `${shortDayFr(x.date)} · ${repos ? `absence · ${infoAbsence(lireAbsence(x.comment)?.categorie ?? "repos").label.toLowerCase()}` : x.yango_trip_count ? `${x.yango_trip_count} courses` : "rapport"}`
                       : `${shortDayFr((x.expense_date || x.created_at || "").slice(0, 10))} · ${x.category === CAT_AVANCE ? "Décaissement" : displayLabel(x.category || "Autre")}`}
                 </span>
               </button>
@@ -223,7 +224,7 @@ export function ReportPanel({ report, onRefresh, onAction, ops }: { report: any;
 
   return (
     <PanelShell
-      title={`${name} · ${repos ? "repos" : "rapport"} du ${shortDayFr(report.date).split(" ")[1]}`}
+      title={`${name} · ${repos ? infoAbsence(lireAbsence(report.comment)?.categorie ?? "repos").label.toLowerCase() : "rapport"} du ${shortDayFr(report.date).split(" ")[1]}`}
       sub={[ctx.plate, report.created_at ? `envoyé à ${hhmm(report.created_at)}` : null].filter(Boolean).join(" · ")}
       badge={ctx.extraction ? (
         <Badge tone="ai" square style={{ padding: "5px 10px", fontSize: 12 }}>
@@ -292,7 +293,7 @@ export function ReportPanel({ report, onRefresh, onAction, ops }: { report: any;
               <MessageSquare size={16} aria-hidden style={{ color: "var(--sk-t2)", flex: "none", marginTop: 2 }} />« {report.comment} »
             </div>
           )}
-          {repos && <Check2>Jour de repos déclaré{report.comment.replace("[REPOS]", "").trim() ? ` : ${report.comment.replace("[REPOS]", "").trim()}` : ""}</Check2>}
+          {repos && <Check2>Absence déclarée : {infoAbsence(lireAbsence(report.comment)?.categorie ?? "repos").label.toLowerCase()}{motifAbsence(report.comment) ? ` · ${motifAbsence(report.comment)}` : ""}</Check2>}
 
           <label style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 13, color: "var(--v2-muted)" }}>
             Commentaire / motif de rejet (visible par le chauffeur en cas de rejet)

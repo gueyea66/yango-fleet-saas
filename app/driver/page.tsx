@@ -27,6 +27,8 @@ import { useDriverPilotageStats } from "@/components/driver/useDriverPilotageSta
 import { UploadBlock, ReportHistoryCard, ExpenseCard, DriverAvancesSection } from "@/components/driver/DriverCards";
 import { useUiV2 } from "@/components/v2/useUiV2";
 import DriverAppV2 from "@/components/v2/driver/DriverAppV2";
+import { ChoixAbsence, PastilleAbsence } from "@/components/absence/ChoixAbsence";
+import { infoAbsence, lireAbsence } from "@/lib/absence";
 
 function calcReport(yangoGross: number, yangoBonus: number, offYango: number, cfg: Cfg) {
   const base = yangoGross + yangoBonus;
@@ -141,7 +143,7 @@ export default function DriverApp() {
     ["home",    Home,          "Accueil"],
     ["report",  ClipboardList, "Rapport"],
     ["expense", Wallet,        "Dépense"],
-    ["repos",   BedDouble,     "Repos"],
+    ["repos",   BedDouble,     "Absence"],
     ["history", History,       "Historique"],
     ["pilotage",Target,        "Pilotage"],
   ];
@@ -913,12 +915,12 @@ function ProfilTab({ profile, onBack }: { profile: Profile; onBack: () => void }
 
 // ─── REPOS TAB ───────────────────────────────────────
 function ReposTab({ profile, onBack }: { profile: Profile; onBack: () => void }) {
-  const { date, setDate, motif, setMotif, saving, submitted, existing, submit } = useReposForm(profile);
+  const { date, setDate, motif, setMotif, categorie, setCategorie, saving, submitted, existing, submit } = useReposForm(profile);
 
   if (submitted) return (
     <div className="p-6 pt-16 text-center">
       <div className="flex justify-center mb-4"><CheckCircle2 size={48} strokeWidth={1.8} style={{ color: "#22c55e" }} /></div>
-      <div className="text-lg font-semibold text-white mb-2">Jour de repos déclaré</div>
+      <div className="text-lg font-semibold text-white mb-2">Absence déclarée : {infoAbsence(categorie).label.toLowerCase()}</div>
       <div className="text-sm mb-6" style={{ color: "var(--sk-t3)" }}>En attente de validation admin</div>
       <button onClick={onBack} className="px-6 py-2.5 rounded-xl text-sm font-bold text-black" style={{ background: "linear-gradient(135deg,var(--tenant-color),var(--tenant-color-dark))" }}>
         Retour accueil
@@ -931,16 +933,20 @@ function ReposTab({ profile, onBack }: { profile: Profile; onBack: () => void })
 
   return (
     <div className="p-4">
-      <BackHeader title="Déclarer un jour de repos" icon={BedDouble} onBack={onBack} />
+      <BackHeader title="Déclarer une absence" icon={BedDouble} onBack={onBack} />
       <div className="space-y-4">
         <div className="rounded-2xl p-4" style={{ background: "rgba(var(--tenant-color-rgb),.04)", border: "1px solid rgba(var(--tenant-color-rgb),.15)" }}>
           <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: "var(--tenant-color)" }}>Information</div>
           <div className="text-xs" style={{ color: "var(--sk-t2)" }}>
-            La déclaration de repos permet à l'admin de tracer les jours non travaillés. Elle sera soumise à validation et n'impacte pas vos revenus.
+            Repos, panne, congé ou maladie : la déclaration permet à l'admin de tracer les jours non travaillés. Elle sera soumise à validation et n'impacte pas vos revenus.
           </div>
         </div>
 
-        <Field label="Date du repos (passé ou futur)">
+        <Field label="Type d'absence">
+          <ChoixAbsence value={categorie} onChange={setCategorie} />
+        </Field>
+
+        <Field label="Date (passée ou future)">
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
             className="w-full rounded-xl px-4 py-3 text-sm outline-none"
             style={{ background: "var(--sk-deep)", border: "1px solid var(--sk-surface)", color: "var(--sk-t1)", colorScheme: "inherit" as any }} />
@@ -948,7 +954,7 @@ function ReposTab({ profile, onBack }: { profile: Profile; onBack: () => void })
 
         <Field label="Motif (optionnel)">
           <InpTextarea
-            placeholder="Ex: Congé personnel, maladie, entretien véhicule..."
+            placeholder="Ex: garage, rendez-vous médical, voyage..."
             value={motif}
             onChange={setMotif}
             disabled={false}
@@ -956,21 +962,24 @@ function ReposTab({ profile, onBack }: { profile: Profile; onBack: () => void })
         </Field>
 
         <BtnPrimary onClick={submit} disabled={saving || !date}>
-          {saving ? "Envoi..." : "Soumettre le jour de repos →"}
+          {saving ? "Envoi..." : `Déclarer : ${infoAbsence(categorie).label.toLowerCase()} →`}
         </BtnPrimary>
 
         {/* Historique repos du mois */}
         {existing.length > 0 && (
           <div className="rounded-2xl overflow-hidden" style={{ border: "1px solid var(--sk-surface)" }}>
             <div className="px-4 py-3 text-xs font-bold uppercase tracking-wider" style={{ background: "var(--sk-bg)", color: "var(--sk-t3)" }}>
-              Repos déclarés / planifiés (mois précédent → +2 mois)
+              Absences déclarées / planifiées (mois précédent → +2 mois)
             </div>
             {existing.map((r) => (
               <div key={r.date} className="flex items-center justify-between px-4 py-3" style={{ borderTop: "1px solid var(--sk-bg)", background: "var(--sk-deep)" }}>
-                <div>
-                  <div className="text-sm text-white font-mono">{r.date}</div>
-                  <div className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>
-                    {r.comment?.replace("[REPOS]", "").trim() || "Pas de motif"}
+                <div className="flex items-center gap-3">
+                  <PastilleAbsence categorie={lireAbsence(r.comment)?.categorie ?? "repos"} taille={22} />
+                  <div>
+                    <div className="text-sm text-white font-mono">{r.date}</div>
+                    <div className="text-xs mt-0.5" style={{ color: "var(--sk-t3)" }}>
+                      {infoAbsence(lireAbsence(r.comment)?.categorie ?? "repos").label}{lireAbsence(r.comment)?.motif ? ` · ${lireAbsence(r.comment)!.motif}` : ""}
+                    </div>
                   </div>
                 </div>
                 <div className="text-xs font-semibold px-2 py-1 rounded-full" style={{ background: statusColor(r.status) + "20", color: statusColor(r.status) }}>

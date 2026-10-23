@@ -2,7 +2,8 @@
 /**
  * /api/admin/repos — jour de repos saisi par l'exploitation pour un chauffeur.
  *
- *   POST { driver_id, date, motif? }  → { id, status }
+ *   POST { driver_id, date, motif?, categorie? }  → { id, status }
+ *   categorie : repos (défaut) | panne | conge | malade — voir lib/absence.ts
  *
  * Même ligne que la déclaration du chauffeur : un daily_reports « [REPOS] » à
  * zéro. Un valideur l'enregistre validé ; un profil « saisie seule » le dépose
@@ -17,6 +18,7 @@ import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdminAuth } from "@/lib/auth/server";
 import { validerRepos } from "@/lib/operateur";
+import { commentaireAbsence } from "@/lib/absence";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +35,7 @@ export async function POST(req: NextRequest) {
     const { tenantId, userId } = await requireAdminAuth();
     const v = validerRepos(await req.json().catch(() => ({})), new Date().toISOString().slice(0, 10));
     if (!v.ok) return bad(v.error);
-    const { driver_id, date, motif } = v.value;
+    const { driver_id, date, motif, categorie } = v.value;
 
     const [{ data: moi }, { data: chauffeur }] = await Promise.all([
       admin.from("profiles").select("*").eq("id", userId).eq("tenant_id", tenantId).maybeSingle(),
@@ -54,7 +56,7 @@ export async function POST(req: NextRequest) {
       tenant_id: tenantId, driver_id, date,
       status: valide ? "approved" : "submitted",
       ...(valide ? { approved_by: userId, approved_at: new Date().toISOString() } : {}),
-      comment: `[REPOS]${motif ? " " + motif : ""}`,
+      comment: commentaireAbsence(categorie, motif),
       gross_earnings: 0, yango_gross: 0, yango_bonus: 0, off_yango_revenue: 0,
       net_after_expenses: 0, commission_rate: 0, commission_amount: 0, expense_count: 0,
     }).select("id, status").single();
@@ -68,7 +70,7 @@ export async function POST(req: NextRequest) {
     await admin.from("action_logs").insert({
       tenant_id: tenantId, actor_id: userId, actor_role: "admin",
       entity_type: "report", entity_id: data.id, action: valide ? "approved" : "created",
-      metadata: { source: "operateur", repos: true, date, driver_id, ...(motif ? { motif } : {}) },
+      metadata: { source: "operateur", repos: true, categorie, date, driver_id, ...(motif ? { motif } : {}) },
     }).then(() => undefined, () => undefined);
     return NextResponse.json({ id: data.id, status: data.status });
   } catch (err: any) {

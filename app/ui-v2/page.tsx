@@ -247,7 +247,7 @@ function DeclarationsDemo() {
       const serieux = c.id === "c1" ? 1 : c.id === "c3" ? 0.6 : 0.88;
       for (let n = jours - 1; n >= 1; n--) {
         const d = jour(n), tirage = alea();
-        if (tirage < 0.12) { rapports.push({ driver_id: c.id, date: d, status: "approved", comment: "[REPOS]", yango_gross: 0 }); if (c.id === "c5" && n === 3) courses.set(cleCourses(c.yango_driver_id, d), 11); continue; }
+        if (tirage < 0.12) { rapports.push({ driver_id: c.id, date: d, status: "approved", comment: ["[REPOS]", "[REPOS][PANNE] garage", "[REPOS][CONGE]", "[REPOS][MALADE]"][Math.floor(tirage * 33) % 4], yango_gross: 0 }); if (c.id === "c5" && n === 3) courses.set(cleCourses(c.yango_driver_id, d), 11); continue; }
         courses.set(cleCourses(c.yango_driver_id, d), 14 + Math.floor(alea() * 8));
         if (alea() > serieux) continue; // rien déclaré alors que Yango a tourné
         if (c.id === "c2" && n === 5) { rapports.push({ driver_id: c.id, date: d, status: "approved", yango_gross: 0 }); courses.delete(cleCourses(c.yango_driver_id, d)); continue; }

@@ -67,7 +67,7 @@ export function HomeV2({ profile, cfg, aiEnabled, onNav }: {
 
       <Card mobile flush>
         <ListRow icon={Receipt} label="Ajouter une dépense" chevron onClick={() => onNav("expense")} />
-        <ListRow icon={BedDouble} label="Repos" chevron onClick={() => onNav("repos")} />
+        <ListRow icon={BedDouble} label="Absence" chevron onClick={() => onNav("repos")} />
         <ListRow icon={History} label="Historique" chevron divider={false} onClick={() => onNav("history")} />
       </Card>
     </>
